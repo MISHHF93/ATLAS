@@ -1,4 +1,4 @@
-"""Deterministic local tree challenger and purged walk-forward baseline-vs-tree study.
+"""Deterministic local tree challenger, purged walk-forward study, and feature ablations.
 
 Training produces an immutable research challenger only (`execution_permission: none`).
 No automatic promotion, live weight mutation, or ensemble combiner is enabled.
@@ -11,7 +11,6 @@ from statistics import mean
 from typing import Literal
 
 from atlas.marketdata.frozen import FrozenDatasetBundle, build_frozen_benchmark_dataset
-from atlas.models.calendars import MarketCalendar
 from atlas.models.evaluation import EvaluationReport, EvaluationRow, evaluate, evaluate_groups
 from atlas.models.regimes import RegimeConfig, classify_regime
 from atlas.models.schemas import (
@@ -70,10 +69,13 @@ def fit_boosted_regression_tree(
     dataset_id: str,
     boost_rounds: int = 3,
     learning_rate: float = 0.5,
+    active_feature_indices: tuple[int, ...] = (0, 1, 2),
 ) -> FittedRegressionTree:
     """Fit a deterministic boosted decision-stump tree on chronological observations."""
     if len(observations) < 8:
         raise ValueError("Need at least 8 chronological observations to fit tree challenger")
+    if not active_feature_indices:
+        raise ValueError("active_feature_indices cannot be empty")
 
     X: list[tuple[float, float, float]] = []
     y: list[float] = []
@@ -89,8 +91,8 @@ def fit_boosted_regression_tree(
 
     for _ in range(boost_rounds):
         best_loss = float("inf")
-        best_node = TreeSplitNode(feature_index=0, threshold=0.0, left_value=0.0, right_value=0.0)
-        for feat_idx in range(3):
+        best_node = TreeSplitNode(feature_index=active_feature_indices[0], threshold=0.0, left_value=0.0, right_value=0.0)
+        for feat_idx in active_feature_indices:
             candidates = sorted({row[feat_idx] for row in X})
             for threshold in candidates:
                 left_res = [residuals[i] for i, row in enumerate(X) if row[feat_idx] <= threshold]
@@ -230,6 +232,7 @@ def run_baseline_vs_tree_study(
     purge_bars: int = 1,
     embargo_bars: int = 1,
     cost_bps: float = 4.0,
+    active_feature_indices: tuple[int, ...] = (0, 1, 2),
 ) -> WalkForwardStudyResult:
     """Run a purged chronological walk-forward comparison of Naive vs Local Tree Challenger."""
     if purge_bars < 1 or embargo_bars < 0:
@@ -239,7 +242,11 @@ def run_baseline_vs_tree_study(
 
     obs = active_bundle.observations
     train_obs = tuple(o for o in obs if o.available_at <= active_bundle.manifest.train_end)
-    tree = fit_boosted_regression_tree(train_obs, dataset_id=active_bundle.manifest.dataset_id)
+    tree = fit_boosted_regression_tree(
+        train_obs,
+        dataset_id=active_bundle.manifest.dataset_id,
+        active_feature_indices=active_feature_indices,
+    )
 
     tree_bytes = json.dumps(tree.model_dump(mode="json"), sort_keys=True).encode("utf-8")
     tree_hash = hashlib.sha256(tree_bytes).hexdigest()
@@ -338,3 +345,60 @@ def run_baseline_vs_tree_study(
         feedback=feedback,
     )
 
+
+class FeatureAblationVariant(Record):
+    variant_name: Text
+    active_features: tuple[Text, ...]
+    mae: float
+    naive_mae: float
+    expected_net_return: float
+    directional_accuracy: float
+
+
+class AblationStudyResult(Record):
+    study_id: Text
+    track: Literal["competition", "open_market"]
+    dataset_id: Text
+    variants: tuple[FeatureAblationVariant, ...]
+    execution_permission: Literal["none"] = "none"
+
+
+def run_feature_ablation_study(
+    bundle: FrozenDatasetBundle | None = None,
+    *,
+    cost_bps: float = 4.0,
+) -> AblationStudyResult:
+    """Compare full feature set vs lag-drop and volatility-drop ablations on identical frozen splits."""
+    active_bundle = bundle or build_frozen_benchmark_dataset(track="competition")
+    configs: tuple[tuple[str, tuple[str, ...], tuple[int, ...]], ...] = (
+        ("full_features", ("lag_return_1", "lag_return_2", "rolling_vol_4"), (0, 1, 2)),
+        ("drop_lag_1_ablation", ("lag_return_2", "rolling_vol_4"), (1, 2)),
+        ("drop_volatility_ablation", ("lag_return_1", "lag_return_2"), (0, 1)),
+        ("lag_1_only_baseline", ("lag_return_1",), (0,)),
+    )
+    variants: list[FeatureAblationVariant] = []
+    for name, labels, indices in configs:
+        study = run_baseline_vs_tree_study(
+            active_bundle,
+            purge_bars=1,
+            embargo_bars=1,
+            cost_bps=cost_bps,
+            active_feature_indices=indices,
+        )
+        rep = study.overall_report
+        variants.append(
+            FeatureAblationVariant(
+                variant_name=name,
+                active_features=labels,
+                mae=rep.mae,
+                naive_mae=rep.naive_mae,
+                expected_net_return=rep.expected_net_return,
+                directional_accuracy=rep.directional_accuracy,
+            )
+        )
+    return AblationStudyResult(
+        study_id=f"ablation:{active_bundle.track}:v1",
+        track=active_bundle.track,
+        dataset_id=active_bundle.manifest.dataset_id,
+        variants=tuple(variants),
+    )

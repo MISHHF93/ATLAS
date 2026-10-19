@@ -1,14 +1,16 @@
 """Tests for regime awareness, deterministic trading rules, read-only MCP adapters,
-authoritative calendars, data quality gates, and baseline-vs-tree walk-forward studies.
+authoritative calendars, data quality gates, microstructure covariates, continuous
+24/7 research runner, seasonal/xAI adapters, and baseline-vs-tree walk-forward studies.
 """
 import asyncio
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import json
 import sys
 
 import pytest
-from pydantic import ValidationError
 
+from atlas.ai.policy import PolicyError
 from atlas.control.rules import (
     AccountRiskSnapshot,
     ProposedTradeCheck,
@@ -17,7 +19,18 @@ from atlas.control.rules import (
 )
 from atlas.marketdata.frozen import build_frozen_benchmark_dataset
 from atlas.marketdata.mcp_adapters import MCPDataSourceAdapter
+from atlas.marketdata.microstructure import (
+    RawMicrostructureEvent,
+    WhaleMicrostructurePolicy,
+    normalize_microstructure_covariates,
+)
 from atlas.marketdata.quality import validate_market_data_batch
+from atlas.models.adapters import (
+    NaiveForecastProvider,
+    SeasonalStatisticalForecastProvider,
+    XAINarratorAdapter,
+    estimate_token_usage,
+)
 from atlas.models.calendars import (
     MaintenanceWindow,
     MarketCalendar,
@@ -28,21 +41,33 @@ from atlas.models.challengers import (
     LocalTreeChallengerProvider,
     fit_boosted_regression_tree,
     run_baseline_vs_tree_study,
+    run_feature_ablation_study,
 )
+from atlas.models.continuous import ContinuousResearchRunner
+from atlas.models.evaluation import (
+    HierarchyAggregationMap,
+    ProbabilityCalibrator,
+    score_multi_output_forecasts,
+    verify_hierarchical_coherence,
+)
+from atlas.models.model_store import SQLiteModelRegistry
+from atlas.models.orchestrator import ModelOrchestrator
 from atlas.models.regimes import (
     RegimeConfig,
     ScheduledMacroEvent,
     classify_regime,
 )
-from atlas.models.registry import ProviderRegistry
+from atlas.models.registry import InMemoryModelRegistry, MetadataRegistry, ProviderRegistry
 from atlas.models.runtime import ProviderRuntime
 from atlas.models.schemas import (
     AssetClass,
     Capability,
+    Eligibility,
     ForecastRequest,
     Horizon,
     Instrument,
     MarketDataRequest,
+    ModelRecord,
     ModelRef,
     Observation,
 )
@@ -50,12 +75,12 @@ from atlas.models.schemas import (
 NOW = datetime(2026, 10, 19, 14, 0, tzinfo=timezone.utc)
 
 
-def _sample_instrument(calendar_ref: str = "us-equity:xnys:v1") -> Instrument:
+def _sample_instrument(calendar_ref: str = "us-equity:xnys:v1", asset_class: AssetClass = AssetClass.ETF) -> Instrument:
     return Instrument(
         instrument_id="test:spy:v1",
         venue="XNYS",
         symbol="SPY",
-        asset_class=AssetClass.ETF,
+        asset_class=asset_class,
         quote_currency="USD",
         contract_size="1",
         tick_size="0.01",
@@ -87,18 +112,12 @@ def test_authoritative_calendar_sessions_holidays_maintenance_and_funding() -> N
             ),
         ),
     )
-    # 13:35 UTC is 5 mins after 13:30 UTC open (20:00 close - 390 mins) -> opening_auction
     assert calendar_session_state(trad_cal, as_of=datetime(2026, 10, 19, 13, 35, tzinfo=timezone.utc)) == "opening_auction"
-    # 16:00 UTC is mid-session -> regular_open
     assert calendar_session_state(trad_cal, as_of=datetime(2026, 10, 19, 16, 0, tzinfo=timezone.utc)) == "regular_open"
-    # 19:50 UTC is 10 mins before 20:00 UTC close -> closing_auction
     assert calendar_session_state(trad_cal, as_of=datetime(2026, 10, 19, 19, 50, tzinfo=timezone.utc)) == "closing_auction"
-    # 22:30 UTC is inside maintenance window -> maintenance
     assert calendar_session_state(trad_cal, as_of=datetime(2026, 10, 19, 22, 30, tzinfo=timezone.utc)) == "maintenance"
-    # 2026-10-20 is a declared holiday -> holiday_closed
     assert calendar_session_state(trad_cal, as_of=datetime(2026, 10, 20, 15, 0, tzinfo=timezone.utc)) == "holiday_closed"
 
-    # Target construction skips 2026-10-20 holiday automatically
     inst = _sample_instrument()
     hor = Horizon(
         horizon_id="swing:2d:v1",
@@ -113,7 +132,6 @@ def test_authoritative_calendar_sessions_holidays_maintenance_and_funding() -> N
     targets = construct_authoritative_targets(inst, hor, trad_cal, as_of=NOW)
     assert targets == (session_close, third_close)
 
-    # Crypto calendar funding window detection
     crypto_cal = MarketCalendar(
         calendar_ref="crypto:perp:v1",
         market_type="continuous_crypto",
@@ -125,7 +143,6 @@ def test_authoritative_calendar_sessions_holidays_maintenance_and_funding() -> N
 
 
 def test_causal_regime_detection_and_unknown_handling() -> None:
-    # Insufficient observations -> volatility and trend stay "unknown"
     short_obs = (
         Observation(event_time=NOW - timedelta(minutes=10), available_at=NOW - timedelta(minutes=9), value=100.0),
         Observation(event_time=NOW - timedelta(minutes=5), available_at=NOW - timedelta(minutes=4), value=101.0),
@@ -136,7 +153,6 @@ def test_causal_regime_detection_and_unknown_handling() -> None:
     assert unknown_state.execution_permission == "none"
     assert unknown_state.to_feature_value().quality == "unknown"
 
-    # Shock volatility + uptrend + pre-event macro window
     shock_obs = tuple(
         Observation(
             event_time=NOW - timedelta(minutes=30 - i * 5),
@@ -173,14 +189,12 @@ def test_causal_regime_detection_and_unknown_handling() -> None:
     assert state.macro_event == "pre_event"
     assert state.to_feature_value().quality == "verified"
 
-    # Future observation availability must be rejected
     future_obs = (*shock_obs, Observation(event_time=NOW, available_at=NOW + timedelta(seconds=10), value=120.0))
     with pytest.raises(ValueError, match="Future observation"):
         classify_regime(as_of=NOW, instrument_id="comp:btc-perp:v1", observations=future_obs)
 
 
 def test_deterministic_trading_rules_default_deny_and_enforcement() -> None:
-    # Verify control plane does not import LLM modules
     import atlas.control.rules as rules_mod
     assert "atlas.ai" not in sys.modules or not any(
         k.startswith("atlas.ai") for k in rules_mod.__dict__.values() if isinstance(k, str)
@@ -210,7 +224,6 @@ def test_deterministic_trading_rules_default_deny_and_enforcement() -> None:
         license_verified=True,
     )
 
-    # Unconfigured rulebook defaults to DENY
     unconfigured = TradingRuleBook(
         rulebook_id="empty:v1",
         revision="1",
@@ -222,7 +235,6 @@ def test_deterministic_trading_rules_default_deny_and_enforcement() -> None:
     assert any(v.startswith("default_deny_unconfigured:") for v in denied_report.violations)
     assert denied_report.execution_permission == "none"
 
-    # Configured competition rulebook passes compliant trade but keeps execution_permission="none"
     comp_rules = TradingRuleBook(
         rulebook_id="prop:v1",
         revision="1",
@@ -248,12 +260,11 @@ def test_deterministic_trading_rules_default_deny_and_enforcement() -> None:
     assert ok_report.execution_permission == "none"
     assert not ok_report.auto_flatten_required
 
-    # Breach daily loss, trailing drawdown, consistency rule, and kill switch -> triggers auto-flatten
     breached_account = account.model_copy(
         update={
-            "current_equity_usd": Decimal("91000"),  # >5% daily loss and >10% trailing DD from 102k
+            "current_equity_usd": Decimal("91000"),
             "best_day_profit_usd": Decimal("1800"),
-            "total_cumulative_profit_usd": Decimal("2000"),  # 90% single day profit share > 40%
+            "total_cumulative_profit_usd": Decimal("2000"),
             "kill_switch_engaged": True,
         }
     )
@@ -283,7 +294,6 @@ def test_mcp_read_only_allowlist_and_fred_training_prohibition() -> None:
             ],
         }
 
-    # Forbidden mutating MCP server (`irohan0/quant-mcp`) is rejected on construction
     with pytest.raises(ValueError, match="disallowed"):
         MCPDataSourceAdapter(
             "irohan0/quant-mcp",
@@ -308,7 +318,6 @@ def test_mcp_read_only_allowlist_and_fred_training_prohibition() -> None:
     registry.register(adapter)
     assert len(registry.discover(Capability.DATA_SOURCE)) == 1
 
-    # Write or non-allowlisted tool call is rejected before transport
     bad_req = MarketDataRequest(
         request_id="req-bad",
         provider_id="financial_datasets_mcp",
@@ -336,7 +345,6 @@ def test_mcp_read_only_allowlist_and_fred_training_prohibition() -> None:
     assert verified_batch.quality == "verified"
     assert report.quality_status == "verified"
 
-    # FRED source is explicitly rejected for training/retention per Decision #29
     fred_batch = batch.model_copy(
         update={
             "provenance": batch.provenance.model_copy(
@@ -369,7 +377,10 @@ def test_frozen_dataset_and_purged_walk_forward_baseline_vs_tree_study() -> None
     assert study.overall_report.samples >= 4
     assert study.regime_reports
 
-    # Verify LocalTreeChallengerProvider enforces lookahead boundary
+    ablation = run_feature_ablation_study(comp_bundle, cost_bps=4.0)
+    assert len(ablation.variants) == 4
+    assert ablation.execution_permission == "none"
+
     tree = fit_boosted_regression_tree(comp_bundle.observations[:24], dataset_id=comp_bundle.manifest.dataset_id)
     provider = LocalTreeChallengerProvider(tree)
     model_ref = ModelRef(provider_id="local_tree", model_id="boosted_stump_v1", revision="1")
@@ -390,3 +401,306 @@ def test_frozen_dataset_and_purged_walk_forward_baseline_vs_tree_study() -> None
     with pytest.raises(ValueError, match="lookahead"):
         asyncio.run(provider.forecast(model_ref, early_req))
 
+
+def test_whale_microstructure_normalization_and_asset_class_boundary() -> None:
+    crypto_inst = _sample_instrument(calendar_ref="crypto:perp:v1", asset_class=AssetClass.CRYPTO_DERIVATIVE)
+    equity_inst = _sample_instrument(calendar_ref="us-equity:xnys:v1", asset_class=AssetClass.ETF)
+
+    events = (
+        RawMicrostructureEvent(
+            event_id="evt-1",
+            kind="exchange_inflow",
+            instrument_id=crypto_inst.instrument_id,
+            event_time=NOW - timedelta(minutes=10),
+            available_at=NOW - timedelta(minutes=9),
+            value=1250.0,
+            unit="BTC",
+            source="onchain_fixture",
+            lineage_ref="onchain:v1",
+            license_ref="internal:licensed",
+            attribution_confidence=0.90,
+            confirmations=12,
+            is_internal_custody_reshuffle=False,
+        ),
+        # Internal custody reshuffle must be excluded automatically
+        RawMicrostructureEvent(
+            event_id="evt-reshuffle",
+            kind="large_transfer",
+            instrument_id=crypto_inst.instrument_id,
+            event_time=NOW - timedelta(minutes=8),
+            available_at=NOW - timedelta(minutes=7),
+            value=5000.0,
+            unit="BTC",
+            source="onchain_fixture",
+            lineage_ref="onchain:v1",
+            license_ref="internal:licensed",
+            is_internal_custody_reshuffle=True,
+        ),
+        # Low confirmations -> marked quality="unknown"
+        RawMicrostructureEvent(
+            event_id="evt-unconfirmed",
+            kind="exchange_outflow",
+            instrument_id=crypto_inst.instrument_id,
+            event_time=NOW - timedelta(minutes=5),
+            available_at=NOW - timedelta(minutes=4),
+            value=300.0,
+            unit="BTC",
+            source="onchain_fixture",
+            lineage_ref="onchain:v1",
+            license_ref="internal:licensed",
+            confirmations=1,
+        ),
+    )
+    features = normalize_microstructure_covariates(events, crypto_inst, as_of=NOW)
+    assert len(features) == 2
+    assert features[0].quality == "verified"
+    assert features[1].quality == "unknown"
+
+    # Applying an on-chain wallet feature to an Equity/ETF must raise ValueError
+    with pytest.raises(ValueError, match="not valid for asset_class"):
+        normalize_microstructure_covariates(events[:1], equity_inst, as_of=NOW)
+
+
+def test_seasonal_statistical_xai_narrator_and_multi_horizon_coherence() -> None:
+    bundle = build_frozen_benchmark_dataset(track="competition", anchor=NOW)
+    stat_provider = SeasonalStatisticalForecastProvider(seasonal_period=4, ewma_alpha=0.4)
+    req = ForecastRequest(
+        request_id="req-stat",
+        instrument_id=bundle.instrument.instrument_id,
+        horizon_id="1h:v1",
+        as_of=NOW,
+        target="price",
+        unit="USD",
+        observations=bundle.observations[-8:],
+        target_times=(NOW + timedelta(hours=1), NOW + timedelta(hours=2)),
+        dataset_id=bundle.manifest.dataset_id,
+        data_license_ref="internal",
+        quality="verified",
+    )
+    seasonal_fc = asyncio.run(
+        stat_provider.forecast(ModelRef(provider_id="statistical_baseline", model_id="seasonal_naive", revision="1"), req)
+    )
+    ewma_fc = asyncio.run(
+        stat_provider.forecast(ModelRef(provider_id="statistical_baseline", model_id="ewma_level", revision="1"), req)
+    )
+    assert len(seasonal_fc.points) == 2
+    assert ewma_fc.points[0].lower is not None
+
+    lead_report = score_multi_output_forecasts([ewma_fc], [(ewma_fc.points[0].value, ewma_fc.points[1].value)])
+    assert lead_report.mae_by_step == (0.0, 0.0)
+    assert lead_report.joint_interval_coverage == 1.0
+
+    hmap = HierarchyAggregationMap(
+        hierarchy_id="crypto_basket:v1",
+        parent_node="total_notional",
+        child_nodes=("btc_notional", "eth_notional"),
+        weights=(1.0, 1.0),
+    )
+    coherent, diff = verify_hierarchical_coherence(
+        hmap,
+        {"total_notional": (150.0, 160.0), "btc_notional": (100.0, 105.0), "eth_notional": (50.0, 55.0)},
+    )
+    assert coherent and diff == 0.0
+
+    # Metered token pricing & xAI narrator privacy mode and secret screening
+    usage = estimate_token_usage("gemini-3.8-flash", 100_000, 20_000)
+    assert usage.cost_usd == Decimal("0.150000")
+
+    async def mock_xai_transport(model: str, context: str) -> dict:
+        return {
+            "text": json.dumps({
+                "regime": "volatile",
+                "summary": "Mocked xAI narrator note.",
+                "confidence": 0.4,
+                "risk_flags": ["uncalibrated"],
+            }),
+            "input_tokens": 500,
+            "output_tokens": 100,
+        }
+
+    xai = XAINarratorAdapter(zdr_enabled=True, transport=mock_xai_transport)
+    assert xai.privacy_mode == "xai:zdr_enabled"
+    envelope = asyncio.run(xai.research_metered("Plain market observations"))
+    assert envelope.note.regime == "volatile"
+    assert envelope.usage.cost_usd == Decimal("0.001600")
+    with pytest.raises(PolicyError, match="secret"):
+        asyncio.run(xai.research_metered("xai-1234567890abcdefghijklmnop"))
+
+
+def test_sqlite_durable_approvals_calibrators_and_continuous_runner_halt(tmp_path) -> None:
+    store = SQLiteModelRegistry(tmp_path / "durable.sqlite")
+    model = ModelRef(provider_id="naive", model_id="last_value", revision="1")
+    store.register(
+        ModelRecord(
+            model=model,
+            artifact_uri="builtin:naive",
+            artifact_sha256="a" * 64,
+            dataset_id="frozen:v1",
+            experiment_id="exp:v1",
+            license_ref="internal",
+            commercial_use_verified=True,
+        )
+    )
+    app_rec = Eligibility(
+        model=model,
+        instrument_id="comp:btc-perp:v1",
+        horizon_id="1h:v1",
+        target="price",
+        unit="USD",
+        strategy_family="baseline",
+        evaluation_ref="eval:v1",
+        approver="founder",
+        approved_at=NOW - timedelta(hours=1),
+        expires_at=NOW + timedelta(hours=4),
+        max_cost_bps=10.0,
+        min_liquidity_score=0.5,
+        research_approved=True,
+    )
+    key = store.register_approval(app_rec)
+    assert len(store.list_approvals()) == 1
+    revoked = store.revoke_approval(key, reviewer="founder_audit")
+    assert not revoked.research_approved
+    assert [action for action, _, _ in store.approval_history(key)] == ["approve", "revoke"]
+
+    cal = ProbabilityCalibrator.fit(
+        probabilities=[0.7] * 20,
+        outcomes=[1] * 14 + [0] * 6,
+        calibration_id="cal:sqlite:v1",
+        instrument_id="comp:btc-perp:v1",
+        horizon_id="1h:v1",
+        model_revision="1",
+        target="price",
+        unit="USD",
+        fitted_through=NOW - timedelta(hours=2),
+    )
+    store.register_calibrator("naive", "last_value", cal)
+    assert len(store.list_calibrators()) == 1
+
+    # ContinuousResearchRunner: test healthy tick vs automatic halt on hash mismatch (no silent fallback)
+    bundle = build_frozen_benchmark_dataset(track="competition", anchor=NOW)
+    runtime = ProviderRuntime()
+
+    async def transport(provider_id: str, tool_name: str, params: dict) -> dict:
+        return {
+            "upstream_id": "cycle-1",
+            "timezone": "UTC",
+            "adjustment_basis": "raw",
+            "observations": [
+                {
+                    "event_time": o.event_time.isoformat(),
+                    "available_at": o.available_at.isoformat(),
+                    "value": o.value,
+                }
+                for o in bundle.observations[-6:]
+            ],
+        }
+
+    mcp = MCPDataSourceAdapter(
+        "alpha_vantage_mcp",
+        runtime=runtime,
+        transport=transport,
+        venue=bundle.instrument.venue,
+        calendar_ref=bundle.instrument.calendar_ref,
+        license_ref="internal:licensed",
+        allow_retention=True,
+        allow_competition=True,
+    )
+    providers = ProviderRegistry()
+    providers.register(NaiveForecastProvider())
+    instruments, horizons = MetadataRegistry(), MetadataRegistry()
+    instruments.register(bundle.instrument)
+    hor = Horizon(
+        horizon_id="1h:v1",
+        sampling="time",
+        resolution="1h",
+        steps=2,
+        clock="wall",
+        family="intraday",
+        max_data_age_seconds=7200,
+        max_forecast_age_seconds=60,
+    )
+    horizons.register(hor)
+    mem_models = InMemoryModelRegistry()
+    mem_models.register(store.get(model))
+    orch = ModelOrchestrator(
+        providers,
+        instruments,
+        horizons,
+        mem_models,
+        (app_rec,),
+        {"naive": ProviderRuntime()},
+        now=lambda: NOW,
+    )
+    rulebook = TradingRuleBook(
+        rulebook_id="comp:v1",
+        revision="1",
+        track="competition",
+        evidence_ref="doc",
+        max_per_trade_risk_fraction=Decimal("0.01"),
+        min_stop_distance_bps=Decimal("50"),
+        max_daily_loss_fraction=Decimal("0.05"),
+        max_drawdown_fraction=Decimal("0.10"),
+        max_position_notional_usd=Decimal("50000"),
+        max_gross_leverage=Decimal("2.0"),
+        max_correlated_exposure_fraction=Decimal("0.50"),
+        max_sector_exposure_fraction=Decimal("0.50"),
+        max_data_age_seconds=3600.0,
+        max_holding_seconds=7200,
+        min_trading_days=5,
+    )
+    runner = ContinuousResearchRunner(
+        data_provider=mcp,
+        orchestrator=orch,
+        instrument=bundle.instrument,
+        horizon=hor,
+        calendar=bundle.calendar,
+        rulebook=rulebook,
+    )
+    data_req = MarketDataRequest(
+        request_id="cycle-req-1",
+        provider_id="alpha_vantage_mcp",
+        tool_name="DIGITAL_CURRENCY_DAILY",
+        instrument_id=bundle.instrument.instrument_id,
+        as_of=NOW,
+        start_time=NOW - timedelta(hours=6),
+        end_time=NOW,
+    )
+    acct = AccountRiskSnapshot(
+        as_of=NOW,
+        source="fixture",
+        initial_equity_usd=Decimal("100000"),
+        current_equity_usd=Decimal("100000"),
+        high_water_mark_usd=Decimal("100000"),
+        start_of_day_equity_usd=Decimal("100000"),
+        gross_notional_usd=Decimal("10000"),
+        completed_trading_days=5,
+    )
+    cand = ProposedTradeCheck(
+        instrument_id=bundle.instrument.instrument_id,
+        notional_usd=Decimal("10000"),
+        stop_kind="atr",
+        stop_distance_bps=Decimal("100"),
+        holding_horizon_seconds=3600,
+        session_state="continuous_24_7",
+        data_quality="verified",
+        data_age_seconds=10.0,
+        license_verified=True,
+    )
+    healthy = asyncio.run(
+        runner.run_cycle(cycle_id="c1", data_request=data_req, account_snapshot=acct, trade_candidate=cand)
+    )
+    assert healthy.audit_event.scope_status == "healthy"
+    assert healthy.execution_permission == "none"
+
+    halted = asyncio.run(
+        runner.run_cycle(
+            cycle_id="c2",
+            data_request=data_req,
+            account_snapshot=acct,
+            trade_candidate=cand,
+            expected_content_sha256="f" * 64,
+        )
+    )
+    assert halted.audit_event.scope_status == "unavailable_halted"
+    assert halted.audit_event.halt_reason == "integrity_hash_mismatch"
+    assert halted.audit_event.fallback_attempted is False

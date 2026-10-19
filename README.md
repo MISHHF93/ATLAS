@@ -110,5 +110,5 @@ atlas-research "plain observations with no secrets" --workload frequent
 
 Universal foundation, regime classification, deterministic control rules, MCP
 contracts, walk-forward baseline-vs-tree study, and expanded research terminal:
-**73 tests passed** on 2026-10-19; the frontend type check and production build
+**76 tests passed** on 2026-10-19; the frontend type check and production build
 also passed, and the offline demo ran successfully.

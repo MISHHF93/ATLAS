@@ -10,7 +10,7 @@ from typing import Sequence
 
 from pydantic import AwareDatetime, Field, model_validator
 
-from atlas.models.schemas import FiniteFloat, Probability, Record, Text
+from atlas.models.schemas import FiniteFloat, Forecast, Probability, Record, Text
 
 
 class EvaluationRow(Record):
@@ -142,6 +142,7 @@ class ProbabilityCalibrator(Record):
             raise ValueError("Insufficient calibration support")
         return self.bin_rates[index]
 
+
 class OperationalReport(Record):
     attempts: int
     availability: float | None
@@ -169,3 +170,91 @@ def evaluate_operations(events, *, training_cost_usd=None, data_license_ref: str
         known_inference_cost_usd=str(known), unknown_cost_attempts=sum(event.usage.cost_usd is None for event in events),
         training_cost_usd=str(training_cost_usd) if training_cost_usd is not None else None,
         data_license_ref=data_license_ref, complexity_notes=complexity_notes)
+
+
+class MultiHorizonLeadReport(Record):
+    steps: int
+    samples: int
+    mae_by_step: tuple[float, ...]
+    rmse_by_step: tuple[float, ...]
+    joint_interval_coverage: float | None
+
+
+def score_multi_output_forecasts(
+    forecasts: Sequence[Forecast],
+    actual_trajectories: Sequence[tuple[float, ...]],
+) -> MultiHorizonLeadReport:
+    """Score each lead step separately and compute joint interval coverage across all steps."""
+    if not forecasts or len(forecasts) != len(actual_trajectories):
+        raise ValueError("Forecasts and actual trajectories must be non-empty and aligned")
+    steps = len(forecasts[0].points)
+    if steps < 1 or any(len(f.points) != steps for f in forecasts) or any(len(a) != steps for a in actual_trajectories):
+        raise ValueError("Every forecast and actual trajectory must share the same step count")
+
+    mae_steps: list[float] = []
+    rmse_steps: list[float] = []
+    for step_idx in range(steps):
+        errs = [abs(f.points[step_idx].value - actual_trajectories[i][step_idx]) for i, f in enumerate(forecasts)]
+        sq_errs = [(f.points[step_idx].value - actual_trajectories[i][step_idx]) ** 2 for i, f in enumerate(forecasts)]
+        mae_steps.append(mean(errs))
+        rmse_steps.append(math.sqrt(mean(sq_errs)))
+
+    has_intervals = all(all(p.lower is not None and p.upper is not None for p in f.points) for f in forecasts)
+    joint_cov: float | None = None
+    if has_intervals:
+        covered = [
+            all(
+                f.points[s].lower <= actual_trajectories[i][s] <= f.points[s].upper  # type: ignore[operator]
+                for s in range(steps)
+            )
+            for i, f in enumerate(forecasts)
+        ]
+        joint_cov = mean(1.0 if ok else 0.0 for ok in covered)
+
+    return MultiHorizonLeadReport(
+        steps=steps,
+        samples=len(forecasts),
+        mae_by_step=tuple(mae_steps),
+        rmse_by_step=tuple(rmse_steps),
+        joint_interval_coverage=joint_cov,
+    )
+
+
+class HierarchyAggregationMap(Record):
+    hierarchy_id: Text
+    parent_node: Text
+    child_nodes: tuple[Text, ...] = Field(min_length=2)
+    weights: tuple[FiniteFloat, ...]
+
+    @model_validator(mode="after")
+    def matching_weights(self):
+        if len(self.weights) != len(self.child_nodes):
+            raise ValueError("Hierarchy weights must match child_nodes length")
+        return self
+
+
+def verify_hierarchical_coherence(
+    mapping: HierarchyAggregationMap,
+    node_forecasts: dict[str, tuple[float, ...]],
+    *,
+    tolerance: float = 1e-5,
+) -> tuple[bool, float]:
+    """Verify whether child forecasts aggregate coherently to the parent forecast at every step."""
+    if mapping.parent_node not in node_forecasts:
+        raise KeyError(f"Missing parent forecast for {mapping.parent_node}")
+    parent_vals = node_forecasts[mapping.parent_node]
+    steps = len(parent_vals)
+    for child in mapping.child_nodes:
+        if child not in node_forecasts or len(node_forecasts[child]) != steps:
+            raise ValueError(f"Missing or misaligned child forecast for {child}")
+
+    max_discrepancy = 0.0
+    for step_idx in range(steps):
+        agg = sum(
+            weight * node_forecasts[child][step_idx]
+            for child, weight in zip(mapping.child_nodes, mapping.weights)
+        )
+        diff = abs(parent_vals[step_idx] - agg)
+        max_discrepancy = max(max_discrepancy, diff)
+
+    return (max_discrepancy <= tolerance, max_discrepancy)
