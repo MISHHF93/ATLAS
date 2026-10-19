@@ -1,0 +1,27 @@
+[project]
+name = "atlas"
+version = "0.1.0"
+description = "ATLAS research and read-only market scaffold. It cannot place orders."
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.6",
+  "fastapi>=0.115",
+  "uvicorn>=0.32",
+]
+
+[project.optional-dependencies]
+gemini = ["google-genai>=1.0"]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[project.scripts]
+atlas-research = "atlas.ai.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
