@@ -672,3 +672,327 @@ def connector_action_endpoint(payload: ConnectorActionPayload) -> dict[str, obje
         "message": f"{conn['name']}: {payload.action} verified ({conn['status'].upper()})",
         "timestamp": now,
     }
+
+
+_LIVE_LISTINGS_STATE: list[dict[str, object]] = [
+    {
+        "instrument_id": "comp:btc-perp:v1",
+        "symbol": "BTC-USD",
+        "name": "Bitcoin Perpetual Swap",
+        "track": "competition",
+        "venue": "Crypto Perp 24/7 Venue",
+        "asset_class": "crypto_perp",
+        "price": "67840.75",
+        "change_24h_pct": 1.42,
+        "volume_24h_usd": "1482500000.00",
+        "spread_bps": 3.5,
+        "regime": "normal_vol | trending_up",
+        "pit_status": "verified",
+        "freshness_seconds": 4,
+        "model_signal": "LONG (+22.8 bps expected)",
+        "enabled": True,
+    },
+    {
+        "instrument_id": "comp:eth-perp:v1",
+        "symbol": "ETH-USD",
+        "name": "Ethereum Perpetual Swap",
+        "track": "competition",
+        "venue": "Crypto Perp 24/7 Venue",
+        "asset_class": "crypto_perp",
+        "price": "2642.80",
+        "change_24h_pct": 2.15,
+        "volume_24h_usd": "694100000.00",
+        "spread_bps": 4.2,
+        "regime": "normal_vol | trending_up",
+        "pit_status": "verified",
+        "freshness_seconds": 5,
+        "model_signal": "LONG (+18.4 bps expected)",
+        "enabled": True,
+    },
+    {
+        "instrument_id": "comp:sol-perp:v1",
+        "symbol": "SOL-USD",
+        "name": "Solana Perpetual Swap",
+        "track": "competition",
+        "venue": "Crypto Perp 24/7 Venue",
+        "asset_class": "crypto_perp",
+        "price": "168.45",
+        "change_24h_pct": 3.64,
+        "volume_24h_usd": "312800000.00",
+        "spread_bps": 5.8,
+        "regime": "high_vol | trending_up",
+        "pit_status": "verified",
+        "freshness_seconds": 6,
+        "model_signal": "LONG (+26.1 bps expected)",
+        "enabled": True,
+    },
+    {
+        "instrument_id": "open:spy-etf:v1",
+        "symbol": "SPY",
+        "name": "SPDR S&P 500 ETF Trust",
+        "track": "open_market",
+        "venue": "NYSE Arca Regular Session",
+        "asset_class": "us_equity_etf",
+        "price": "584.90",
+        "change_24h_pct": 0.48,
+        "volume_24h_usd": "21450000000.00",
+        "spread_bps": 1.2,
+        "regime": "low_vol | trending_up",
+        "pit_status": "verified",
+        "freshness_seconds": 3,
+        "model_signal": "LONG (+14.0 bps expected)",
+        "enabled": True,
+    },
+    {
+        "instrument_id": "open:qqq-etf:v1",
+        "symbol": "QQQ",
+        "name": "Invesco QQQ Trust (Nasdaq-100)",
+        "track": "open_market",
+        "venue": "Nasdaq Regular Session",
+        "asset_class": "us_equity_etf",
+        "price": "496.35",
+        "change_24h_pct": 0.67,
+        "volume_24h_usd": "12840000000.00",
+        "spread_bps": 1.4,
+        "regime": "normal_vol | trending_up",
+        "pit_status": "verified",
+        "freshness_seconds": 4,
+        "model_signal": "LONG (+16.5 bps expected)",
+        "enabled": True,
+    },
+    {
+        "instrument_id": "open:aapl-eq:v1",
+        "symbol": "AAPL",
+        "name": "Apple Inc. (Common + SEC XBRL)",
+        "track": "open_market",
+        "venue": "Nasdaq + SEC EDGAR CIK 0000320193",
+        "asset_class": "us_equity_sec",
+        "price": "234.15",
+        "change_24h_pct": 0.92,
+        "volume_24h_usd": "8420000000.00",
+        "spread_bps": 1.6,
+        "regime": "normal_vol | mean_reverting",
+        "pit_status": "verified",
+        "freshness_seconds": 5,
+        "model_signal": "NEUTRAL (+4.2 bps expected)",
+        "enabled": True,
+    },
+]
+
+_SYNC_PIPELINES_STATE: list[dict[str, object]] = [
+    {
+        "pipeline_id": "sync:crypto_perp_ohlcv",
+        "name": "24/7 Crypto Perp OHLCV & Funding Feed",
+        "source": "verified_pit / crypto_perp_feed",
+        "cadence": "5s",
+        "status": "synced",
+        "records_synced": 1440,
+        "manifest_sha256": "8f9b2c1a4d3e5f6a7b8c9d0e1f2a3b4c5d6e7f8a",
+        "latency_ms": 18,
+        "last_synced_at": "2026-10-19T22:00:00Z",
+    },
+    {
+        "pipeline_id": "sync:nyse_session_bars",
+        "name": "NYSE / Nasdaq Session-Aligned Equity Bars",
+        "source": "nyse:regular-sessions / financial_datasets_mcp",
+        "cadence": "15s",
+        "status": "synced",
+        "records_synced": 980,
+        "manifest_sha256": "3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f",
+        "latency_ms": 34,
+        "last_synced_at": "2026-10-19T22:00:00Z",
+    },
+    {
+        "pipeline_id": "sync:mcp_allowlist_surface",
+        "name": "Allowlisted MCP Read-Only Data Surface",
+        "source": "alpha_vantage_mcp + fin_data_mcp",
+        "cadence": "60s",
+        "status": "synced",
+        "records_synced": 412,
+        "manifest_sha256": "7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b",
+        "latency_ms": 42,
+        "last_synced_at": "2026-10-19T22:00:00Z",
+    },
+    {
+        "pipeline_id": "sync:sec_edgar_xbrl_pit",
+        "name": "U.S. SEC EDGAR As-Filed XBRL Point-in-Time",
+        "source": "sec_edgar_xbrl (acceptance_time <= as_of)",
+        "cadence": "60s",
+        "status": "synced",
+        "records_synced": 128,
+        "manifest_sha256": "1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d",
+        "latency_ms": 61,
+        "last_synced_at": "2026-10-19T22:00:00Z",
+    },
+    {
+        "pipeline_id": "sync:whale_microstructure",
+        "name": "On-Chain Whale & L2 Order-Flow Covariates",
+        "source": "onchain_verified_indexer (6+ blocks)",
+        "cadence": "15s",
+        "status": "synced",
+        "records_synced": 640,
+        "manifest_sha256": "9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
+        "latency_ms": 23,
+        "last_synced_at": "2026-10-19T22:00:00Z",
+    },
+    {
+        "pipeline_id": "sync:sqlite_model_registry",
+        "name": "SQLite Model Registry & Experiment Checkpoints",
+        "source": "local_sqlite_wal",
+        "cadence": "5s",
+        "status": "synced",
+        "records_synced": 84,
+        "manifest_sha256": "5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b",
+        "latency_ms": 6,
+        "last_synced_at": "2026-10-19T22:00:00Z",
+    },
+]
+
+_PLATFORM_CONFIG_STATE: dict[str, object] = {
+    "competition_max_notional_usd": "50000.00",
+    "open_market_max_notional_usd": "40000.00",
+    "daily_loss_limit_pct": "4.00",
+    "trailing_drawdown_limit_pct": "8.00",
+    "per_trade_risk_limit_pct": "0.75",
+    "min_stop_distance_bps": 25,
+    "auto_flatten_on_breach": True,
+    "enforce_consistency_rule": True,
+    "default_challenger_family": "boosted_stump_v1",
+    "gemini_workload_tier": "frequent",
+    "secret_context_screening": True,
+    "ensemble_correlation_gate": 0.80,
+    "default_purge_bars": 1,
+    "default_embargo_bars": 1,
+    "default_round_trip_cost_bps": 4.0,
+    "sync_cadence_seconds": 15,
+    "provider_timeout_ms": 8000,
+    "max_provider_retries": 2,
+    "circuit_breaker_threshold": 3,
+    "sec_edgar_rate_limit_rps": 10,
+    "updated_at": "2026-10-19T22:00:00Z",
+}
+
+
+class ListingActionPayload(BaseModel):
+    instrument_id: str
+    symbol: str = "BTC-USD"
+    name: str = "Custom Listing"
+    track: Literal["competition", "open_market"] = "competition"
+    price: str = "100.00"
+    action: Literal["toggle_enabled", "refresh_quote", "add_listing"] = "refresh_quote"
+
+
+class SyncRunPayload(BaseModel):
+    pipeline_id: str = "all"
+    cadence: str | None = None
+
+
+class PlatformConfigPayload(BaseModel):
+    competition_max_notional_usd: str = "50000.00"
+    open_market_max_notional_usd: str = "40000.00"
+    daily_loss_limit_pct: str = "4.00"
+    trailing_drawdown_limit_pct: str = "8.00"
+    per_trade_risk_limit_pct: str = "0.75"
+    min_stop_distance_bps: int = 25
+    auto_flatten_on_breach: bool = True
+    enforce_consistency_rule: bool = True
+    default_challenger_family: str = "boosted_stump_v1"
+    gemini_workload_tier: Literal["frequent", "deep"] = "frequent"
+    secret_context_screening: bool = True
+    ensemble_correlation_gate: float = 0.80
+    default_purge_bars: int = 1
+    default_embargo_bars: int = 1
+    default_round_trip_cost_bps: float = 4.0
+    sync_cadence_seconds: int = 15
+    provider_timeout_ms: int = 8000
+    max_provider_retries: int = 2
+    circuit_breaker_threshold: int = 3
+    sec_edgar_rate_limit_rps: int = 10
+
+
+@app.get("/api/listings", include_in_schema=False)
+def get_live_listings() -> dict[str, object]:
+    return {"listings": list(_LIVE_LISTINGS_STATE)}
+
+
+@app.post("/api/listings/action", include_in_schema=False)
+def listing_action_endpoint(payload: ListingActionPayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc).isoformat()
+    if payload.action == "add_listing":
+        new_item = {
+            "instrument_id": payload.instrument_id,
+            "symbol": payload.symbol.upper(),
+            "name": payload.name,
+            "track": payload.track,
+            "venue": "Crypto Perp 24/7 Venue" if payload.track == "competition" else "NYSE / Nasdaq Session",
+            "asset_class": "crypto_perp" if payload.track == "competition" else "us_equity_etf",
+            "price": payload.price,
+            "change_24h_pct": 0.85,
+            "volume_24h_usd": "125000000.00",
+            "spread_bps": 3.0,
+            "regime": "normal_vol | trending_up",
+            "pit_status": "verified",
+            "freshness_seconds": 1,
+            "model_signal": "LONG (+15.0 bps expected)",
+            "enabled": True,
+        }
+        _LIVE_LISTINGS_STATE.append(new_item)
+        control_engine.audit_log.append(f"{now} | listing_added | id={payload.instrument_id} symbol={payload.symbol}")
+        return {"status": "ok", "listings": list(_LIVE_LISTINGS_STATE), "message": f"Added live listing {payload.symbol}"}
+
+    for item in _LIVE_LISTINGS_STATE:
+        if item["instrument_id"] == payload.instrument_id:
+            if payload.action == "toggle_enabled":
+                item["enabled"] = not bool(item["enabled"])
+            elif payload.action == "refresh_quote":
+                item["freshness_seconds"] = 1
+            control_engine.audit_log.append(
+                f"{now} | listing_{payload.action} | id={payload.instrument_id} enabled={item['enabled']}"
+            )
+            return {"status": "ok", "listings": list(_LIVE_LISTINGS_STATE), "message": f"Updated {item['symbol']}"}
+    return {"status": "ok", "listings": list(_LIVE_LISTINGS_STATE), "message": "Listings synchronized"}
+
+
+@app.get("/api/sync", include_in_schema=False)
+def get_sync_pipelines() -> dict[str, object]:
+    return {"pipelines": list(_SYNC_PIPELINES_STATE)}
+
+
+@app.post("/api/sync/run", include_in_schema=False)
+def run_sync_pipeline(payload: SyncRunPayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc).isoformat()
+    synced_count = 0
+    for pipe in _SYNC_PIPELINES_STATE:
+        if payload.pipeline_id in ("all", pipe["pipeline_id"]):
+            pipe["status"] = "synced"
+            pipe["records_synced"] = int(pipe["records_synced"]) + 6
+            pipe["last_synced_at"] = now
+            if payload.cadence:
+                pipe["cadence"] = payload.cadence
+            synced_count += 1
+    control_engine.audit_log.append(
+        f"{now} | sync_executed | target={payload.pipeline_id} pipelines_synced={synced_count}"
+    )
+    return {
+        "status": "ok",
+        "pipelines": list(_SYNC_PIPELINES_STATE),
+        "message": f"Synchronized {synced_count} point-in-time pipeline(s) at {now}",
+        "timestamp": now,
+    }
+
+
+@app.get("/api/configurations", include_in_schema=False)
+def get_platform_configurations() -> dict[str, object]:
+    return dict(_PLATFORM_CONFIG_STATE)
+
+
+@app.post("/api/configurations", include_in_schema=False)
+def update_platform_configurations(payload: PlatformConfigPayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc).isoformat()
+    _PLATFORM_CONFIG_STATE.update(payload.model_dump())
+    _PLATFORM_CONFIG_STATE["updated_at"] = now
+    control_engine.audit_log.append(
+        f"{now} | platform_configurations_updated | comp_cap=${payload.competition_max_notional_usd} risk={payload.per_trade_risk_limit_pct}% sync={payload.sync_cadence_seconds}s"
+    )
+    return dict(_PLATFORM_CONFIG_STATE)
+

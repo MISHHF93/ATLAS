@@ -1073,6 +1073,66 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert conn_act.json()["status"] == "ok"
     assert conn_act.json()["connector"]["connector_id"] == "alpha_vantage_mcp"
 
+    # 10. Verify Live Listings, Data Syncing Center, and Global Platform Configurations endpoints
+    list_get = client.get("/api/listings")
+    assert list_get.status_code == 200
+    assert len(list_get.json()["listings"]) >= 6
+
+    list_act = client.post(
+        "/api/listings/action",
+        json={
+            "instrument_id": "comp:avax-usd:v1",
+            "symbol": "AVAX-USD",
+            "name": "Avalanche Perpetual Swap",
+            "track": "competition",
+            "price": "29.40",
+            "action": "add_listing",
+        },
+    )
+    assert list_act.status_code == 200
+    assert any(item["symbol"] == "AVAX-USD" for item in list_act.json()["listings"])
+
+    sync_get = client.get("/api/sync")
+    assert sync_get.status_code == 200
+    assert len(sync_get.json()["pipelines"]) == 6
+
+    sync_run = client.post("/api/sync/run", json={"pipeline_id": "all", "cadence": "15s"})
+    assert sync_run.status_code == 200
+    assert sync_run.json()["status"] == "ok"
+
+    cfg_get = client.get("/api/configurations")
+    assert cfg_get.status_code == 200
+    assert cfg_get.json()["default_challenger_family"] == "boosted_stump_v1"
+
+    cfg_post = client.post(
+        "/api/configurations",
+        json={
+            "competition_max_notional_usd": "50000.00",
+            "open_market_max_notional_usd": "40000.00",
+            "daily_loss_limit_pct": "4.00",
+            "trailing_drawdown_limit_pct": "8.00",
+            "per_trade_risk_limit_pct": "0.75",
+            "min_stop_distance_bps": 25,
+            "auto_flatten_on_breach": True,
+            "enforce_consistency_rule": True,
+            "default_challenger_family": "gbdt_depth2_v1",
+            "gemini_workload_tier": "deep",
+            "secret_context_screening": True,
+            "ensemble_correlation_gate": 0.80,
+            "default_purge_bars": 1,
+            "default_embargo_bars": 1,
+            "default_round_trip_cost_bps": 4.0,
+            "sync_cadence_seconds": 15,
+            "provider_timeout_ms": 8000,
+            "max_provider_retries": 2,
+            "circuit_breaker_threshold": 3,
+            "sec_edgar_rate_limit_rps": 10,
+        },
+    )
+    assert cfg_post.status_code == 200
+    assert cfg_post.json()["default_challenger_family"] == "gbdt_depth2_v1"
+
+
 
 
 
