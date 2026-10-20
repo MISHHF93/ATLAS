@@ -275,6 +275,8 @@ async def demo() -> dict:
             "execution_permission": node_report.execution_permission,
             "competition_paper_simulation": node_report.competition_paper_simulation.model_dump(mode="json"),
             "open_market_paper_simulation": node_report.open_market_paper_simulation.model_dump(mode="json"),
+            "competition_readiness_gate": node_report.competition_readiness_gate.model_dump(mode="json"),
+            "open_market_readiness_gate": node_report.open_market_readiness_gate.model_dump(mode="json"),
             "horizon_strategy_comparison": node_report.horizon_strategy_comparison.model_dump(mode="json"),
             "ensemble_gate": node_report.ensemble_gate.model_dump(mode="json"),
         },

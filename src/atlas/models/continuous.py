@@ -19,10 +19,13 @@ from pydantic import AwareDatetime
 
 from atlas.control.rules import (
     AccountRiskSnapshot,
+    MasterSpecGateInput,
+    MasterSpecGateReport,
     ProposedTradeCheck,
     RemainingRoomReport,
     RuleEvaluationReport,
     TradingRuleBook,
+    evaluate_master_spec_readiness,
     evaluate_trading_rules,
 )
 from atlas.marketdata.frozen import FrozenDatasetBundle
@@ -459,6 +462,8 @@ class CentralNodeSelfImprovementReport(Record):
     open_market_walk_forward: WalkForwardStudyResult
     competition_paper_simulation: PaperSimulationTrackReport
     open_market_paper_simulation: PaperSimulationTrackReport
+    competition_readiness_gate: MasterSpecGateReport
+    open_market_readiness_gate: MasterSpecGateReport
     horizon_strategy_comparison: DirectVsRecursiveHorizonReport
     ensemble_gate: EnsembleGateReport
     scratch_lifecycle: ScratchLifecycleResult | None = None
@@ -520,6 +525,45 @@ class CentralResearchNode:
             cost_bps=2.5,
         )
 
+        comp_dd_limit = float(self.competition_rulebook.max_drawdown_fraction or Decimal("1.0"))
+        comp_gate = evaluate_master_spec_readiness(
+            MasterSpecGateInput(
+                track="competition",
+                rulebook_id=self.competition_rulebook.rulebook_id,
+                dataset_id=self.competition_bundle.manifest.dataset_id,
+                frozen_dataset_sha256_verified=True,
+                commercial_data_license_verified=True,
+                beats_naive_mae_on_holdout=comp_wf.feedback.beats_naive_mae,
+                beats_linear_mae_on_holdout=comp_wf.overall_report.mae <= comp_wf.linear_baseline_report.mae,
+                beats_no_trade_net_return_after_costs=comp_wf.feedback.beats_no_trade_net_return,
+                paper_simulation_rule_compliant=comp_sim.blocked_paper_trades == 0,
+                paper_simulation_drawdown_within_limit=comp_sim.max_realized_drawdown_fraction < comp_dd_limit,
+                competition_consistency_and_min_days_met=(
+                    comp_sim.final_remaining_room.consistency_compliant
+                    and comp_sim.final_remaining_room.minimum_days_met
+                ),
+            ),
+            evaluated_at=evaluated_at,
+        )
+
+        open_dd_limit = float(self.open_market_rulebook.max_drawdown_fraction or Decimal("1.0"))
+        open_gate = evaluate_master_spec_readiness(
+            MasterSpecGateInput(
+                track="open_market",
+                rulebook_id=self.open_market_rulebook.rulebook_id,
+                dataset_id=self.open_market_bundle.manifest.dataset_id,
+                frozen_dataset_sha256_verified=True,
+                commercial_data_license_verified=True,
+                beats_naive_mae_on_holdout=open_wf.feedback.beats_naive_mae,
+                beats_linear_mae_on_holdout=open_wf.overall_report.mae <= open_wf.linear_baseline_report.mae,
+                beats_no_trade_net_return_after_costs=open_wf.feedback.beats_no_trade_net_return,
+                paper_simulation_rule_compliant=open_sim.blocked_paper_trades == 0,
+                paper_simulation_drawdown_within_limit=open_sim.max_realized_drawdown_fraction < open_dd_limit,
+                competition_consistency_and_min_days_met=True,
+            ),
+            evaluated_at=evaluated_at,
+        )
+
         lifecycle: ScratchLifecycleResult | None = None
         if sqlite_dir is not None:
             lifecycle = await run_scratch_training_lifecycle(
@@ -534,6 +578,8 @@ class CentralResearchNode:
             open_market_walk_forward=open_wf,
             competition_paper_simulation=comp_sim,
             open_market_paper_simulation=open_sim,
+            competition_readiness_gate=comp_gate,
+            open_market_readiness_gate=open_gate,
             horizon_strategy_comparison=horizon_cmp,
             ensemble_gate=ensemble_gate,
             scratch_lifecycle=lifecycle,

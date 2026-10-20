@@ -891,6 +891,11 @@ def test_central_research_node_and_track_paper_simulation(tmp_path) -> None:
     assert report.competition_paper_simulation.total_steps > 20
     assert report.open_market_paper_simulation.simulation_only is True
     assert report.open_market_paper_simulation.execution_permission == "none"
+    assert report.competition_readiness_gate.execution_permission == "none"
+    assert report.competition_readiness_gate.capital_pathway_prereqs_met is False
+    assert "live_execution_engine_audit_pending" in report.competition_readiness_gate.unmet_capital_pathway_gates
+    assert report.open_market_readiness_gate.execution_permission == "none"
+    assert report.open_market_readiness_gate.capital_pathway_prereqs_met is False
     assert report.scratch_lifecycle is not None
     assert report.scratch_lifecycle.training_job.state == "succeeded"
 

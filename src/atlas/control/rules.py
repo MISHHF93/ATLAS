@@ -347,3 +347,90 @@ def evaluate_trading_rules(
         remaining_room=remaining,
     )
 
+
+class MasterSpecGateInput(Record):
+    """Evidence inputs evaluated by the deterministic control plane before any capital pathway."""
+
+    track: Literal["competition", "open_market"]
+    rulebook_id: Text
+    dataset_id: Text
+    frozen_dataset_sha256_verified: bool
+    commercial_data_license_verified: bool
+    beats_naive_mae_on_holdout: bool
+    beats_linear_mae_on_holdout: bool
+    beats_no_trade_net_return_after_costs: bool
+    paper_simulation_rule_compliant: bool
+    paper_simulation_drawdown_within_limit: bool
+    competition_consistency_and_min_days_met: bool
+    scoped_human_research_approval_present: bool = False
+    second_independent_holdout_verified: bool = False
+    live_execution_engine_audit_completed: bool = False
+
+
+class MasterSpecGateReport(Record):
+    """Deterministic readiness assessment for research challenger vs capital pathway gates."""
+
+    track: Literal["competition", "open_market"]
+    rulebook_id: Text
+    dataset_id: Text
+    evaluated_at: AwareDatetime
+    research_challenger_ready: bool
+    capital_pathway_prereqs_met: bool
+    unmet_research_gates: tuple[str, ...]
+    unmet_capital_pathway_gates: tuple[str, ...]
+    execution_permission: Literal["none"] = "none"
+
+
+def evaluate_master_spec_readiness(
+    gate_input: MasterSpecGateInput,
+    *,
+    evaluated_at: datetime,
+) -> MasterSpecGateReport:
+    """Evaluate Priority 6 master-spec evidence gates deterministically.
+
+    Separates research challenger readiness (frozen data, commercial license,
+    baseline/linear/no-trade costed outperformance, paper-simulation compliance)
+    from capital pathway prerequisites (human scoped approval, second independent
+    holdout, live execution engine audit). Retains `execution_permission: "none"`.
+    """
+    if evaluated_at.tzinfo is None or evaluated_at.utcoffset() is None:
+        raise ValueError("evaluated_at must be timezone-aware")
+
+    unmet_research: list[str] = []
+    if not gate_input.frozen_dataset_sha256_verified:
+        unmet_research.append("frozen_dataset_sha256_unverified")
+    if not gate_input.commercial_data_license_verified:
+        unmet_research.append("commercial_data_license_unverified")
+    if not gate_input.beats_naive_mae_on_holdout:
+        unmet_research.append("does_not_beat_naive_mae")
+    if not gate_input.beats_linear_mae_on_holdout:
+        unmet_research.append("does_not_beat_linear_mae")
+    if not gate_input.beats_no_trade_net_return_after_costs:
+        unmet_research.append("does_not_beat_no_trade_after_costs")
+    if not gate_input.paper_simulation_rule_compliant:
+        unmet_research.append("paper_simulation_rule_violation")
+    if not gate_input.paper_simulation_drawdown_within_limit:
+        unmet_research.append("paper_simulation_drawdown_breached")
+    if gate_input.track == "competition" and not gate_input.competition_consistency_and_min_days_met:
+        unmet_research.append("competition_consistency_or_min_days_unmet")
+
+    unmet_capital: list[str] = list(unmet_research)
+    if not gate_input.scoped_human_research_approval_present:
+        unmet_capital.append("missing_scoped_human_research_approval")
+    if not gate_input.second_independent_holdout_verified:
+        unmet_capital.append("missing_second_independent_holdout")
+    if not gate_input.live_execution_engine_audit_completed:
+        unmet_capital.append("live_execution_engine_audit_pending")
+
+    return MasterSpecGateReport(
+        track=gate_input.track,
+        rulebook_id=gate_input.rulebook_id,
+        dataset_id=gate_input.dataset_id,
+        evaluated_at=evaluated_at,
+        research_challenger_ready=len(unmet_research) == 0,
+        capital_pathway_prereqs_met=len(unmet_capital) == 0,
+        unmet_research_gates=tuple(unmet_research),
+        unmet_capital_pathway_gates=tuple(unmet_capital),
+    )
+
+
