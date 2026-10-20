@@ -54,6 +54,11 @@ class TradingRuleBook(Record):
     min_trading_days: int = Field(default=0, ge=0)
     max_single_day_profit_share: Probability | None = None
 
+    # 8. Microstructure VPIN flow toxicity stop-widening and adverse-selection pause
+    vpin_widening_threshold: Probability = 0.45
+    vpin_pause_threshold: Probability = 0.70
+    vpin_stop_multiplier: PositiveDecimal = Decimal("1.50")
+
     @model_validator(mode="after")
     def competition_constraints(self) -> Self:
         if self.track == "competition" and self.min_trading_days <= 0:
@@ -99,6 +104,7 @@ class ProposedTradeCheck(Record):
     license_verified: bool
     correlated_group_add_usd: NonnegativeDecimal = Decimal("0")
     sector_add_usd: NonnegativeDecimal = Decimal("0")
+    vpin_toxicity: Probability = 0.0
 
 
 class LimitProximity(Record):
@@ -133,6 +139,8 @@ class RuleEvaluationReport(Record):
     auto_flatten_required: bool
     kill_switch_active: bool
     time_exit_triggered: bool
+    vpin_widened_stop_active: bool = False
+    adverse_selection_pause_active: bool = False
     violations: tuple[str, ...]
     remaining_room: RemainingRoomReport
     execution_permission: Literal["none"] = "none"
@@ -311,6 +319,23 @@ def evaluate_trading_rules(
                 consistency_ok = False
                 violations.append("competition_consistency_rule_breached: single day profit share too high")
 
+    # 8. VPIN flow toxicity stop widening & adverse-selection quote pause
+    vpin_widened_active = False
+    adverse_pause_active = False
+    if candidate.vpin_toxicity >= rulebook.vpin_pause_threshold:
+        adverse_pause_active = True
+        violations.append("vpin_adverse_selection_pause: flow toxicity exceeds vpin_pause_threshold")
+    elif candidate.vpin_toxicity >= rulebook.vpin_widening_threshold:
+        vpin_widened_active = True
+        if rulebook.min_stop_distance_bps is not None:
+            widened_min_stop = (rulebook.min_stop_distance_bps * rulebook.vpin_stop_multiplier).quantize(
+                Decimal("0.01")
+            )
+            if candidate.stop_distance_bps < widened_min_stop:
+                violations.append(
+                    f"vpin_widened_stop_violation: stop_distance_bps below toxicity-widened minimum ({widened_min_stop} bps)"
+                )
+
     proximities = (
         _proximity("per_trade_risk_fraction", trade_risk_fraction, rulebook.max_per_trade_risk_fraction),
         _proximity("daily_loss_fraction", daily_loss_fraction, rulebook.max_daily_loss_fraction),
@@ -343,6 +368,8 @@ def evaluate_trading_rules(
         auto_flatten_required=auto_flatten,
         kill_switch_active=account.kill_switch_engaged,
         time_exit_triggered=time_exit,
+        vpin_widened_stop_active=vpin_widened_active,
+        adverse_selection_pause_active=adverse_pause_active,
         violations=tuple(violations),
         remaining_room=remaining,
     )

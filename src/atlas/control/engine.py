@@ -28,6 +28,7 @@ class ActionableOrderRequest(Record):
     stop_kind: Literal["atr", "structure"] = "atr"
     stop_distance_bps: Decimal = Decimal("180")
     holding_horizon_seconds: int = 14400
+    vpin_toxicity: float = 0.0
 
 
 class ActionablePositionRecord(Record):
@@ -232,6 +233,7 @@ class ActionableControlPlaneEngine:
             license_verified=True,
             correlated_group_add_usd=(request.notional_usd * Decimal("0.25")).quantize(Decimal("0.01")),
             sector_add_usd=(request.notional_usd * Decimal("0.25")).quantize(Decimal("0.01")),
+            vpin_toxicity=request.vpin_toxicity,
         )
         eval_rep = evaluate_trading_rules(rulebook, snap, cand, evaluated_at=ts)
         self._order_seq += 1

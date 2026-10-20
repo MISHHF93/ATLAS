@@ -46,6 +46,16 @@ from atlas.models.challengers import (
 from atlas.models.orchestrator import ModelOrchestrator, ResearchSignal
 from atlas.models.providers import ReadOnlyDataProvider
 from atlas.models.regimes import RegimeConfig, RegimeState, classify_regime
+from atlas.models.self_training import (
+    PropAlignedLossReport,
+    PurgedFoldSplit,
+    SelfTrainingPromotionGateReport,
+    TripleBarrierSample,
+    build_purged_embargoed_splits,
+    compute_prop_aligned_loss,
+    label_triple_barrier_samples,
+    run_autonomous_self_training_cycle,
+)
 from atlas.models.schemas import (
     ForecastRequest,
     Horizon,
