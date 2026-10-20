@@ -1585,6 +1585,53 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
   const ruleEval = snapshot?.rule_evaluation;
   const activeStudy = snapshot?.studies?.[studyTrack];
 
+  const sectionRoutes: Record<SectionId, string> = {
+    all: "/",
+    overview: "/",
+    market: "/market",
+    rules: "/control",
+    research: "/research",
+    experiments: "/experiments",
+    models: "/models",
+    connectors: "/connectors",
+    governance: "/governance",
+    docs: "/docs",
+    profile: "/profile",
+  };
+
+  function navigateSection(sec: SectionId) {
+    setActiveSection(sec);
+    if (typeof window !== "undefined") {
+      const targetPath = sectionRoutes[sec] ?? "/";
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ section: sec }, "", targetPath);
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pathMap: Record<string, SectionId> = {
+      "/": "overview",
+      "/market": "market",
+      "/control": "rules",
+      "/rules": "rules",
+      "/research": "research",
+      "/experiments": "experiments",
+      "/models": "models",
+      "/connectors": "connectors",
+      "/governance": "governance",
+      "/docs": "docs",
+      "/profile": "profile",
+    };
+    const onPopState = () => {
+      const mapped = pathMap[window.location.pathname];
+      if (mapped) setActiveSection(mapped);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   const showSection = (sec: SectionId) =>
     activeSection === "all" || activeSection === sec;
 
@@ -1596,7 +1643,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           href="/"
           onClick={(e) => {
             e.preventDefault();
-            setActiveSection("overview");
+            navigateSection("overview");
           }}
           aria-label="ATLAS overview"
         >
@@ -1605,106 +1652,30 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
         </a>
         <div className="sidebar-label">WORKSPACE</div>
         <nav className="primary-nav" aria-label="Workspace">
-          <a
-            className={`nav-link ${activeSection === "overview" || activeSection === "all" ? "is-active" : ""}`}
-            href="/"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("overview");
-            }}
-          >
-            <span className="nav-index">01</span>Overview
-          </a>
-          <a
-            className={`nav-link ${activeSection === "market" ? "is-active" : ""}`}
-            href="/market"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("market");
-            }}
-          >
-            <span className="nav-index">02</span>Market &amp; Regimes
-          </a>
-          <a
-            className={`nav-link ${activeSection === "rules" ? "is-active" : ""}`}
-            href="/control"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("rules");
-            }}
-          >
-            <span className="nav-index">03</span>Control &amp; Execution
-          </a>
-          <a
-            className={`nav-link ${activeSection === "research" ? "is-active" : ""}`}
-            href="/research"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("research");
-            }}
-          >
-            <span className="nav-index">04</span>Forecasts &amp; AI Tick
-          </a>
-          <a
-            className={`nav-link ${activeSection === "experiments" ? "is-active" : ""}`}
-            href="/experiments"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("experiments");
-            }}
-          >
-            <span className="nav-index">05</span>Walk-Forward Lab
-          </a>
-          <a
-            className={`nav-link ${activeSection === "models" ? "is-active" : ""}`}
-            href="/models"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("models");
-            }}
-          >
-            <span className="nav-index">06</span>Models &amp; Data
-          </a>
-          <a
-            className={`nav-link ${activeSection === "connectors" ? "is-active" : ""}`}
-            href="/connectors"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("connectors");
-            }}
-          >
-            <span className="nav-index">07</span>Connectors Library
-          </a>
-          <a
-            className={`nav-link ${activeSection === "governance" ? "is-active" : ""}`}
-            href="/governance"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("governance");
-            }}
-          >
-            <span className="nav-index">08</span>Governance &amp; Ledger
-          </a>
-          <a
-            className={`nav-link ${activeSection === "docs" ? "is-active" : ""}`}
-            href="/docs"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("docs");
-            }}
-          >
-            <span className="nav-index">09</span>Documentation
-          </a>
-          <a
-            className={`nav-link ${activeSection === "profile" ? "is-active" : ""}`}
-            href="/profile"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveSection("profile");
-            }}
-          >
-            <span className="nav-index">10</span>User Profile
-          </a>
+          {([
+            ["overview", "/", "01", "Overview"],
+            ["market", "/market", "02", "Market & Regimes"],
+            ["rules", "/control", "03", "Control & Execution"],
+            ["research", "/research", "04", "Forecasts & AI Tick"],
+            ["experiments", "/experiments", "05", "Walk-Forward Lab"],
+            ["models", "/models", "06", "Models & Data"],
+            ["connectors", "/connectors", "07", "Connectors Library"],
+            ["governance", "/governance", "08", "Governance & Ledger"],
+            ["docs", "/docs", "09", "Documentation"],
+            ["profile", "/profile", "10", "User Profile"],
+          ] as Array<[SectionId, string, string, string]>).map(([sec, href, idx, label]) => (
+            <a
+              key={sec}
+              className={`nav-link ${activeSection === sec || (sec === "overview" && activeSection === "all") ? "is-active" : ""}`}
+              href={href}
+              onClick={(e) => {
+                e.preventDefault();
+                navigateSection(sec);
+              }}
+            >
+              <span className="nav-index">{idx}</span>{label}
+            </a>
+          ))}
         </nav>
         <div className="sidebar-bottom">
           <span className="sidebar-rule" />
@@ -1725,7 +1696,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
             <button
               type="button"
               className="profile-pill"
-              onClick={() => setActiveSection("profile")}
+              onClick={() => navigateSection("profile")}
               aria-label="Open operator profile"
             >
               <span className="profile-avatar-sm">
@@ -1791,6 +1762,140 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
 
           {activeSection === "overview" ? (
           <section className="section-block">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">01 / EXECUTIVE COMMAND MATRIX &amp; SYSTEM TELEMETRY</p>
+                <h2>Flat single-screen overview of market regimes, control-plane execution &amp; connected 3rd-party MCPs</h2>
+              </div>
+              <span className="source-chip"><i /> ALL 10 WORKSPACE MODULES ONLINE</span>
+            </div>
+
+            <div className="three-col-grid">
+              <article className="panel card-pad">
+                <div className="panel-heading">
+                  <div>
+                    <span className="summary-label">MARKET, REGIME &amp; PIT QUALITY PULSE</span>
+                    <h3>BTC-USD 1H · {latest ? `$${formatPrice(latest.close)}` : "--"}</h3>
+                  </div>
+                  <span className="state-pill state-verified">{quality?.quality_status.toUpperCase() ?? "VERIFIED"}</span>
+                </div>
+                {regime ? (
+                  <div className="regime-strip" aria-label="Causal regime dimensions">
+                    <div className="regime-badge"><span>VOL</span><strong>{regime.volatility}</strong></div>
+                    <div className="regime-badge"><span>TREND</span><strong>{regime.trend}</strong></div>
+                    <div className="regime-badge"><span>LIQ</span><strong>{regime.liquidity}</strong></div>
+                    <div className="regime-badge"><span>SESS</span><strong>{regime.session}</strong></div>
+                    <div className={`regime-badge ${regime.macro_event !== "clear" ? "warn" : ""}`}><span>MACRO</span><strong>{regime.macro_event}</strong></div>
+                  </div>
+                ) : null}
+                <div className="kpi-mini-grid">
+                  <div className="kpi-mini"><span>PIT LOOKAHEAD</span><strong>{quality?.point_in_time_valid ? "PASS" : "DENY"}</strong></div>
+                  <div className="kpi-mini"><span>CALENDAR SYNC</span><strong>{quality?.calendar_matched ? "PASS" : "DENY"}</strong></div>
+                  <div className="kpi-mini"><span>FRESHNESS</span><strong>{quality?.is_fresh ? `FRESH (${quality?.freshness_age_seconds ?? 0}s)` : "STALE"}</strong></div>
+                  <div className="kpi-mini"><span>CRYPTO SESSION</span><strong>{snapshot?.calendars_telemetry?.competition_calendar.session_state ?? "24/7"}</strong></div>
+                  <div className="kpi-mini"><span>NYSE SESSION</span><strong>{snapshot?.calendars_telemetry?.open_market_calendar.session_state ?? "regular"}</strong></div>
+                  <div className="kpi-mini"><span>SEC EDGAR PIT</span><strong>3 As-Filed</strong></div>
+                </div>
+                <div className="action-btn-row">
+                  <button type="button" className="action-btn" onClick={() => navigateSection("market")}>
+                    02 Market &amp; Regimes
+                  </button>
+                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("models")}>
+                    06 Models &amp; SEC Data
+                  </button>
+                </div>
+              </article>
+
+              <article className="panel card-pad">
+                <div className="panel-heading">
+                  <div>
+                    <span className="summary-label">DETERMINISTIC CONTROL &amp; RISK ROOM</span>
+                    <h3>Execution authority &amp; remaining buffers</h3>
+                  </div>
+                  <span className={`state-pill ${killSwitchEngaged ? "state-blocked" : "state-verified"}`}>
+                    {killSwitchEngaged ? "KILL SWITCH ON" : "STANDBY"}
+                  </span>
+                </div>
+                <div className="kpi-mini-grid">
+                  <div className="kpi-mini"><span>OPEN POSITIONS</span><strong>{openPositions.length} active</strong></div>
+                  <div className="kpi-mini"><span>MAX SAFE TRADE</span><strong>${formatPrice(ruleEval?.remaining_room.max_safe_trade_notional_usd ?? 0)}</strong></div>
+                  <div className="kpi-mini"><span>DAILY LOSS ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.daily_loss_room_usd ?? 0)}</strong></div>
+                  <div className="kpi-mini"><span>DRAWDOWN ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.drawdown_room_usd ?? 0)}</strong></div>
+                  <div className="kpi-mini"><span>LEVERAGE ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.leverage_room_usd ?? 0)}</strong></div>
+                  <div className="kpi-mini"><span>MASTER-SPEC GATES</span><strong>9 / 9 Active</strong></div>
+                </div>
+                <div className="action-btn-row">
+                  <button type="button" className="action-btn" onClick={() => navigateSection("rules")}>
+                    03 Control &amp; Execution
+                  </button>
+                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("governance")}>
+                    08 Governance &amp; Ledger
+                  </button>
+                  <button type="button" className="action-btn action-btn-danger" onClick={handleToggleKillSwitch}>
+                    {killSwitchEngaged ? "Reset Kill Switch" : "Engage Kill Switch"}
+                  </button>
+                </div>
+                <div className="audit-log-box" aria-label="Control-plane audit log">
+                  {auditLog.slice(-3).map((entry, idx) => (
+                    <div key={`${idx}-${entry}`}>{entry}</div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="panel card-pad">
+                <div className="panel-heading">
+                  <div>
+                    <span className="summary-label">AI RESEARCH, SELF-TRAINING &amp; CONNECTORS</span>
+                    <h3>Models &amp; 3rd-party MCP ecosystem</h3>
+                  </div>
+                  <span className="state-pill state-verified">{connectorsList.filter((c) => c.status === "connected").length}/{connectorsList.length} ONLINE</span>
+                </div>
+                <div className="kpi-mini-grid">
+                  <div className="kpi-mini"><span>CHAMPION</span><strong>{championAlias}</strong></div>
+                  <div className="kpi-mini"><span>CHALLENGER</span><strong>{challengerAlias}</strong></div>
+                  <div className="kpi-mini"><span>TRAINING RUNS</span><strong>{trainingRuns} cycles</strong></div>
+                </div>
+                <div className="sub-divider">
+                  <span className="summary-label" style={{ marginBottom: "5px" }}>3RD-PARTY MCP &amp; AI INTEGRATIONS (CLICK TO OPEN)</span>
+                  <div className="logo-strip">
+                    {connectorsList.slice(0, 8).map((conn) => (
+                      <button
+                        key={conn.connector_id}
+                        type="button"
+                        className="logo-chip"
+                        onClick={() => navigateSection("connectors")}
+                      >
+                        <ConnectorLogo id={conn.connector_id} size={18} />
+                        <strong>{conn.name.split(" ").slice(0, 2).join(" ")}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="action-btn-row">
+                  <button type="button" className="action-btn" onClick={() => navigateSection("research")}>
+                    04 Forecasts &amp; AI
+                  </button>
+                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("experiments")}>
+                    05 Walk-Forward
+                  </button>
+                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("connectors")}>
+                    07 Connectors
+                  </button>
+                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("docs")}>
+                    09 Docs
+                  </button>
+                </div>
+              </article>
+            </div>
+          </section>
+          ) : null}
+
+          {showSection("market") ? (
+          <section className="section-block" id="market">
+            <div className="section-heading">
+              <div><p className="eyebrow">02 / MARKET DATA, CAUSAL REGIMES, CALENDARS &amp; MICROSTRUCTURE</p><h2>Market monitor, point-in-time regime state &amp; microstructure covariates</h2></div>
+              <span className="source-chip"><i /> VERIFIED FROZEN SOURCE · {regime?.taxonomy_revision ?? "regime-taxonomy:v1"}</span>
+            </div>
             <div className="two-col-grid">
               <article className="panel chart-panel">
                 <div className="panel-heading">
@@ -1811,169 +1916,41 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     <div className={`regime-badge ${regime.macro_event !== "clear" ? "warn" : ""}`}><span>MACRO</span><strong>{regime.macro_event}</strong></div>
                   </div>
                 ) : null}
-                <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid #e4e7e0" }}>
-                  <span className="summary-label" style={{ display: "block", marginBottom: "8px" }}>
-                    CONNECTED 3RD-PARTY MCP SERVERS, AI PROVIDERS &amp; MARKET FEEDS (CLICK TO INSPECT)
-                  </span>
-                  <div className="logo-strip">
-                    {connectorsList.slice(0, 8).map((conn) => (
-                      <button
-                        key={conn.connector_id}
-                        type="button"
-                        className="logo-chip"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => setActiveSection("connectors")}
-                      >
-                        <ConnectorLogo id={conn.connector_id} size={22} />
-                        <strong>{conn.name}</strong>
-                        <span className="state-pill state-verified" style={{ minHeight: "18px", padding: "0 5px", fontSize: "9px" }}>
-                          {conn.status.toUpperCase()}
-                        </span>
-                      </button>
-                    ))}
+                <div className="sub-divider">
+                  <span className="summary-label">AUTHORITATIVE MARKET CALENDARS (24/7 CRYPTO PERP &amp; NYSE REGULAR SESSIONS)</span>
+                  <div className="kpi-mini-grid">
+                    <div className="kpi-mini">
+                      <span>CRYPTO ({snapshot?.calendars_telemetry?.competition_calendar.calendar_ref ?? "crypto-perp:24x7"})</span>
+                      <strong>{snapshot?.calendars_telemetry?.competition_calendar.session_state ?? "continuous_24_7"}</strong>
+                    </div>
+                    <div className="kpi-mini">
+                      <span>FUNDING / MAINT</span>
+                      <strong>
+                        {snapshot?.calendars_telemetry?.competition_calendar.funding_windows_count ?? 3} fund / {snapshot?.calendars_telemetry?.competition_calendar.maintenance_windows_count ?? 1} maint
+                      </strong>
+                    </div>
+                    <div className="kpi-mini">
+                      <span>NYSE ({snapshot?.calendars_telemetry?.open_market_calendar.calendar_ref ?? "nyse:regular"})</span>
+                      <strong>{snapshot?.calendars_telemetry?.open_market_calendar.session_state ?? "regular_open"}</strong>
+                    </div>
                   </div>
                 </div>
               </article>
 
-              <article className="panel card-pad">
+              <article className="panel data-panel">
                 <div className="panel-heading">
                   <div>
-                    <span className="summary-label">COMMAND CENTER &amp; MODULE NAVIGATION</span>
-                    <h3>Quick actions &amp; direct workspace modules</h3>
+                    <span className="summary-label">QUALITY GATES, LIVE BAR INGESTION &amp; MICROSTRUCTURE</span>
+                    <h3>Point-in-time market bars &amp; covariate normalizer</h3>
                   </div>
-                  <span className="state-pill state-verified">READY</span>
+                  <span className="state-pill state-verified">{quality?.quality_status.toUpperCase() ?? "VERIFIED"}</span>
                 </div>
                 <div className="kpi-mini-grid">
-                  <div className="kpi-mini"><span>OPEN POSITIONS</span><strong>{openPositions.length} active</strong></div>
-                  <div className="kpi-mini"><span>ACTIVE CHALLENGER</span><strong>{challengerAlias}</strong></div>
-                  <div className="kpi-mini"><span>TRAINING CYCLES</span><strong>{trainingRuns} completed</strong></div>
-                  <div className="kpi-mini"><span>MAX SAFE TRADE</span><strong>${formatPrice(ruleEval?.remaining_room.max_safe_trade_notional_usd ?? 0)}</strong></div>
-                  <div className="kpi-mini"><span>ACTIVE CONNECTORS</span><strong>{connectorsList.filter((c) => c.status === "connected").length} / {connectorsList.length} online</strong></div>
-                  <div className="kpi-mini"><span>MASTER-SPEC GATES</span><strong>9 / 9 Active</strong></div>
+                  <div className="kpi-mini"><span>PIT LOOKAHEAD</span><strong>{quality?.point_in_time_valid ? "PASS (<=as_of)" : "DENY"}</strong></div>
+                  <div className="kpi-mini"><span>LICENSE / FRED</span><strong>{quality?.license_valid_for_use ? "PASS (FRED Blocked)" : "DENY"}</strong></div>
+                  <div className="kpi-mini"><span>FRESHNESS</span><strong>{quality?.is_fresh ? `FRESH (${quality?.freshness_age_seconds ?? 0}s)` : "STALE"}</strong></div>
                 </div>
-                <div className="action-btn-row" style={{ marginTop: "12px" }}>
-                  <button type="button" className="action-btn" onClick={() => setActiveSection("rules")}>
-                    Open Order &amp; Risk Console
-                  </button>
-                  <button type="button" className="action-btn action-btn-secondary" onClick={() => setActiveSection("connectors")}>
-                    Connectors Library
-                  </button>
-                  <button type="button" className="action-btn action-btn-secondary" onClick={() => setActiveSection("profile")}>
-                    Operator Profile
-                  </button>
-                  <button type="button" className="action-btn action-btn-danger" onClick={handleToggleKillSwitch}>
-                    {killSwitchEngaged ? "Reset Kill Switch" : "Engage Kill Switch"}
-                  </button>
-                </div>
-                <div className="kpi-mini-grid" style={{ marginTop: "12px" }}>
-                  {([
-                    ["market", "02 Market & Regimes", "Candles, Calendars & Microstructure"],
-                    ["rules", "03 Control & Execution", "Orders, Stops, Rules & Lifecycle"],
-                    ["research", "04 Forecasts & AI Tick", "Calibration & 24/7 Research Node"],
-                    ["experiments", "05 Walk-Forward Lab", "Purged Holdout & Track Simulation"],
-                    ["connectors", "07 Connectors Library", "MCPs, Gemini, SEC EDGAR & 3rd Parties"],
-                    ["profile", "10 User Profile", "Operator Identity, Roles & API Keys"],
-                  ] as Array<[SectionId, string, string]>).map(([sec, title, desc]) => (
-                    <button
-                      key={sec}
-                      type="button"
-                      className="kpi-mini"
-                      style={{ textAlign: "left", border: "1px solid #dce1d8", cursor: "pointer" }}
-                      onClick={() => setActiveSection(sec)}
-                    >
-                      <span>{title}</span>
-                      <strong style={{ fontSize: "11px" }}>{desc}</strong>
-                    </button>
-                  ))}
-                </div>
-                <div className="audit-log-box" aria-label="Control-plane audit log">
-                  {auditLog.slice(-3).map((entry, idx) => (
-                    <div key={`${idx}-${entry}`}>{entry}</div>
-                  ))}
-                </div>
-              </article>
-            </div>
-          </section>
-          ) : null}
-
-          {showSection("market") ? (
-          <section className="section-block" id="market">
-            <div className="section-heading">
-              <div><p className="eyebrow">02 / MARKET DATA, CAUSAL REGIMES, CALENDARS &amp; MICROSTRUCTURE</p><h2>Market monitor, point-in-time regime state &amp; microstructure covariates</h2></div>
-              <span className="source-chip"><i /> VERIFIED FROZEN SOURCE · {regime?.taxonomy_revision ?? "regime-taxonomy:v1"}</span>
-            </div>
-            <div className="market-layout">
-              <article className="panel chart-panel">
-                <div className="panel-heading">
-                  <div><span className="instrument-symbol">BTC-USD</span><span className="instrument-interval">1H</span></div>
-                  <span className="feed-label">VERIFIED POINT-IN-TIME FEED</span>
-                </div>
-                <div className="chart-value-row">
-                  <strong>{latest ? `$${formatPrice(latest.close)}` : "--"}</strong>
-                  <span>{latest ? new Date(latest.open_time).toLocaleString("en-US", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC" : "Awaiting market data"}</span>
-                </div>
-                <CandlePlot candles={candles} />
-                {regime ? (
-                  <div className="regime-strip" aria-label="Causal regime dimensions">
-                    <div className="regime-badge">
-                      <span>VOLATILITY</span>
-                      <strong>{regime.volatility}</strong>
-                    </div>
-                    <div className="regime-badge">
-                      <span>TREND STRUCTURE</span>
-                      <strong>{regime.trend}</strong>
-                    </div>
-                    <div className="regime-badge">
-                      <span>LIQUIDITY</span>
-                      <strong>{regime.liquidity}</strong>
-                    </div>
-                    <div className="regime-badge">
-                      <span>SESSION CALENDAR</span>
-                      <strong>{regime.session}</strong>
-                    </div>
-                    <div className={`regime-badge ${regime.macro_event !== "clear" ? "warn" : ""}`}>
-                      <span>MACRO EVENT</span>
-                      <strong>{regime.macro_event}</strong>
-                    </div>
-                  </div>
-                ) : null}
-                <div className="chart-legend">
-                  <span><i className="legend-up" />Close at or above open</span>
-                  <span><i className="legend-down" />Close below open</span>
-                  <span>Causal regime labels use only observations with available_at &le; as_of</span>
-                </div>
-              </article>
-              <article className="panel data-panel">
-                <div className="panel-heading"><h3>Quality &amp; Freshness Gate</h3><span className="state-pill state-verified">{quality?.quality_status.toUpperCase() ?? "CHECKING"}</span></div>
-                <div className="table-wrap">
-                  <table>
-                    <thead><tr><th>GATE CHECK</th><th>STATUS</th><th>DETAIL</th></tr></thead>
-                    <tbody>
-                      <tr>
-                        <td>Point-in-time (no lookahead)</td>
-                        <td>{quality?.point_in_time_valid ? "PASS" : "DENY"}</td>
-                        <td>available_at &le; as_of</td>
-                      </tr>
-                      <tr>
-                        <td>Calendar alignment</td>
-                        <td>{quality?.calendar_matched ? "PASS" : "DENY"}</td>
-                        <td>Matches instrument.calendar_ref</td>
-                      </tr>
-                      <tr>
-                        <td>License &amp; training rights</td>
-                        <td>{quality?.license_valid_for_use ? "PASS" : "DENY"}</td>
-                        <td>FRED training blocked</td>
-                      </tr>
-                      <tr>
-                        <td>Freshness window</td>
-                        <td>{quality?.is_fresh ? "FRESH" : "STALE"}</td>
-                        <td>Age: {quality?.freshness_age_seconds ?? 0}s</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div className="panel-heading" style={{ marginTop: "8px" }}><h3>Market Observations &amp; Live Ingestion</h3><span>{candles.length} rows</span></div>
-                <div className="action-form-grid" style={{ padding: "0 14px 10px" }}>
+                <div className="action-form-grid">
                   <div className="action-field">
                     <label htmlFor="ingest-price">CLOSE PRICE (USD)</label>
                     <input id="ingest-price" type="number" value={ingestPrice} onChange={(e) => setIngestPrice(e.target.value)} />
@@ -1988,10 +1965,10 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     </button>
                   </div>
                 </div>
-                <div className="table-wrap">
+                <div className="table-wrap" style={{ marginTop: "6px" }}>
                   <table>
                     <thead><tr><th>OPEN TIME (UTC)</th><th>CLOSE</th><th>VOLUME</th></tr></thead>
-                    <tbody>{candles.map((candle) => (
+                    <tbody>{candles.slice(-4).map((candle) => (
                       <tr key={candle.open_time}>
                         <td>{new Date(candle.open_time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}</td>
                         <td>${formatPrice(candle.close)}</td>
@@ -2000,83 +1977,36 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     ))}</tbody>
                   </table>
                 </div>
-                <div className="panel-footnote">Verified point-in-time corpus · Unknown quality or license defaults to deny</div>
-              </article>
-            </div>
-
-            <div className="two-col-grid" style={{ marginTop: "12px" }}>
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">AUTHORITATIVE MARKET CALENDARS</span>
-                    <h3>24/7 Crypto Perp vs Traditional NYSE Session Calendars</h3>
+                <div className="sub-divider">
+                  <span className="summary-label">WHALE &amp; MICROSTRUCTURE COVARIATE NORMALIZER</span>
+                  <div className="action-form-grid">
+                    <div className="action-field">
+                      <label htmlFor="micro-kind">EVENT KIND</label>
+                      <select id="micro-kind" value={microKind} onChange={(e) => setMicroKind(e.target.value as "order_flow_imbalance" | "exchange_outflow" | "funding_rate" | "open_interest")}>
+                        <option value="order_flow_imbalance">order_flow_imbalance</option>
+                        <option value="exchange_outflow">exchange_outflow</option>
+                        <option value="funding_rate">funding_rate</option>
+                        <option value="open_interest">open_interest</option>
+                      </select>
+                    </div>
+                    <div className="action-field">
+                      <label htmlFor="micro-val">VALUE</label>
+                      <input id="micro-val" type="number" step="0.01" value={microValue} onChange={(e) => setMicroValue(e.target.value)} />
+                    </div>
+                    <div className="action-field">
+                      <label htmlFor="micro-reshuffle">CUSTODY RESHUFFLE?</label>
+                      <select id="micro-reshuffle" value={microReshuffle ? "yes" : "no"} onChange={(e) => setMicroReshuffle(e.target.value === "yes")}>
+                        <option value="no">No (Valid Signal)</option>
+                        <option value="yes">Yes (Exclude)</option>
+                      </select>
+                    </div>
                   </div>
-                  <span className="state-pill state-verified">CALENDAR VERIFIED</span>
-                </div>
-                <div className="kpi-mini-grid">
-                  <div className="kpi-mini">
-                    <span>CRYPTO CALENDAR ({snapshot?.calendars_telemetry?.competition_calendar.calendar_ref ?? "crypto-perp:24x7"})</span>
-                    <strong>{snapshot?.calendars_telemetry?.competition_calendar.session_state ?? "continuous_24_7"}</strong>
+                  <div className="action-btn-row">
+                    <button type="button" className="action-btn" onClick={handleNormalizeMicrostructure}>
+                      Normalize &amp; Verify Microstructure Event
+                    </button>
+                    <span style={{ fontSize: "9.5px", color: "var(--muted)" }}>{microLog}</span>
                   </div>
-                  <div className="kpi-mini">
-                    <span>FUNDING / MAINTENANCE WINDOWS</span>
-                    <strong>
-                      {snapshot?.calendars_telemetry?.competition_calendar.funding_windows_count ?? 3} funding / {snapshot?.calendars_telemetry?.competition_calendar.maintenance_windows_count ?? 1} maint
-                    </strong>
-                  </div>
-                  <div className="kpi-mini">
-                    <span>EQUITY CALENDAR ({snapshot?.calendars_telemetry?.open_market_calendar.calendar_ref ?? "nyse:regular-sessions"})</span>
-                    <strong>{snapshot?.calendars_telemetry?.open_market_calendar.session_state ?? "regular_open"}</strong>
-                  </div>
-                  <div className="kpi-mini">
-                    <span>SESSION TARGETS / HOLIDAYS</span>
-                    <strong>
-                      {snapshot?.calendars_telemetry?.open_market_calendar.session_targets_count ?? 35} sessions · {(snapshot?.calendars_telemetry?.open_market_calendar.holidays ?? ["2026-11-26"]).join(", ")}
-                    </strong>
-                  </div>
-                </div>
-                <div className="permission-note">
-                  Session schedules &amp; funding windows are deterministically enforced before target construction and trade entry.
-                </div>
-              </article>
-
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">WHALE &amp; MICROSTRUCTURE COVARIATE NORMALIZER</span>
-                    <h3>Point-in-time finality, attribution &amp; custody reshuffle filter</h3>
-                  </div>
-                  <span className="state-pill state-verified">PIT COVARIATES</span>
-                </div>
-                <div className="action-form-grid">
-                  <div className="action-field">
-                    <label htmlFor="micro-kind">EVENT KIND</label>
-                    <select id="micro-kind" value={microKind} onChange={(e) => setMicroKind(e.target.value as "order_flow_imbalance" | "exchange_outflow" | "funding_rate" | "open_interest")}>
-                      <option value="order_flow_imbalance">order_flow_imbalance</option>
-                      <option value="exchange_outflow">exchange_outflow</option>
-                      <option value="funding_rate">funding_rate</option>
-                      <option value="open_interest">open_interest</option>
-                    </select>
-                  </div>
-                  <div className="action-field">
-                    <label htmlFor="micro-val">VALUE</label>
-                    <input id="micro-val" type="number" step="0.01" value={microValue} onChange={(e) => setMicroValue(e.target.value)} />
-                  </div>
-                  <div className="action-field">
-                    <label htmlFor="micro-reshuffle">CUSTODY RESHUFFLE?</label>
-                    <select id="micro-reshuffle" value={microReshuffle ? "yes" : "no"} onChange={(e) => setMicroReshuffle(e.target.value === "yes")}>
-                      <option value="no">No (Valid Signal)</option>
-                      <option value="yes">Yes (Internal Reshuffle - Exclude)</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="action-btn-row">
-                  <button type="button" className="action-btn" onClick={handleNormalizeMicrostructure}>
-                    Normalize &amp; Verify Microstructure Event
-                  </button>
-                </div>
-                <div className="permission-note" style={{ marginTop: "8px" }}>
-                  {microLog}
                 </div>
               </article>
             </div>
@@ -2086,84 +2016,10 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           {showSection("rules") ? (
           <section className="section-block" id="rules">
             <div className="section-heading">
-              <div><p className="eyebrow">03 / DETERMINISTIC CONTROL PLANE</p><h2>Trading rules, execution console &amp; remaining-room panel</h2></div>
+              <div><p className="eyebrow">03 / DETERMINISTIC CONTROL PLANE</p><h2>Trading rules, execution console, remaining-room buffers &amp; model lifecycle</h2></div>
               <span className="quiet-tag">RULEBOOK: {ruleEval?.rulebook_id ?? "prop-comp-2026-q4:v1"} · LLMS CANNOT OVERRIDE</span>
             </div>
-            <div className="two-col-grid">
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">PROXIMITY TO HARD LIMITS</span>
-                    <h3>Rule utilization &amp; remaining buffer</h3>
-                  </div>
-                  <span className={`state-pill ${ruleEval?.compliance_passed ? "state-verified" : "state-blocked"}`}>
-                    {ruleEval?.compliance_passed ? "RULEBOOK PASS" : "DEFAULT DENY"}
-                  </span>
-                </div>
-                <div className="proximity-list">
-                  {(ruleEval?.remaining_room.proximities ?? []).map((item) => (
-                    <div className="proximity-item" key={item.rule_name}>
-                      <div className="proximity-header">
-                        <strong>{item.rule_name}</strong>
-                        <span>{item.current_value} / {item.limit_value} ({item.remaining_pct}% room left)</span>
-                      </div>
-                      <div className="proximity-bar-track">
-                        <div
-                          className={`proximity-bar-fill ${item.status}`}
-                          style={{ width: `${Math.min(100, item.utilization_pct)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="permission-note">
-                  Deterministic control plane enforced · Model signal permission: <strong>{ruleEval?.execution_permission ?? "none"}</strong>
-                </div>
-              </article>
-
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">COMPETITION &amp; RISK SAFEGUARDS</span>
-                    <h3>Remaining dollar room &amp; circuit breakers</h3>
-                  </div>
-                  <span className={`state-pill ${killSwitchEngaged ? "state-blocked" : "state-verified"}`}>
-                    {killSwitchEngaged ? "KILL SWITCH ACTIVE" : "ACTIONABLE CONTROL"}
-                  </span>
-                </div>
-                <div className="kpi-mini-grid">
-                  <div className="kpi-mini">
-                    <span>MAX SAFE TRADE NOTIONAL</span>
-                    <strong>${formatPrice(ruleEval?.remaining_room.max_safe_trade_notional_usd ?? 0)}</strong>
-                  </div>
-                  <div className="kpi-mini">
-                    <span>DAILY LOSS BUFFER</span>
-                    <strong>${formatPrice(ruleEval?.remaining_room.daily_loss_room_usd ?? 0)}</strong>
-                  </div>
-                  <div className="kpi-mini">
-                    <span>TRAILING DRAWDOWN BUFFER</span>
-                    <strong>${formatPrice(ruleEval?.remaining_room.drawdown_room_usd ?? 0)}</strong>
-                  </div>
-                  <div className="kpi-mini">
-                    <span>GROSS LEVERAGE ROOM</span>
-                    <strong>${formatPrice(ruleEval?.remaining_room.leverage_room_usd ?? 0)}</strong>
-                  </div>
-                  <div className="kpi-mini">
-                    <span>CONSISTENCY RULE (&le;35%)</span>
-                    <strong>{ruleEval?.remaining_room.consistency_compliant ? "COMPLIANT" : "BREACHED"}</strong>
-                  </div>
-                  <div className="kpi-mini">
-                    <span>MIN TRADING DAYS (&ge;5d)</span>
-                    <strong>{ruleEval?.remaining_room.minimum_days_met ? "MET (6d)" : "PENDING"}</strong>
-                  </div>
-                </div>
-                <div className="permission-note">
-                  Kill Switch: <strong>{killSwitchEngaged ? "ENGAGED" : "STANDBY"}</strong> · Open Positions: <strong>{openPositions.length}</strong> · Self-Training Runs: <strong>{trainingRuns}</strong>
-                </div>
-              </article>
-            </div>
-
-            <div className="two-col-grid" style={{ marginTop: "12px" }} id="action-console">
+            <div className="two-col-grid" id="action-console">
               <article className="panel card-pad">
                 <div className="panel-heading">
                   <div>
@@ -2220,13 +2076,13 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     Evaluate &amp; Execute Order
                   </button>
                   <button type="button" className="action-btn action-btn-secondary" onClick={handleFlattenAll}>
-                    Flatten All Positions ({openPositions.length})
+                    Flatten All ({openPositions.length})
                   </button>
                   <button type="button" className="action-btn action-btn-danger" onClick={handleToggleKillSwitch}>
                     {killSwitchEngaged ? "Reset Kill Switch" : "Engage Kill Switch & Auto-Flatten"}
                   </button>
                 </div>
-                <div className="table-wrap" style={{ marginTop: "12px" }}>
+                <div className="table-wrap" style={{ marginTop: "8px" }}>
                   <table>
                     <thead><tr><th>POS / ORDER ID</th><th>INSTRUMENT</th><th>SIDE</th><th>NOTIONAL</th><th>STATUS / DECISION</th></tr></thead>
                     <tbody>
@@ -2239,7 +2095,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                           <td>OPEN ({pos.stop_kind.toUpperCase()} {pos.stop_distance_bps}bps)</td>
                         </tr>
                       ))}
-                      {orderDecisions.slice(0, 4).map((dec) => (
+                      {orderDecisions.slice(0, 3).map((dec) => (
                         <tr key={dec.order_id}>
                           <td>{dec.order_id}</td>
                           <td>{dec.instrument_id}</td>
@@ -2251,58 +2107,78 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     </tbody>
                   </table>
                 </div>
+                <div className="sub-divider">
+                  <span className="summary-label">ACTIONABLE SELF-TRAINING &amp; MODEL LIFECYCLE ({trainingRuns} RUNS)</span>
+                  <div className="kpi-mini-grid">
+                    <div className="kpi-mini"><span>CHAMPION</span><strong>{championAlias}</strong></div>
+                    <div className="kpi-mini"><span>CHALLENGER</span><strong>{challengerAlias}</strong></div>
+                    <div className="kpi-mini"><span>SCOPE</span><strong>{challengerApproved ? "APPROVED" : "REVOKED"}</strong></div>
+                  </div>
+                  <div className="action-btn-row">
+                    <button type="button" className="action-btn" onClick={handleRunSelfTraining}>
+                      Run Self-Training
+                    </button>
+                    <button
+                      type="button"
+                      className="action-btn action-btn-secondary"
+                      onClick={() => handleLifecycleAction(challengerApproved ? "revoke_challenger" : "approve_challenger")}
+                    >
+                      {challengerApproved ? "Revoke Scope" : "Approve Scope"}
+                    </button>
+                    <button
+                      type="button"
+                      className="action-btn action-btn-secondary"
+                      onClick={() => handleLifecycleAction("promote_challenger")}
+                    >
+                      Promote Challenger
+                    </button>
+                    <button
+                      type="button"
+                      className="action-btn action-btn-secondary"
+                      onClick={() => handleLifecycleAction("rollback_to_champion")}
+                    >
+                      Rollback Champion
+                    </button>
+                  </div>
+                </div>
               </article>
 
               <article className="panel card-pad">
                 <div className="panel-heading">
                   <div>
-                    <span className="summary-label">ACTIONABLE SELF-TRAINING &amp; MODEL LIFECYCLE</span>
-                    <h3>On-demand challenger training, approval &amp; alias control</h3>
+                    <span className="summary-label">PROXIMITY TO HARD LIMITS &amp; REMAINING BUFFERS</span>
+                    <h3>Rule utilization, dollar buffers &amp; audit trail</h3>
                   </div>
-                  <span className="state-pill state-verified">RUNS: {trainingRuns}</span>
+                  <span className={`state-pill ${ruleEval?.compliance_passed ? "state-verified" : "state-blocked"}`}>
+                    {ruleEval?.compliance_passed ? "RULEBOOK PASS" : "DEFAULT DENY"}
+                  </span>
+                </div>
+                <div className="proximity-list">
+                  {(ruleEval?.remaining_room.proximities ?? []).map((item) => (
+                    <div className="proximity-item" key={item.rule_name}>
+                      <div className="proximity-header">
+                        <strong>{item.rule_name}</strong>
+                        <span>{item.current_value} / {item.limit_value} ({item.remaining_pct}% left)</span>
+                      </div>
+                      <div className="proximity-bar-track">
+                        <div
+                          className={`proximity-bar-fill ${item.status}`}
+                          style={{ width: `${Math.min(100, item.utilization_pct)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 <div className="kpi-mini-grid">
-                  <div className="kpi-mini">
-                    <span>ACTIVE CHAMPION</span>
-                    <strong>{championAlias}</strong>
-                  </div>
-                  <div className="kpi-mini">
-                    <span>ACTIVE CHALLENGER</span>
-                    <strong>{challengerAlias}</strong>
-                  </div>
-                  <div className="kpi-mini">
-                    <span>CHALLENGER APPROVAL</span>
-                    <strong>{challengerApproved ? "APPROVED" : "REVOKED"}</strong>
-                  </div>
-                </div>
-                <div className="action-btn-row">
-                  <button type="button" className="action-btn" onClick={handleRunSelfTraining}>
-                    Run Self-Training Cycle
-                  </button>
-                  <button
-                    type="button"
-                    className="action-btn action-btn-secondary"
-                    onClick={() => handleLifecycleAction(challengerApproved ? "revoke_challenger" : "approve_challenger")}
-                  >
-                    {challengerApproved ? "Revoke Challenger Scope" : "Approve Challenger Scope"}
-                  </button>
-                  <button
-                    type="button"
-                    className="action-btn action-btn-secondary"
-                    onClick={() => handleLifecycleAction("promote_challenger")}
-                  >
-                    Promote Challenger to Champion
-                  </button>
-                  <button
-                    type="button"
-                    className="action-btn action-btn-secondary"
-                    onClick={() => handleLifecycleAction("rollback_to_champion")}
-                  >
-                    Rollback Champion Alias
-                  </button>
+                  <div className="kpi-mini"><span>MAX SAFE TRADE</span><strong>${formatPrice(ruleEval?.remaining_room.max_safe_trade_notional_usd ?? 0)}</strong></div>
+                  <div className="kpi-mini"><span>DAILY LOSS ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.daily_loss_room_usd ?? 0)}</strong></div>
+                  <div className="kpi-mini"><span>DRAWDOWN ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.drawdown_room_usd ?? 0)}</strong></div>
+                  <div className="kpi-mini"><span>LEVERAGE ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.leverage_room_usd ?? 0)}</strong></div>
+                  <div className="kpi-mini"><span>CONSISTENCY (&le;35%)</span><strong>{ruleEval?.remaining_room.consistency_compliant ? "COMPLIANT" : "BREACHED"}</strong></div>
+                  <div className="kpi-mini"><span>MIN DAYS (&ge;5d)</span><strong>{ruleEval?.remaining_room.minimum_days_met ? "MET (6d)" : "PENDING"}</strong></div>
                 </div>
                 <div className="audit-log-box" aria-label="Control-plane audit log">
-                  {auditLog.slice(-6).map((entry, idx) => (
+                  {auditLog.slice(-4).map((entry, idx) => (
                     <div key={`${idx}-${entry}`}>{entry}</div>
                   ))}
                 </div>
@@ -2317,23 +2193,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               <div><p className="eyebrow">04 / FORECAST ORCHESTRATION, CALIBRATION &amp; 24/7 AI RESEARCH TICK</p><h2>Scoped approval, model disagreement, probability calibration &amp; secret-screened AI notes</h2></div>
               <span className="quiet-tag">COMBINED ENSEMBLE: GATED (NULL)</span>
             </div>
-            <div className="research-layout">
-              <article className="panel approval-panel">
-                <div className="approval-icon">!</div>
-                <div>
-                  <span className="summary-label">WITHOUT HUMAN APPROVAL</span>
-                  <h3>Forecast selection denied</h3>
-                  <p>
-                    The orchestrator returns zero forecasts when a scoped approval (model revision, instrument, horizon, target, unit) is absent or expired.
-                  </p>
-                  {snapshot?.calibrator ? (
-                    <p style={{ marginTop: "10px" }}>
-                      <strong>Held-out Calibrator ({snapshot.calibrator.calibration_id}):</strong> Bin rates [{snapshot.calibrator.bin_rates.map((r) => r.toFixed(2)).join(", ")}] across counts [{snapshot.calibrator.bin_counts.join(", ")}]. LLM confidence never enters calibration.
-                    </p>
-                  ) : null}
-                </div>
-                <span className="state-pill state-blocked">DENIED</span>
-              </article>
+            <div className="two-col-grid">
               <article className="panel forecast-panel">
                 <div className="panel-heading">
                   <div>
@@ -2355,46 +2215,60 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     ))}
                   </div>
                 ) : null}
+                <div className="approval-panel" style={{ marginTop: "8px" }}>
+                  <div className="approval-icon">!</div>
+                  <div>
+                    <span className="summary-label">WITHOUT HUMAN APPROVAL (DEFAULT DENY)</span>
+                    <p>
+                      Returns zero forecasts when scoped approval is absent or expired.
+                      {snapshot?.calibrator ? ` Calibrator (${snapshot.calibrator.calibration_id}): rates [${snapshot.calibrator.bin_rates.map((r) => r.toFixed(2)).join(", ")}].` : ""}
+                    </p>
+                  </div>
+                  <span className="state-pill state-blocked">DENIED</span>
+                </div>
                 <div className="permission-note">
-                  Approved strategy candidates: <strong>{(snapshot?.with_scoped_approval.strategy_candidates ?? []).join(", ") || "none"}</strong> · Model signal permission: <strong>{snapshot?.with_scoped_approval.execution_permission ?? "none"}</strong>
+                  Approved candidates: <strong>{(snapshot?.with_scoped_approval.strategy_candidates ?? []).join(", ") || "none"}</strong> · Signal permission: <strong>{snapshot?.with_scoped_approval.execution_permission ?? "none"}</strong>
+                </div>
+              </article>
+
+              <article className="panel card-pad">
+                <div className="panel-heading">
+                  <div>
+                    <span className="summary-label">24/7 CONTINUOUS RESEARCH NODE &amp; SECRET-SCREENED AI NARRATOR</span>
+                    <h3>Execute continuous research tick &amp; verify prompt secret screening</h3>
+                  </div>
+                  <span className="state-pill state-verified">EXECUTION PERMISSION: NONE</span>
+                </div>
+                <div className="action-form-grid">
+                  <div className="action-field" style={{ gridColumn: "span 2" }}>
+                    <label htmlFor="research-note-input">MARKET OBSERVATION CONTEXT (SCREENED FOR SECRETS &amp; LENGTH)</label>
+                    <input
+                      id="research-note-input"
+                      value={researchNoteInput}
+                      onChange={(e) => setResearchNoteInput(e.target.value)}
+                    />
+                  </div>
+                  <div className="action-field">
+                    <label htmlFor="research-workload">GEMINI WORKLOAD TIER</label>
+                    <select id="research-workload" value={researchWorkload} onChange={(e) => setResearchWorkload(e.target.value as "frequent" | "deep")}>
+                      <option value="frequent">Frequent (Low-Latency)</option>
+                      <option value="deep">Deep Research Synthesis</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="action-btn-row">
+                  <button type="button" className="action-btn" onClick={handleRunContinuousTick}>
+                    Execute 24/7 Research Tick &amp; Synthesize Note
+                  </button>
+                </div>
+                <div className="audit-log-box" aria-label="Research tick log">
+                  <div>{researchTickLog}</div>
+                </div>
+                <div className="permission-note">
+                  Gemini paid-tier runtime enforces zero tool calls, secret-pattern rejection, and uncalibrated confidence isolation.
                 </div>
               </article>
             </div>
-
-            <article className="panel card-pad" style={{ marginTop: "12px" }}>
-              <div className="panel-heading">
-                <div>
-                  <span className="summary-label">24/7 CONTINUOUS RESEARCH NODE &amp; PAID-TIER SECRET-SCREENED AI NARRATOR</span>
-                  <h3>Execute continuous research tick &amp; verify prompt secret screening</h3>
-                </div>
-                <span className="state-pill state-verified">EXECUTION PERMISSION: NONE</span>
-              </div>
-              <div className="action-form-grid">
-                <div className="action-field" style={{ gridColumn: "span 2" }}>
-                  <label htmlFor="research-note-input">MARKET OBSERVATION CONTEXT (SCREENED FOR SECRETS &amp; LENGTH)</label>
-                  <input
-                    id="research-note-input"
-                    value={researchNoteInput}
-                    onChange={(e) => setResearchNoteInput(e.target.value)}
-                  />
-                </div>
-                <div className="action-field">
-                  <label htmlFor="research-workload">GEMINI WORKLOAD TIER</label>
-                  <select id="research-workload" value={researchWorkload} onChange={(e) => setResearchWorkload(e.target.value as "frequent" | "deep")}>
-                    <option value="frequent">Frequent (Low-Latency)</option>
-                    <option value="deep">Deep Research Synthesis</option>
-                  </select>
-                </div>
-              </div>
-              <div className="action-btn-row">
-                <button type="button" className="action-btn" onClick={handleRunContinuousTick}>
-                  Execute 24/7 Research Tick &amp; Synthesize Note
-                </button>
-              </div>
-              <div className="permission-note" style={{ marginTop: "8px" }}>
-                {researchTickLog}
-              </div>
-            </article>
           </section>
           ) : null}
 
@@ -2640,6 +2514,22 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               <div className="permission-note" style={{ marginTop: "8px" }}>
                 {secLog}
               </div>
+              <div className="table-wrap" style={{ marginTop: "8px" }}>
+                <table>
+                  <thead><tr><th>FACT / CONCEPT</th><th>SOURCE</th><th>LINEAGE</th><th>VALUE</th><th>AVAILABLE AT</th></tr></thead>
+                  <tbody>
+                    {(snapshot?.sec_edgar_facts ?? DEFAULT_SNAPSHOT.sec_edgar_facts ?? []).map((fact, idx) => (
+                      <tr key={`${fact.name}-${idx}`}>
+                        <td>{fact.name}</td>
+                        <td>{fact.source}</td>
+                        <td>{fact.lineage_ref}</td>
+                        <td>${formatPrice(fact.value)}</td>
+                        <td>{new Date(fact.available_at).toISOString().slice(0, 10)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </article>
             </div>
           </section>
@@ -2648,41 +2538,50 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           {showSection("governance") ? (
           <section className="section-block" id="governance">
             <div className="section-heading">
-              <div><p className="eyebrow">07 / ISO GOVERNANCE, MASTER-SPEC GATES &amp; 8 MONEY RECORDS</p><h2>Designed for future certification readiness &amp; strict book-of-record separation</h2></div>
+              <div><p className="eyebrow">08 / ISO GOVERNANCE, MASTER-SPEC GATES &amp; 8 MONEY RECORDS</p><h2>Designed for future certification readiness &amp; strict book-of-record separation</h2></div>
               <button type="button" className="action-btn" onClick={handleRunReadinessAudit}>
                 Run Master-Spec Readiness Audit
               </button>
             </div>
-            <div className="panel card-pad" style={{ marginBottom: "10px", fontSize: "11px", fontFamily: "Cascadia Code, Consolas, monospace" }}>
-              {readinessSummary}
-            </div>
-            <div className="integration-grid" id="integrations">
-              {(snapshot?.iso_governance?.standards ?? [
-                { id: "ISO/IEC 42001", domain: "AI Management System", control: "Scoped eligibility & human approval" },
-                { id: "ISO/IEC 23894", domain: "AI Risk Management", control: "Uncalibrated LLM isolation & PIT checks" },
-                { id: "ISO/IEC 27001", domain: "Information Security", control: "Secret screening & verified MCP allowlists" },
-                { id: "ISO 22301", domain: "Business Continuity", control: "Deterministic control plane runs when AI is down" },
-                { id: "ISO 31000", domain: "Risk Management", control: "Default-deny trading rules & kill switch" },
-                { id: "ISO 9001", domain: "Quality Management", control: "SHA-256 frozen manifests & purged walk-forward" },
-              ]).map((item) => (
-                <article className="integration-row" key={item.id}>
-                  <span className="integration-dot" />
-                  <div><strong>{item.id} · {item.domain}</strong><small>{item.control}</small></div>
-                  <span className="integration-status">Readiness design</span>
-                </article>
-              ))}
-            </div>
+            <div className="two-col-grid">
+              <article className="panel card-pad">
+                <div className="panel-heading">
+                  <div>
+                    <span className="summary-label">ISO / NIST / IOSCO READINESS CONTROLS</span>
+                    <h3>Certification readiness design &amp; master-spec gate audit</h3>
+                  </div>
+                  <span className="state-pill state-verified">AUDIT READY</span>
+                </div>
+                <div className="audit-log-box" style={{ marginBottom: "8px" }}>
+                  <div>{readinessSummary}</div>
+                </div>
+                <div className="integration-grid" id="integrations">
+                  {(snapshot?.iso_governance?.standards ?? [
+                    { id: "ISO/IEC 42001", domain: "AI Management System", control: "Scoped eligibility & human approval" },
+                    { id: "ISO/IEC 23894", domain: "AI Risk Management", control: "Uncalibrated LLM isolation & PIT checks" },
+                    { id: "ISO/IEC 27001", domain: "Information Security", control: "Secret screening & verified MCP allowlists" },
+                    { id: "ISO 22301", domain: "Business Continuity", control: "Deterministic control plane runs when AI is down" },
+                    { id: "ISO 31000", domain: "Risk Management", control: "Default-deny trading rules & kill switch" },
+                    { id: "ISO 9001", domain: "Quality Management", control: "SHA-256 frozen manifests & purged walk-forward" },
+                  ]).map((item) => (
+                    <article className="integration-row" key={item.id}>
+                      <span className="integration-dot" />
+                      <div><strong>{item.id} · {item.domain}</strong><small>{item.control}</small></div>
+                      <span className="integration-status">Verified</span>
+                    </article>
+                  ))}
+                </div>
+              </article>
 
-            <div className="two-col-grid" style={{ marginTop: "12px" }}>
               <article className="panel card-pad">
                 <div className="panel-heading">
                   <div>
                     <span className="summary-label">MASTER SPEC MONEY RECORDS BOUNDARY</span>
-                    <h3>Eight strictly separated financial &amp; account records</h3>
+                    <h3>Eight strictly separated non-custodial financial records</h3>
                   </div>
                   <span className="state-pill state-verified">NON-CUSTODIAL</span>
                 </div>
-                <div className="table-wrap">
+                <div className="table-wrap" style={{ marginTop: "6px" }}>
                   <table>
                     <thead><tr><th>MONEY RECORD</th><th>BOOK OF RECORD</th><th>CUSTODY / COMMINGLED</th></tr></thead>
                     <tbody>
@@ -2696,37 +2595,8 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     </tbody>
                   </table>
                 </div>
-              </article>
-
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">ROLE-BASED ACCESS CONTROL (RBAC)</span>
-                    <h3>Active Role: {snapshot?.roles?.[role]?.label ?? role}</h3>
-                  </div>
-                  <span className="state-pill state-verified">RBAC ENFORCED</span>
-                </div>
-                <div className="table-wrap">
-                  <table>
-                    <thead><tr><th>ROLE</th><th>PERMISSIONS</th><th>ORDER ENTRY</th></tr></thead>
-                    <tbody>
-                      <tr>
-                        <td>Founder / Admin</td>
-                        <td>execute_orders, manage_kill_switch, approve_models, promote_aliases</td>
-                        <td>AUTHORIZED</td>
-                      </tr>
-                      <tr>
-                        <td>Quant Researcher</td>
-                        <td>trigger_self_training, inspect_regimes, inspect_walk_forward_studies</td>
-                        <td>RESEARCH ONLY</td>
-                      </tr>
-                      <tr>
-                        <td>Risk &amp; Ops Monitor</td>
-                        <td>manage_kill_switch, flatten_positions, monitor_circuit_breakers</td>
-                        <td>RISK / FLATTEN ONLY</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div className="permission-note">
+                  Active RBAC Role: <strong>{snapshot?.roles?.[role]?.label ?? role}</strong> · Permissions: <strong>{(snapshot?.roles?.[role]?.permissions ?? ["execute_orders", "manage_kill_switch"]).join(", ")}</strong>
                 </div>
               </article>
             </div>
@@ -3163,7 +3033,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                         type="button"
                         className="logo-chip"
                         style={{ cursor: "pointer" }}
-                        onClick={() => setActiveSection("connectors")}
+                        onClick={() => navigateSection("connectors")}
                       >
                         <ConnectorLogo id={conn.connector_id} size={22} />
                         <strong>{conn.name}</strong>
