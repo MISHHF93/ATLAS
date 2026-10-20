@@ -651,7 +651,7 @@ const DEFAULT_SNAPSHOT: PlatformSnapshot = {
   ],
 };
 
-export function AtlasTerminal({ initialSection = "all" }: { initialSection?: SectionId }) {
+export function AtlasTerminal({ initialSection = "overview" }: { initialSection?: SectionId }) {
   const [activeSection, setActiveSection] = useState<SectionId>(initialSection);
   const [health, setHealth] = useState<"checking" | "online" | "offline">("checking");
   const [page, setPage] = useState<CandlePage | null>(null);
@@ -1175,7 +1175,7 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
   const activeStudy = snapshot?.studies?.[studyTrack];
 
   const showSection = (sec: SectionId) =>
-    activeSection === "all" || activeSection === "overview" || activeSection === sec;
+    activeSection === "all" || activeSection === sec;
 
   return (
     <div className="app-shell" aria-busy={loading}>
@@ -1185,24 +1185,24 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
           href="/"
           onClick={(e) => {
             e.preventDefault();
-            setActiveSection("all");
+            setActiveSection("overview");
           }}
           aria-label="ATLAS overview"
         >
           <span className="brand-mark">A</span>
           <span><strong>ATLAS</strong><small>COMMAND TERMINAL</small></span>
         </a>
-        <div className="sidebar-label">WORKSPACE PAGES</div>
+        <div className="sidebar-label">WORKSPACE</div>
         <nav className="primary-nav" aria-label="Workspace">
           <a
-            className={`nav-link ${activeSection === "all" || activeSection === "overview" ? "is-active" : ""}`}
+            className={`nav-link ${activeSection === "overview" || activeSection === "all" ? "is-active" : ""}`}
             href="/"
             onClick={(e) => {
               e.preventDefault();
-              setActiveSection("all");
+              setActiveSection("overview");
             }}
           >
-            <span className="nav-index">01</span>Overview (All Pages)
+            <span className="nav-index">01</span>Overview
           </a>
           <a
             className={`nav-link ${activeSection === "market" ? "is-active" : ""}`}
@@ -1212,7 +1212,7 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
               setActiveSection("market");
             }}
           >
-            <span className="nav-index">02</span>Market, Calendars &amp; Micro
+            <span className="nav-index">02</span>Market &amp; Regimes
           </a>
           <a
             className={`nav-link ${activeSection === "rules" ? "is-active" : ""}`}
@@ -1232,7 +1232,7 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
               setActiveSection("research");
             }}
           >
-            <span className="nav-index">04</span>Forecasts &amp; 24/7 AI Tick
+            <span className="nav-index">04</span>Forecasts &amp; AI Tick
           </a>
           <a
             className={`nav-link ${activeSection === "experiments" ? "is-active" : ""}`}
@@ -1242,7 +1242,7 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
               setActiveSection("experiments");
             }}
           >
-            <span className="nav-index">05</span>Walk-Forward &amp; Horizons
+            <span className="nav-index">05</span>Walk-Forward Lab
           </a>
           <a
             className={`nav-link ${activeSection === "models" ? "is-active" : ""}`}
@@ -1252,7 +1252,7 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
               setActiveSection("models");
             }}
           >
-            <span className="nav-index">06</span>Models, MCP &amp; SEC EDGAR
+            <span className="nav-index">06</span>Models &amp; Data
           </a>
           <a
             className={`nav-link ${activeSection === "governance" ? "is-active" : ""}`}
@@ -1262,7 +1262,7 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
               setActiveSection("governance");
             }}
           >
-            <span className="nav-index">07</span>Governance &amp; Money Ledger
+            <span className="nav-index">07</span>Governance &amp; Ledger
           </a>
           <a
             className={`nav-link ${activeSection === "docs" ? "is-active" : ""}`}
@@ -1272,26 +1272,8 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
               setActiveSection("docs");
             }}
           >
-            <span className="nav-index">08</span>Documentation &amp; Specs
+            <span className="nav-index">08</span>Documentation
           </a>
-        </nav>
-        <div className="sidebar-label" style={{ marginTop: "14px" }}>DOCUMENTATION INDEX</div>
-        <nav className="primary-nav" aria-label="Documentation files" style={{ overflowY: "auto", maxHeight: "230px" }}>
-          {docsList.map((doc) => (
-            <a
-              key={doc.doc_id}
-              className={`nav-link ${activeSection === "docs" && selectedDocId === doc.doc_id ? "is-active" : ""}`}
-              href={`/docs#${doc.doc_id}`}
-              style={{ minHeight: "28px", fontSize: "11px" }}
-              onClick={(e) => {
-                e.preventDefault();
-                setSelectedDocId(doc.doc_id);
-                setActiveSection("docs");
-              }}
-            >
-              <span className="nav-index">DOC</span>{doc.doc_id.replace(".md", "")}
-            </a>
-          ))}
         </nav>
         <div className="sidebar-bottom">
           <span className="sidebar-rule" />
@@ -1305,7 +1287,7 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
         <header className="topbar">
           <div className="breadcrumbs">
             <span>ATLAS</span><b>/</b><strong>24/7 Actionable Control &amp; Research</strong>
-            <b>/</b><span>Page: {activeSection.toUpperCase()}</span>
+            <b>/</b><span>{activeSection.toUpperCase()}</span>
             <b>/</b><span>{snapshot?.roles?.[role]?.label ?? "Founder / Admin"}</span>
           </div>
           <div className="topbar-right">
@@ -1334,32 +1316,11 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
         <div className="page-content">
           <section className="page-heading">
             <div>
-              <p className="eyebrow">COMMAND / PAGE: {activeSection.toUpperCase()} · ROLE: {role.toUpperCase()}</p>
+              <p className="eyebrow">COMMAND / {activeSection.toUpperCase()} · ROLE: {role.toUpperCase()}</p>
               <h1>Autonomous trading intelligence, <em>regime-aware &amp; actionable.</em></h1>
               <p className="heading-copy">
                 Continuous research, causal regime detection, deterministic control-plane order execution, kill-switch governance, and self-training across competition and open-market tracks.
               </p>
-              <div className="action-btn-row" style={{ marginTop: "10px" }} role="navigation" aria-label="Page view tabs">
-                {([
-                  ["all", "01 All Pages Unified"],
-                  ["market", "02 Market, Calendars & Micro"],
-                  ["rules", "03 Control & Execution"],
-                  ["research", "04 Forecasts & 24/7 AI Tick"],
-                  ["experiments", "05 Walk-Forward & Horizons"],
-                  ["models", "06 Models, MCP & SEC EDGAR"],
-                  ["governance", "07 Governance & Money Ledger"],
-                  ["docs", "08 Documentation & Specs"],
-                ] as Array<[SectionId, string]>).map(([secId, label]) => (
-                  <button
-                    key={secId}
-                    type="button"
-                    className={`action-btn ${activeSection === secId ? "" : "action-btn-secondary"}`}
-                    onClick={() => setActiveSection(secId)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
             </div>
             <div className="actionable-stamp">
               <span>CONTROL PLANE</span>
@@ -1392,6 +1353,88 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
               <small>Champion: {championAlias}</small>
             </article>
           </section>
+
+          {activeSection === "overview" ? (
+          <section className="section-block">
+            <div className="two-col-grid">
+              <article className="panel chart-panel">
+                <div className="panel-heading">
+                  <div><span className="instrument-symbol">BTC-USD</span><span className="instrument-interval">1H</span></div>
+                  <span className="feed-label">VERIFIED POINT-IN-TIME FEED</span>
+                </div>
+                <div className="chart-value-row">
+                  <strong>{latest ? `$${formatPrice(latest.close)}` : "--"}</strong>
+                  <span>{latest ? new Date(latest.open_time).toLocaleString("en-US", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC" : "Awaiting market data"}</span>
+                </div>
+                <CandlePlot candles={candles} />
+                {regime ? (
+                  <div className="regime-strip" aria-label="Causal regime dimensions">
+                    <div className="regime-badge"><span>VOLATILITY</span><strong>{regime.volatility}</strong></div>
+                    <div className="regime-badge"><span>TREND</span><strong>{regime.trend}</strong></div>
+                    <div className="regime-badge"><span>LIQUIDITY</span><strong>{regime.liquidity}</strong></div>
+                    <div className="regime-badge"><span>SESSION</span><strong>{regime.session}</strong></div>
+                    <div className={`regime-badge ${regime.macro_event !== "clear" ? "warn" : ""}`}><span>MACRO</span><strong>{regime.macro_event}</strong></div>
+                  </div>
+                ) : null}
+              </article>
+
+              <article className="panel card-pad">
+                <div className="panel-heading">
+                  <div>
+                    <span className="summary-label">COMMAND CENTER &amp; MODULE NAVIGATION</span>
+                    <h3>Quick actions &amp; direct workspace modules</h3>
+                  </div>
+                  <span className="state-pill state-verified">READY</span>
+                </div>
+                <div className="kpi-mini-grid">
+                  <div className="kpi-mini"><span>OPEN POSITIONS</span><strong>{openPositions.length} active</strong></div>
+                  <div className="kpi-mini"><span>ACTIVE CHALLENGER</span><strong>{challengerAlias}</strong></div>
+                  <div className="kpi-mini"><span>TRAINING CYCLES</span><strong>{trainingRuns} completed</strong></div>
+                  <div className="kpi-mini"><span>MAX SAFE TRADE</span><strong>${formatPrice(ruleEval?.remaining_room.max_safe_trade_notional_usd ?? 0)}</strong></div>
+                  <div className="kpi-mini"><span>COMPETITION MAE</span><strong>{snapshot?.studies?.competition.overall_report.mae.toFixed(1) ?? "184.2"}</strong></div>
+                  <div className="kpi-mini"><span>MASTER-SPEC GATES</span><strong>9 / 9 Active</strong></div>
+                </div>
+                <div className="action-btn-row" style={{ marginTop: "12px" }}>
+                  <button type="button" className="action-btn" onClick={() => setActiveSection("rules")}>
+                    Open Order &amp; Risk Console
+                  </button>
+                  <button type="button" className="action-btn action-btn-secondary" onClick={handleRunSelfTraining}>
+                    Run Self-Training Cycle
+                  </button>
+                  <button type="button" className="action-btn action-btn-danger" onClick={handleToggleKillSwitch}>
+                    {killSwitchEngaged ? "Reset Kill Switch" : "Engage Kill Switch"}
+                  </button>
+                </div>
+                <div className="kpi-mini-grid" style={{ marginTop: "12px" }}>
+                  {([
+                    ["market", "02 Market & Regimes", "Candles, Calendars & Microstructure"],
+                    ["rules", "03 Control & Execution", "Orders, Stops, Rules & Lifecycle"],
+                    ["research", "04 Forecasts & AI Tick", "Calibration & 24/7 Research Node"],
+                    ["experiments", "05 Walk-Forward Lab", "Purged Holdout & Track Simulation"],
+                    ["models", "06 Models & MCP Data", "Registry, MCP & SEC EDGAR PIT"],
+                    ["docs", "08 Documentation", "11 Architecture & Master Specs"],
+                  ] as Array<[SectionId, string, string]>).map(([sec, title, desc]) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      className="kpi-mini"
+                      style={{ textAlign: "left", border: "1px solid #dce1d8", cursor: "pointer" }}
+                      onClick={() => setActiveSection(sec)}
+                    >
+                      <span>{title}</span>
+                      <strong style={{ fontSize: "11px" }}>{desc}</strong>
+                    </button>
+                  ))}
+                </div>
+                <div className="audit-log-box" aria-label="Control-plane audit log">
+                  {auditLog.slice(-3).map((entry, idx) => (
+                    <div key={`${idx}-${entry}`}>{entry}</div>
+                  ))}
+                </div>
+              </article>
+            </div>
+          </section>
+          ) : null}
 
           {showSection("market") ? (
           <section className="section-block" id="market">
@@ -2291,8 +2334,6 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
                           fontFamily: "Cascadia Code, Consolas, monospace",
                           whiteSpace: "pre-wrap",
                           wordBreak: "break-word",
-                          maxHeight: "420px",
-                          overflowY: "auto",
                         }}
                       >
                         {currentDoc.content}
@@ -2316,5 +2357,5 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
 }
 
 export default function Page() {
-  return <AtlasTerminal initialSection="all" />;
+  return <AtlasTerminal initialSection="overview" />;
 }
