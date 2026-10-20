@@ -1132,6 +1132,33 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert cfg_post.status_code == 200
     assert cfg_post.json()["default_challenger_family"] == "gbdt_depth2_v1"
 
+    # 11. Verify API Data Warehouse (/api/warehouse, /api/warehouse/action) & Live Internet Sync
+    wh_get = client.get("/api/warehouse")
+    assert wh_get.status_code == 200
+    assert len(wh_get.json()["nodes"]) == 6
+    assert any(n["node_id"] == "bigquery_analytics_hub" for n in wh_get.json()["nodes"])
+
+    wh_act = client.post(
+        "/api/warehouse/action",
+        json={
+            "node_id": "bigquery_analytics_hub",
+            "action": "run_pit_query",
+            "sql_filter": "SELECT symbol, close, available_at FROM atlas_pit_ohlcv_1h WHERE available_at <= as_of LIMIT 5",
+        },
+    )
+    assert wh_act.status_code == 200
+    assert wh_act.json()["status"] == "ok"
+    assert wh_act.json()["execution_permission"] == "none"
+
+    live_sync = client.post(
+        "/api/market/live-internet-sync",
+        json={"symbol": "BTC-USD", "granularity": 3600},
+    )
+    assert live_sync.status_code == 200
+    assert live_sync.json()["status"] == "ok"
+    assert len(live_sync.json()["candles"]) >= 6
+
+
 
 
 
