@@ -10,13 +10,14 @@ The workspace is `C:\Users\borah\ATLAS`. The founder retains 100% ownership of s
 
 ---
 
-## Complete Platform Map (15 Domain Workbenches & 18 Live Routes)
+## Complete Platform Map (16 Domain Workbenches & 19 Live Routes)
 
 The terminal features an **Icon-Driven Domain Sidebar** (zero wizard/step numbering), a **Live Multi-Asset Ticker Tape** across the top (`SPY`, `NVDA`, `AAPL`, `MSFT`, `QQQ`, `TSLA`, `BTC-USD`, `ETH-USD`, `SOL-USD`), and a **Persistent Dockable Right-Hand Trading, L2 Orderbook DOM Ladder & Prop Risk Dock** alongside every workbench:
 
 | Domain Workbench | Route(s) | Backend API Endpoint(s) | Institutional Capability |
 | :--- | :--- | :--- | :--- |
 | **Command Center** | `/` | `/api/platform/snapshot`, `/api/control/state` | Unified Bento Command Workbench with **Topbar Dual-Track Switcher (`Open-Market Stocks` ↔ `Prop Competition`)**, **1-Click Stock & Prop Ticker Strip**, **Prop Evaluation Scorecard**, Dual-Mode Live Chart, and Pre-Trade Risk-Checked Order Desk. |
+| **Whale ML, SaaS & A–Z Roadmap** | `/roadmap` | `GET /api/master-roadmap`, `POST /api/master-roadmap/evaluate-whale`, `POST /api/master-roadmap/saas-action` | **Complete 7-Tab Master Roadmap & Technical Specifications Workbench**: **(1) `WF-01..WF-08` Whale Order Flow & Execution ML** (Kyle's Lambda, VPIN, Multi-Level OFI, Almgren-Chriss $\sinh$ Optimal Execution, GBDT Spread/Entropy, Predatory Square-Root Impact, Hawkes Process Hidden Liquidity, RL Execution Policy), **(2) `WSDM-01..05` Whale Signal Decision Matrix (When & Where to Buy/Sell)**, **(3) `SAAS-01..SAAS-10` Prop Firm B2B SaaS Verticals**, **(4) 5 Global Multi-Domain Architectures**, and **(5) All 26 `A–Z` Platform Subsystems (`Implemented`)**. |
 | **Quant & Signal Matrix** | `/matrix` | `GET /api/matrix`, `POST /api/matrix/recompute` | **4-Tab Institutional Quant Matrix**: **(1) Multi-Horizon Signal Matrix (`9 Assets × 4 Horizons: 15m, 1h, 4h, 1D`)**, **(2) `9×9` Cross-Asset Realized Correlation Matrix** (`<= 0.80` gate), **(3) `5×5` Model Family × Causal Regime Attribution Grid**, and **(4) Multi-Venue L2 Depth-of-Market (DOM) Orderbook Ladders**. |
 | **Live Listings** | `/listings` | `GET /api/listings`, `POST /api/listings/action` | Real-time multi-asset stock & prop watchlist (**`SPY`**, **`NVDA`**, **`AAPL`**, **`MSFT`**, **`QQQ`**, **`TSLA`**, **`BTC-USD`**, **`ETH-USD`**, **`SOL-USD`**), causal regime screener, custom listing onboarding, and 1-click order desk routing. |
 | **Live Charts & Market PIT** | `/market` | `GET /api/market/candles`, `POST /api/market/ingest`, `POST /api/market/live-internet-sync` | **Dual-Mode Institutional Chart Engine**: toggle between **ATLAS Point-in-Time Candlestick + Volume + `t+1h`/`t+2h` Forecast Fan** and **TradingView Live Internet Chart** (`AMEX:SPY`, `NASDAQ:NVDA`, `NASDAQ:AAPL`, `NASDAQ:MSFT`, `NASDAQ:QQQ`, `NASDAQ:TSLA`, `COINBASE:BTCUSD`), plus 1-click live Internet candle sync. |

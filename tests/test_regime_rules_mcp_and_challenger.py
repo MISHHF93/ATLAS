@@ -1177,6 +1177,38 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert mat_recomp.json()["execution_permission"] == "none"
     assert mat_recomp.json()["active_symbol"] == "NVDA"
 
+    # 13. Verify 7-Tab Master Roadmap (A-Z), Whale Order Flow ML (WF-01..WF-08) & Prop B2B SaaS Verticals
+    rm_get = client.get("/api/master-roadmap")
+    assert rm_get.status_code == 200
+    rm_body = rm_get.json()
+    assert len(rm_body["roadmap_az"]) == 26
+    assert all(r["status"] == "Implemented" for r in rm_body["roadmap_az"])
+    assert len(rm_body["b2b_saas_verticals"]) == 10
+    assert len(rm_body["whale_execution_ml"]) == 8
+    assert len(rm_body["global_multi_domain"]) == 5
+    assert len(rm_body["whale_decision_matrix"]) == 5
+    assert rm_body["execution_permission"] == "none"
+
+    wf_eval = client.post(
+        "/api/master-roadmap/evaluate-whale",
+        json={"symbol": "NVDA", "scenario_index": 2, "whale_shares": 25000, "urgency_kappa": 0.65},
+    )
+    assert wf_eval.status_code == 200
+    wf_body = wf_eval.json()
+    assert wf_body["focus_symbol"] == "NVDA"
+    assert wf_body["execution_permission"] == "none"
+    assert wf_body["live_wf_telemetry"]["wf04_almgren_chriss"]["total_shares"] == 25000.0
+    assert wf_body["whale_decision_matrix"][2]["active"] is True
+
+    saas_act = client.post(
+        "/api/master-roadmap/saas-action",
+        json={"vertical_id": "SAAS-03", "action": "sybil_scan"},
+    )
+    assert saas_act.status_code == 200
+    assert saas_act.json()["status"] == "ok"
+    assert saas_act.json()["execution_permission"] == "none"
+
+
 
 
 

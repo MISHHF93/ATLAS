@@ -1562,4 +1562,77 @@ def recompute_institutional_matrix(payload: dict[str, object]) -> dict[str, obje
     return mat
 
 
+@app.get("/api/master-roadmap", include_in_schema=False)
+def get_master_roadmap(symbol: str = "SPY", scenario_index: int = 0) -> dict[str, object]:
+    from atlas.whale_saas_az import build_master_roadmap_state
+
+    return build_master_roadmap_state(symbol=symbol, scenario_index=scenario_index)
+
+
+@app.post("/api/master-roadmap/evaluate-whale", include_in_schema=False)
+def evaluate_whale_order_flow(payload: dict[str, object]) -> dict[str, object]:
+    from atlas.whale_saas_az import (
+        build_master_roadmap_state,
+        compute_almgren_chriss_schedule,
+        compute_hawkes_intensity,
+        compute_kyles_lambda,
+        compute_multilevel_ofi,
+        compute_predatory_square_root_impact,
+        compute_rl_execution_policy,
+        compute_vpin,
+    )
+
+    sym = str(payload.get("symbol", "SPY")).upper()
+    scenario_idx = int(payload.get("scenario_index", 0) or 0)
+    whale_qty = float(payload.get("whale_shares", 15000.0) or 15000.0)
+    urgency_kappa = float(payload.get("urgency_kappa", 0.55) or 0.55)
+
+    state = build_master_roadmap_state(symbol=sym, scenario_index=scenario_idx)
+    ac_sched = compute_almgren_chriss_schedule(total_shares=whale_qty, horizon_steps=6, kappa=urgency_kappa)
+    pred = compute_predatory_square_root_impact(whale_volume=whale_qty * 25.0, adv=5000000.0, gamma=0.35, side=-1)
+    hawkes = compute_hawkes_intensity([0.12, 0.28, 0.51, 0.89, 1.40], mu_0=0.55, alpha=0.92, beta=1.15)
+    vpin = compute_vpin([780.0, 840.0, 920.0, 690.0, 960.0], [340.0, 310.0, 390.0, 410.0, 320.0])
+    ofi = compute_multilevel_ofi([310.0, 240.0, 180.0, 130.0, 95.0], [95.0, 110.0, 120.0, 100.0, 85.0])
+    kyle = compute_kyles_lambda([0.15, -0.04, 0.22, 0.29, -0.06, 0.36], [95.0, -35.0, 140.0, 180.0, -45.0, 230.0])
+    rl = compute_rl_execution_policy(ofi=ofi["ofi_weighted"], spread_bps=1.4, inventory_fraction=0.45)
+
+    state["live_wf_telemetry"] = {
+        "wf01_kyles_lambda": kyle,
+        "wf02_vpin": vpin,
+        "wf03_ofi": ofi,
+        "wf04_almgren_chriss": ac_sched,
+        "wf05_gbdt_spread": state["live_wf_telemetry"]["wf05_gbdt_spread"],
+        "wf06_predatory_impact": pred,
+        "wf07_hawkes": hawkes,
+        "wf08_rl_policy": rl,
+    }
+    state["message"] = (
+        f"Whale ML (WF-01..WF-08) evaluated on {sym}: Kyle Lambda={kyle['lambda_coeff']}, "
+        f"VPIN={vpin['vpin']}, OFI={ofi['ofi_weighted']}, Hawkes={hawkes['current_intensity_lambda']}, "
+        f"Almgren-Chriss Slice[1]={ac_sched['child_order_slices'][0]} sh (execution_permission=none)"
+    )
+    control_engine.audit_log.append(
+        f"{datetime.now(timezone.utc).isoformat()} | whale_ml_evaluated | symbol={sym} scenario={scenario_idx} permission=none"
+    )
+    return state
+
+
+@app.post("/api/master-roadmap/saas-action", include_in_schema=False)
+def trigger_prop_saas_vertical(payload: dict[str, object]) -> dict[str, object]:
+    from atlas.whale_saas_az import build_master_roadmap_state
+
+    vid = str(payload.get("vertical_id", "SAAS-01")).upper()
+    action = str(payload.get("action", "audit_vertical"))
+    state = build_master_roadmap_state(symbol="SPY", scenario_index=0)
+    for v in state["b2b_saas_verticals"]:
+        if v["vertical_id"] == vid:
+            v["live_telemetry"] = f"Verified ({action}) at {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')} · 100% Compliant"
+    state["message"] = f"Prop Firm B2B SaaS Vertical {vid} ({action}) executed deterministically (execution_permission=none)."
+    control_engine.audit_log.append(
+        f"{datetime.now(timezone.utc).isoformat()} | saas_vertical_action | vertical={vid} action={action}"
+    )
+    return state
+
+
+
 

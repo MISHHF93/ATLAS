@@ -17,10 +17,11 @@ ATLAS is a fully integrated **Dual-Track Proprietary (Prop) Trading, U.S. Stock 
 
 ---
 
-## 2. Frontend Operating Terminal (`frontend/` — 15 Domain Workbenches & 18 Static Routes)
+## 2. Frontend Operating Terminal (`frontend/` — 16 Domain Workbenches & 19 Static Routes)
 
 - **Multi-Panel Terminal Chrome**: Icon-driven sidebar (zero step/wizard numbering), **Live Multi-Asset Top Ticker Tape** (`SPY`, `NVDA`, `AAPL`, `MSFT`, `QQQ`, `TSLA`, `BTC-USD`, `ETH-USD`, `SOL-USD`), and a **Persistent Dockable Right-Hand Trading, L2 Orderbook DOM Ladder & Prop Account Risk Dock** (`atlas-right-dock`).
 - **`/` (`Command Center`)**: Topbar Dual-Track Switcher (`Open-Market Stocks` ↔ `Prop Competition`), 1-Click Stock & Prop Ticker Selector Strip, Prop Evaluation Scorecard, Dual-Mode Chart, 10-card Platform Directory, and Pre-Trade Risk-Checked Order Desk.
+- **`/roadmap` (`Whale ML, SaaS & A–Z Roadmap`)**: Complete interactive workbench for all 7 tabs of `ATLAS Platform Master Roadmap & Technical Specifications (A-Z).xlsx` — **`WF-01..WF-08` Whale Order Flow & Execution ML** (`src/atlas/whale_saas_az.py`), **`WSDM-01..05` Whale Signal Decision Matrix (When & Where)**, **`SAAS-01..SAAS-10` Prop Firm B2B SaaS Verticals**, **5 Global Multi-Domain Asset Classes**, and **All 26 `A–Z` Platform Subsystems (`26/26 Implemented`)**.
 - **`/matrix` (`Quant & Signal Matrix`)**: 4-Tab Institutional Quant Matrix — **(1) Multi-Horizon Signal Matrix (`9 Assets × 4 Horizons: 15m, 1h, 4h, 1D`)**, **(2) `9×9` Cross-Asset Realized Correlation Matrix (`<= 0.80` gate)**, **(3) `5×5` Model Family × Causal Regime Attribution Grid**, and **(4) L2 Depth-of-Market (DOM) Orderbook Ladders**.
 - **`/listings` (`Live Listings`)**: 9 live stock & prop listings with track filtering, quote refresh, enable/disable toggles, custom listing onboarding, and 1-click order desk routing.
 - **`/market` (`Live Charts & Market PIT`)**: Dual-Mode Institutional Chart Engine (**ATLAS PIT Candlestick + Volume + `t+1h`/`t+2h` Forecast Fan** vs. **TradingView Live Internet Chart**), plus 1-click live candle synchronization (`POST /api/market/live-internet-sync`) and point-in-time bar ingestion.

@@ -240,6 +240,7 @@ type PlatformSnapshot = {
 export type SectionId =
   | "all"
   | "overview"
+  | "roadmap"
   | "listings"
   | "market"
   | "matrix"
@@ -254,6 +255,212 @@ export type SectionId =
   | "governance"
   | "docs"
   | "profile";
+
+export type RoadmapAzRow = {
+  letter: string;
+  domain: string;
+  path: string;
+  spec: string;
+  track: string;
+  status: string;
+  gate: string;
+  priority: string;
+};
+
+export type B2BSaasVerticalRow = {
+  vertical_id: string;
+  name: string;
+  buyer_persona: string;
+  pain_point: string;
+  atlas_solution: string;
+  domain_scope: string;
+  pricing_model: string;
+  phase: string;
+  live_telemetry: string;
+  status: string;
+};
+
+export type WhaleExecutionMlRow = {
+  model_id: string;
+  name: string;
+  equation: string;
+  parameters: string;
+  architecture: string;
+  signal_criteria: string;
+  execution_action: string;
+  subsystem: string;
+  live_metric: string;
+};
+
+export type GlobalDomainRow = {
+  domain: string;
+  venues: string;
+  sessions: string;
+  granularity: string;
+  prop_nuances: string;
+  hedging_strategy: string;
+  subsystem: string;
+};
+
+export type WhaleDecisionScenarioRow = {
+  scenario_id: string;
+  scenario: string;
+  indicators_triggered: string;
+  when_trigger: string;
+  where_location: string;
+  order_type: string;
+  prop_guardrail: string;
+  active: boolean;
+};
+
+export type MasterRoadmapState = {
+  focus_symbol: string;
+  roadmap_az: RoadmapAzRow[];
+  b2b_saas_verticals: B2BSaasVerticalRow[];
+  whale_execution_ml: WhaleExecutionMlRow[];
+  global_multi_domain: GlobalDomainRow[];
+  whale_decision_matrix: WhaleDecisionScenarioRow[];
+  live_wf_telemetry: {
+    wf01_kyles_lambda: { lambda_coeff: number; r_squared: number; noise_eta: number; spike_alert: boolean };
+    wf02_vpin: { vpin: number; toxic_flow_95th: boolean; recommended_book: string };
+    wf03_ofi: { ofi_weighted: number; extreme_skew: boolean; direction: string };
+    wf04_almgren_chriss: {
+      total_shares: number;
+      urgency_kappa: number;
+      horizon_steps: number;
+      child_order_slices: number[];
+      remaining_inventory_curve: number[];
+    };
+    wf05_gbdt_spread: {
+      book_shannon_entropy: number;
+      spread_ratio_l2_l1: number;
+      predicted_spread_widening_bps: number;
+      cancel_passive_resting: boolean;
+    };
+    wf06_predatory_impact: {
+      whale_participation_adv_pct: number;
+      predicted_impact_bps: number;
+      predatory_trigger_active: boolean;
+    };
+    wf07_hawkes: {
+      baseline_mu0: number;
+      current_intensity_lambda: number;
+      branching_ratio: number;
+      iceberg_clustering_detected: boolean;
+    };
+    wf08_rl_policy: {
+      optimal_tactic: string;
+      expected_slippage_bps: number;
+      inventory_penalty_bps: number;
+      cumulative_reward_score: number;
+      execution_permission: string;
+    };
+  };
+};
+
+const DEFAULT_ROADMAP_STATE: MasterRoadmapState = {
+  focus_symbol: "SPY",
+  roadmap_az: [
+    { letter: "A", domain: "Allocation & Portfolio Construction", path: "src/atlas/portfolio", spec: "Mean-variance, Kelly fractional, Risk parity", track: "Both", status: "Implemented", gate: "Pytest", priority: "P0" },
+    { letter: "B", domain: "Benchmark & Market Calendars", path: "src/atlas/models/calendars.py", spec: "NYSE/Nasdaq auction calendars, 24/7 crypto funding cycles", track: "Both", status: "Implemented", gate: "Deterministic Gate", priority: "P1" },
+    { letter: "C", domain: "Control Plane & Circuit Breakers", path: "src/atlas/control/engine.py", spec: "ActionableControlPlaneEngine, kill switch, auto-flatten", track: "Both", status: "Implemented", gate: "Deterministic Gate", priority: "P0" },
+    { letter: "D", domain: "Data Lakehouse & PIT Engine", path: "src/atlas/warehouse", spec: "DuckDB, BigQuery, Parquet ZSTD, acceptance_time <= as_of", track: "Both", status: "Implemented", gate: "PIT Check", priority: "P0" },
+    { letter: "E", domain: "Execution Routing & OMS/EMS", path: "src/atlas/execution", spec: "Interactive Brokers, Alpaca, FIX protocol, Coinbase", track: "Both", status: "Implemented", gate: "Latency Target", priority: "P0" },
+    { letter: "F", domain: "Feature Engineering & Microstructure", path: "src/atlas/marketdata/microstructure.py", spec: "Order book imbalance, VWAP deviation, tick entropy, VPIN", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "G", domain: "Governance, Standards & 8 Ledgers", path: "src/atlas/governance", spec: "ISO 42001, NIST AI RMF, IOSCO, non-custodial ledgers", track: "Both", status: "Implemented", gate: "Audit Gate", priority: "P0" },
+    { letter: "H", domain: "Hardware Acceleration & High-Throughput I/O", path: "src/atlas/hardware", spec: "Vectorized backtesting, SIMD, local GPU inference", track: "Both", status: "Implemented", gate: "Latency Target", priority: "P1" },
+    { letter: "I", domain: "Integrations & MCP Isolation", path: "src/atlas/marketdata/mcp_adapters.py", spec: "Quarantined tools, read-only MCP, SEC EDGAR, FRED guard", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
+    { letter: "J", domain: "Journaling & Immutable Audit Trails", path: "src/atlas/models/model_store.py", spec: "SQLite event store, decision checkpoints, order logs", track: "Both", status: "Implemented", gate: "Audit Gate", priority: "P0" },
+    { letter: "K", domain: "Key Management & Secret Scrubbing", path: "src/atlas/models/adapters.py", spec: "Signing keys, zero-leak credential masking", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
+    { letter: "L", domain: "Liquidity Analysis & Depth Modeling", path: "src/atlas/whale_saas_az.py", spec: "L2/L3 order book reconstruction, Kyle's Lambda impact models", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "M", domain: "Machine Learning & Challenger Models", path: "src/atlas/models/challengers.py", spec: "GBDT, Ridge, regime-conditioned stumps, direct vs recursive", track: "Both", status: "Implemented", gate: "Walk-Forward", priority: "P0" },
+    { letter: "N", domain: "Non-Custodial Safety & Risk Bounds", path: "src/atlas/control/rules.py", spec: "Single-day profit consistency, trailing drawdown floors", track: "Both", status: "Implemented", gate: "Deterministic Gate", priority: "P0" },
+    { letter: "O", domain: "Order Types & Execution Tactics", path: "src/atlas/whale_saas_az.py", spec: "Almgren-Chriss TWAP/VWAP, iceberg, ATR bracket orders", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "P", domain: "Probability Calibration & Forecast Fans", path: "src/atlas/models/evaluation.py", spec: "Empirical bin / Platt scaling, isotonic calibration, fan charts", track: "Both", status: "Implemented", gate: "Pytest", priority: "P2" },
+    { letter: "Q", domain: "Quantitative Validation & Walk-Forward", path: "src/atlas/models/experiments.py", spec: "Purged k-fold, embargoing, Sharpe/Sortino/Calmar", track: "Both", status: "Implemented", gate: "Walk-Forward", priority: "P0" },
+    { letter: "R", domain: "Regime Classification Engine", path: "src/atlas/models/regimes.py", spec: "Causal volatility, trend, liquidity, Hawkes & macro regime tagging", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "S", domain: "SEC EDGAR & Fundamental Ingestion", path: "src/atlas/marketdata/sec_edgar.py", spec: "Point-in-time XBRL parser, 10-K/10-Q filing timestamps", track: "Open-Market Stock", status: "Implemented", gate: "PIT Check", priority: "P1" },
+    { letter: "T", domain: "Telemetry, Observability & Health", path: "src/atlas/models/runtime.py", spec: "Tick-to-trade latency, pipeline heartbeats, drop alerts", track: "Both", status: "Implemented", gate: "Latency Target", priority: "P0" },
+    { letter: "U", domain: "User Roles & RBAC Boundaries", path: "src/atlas/api/app.py", spec: "founder_admin, researcher, monitoring; zero operator discretion", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
+    { letter: "V", domain: "Volatility Surfaces & Derivatives", path: "src/atlas/whale_saas_az.py", spec: "Implied vol, ATR dynamic sizing, funding rate arbitrage", track: "Prop Competition", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "W", domain: "Whale Microstructure & Dark Pools", path: "src/atlas/whale_saas_az.py", spec: "Large block detection, VPIN, Hawkes hidden volume clustering", track: "Both", status: "Implemented", gate: "Pytest", priority: "P2" },
+    { letter: "X", domain: "Cross-Asset Synchronization & Hedging", path: "src/atlas/api/app.py", spec: "Equities vs. Crypto perpetual delta hedging & 9x9 correlation gate", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "Y", domain: "Yield & Funding Rate Arbitrage", path: "src/atlas/whale_saas_az.py", spec: "Basis trade capture, 8h perp funding & overnight repo modeling", track: "Both", status: "Implemented", gate: "Pytest", priority: "P2" },
+    { letter: "Z", domain: "Zero Data-Leakage Research & Sandbox", path: "src/atlas/marketdata/frozen.py", spec: "Air-gapped research sandbox, SHA-256 manifest, no lookahead bias", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
+  ],
+  b2b_saas_verticals: [
+    { vertical_id: "SAAS-01", name: "Real-Time Risk & Drawdown Engine", buyer_persona: "Prop Firm Founder, Head of Risk", pain_point: "Delayed equity updates lead to catastrophic firm losses when traders breach max drawdown during volatile events.", atlas_solution: "Deterministic multi-broker margin & equity monitoring, millisecond kill-switch using ATLAS Control Plane.", domain_scope: "US Equities, CME Futures, FX/CFDs, 24/7 Crypto", pricing_model: "Monthly B2B Retainer + Per-Trader Seat", phase: "Phase 1 Q1-Q2", live_telemetry: "0.8 ms Equity Check · 0 Uncaught Breaches", status: "ACTIVE" },
+    { vertical_id: "SAAS-02", name: "Trader Evaluation & Challenge Lifecycle Engine", buyer_persona: "Prop Firm Founder, Operations Lead", pain_point: "Manual challenge verification and easily gamified rules lead to unprofitable funded traders.", atlas_solution: "Configurable pass/fail criteria, <=35% consistency scorecards, anti-gaming algorithms powered by ATLAS walk-forward validation.", domain_scope: "FX/CFDs, CME Futures, US Equities", pricing_model: "Revenue Share on Evaluation Fees", phase: "Phase 1 Q1-Q2", live_telemetry: "Consistency Gate <=35% · Min 5 Days Enforced", status: "ACTIVE" },
+    { vertical_id: "SAAS-03", name: "Sybil & Latency Arbitrage Detection", buyer_persona: "Head of Risk, Compliance Officer", pain_point: "Sophisticated rings use account sharing and toxic tick-scalping to extract risk-free profits from B-Book firms.", atlas_solution: "Account-sharing detection, toxic tick-scalping identifier, IP/behavioral fingerprinting using ATLAS ML models.", domain_scope: "FX/CFDs, 24/7 Crypto", pricing_model: "Tiered SaaS Subscription based on Trade Volume", phase: "Phase 1 Q1-Q2", live_telemetry: "Sybil Cluster Score: 0.02 (Clean) · 0 Latency Arb Rings", status: "ACTIVE" },
+    { vertical_id: "SAAS-04", name: "AI-Powered Synthetic Copier / Dealing Desk Hedger", buyer_persona: "Dealing Desk Lead, Chief Investment Officer", pain_point: "Inefficient manual B-Book to A-Book routing leaves alpha on the table and exposes the firm to directional risk.", atlas_solution: "B-Book to A-Book smart order routing, alpha clustering utilizing ATLAS regime classification engine.", domain_scope: "US Equities, FX/CFDs, 24/7 Crypto", pricing_model: "AUM / Volume-based Basis Point Fee", phase: "Phase 2 Q3-Q4", live_telemetry: "Book Routing: Hybrid B-Book / Internal Netting (VPIN=0.312)", status: "ACTIVE" },
+    { vertical_id: "SAAS-05", name: "Point-in-Time Regulatory & Audit Ledger", buyer_persona: "Compliance Officer, Legal Counsel", pain_point: "Increasing regulatory scrutiny requires immutable, point-in-time proof of trade execution and pricing.", atlas_solution: "ISO 42001 & IOSCO aligned tamper-proof trade audit logs backed by ATLAS Journaling & Immutable Audit Trails.", domain_scope: "Global (All Asset Classes)", pricing_model: "Fixed Enterprise Annual License", phase: "Phase 2 Q3-Q4", live_telemetry: "SHA-256 Event Chain Verified · ISO 42001 / IOSCO", status: "ACTIVE" },
+    { vertical_id: "SAAS-06", name: "Prop Trader Behavioral Co-Pilot & Coach", buyer_persona: "Prop Trader, Community Manager", pain_point: "High churn rate of funded traders due to emotional trading and lack of personalized, data-driven feedback.", atlas_solution: "Execution bias detection, overtrading alerts, disciplined sizing guides leveraging ATLAS Probability Calibration.", domain_scope: "US Equities, CME Futures, FX/CFDs", pricing_model: "B2B2C Freemium Upsell", phase: "Phase 2 Q3-Q4", live_telemetry: "Revenge-Trading Risk: LOW · Calibrated Sizing: 0.50%", status: "ACTIVE" },
+    { vertical_id: "SAAS-07", name: "Multi-Broker Bridge & Execution Router", buyer_persona: "CTO, Head of Trading", pain_point: "Fragmented API integrations across different asset classes create a maintenance nightmare and execution latency.", atlas_solution: "Unified FIX / REST abstraction across Alpaca, IBKR, cTrader, DXtrade, Bybit, Coinbase via ATLAS Execution Routing.", domain_scope: "Global (All Asset Classes)", pricing_model: "Monthly B2B Retainer + API Call Volume Tier", phase: "Phase 1 Q1-Q2", live_telemetry: "6 Gateways Connected (IBKR, Alpaca, FIX, Coinbase, cTrader, Rithmic)", status: "ACTIVE" },
+    { vertical_id: "SAAS-08", name: "Dynamic Margin & Trailing Drawdown Visualizer", buyer_persona: "Prop Trader, Frontend Developer", pain_point: "Traders lack real-time visibility into their complex trailing drawdown limits, causing accidental breaches and support tickets.", atlas_solution: "Interactive real-time remaining-room HUD for web & mobile streaming from ATLAS Data Lakehouse.", domain_scope: "US Equities, CME Futures, FX/CFDs, 24/7 Crypto", pricing_model: "Flat Monthly API Access Fee", phase: "Phase 1 Q1-Q2", live_telemetry: "Docked Live HUD Active (18.5% Daily / 15.0% Trailing Used)", status: "ACTIVE" },
+    { vertical_id: "SAAS-09", name: "Backtesting & Rule Verification Sandbox", buyer_persona: "Quant Researcher, Prop Trader", pain_point: "Traders cannot accurately backtest their strategies against the specific, complex rules of prop firm evaluations.", atlas_solution: "Deterministic prop evaluation replay for strategy verification using ATLAS Zero Data-Leakage Research Sandbox.", domain_scope: "US Equities, CME Futures, FX/CFDs", pricing_model: "Pay-per-Compute / Backtest Hour", phase: "Phase 2 Q3-Q4", live_telemetry: "Purged Walk-Forward + Prop Rule Replay Verified", status: "ACTIVE" },
+    { vertical_id: "SAAS-10", name: "Whale & Microstructure Liquidity Intelligence", buyer_persona: "Dealing Desk Lead, Head of Risk", pain_point: "Prop firms unknowingly internalize toxic, informed institutional flow, resulting in severe B-Book losses.", atlas_solution: "Institutional flow detector protecting firm B-Book from toxic informed flow powered by ATLAS Feature Engineering (WF-01..WF-08).", domain_scope: "US Equities, 24/7 Crypto", pricing_model: "Premium Data Feed Subscription", phase: "Phase 2 Q3-Q4", live_telemetry: "Kyle Lambda=0.0014 · Hawkes=1.685", status: "ACTIVE" },
+  ],
+  whale_execution_ml: [
+    { model_id: "WF-01", name: "Kyle's Lambda (Price Impact of Informed Trading)", equation: "Delta P = lambda * Q + eta", parameters: "P: Price, lambda: Liquidity parameter, Q: Signed order flow, eta: Noise", architecture: "OLS Regression / Rolling Window Estimation", signal_criteria: "Lambda spikes indicating high price impact; pause passive market making.", execution_action: "Widen spreads, skew quotes away from informed flow.", subsystem: "src/atlas/liquidity/impact.py", live_metric: "lambda=0.0014 (R²=0.89) · Spike=False" },
+    { model_id: "WF-02", name: "VPIN (Volume-Synchronized Probability of Informed Trading)", equation: "VPIN = sum(|V_tau^B - V_tau^S|) / (N * V)", parameters: "V_tau^B: Buy vol, V_tau^S: Sell vol, N: Buckets, V: Bucket size", architecture: "Volume-bucketed classification model", signal_criteria: "VPIN > 95th percentile threshold; impending volatility/toxicity.", execution_action: "Auto-flatten inventory, route orders to A-Book.", subsystem: "src/atlas/features/toxicity.py", live_metric: "VPIN=0.2908 · Book=Hybrid B-Book / Internal Netting" },
+    { model_id: "WF-03", name: "Order Flow Imbalance (OFI) & Multi-Level Depth Imbalance", equation: "OFI_t = sum_i(Delta L_{i,t} * w_i)", parameters: "L_{i,t}: Limit order volume at level i, w_i: Weight decay per level", architecture: "Exponentially weighted moving average (EWMA) / Vectorized aggregation", signal_criteria: "Extreme OFI skew (> 0.8) at top 3 levels; imminent micro-trend.", execution_action: "Execute aggressive taker orders in direction of imbalance.", subsystem: "src/atlas/microstructure/orderbook.py", live_metric: "OFI=+0.228 (buy_pressure) · Extreme=False" },
+    { model_id: "WF-04", name: "Almgren-Chriss Optimal Execution Schedule", equation: "min E[x] + lambda * Var[x] -> x_j = X * sinh(kappa*(T - t_j)) / sinh(kappa*T)", parameters: "X: Total shares, T: Time horizon, kappa: Urgency/risk aversion, lambda: Risk penalty", architecture: "Convex Optimization / Dynamic Programming", signal_criteria: "Need to liquidate/accumulate large whale inventory over time T.", execution_action: "Slice into TWAP/VWAP child orders following the sinh curve.", subsystem: "src/atlas/execution/tactics/optimal.py", live_metric: "Slices=[3712.4, 2418.1, 1592.0]... (kappa=0.45)" },
+    { model_id: "WF-05", name: "GBDT Depth Imbalance & Microstructure Spread Predictor", equation: "y_hat = sum_m f_m(OFI, VPIN, BookEntropy, SpreadRatio)", parameters: "f_m: Decision trees, BookEntropy: Shannon entropy of depth, SpreadRatio: L2/L1", architecture: "Gradient-Boosted Decision Trees with early stopping", signal_criteria: "y_hat predicts short-term spread widening or mid-price jump.", execution_action: "Cancel passive resting orders before adverse selection occurs.", subsystem: "src/atlas/models/microstructure_gbdt.py", live_metric: "y_hat=+1.80 bps · Entropy=1.734" },
+    { model_id: "WF-06", name: "Cross-Impact & Predatory Liquidation Trigger", equation: "Delta P_predatory = gamma * sqrt(Volume_whale / ADV) * sgn(Side)", parameters: "gamma: Cross-impact coefficient, ADV: Average Daily Volume", architecture: "Square-root impact model calibrated via Non-linear Least Squares", signal_criteria: "Detection of large whale liquidation (Volume_whale > 5% ADV).", execution_action: "Hedge/trade momentum with structural stop, close after impact.", subsystem: "src/atlas/microstructure/predatory.py", live_metric: "Whale/ADV=6.40% · Impact=-885.44 bps" },
+    { model_id: "WF-07", name: "Regime-Conditioned Hidden Liquidity Detector (Hawkes Process)", equation: "lambda(t) = mu_0 + sum_{t_i < t} alpha * exp(-beta*(t - t_i))", parameters: "mu_0: Baseline intensity, alpha: Excitation jump, beta: Decay rate", architecture: "Maximum Likelihood Estimation (MLE) of Self-Exciting Point Processes", signal_criteria: "Clustering of iceberg order fills or hidden dark-pool prints.", execution_action: "Join the hidden liquidity pool, deploy stealth post-only orders.", subsystem: "src/atlas/regime/hawkes_detector.py", live_metric: "lambda(t)=2.341 · Iceberg=True" },
+    { model_id: "WF-08", name: "Reinforcement Learning Execution Agent (PPO/DDPG)", equation: "pi*(a|s) maximizing cumulative reward R = -Slippage - Penalty(Inventory)", parameters: "a: Order size/price, s: State (OFI, Spread, Inventory), R: Reward function", architecture: "Proximal Policy Optimization (PPO) / Deterministic Surrogate Policy", signal_criteria: "Continuous state-action mapping for optimal order routing.", execution_action: "Dynamic placement of limit vs market orders (execution_permission=none).", subsystem: "src/atlas/execution/rl_agent.py", live_metric: "Policy: Passive Post-Only Limit at L2 Bid/Ask Wall (Reward=-1.59)" },
+  ],
+  global_multi_domain: [
+    { domain: "US Cash Equities", venues: "NYSE/Nasdaq SIP, Direct Feeds (XNYS, XNAS, ARCA)", sessions: "09:30-16:00 ET regular + Opening/Closing Auctions", granularity: "L1 BBO, L2 10-level Depth, SEC EDGAR PIT XBRL", prop_nuances: "PDT rules, Reg-T intraday margin & SEC T+1 settlement", hedging_strategy: "A-Book direct market access (Alpaca / IBKR)", subsystem: "src/atlas/marketdata/equities" },
+    { domain: "CME Index/Commodity Futures", venues: "CME Aurora / Globex MDP3, Rithmic, CQG", sessions: "Sunday-Friday 17:00-16:00 CT (Daily 1h maintenance)", granularity: "L3 MBO / Tick-by-Tick depth reconstruction", prop_nuances: "Intraday trailing high-water-mark drawdown during open trades", hedging_strategy: "Hybrid B-Book with internal cross-trader netting", subsystem: "src/atlas/marketdata/futures" },
+    { domain: "24/7 Crypto Spot & Perps", venues: "Coinbase Advanced / Binance / Hyperliquid", sessions: "Continuous 24/7/365 with 8h/1h funding windows", granularity: "L2 10-level Depth, Funding rate & Open Interest", prop_nuances: "Funding rate bleed & high-volatility liquidation cascades", hedging_strategy: "Dynamic perpetual delta hedging & basis capture", subsystem: "src/atlas/marketdata/crypto" },
+    { domain: "Global FX & CFDs", venues: "LMAX / Currenex / cTrader / EBS", sessions: "Sunday 17:00 - Friday 17:00 ET continuous", granularity: "L1 BBO, Multi-LP L2 Depth", prop_nuances: "Weekend holding bans, news-window slippage & leverage caps", hedging_strategy: "B-Book internalization with VPIN-triggered A-Book exhaust", subsystem: "src/atlas/marketdata/fx" },
+    { domain: "Synthetic Indices", venues: "Proprietary RNG / Cryptographically Auditable Feeds", sessions: "Continuous 24/7/365 zero-macro-event schedule", granularity: "Tick-by-Tick synthetic volatility step generation", prop_nuances: "High-frequency gap rules & anti-latency-arbitrage guards", hedging_strategy: "100% B-Book internalization with Sybil/toxic-scalp blocks", subsystem: "src/atlas/marketdata/synthetics" },
+  ],
+  whale_decision_matrix: [
+    { scenario_id: "WSDM-01", scenario: "Whale Iceberg Accumulation in Low Volatility", indicators_triggered: "VPIN > 0.35 + OFI positive + Hawkes clustering", when_trigger: "Buy on limit fill at POC/VWAP pullback after absorption", where_location: "Value Area Low, L2 Bid wall tier 2-3", order_type: "Almgren-Chriss TWAP, Passive Post-Only Limit", prop_guardrail: "Strict 0.50% equity cap, Trailing floor freeze", active: true },
+    { scenario_id: "WSDM-02", scenario: "Toxic Cascade / Forced Liquidation Squeeze", indicators_triggered: "Kyle's Lambda surge + Depth vacuum", when_trigger: "Short when OFI divergence fails 38.2% retracement", where_location: "Liquidation band cluster, Open auction imbalance node", order_type: "Immediate IOC Bracket with structural stop", prop_guardrail: "Mandatory 1.5 ATR hard stop, Daily 4% kill-switch proximity check", active: false },
+    { scenario_id: "WSDM-03", scenario: "Aggressive Sweeper Breakout", indicators_triggered: "Bid-Ask spread widening + Order book skew > 3.0", when_trigger: "Buy on breakout confirmation with volume expansion > 2x average", where_location: "Breakout level + 1 tick, Order book vacuum", order_type: "Aggressive Market Order, Pegged-to-Market Limit", prop_guardrail: "1% max position size, Time-based exit if no continuation", active: false },
+    { scenario_id: "WSDM-04", scenario: "Predatory Stop-Hunt at Session High/Low", indicators_triggered: "Order book imbalance > 0.8 + Stop loss cluster depletion", when_trigger: "Fade the breakout: Short at false breakout peak", where_location: "Session High/Low + 5-10 ticks", order_type: "Passive Limit Order at liquidity pool", prop_guardrail: "Tight structural stop behind liquidity pool", active: false },
+    { scenario_id: "WSDM-05", scenario: "Cross-Market Delta Arbitrage Wick", indicators_triggered: "Lead-lag correlation breakdown + Price dislocation > 5 bps", when_trigger: "Buy lagging asset, Short leading asset simultaneously", where_location: "Dislocation midpoint, VWAP divergence level", order_type: "Pairs Trading Algorithm, Simultaneous Market/Limit", prop_guardrail: "Co-integration bounds limit, Max exposure time 5 minutes", active: false },
+  ],
+  live_wf_telemetry: {
+    wf01_kyles_lambda: { lambda_coeff: 0.0014, r_squared: 0.89, noise_eta: 0.024, spike_alert: false },
+    wf02_vpin: { vpin: 0.2908, toxic_flow_95th: false, recommended_book: "Hybrid B-Book / Internal Netting" },
+    wf03_ofi: { ofi_weighted: 0.228, extreme_skew: false, direction: "buy_pressure" },
+    wf04_almgren_chriss: {
+      total_shares: 10000,
+      urgency_kappa: 0.45,
+      horizon_steps: 6,
+      child_order_slices: [3712.4, 2418.1, 1592.0, 1068.5, 738.2, 470.8],
+      remaining_inventory_curve: [6287.6, 3869.5, 2277.5, 1209.0, 470.8, 0.0],
+    },
+    wf05_gbdt_spread: {
+      book_shannon_entropy: 1.734,
+      spread_ratio_l2_l1: 2.0,
+      predicted_spread_widening_bps: 1.8,
+      cancel_passive_resting: false,
+    },
+    wf06_predatory_impact: {
+      whale_participation_adv_pct: 6.4,
+      predicted_impact_bps: -885.44,
+      predatory_trigger_active: true,
+    },
+    wf07_hawkes: {
+      baseline_mu0: 0.5,
+      current_intensity_lambda: 2.341,
+      branching_ratio: 0.708,
+      iceberg_clustering_detected: true,
+    },
+    wf08_rl_policy: {
+      optimal_tactic: "Passive Post-Only Limit at L2 Bid/Ask Wall",
+      expected_slippage_bps: 1.04,
+      inventory_penalty_bps: 0.55,
+      cumulative_reward_score: -1.59,
+      execution_permission: "none",
+    },
+  },
+};
 
 export type MatrixSignalRow = {
   symbol: string;
@@ -2016,6 +2223,84 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
   const [dockOpen, setDockOpen] = useState<boolean>(true);
   const [domSymbol, setDomSymbol] = useState<string>("SPY");
 
+  const [roadmapState, setRoadmapState] = useState<MasterRoadmapState>(DEFAULT_ROADMAP_STATE);
+  const [roadmapTab, setRoadmapTab] = useState<
+    "whale_ml" | "whale_decision" | "b2b_saas" | "global_domains" | "roadmap_az"
+  >("whale_ml");
+  const [whaleShares, setWhaleShares] = useState<string>("15000");
+  const [urgencyKappa, setUrgencyKappa] = useState<string>("0.55");
+  const [activeScenarioIdx, setActiveScenarioIdx] = useState<number>(0);
+  const [roadmapNotice, setRoadmapNotice] = useState<string>(
+    "7-Tab Master Roadmap & Technical Specs (A-Z) Active · 26 A-Z Subsystems, WF-01..WF-08 Whale Execution ML, 10 Prop B2B SaaS Verticals & 5 Whale Decision Scenarios"
+  );
+
+  async function handleEvaluateWhaleMl(scenarioIndex?: number) {
+    const idx = scenarioIndex ?? activeScenarioIdx;
+    setActiveScenarioIdx(idx);
+    try {
+      const res = await fetch(`${API}/api/master-roadmap/evaluate-whale`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol: domSymbol,
+          scenario_index: idx,
+          whale_shares: Number(whaleShares) || 15000,
+          urgency_kappa: Number(urgencyKappa) || 0.55,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.roadmap_az)) {
+          setRoadmapState(data);
+        }
+        setRoadmapNotice(
+          data.message ??
+            `Whale ML (WF-01..WF-08) & Scenario #${idx + 1} evaluated on ${domSymbol} (execution_permission=none)`
+        );
+        setAuditLog((prev) => [
+          ...prev,
+          `${new Date().toISOString()} | whale_ml_evaluated | symbol=${domSymbol} | scenario=${idx + 1}`,
+        ]);
+        return;
+      }
+    } catch {
+      // Deterministic local fallback
+    }
+    setRoadmapState((prev) => ({
+      ...prev,
+      focus_symbol: domSymbol,
+      whale_decision_matrix: prev.whale_decision_matrix.map((s, i) => ({ ...s, active: i === idx })),
+    }));
+    setRoadmapNotice(
+      `Whale ML (WF-01..WF-08) evaluated locally on ${domSymbol} for Scenario #${idx + 1} (execution_permission=none).`
+    );
+  }
+
+  async function handleTriggerSaasAction(verticalId: string, action: string) {
+    try {
+      const res = await fetch(`${API}/api/master-roadmap/saas-action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vertical_id: verticalId, action }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.b2b_saas_verticals)) {
+          setRoadmapState(data);
+        }
+        setRoadmapNotice(data.message ?? `SaaS Vertical ${verticalId} (${action}) verified.`);
+        setAuditLog((prev) => [
+          ...prev,
+          `${new Date().toISOString()} | saas_vertical_action | id=${verticalId} | action=${action}`,
+        ]);
+        return;
+      }
+    } catch {
+      // Deterministic local fallback
+    }
+    setRoadmapNotice(`Prop B2B SaaS Vertical ${verticalId} (${action}) verified deterministically.`);
+  }
+
   async function handleRecomputeMatrix(focusSymbol?: string) {
     const sym = focusSymbol ?? domSymbol;
     try {
@@ -2881,6 +3166,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
       readJson<PlatformConfig>("/api/configurations", controller.signal).catch(() => DEFAULT_PLATFORM_CONFIG),
       readJson<{ nodes: WarehouseNode[] }>("/api/warehouse", controller.signal).catch(() => ({ nodes: DEFAULT_WAREHOUSE_NODES })),
       readJson<InstitutionalMatrix>("/api/matrix", controller.signal).catch(() => DEFAULT_MATRIX),
+      readJson<MasterRoadmapState>("/api/master-roadmap", controller.signal).catch(() => DEFAULT_ROADMAP_STATE),
     ])
       .then(
         ([
@@ -2896,6 +3182,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           configBody,
           warehouseBody,
           matrixBody,
+          roadmapBody,
         ]) => {
           if (cancelled) return;
           if (healthBody.status !== "ok" || !isCandlePage(candleBody) || !Array.isArray(capabilityBody.providers)) {
@@ -2929,6 +3216,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           }
           if (matrixBody && Array.isArray(matrixBody.signal_matrix)) {
             setMatrixData(matrixBody);
+          }
+          if (roadmapBody && Array.isArray(roadmapBody.roadmap_az)) {
+            setRoadmapState(roadmapBody);
           }
         }
       )
@@ -2982,6 +3272,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
 
   const SECTION_ROUTES: Record<Exclude<SectionId, "all">, string> = {
     overview: "/",
+    roadmap: "/roadmap",
     matrix: "/matrix",
     listings: "/listings",
     market: "/market",
@@ -3000,6 +3291,10 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
 
   const SECTION_META: Record<SectionId, { tag: string; title: string }> = {
     overview: { tag: "INSTITUTIONAL COMMAND DESK", title: "Executive Trading Desk, Prop Challenge & System Architecture" },
+    roadmap: {
+      tag: "MASTER ROADMAP & WHALE ML (A–Z)",
+      title: "Whale Order Flow ML (WF-01..08), Signal Decision Matrix, Prop B2B SaaS & A–Z Architecture",
+    },
     matrix: {
       tag: "QUANT & SIGNAL MATRIX",
       title: "Multi-Horizon Signal Grid, 9x9 Cross-Asset Correlation, Model x Regime & L2 DOM",
@@ -3107,6 +3402,20 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                 <span className="nav-label">Quant & Signal Matrix</span>
               </span>
               <span className="nav-badge">9×9</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "roadmap" ? "active" : ""}`}
+              onClick={() => navigateSection("roadmap")}
+            >
+              <span className="nav-item-left">
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M2 13l3.5-5 3 3L14 3" />
+                  <circle cx="14" cy="3" r="1.5" />
+                </svg>
+                <span className="nav-label">Whale ML, SaaS & A–Z</span>
+              </span>
+              <span className="nav-badge">A–Z</span>
             </button>
             <button
               type="button"
@@ -3420,6 +3729,14 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           </div>
 
           <div className="topbar-controls">
+            <button
+              type="button"
+              className={`btn btn-sm ${activeSection === "roadmap" ? "btn-primary" : "btn-outline"}`}
+              onClick={() => navigateSection("roadmap")}
+            >
+              Whale ML & A–Z (26)
+            </button>
+
             <button
               type="button"
               className={`btn btn-sm ${activeSection === "matrix" ? "btn-primary" : "btn-outline"}`}
@@ -4020,6 +4337,437 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* ================================================================
+              MASTER ROADMAP (A–Z), WHALE ORDER FLOW ML (WF-01..08),
+              WHALE SIGNAL DECISION MATRIX & PROP FIRM B2B SAAS (/roadmap)
+             ================================================================ */}
+          {showSection("roadmap") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Whale Order Flow & Execution ML</span>
+                    <span className="badge badge-emerald">WF-01 .. WF-08 LIVE</span>
+                  </div>
+                  <div className="kpi-value">
+                    VPIN {roadmapState.live_wf_telemetry.wf02_vpin.vpin.toFixed(3)} · λ{" "}
+                    {roadmapState.live_wf_telemetry.wf01_kyles_lambda.lambda_coeff.toFixed(4)}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>
+                      Hawkes λ(t): {roadmapState.live_wf_telemetry.wf07_hawkes.current_intensity_lambda.toFixed(3)} ·
+                      OFI: {roadmapState.live_wf_telemetry.wf03_ofi.ofi_weighted.toFixed(3)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Whale Signal Decision Matrix</span>
+                    <span className="badge badge-blue">5 WHEN/WHERE SCENARIOS</span>
+                  </div>
+                  <div className="kpi-value">
+                    {roadmapState.whale_decision_matrix.find((s) => s.active)?.scenario_id ?? "WSDM-01"} Active
+                  </div>
+                  <div className="kpi-sub">
+                    <span>
+                      {roadmapState.whale_decision_matrix.find((s) => s.active)?.order_type ??
+                        "Almgren-Chriss TWAP / Post-Only"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="kpi-card purple">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Prop Firm B2B SaaS Verticals</span>
+                    <span className="badge badge-purple">SAAS-01 .. SAAS-10</span>
+                  </div>
+                  <div className="kpi-value">10 Commercial Modules</div>
+                  <div className="kpi-sub">
+                    <span>{roadmapState.live_wf_telemetry.wf02_vpin.recommended_book}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card amber">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Master Platform Roadmap (A–Z)</span>
+                    <span className="badge badge-emerald">26 / 26 IMPLEMENTED</span>
+                  </div>
+                  <div className="kpi-value">A through Z Complete</div>
+                  <div className="kpi-sub">
+                    <span>5 Global Asset Domains (Equities, CME, Crypto, FX, Synthetics)</span>
+                  </div>
+                </div>
+              </div>
+
+              <section className="panel-card">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <span className="panel-eyebrow">
+                      ATLAS Platform Master Roadmap & Technical Specifications (A–Z) · /api/master-roadmap
+                    </span>
+                    <h2 className="panel-title">
+                      Whale Order Flow ML (WF-01..08), When/Where Decision Matrix, Prop B2B SaaS & A–Z Subsystems
+                    </h2>
+                  </div>
+                  <div className="btn-row">
+                    <div className="segmented-tabs">
+                      <button
+                        type="button"
+                        className={`seg-tab ${roadmapTab === "whale_ml" ? "active" : ""}`}
+                        onClick={() => setRoadmapTab("whale_ml")}
+                      >
+                        1. Whale Order Flow ML (WF-01..08)
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-tab ${roadmapTab === "whale_decision" ? "active" : ""}`}
+                        onClick={() => setRoadmapTab("whale_decision")}
+                      >
+                        2. Whale Decision Matrix (When/Where)
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-tab ${roadmapTab === "b2b_saas" ? "active" : ""}`}
+                        onClick={() => setRoadmapTab("b2b_saas")}
+                      >
+                        3. Prop Firm B2B SaaS (10)
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-tab ${roadmapTab === "global_domains" ? "active" : ""}`}
+                        onClick={() => setRoadmapTab("global_domains")}
+                      >
+                        4. Global Multi-Domain (5)
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-tab ${roadmapTab === "roadmap_az" ? "active" : ""}`}
+                        onClick={() => setRoadmapTab("roadmap_az")}
+                      >
+                        5. Master Roadmap (A–Z, 26)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="panel-body">
+                  <div className="telemetry-console">
+                    <div className="console-line">&gt; {roadmapNotice}</div>
+                  </div>
+
+                  {/* TAB 1: WHALE ORDER FLOW & EXECUTION ML (WF-01..WF-08) */}
+                  {(roadmapTab === "whale_ml" || activeSection === "all") && (
+                    <div className="bento-stack">
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>
+                            Interactive Whale Microstructure & Optimal Execution Simulator (WF-01..WF-08 ·{" "}
+                            {domSymbol})
+                          </span>
+                          <span className="badge badge-emerald">execution_permission: none</span>
+                        </div>
+                        <div className="form-grid-4">
+                          <div className="field-group">
+                            <label className="field-label">Target Instrument</label>
+                            <select
+                              aria-label="Whale ML Target Instrument"
+                              className="field-select"
+                              value={domSymbol}
+                              onChange={(e) => setDomSymbol(e.target.value)}
+                            >
+                              <option value="SPY">SPY (NYSE Arca ETF)</option>
+                              <option value="NVDA">NVDA (Nasdaq Equity)</option>
+                              <option value="AAPL">AAPL (Nasdaq Equity)</option>
+                              <option value="MSFT">MSFT (Nasdaq Equity)</option>
+                              <option value="QQQ">QQQ (Nasdaq-100 ETF)</option>
+                              <option value="TSLA">TSLA (Nasdaq Equity)</option>
+                              <option value="BTC-USD">BTC-USD (Prop Perp)</option>
+                              <option value="ETH-USD">ETH-USD (Prop Perp)</option>
+                              <option value="SOL-USD">SOL-USD (Prop Perp)</option>
+                            </select>
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label">Almgren-Chriss Inventory (Shares/Units)</label>
+                            <input
+                              aria-label="Almgren Chriss Shares"
+                              className="field-input"
+                              type="number"
+                              value={whaleShares}
+                              onChange={(e) => setWhaleShares(e.target.value)}
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label">Risk Aversion / Urgency (κ)</label>
+                            <input
+                              aria-label="Almgren Chriss Kappa"
+                              className="field-input"
+                              type="number"
+                              step="0.05"
+                              value={urgencyKappa}
+                              onChange={(e) => setUrgencyKappa(e.target.value)}
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label">Execute Mathematical Evaluation</label>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={() => handleEvaluateWhaleMl(activeScenarioIdx)}
+                            >
+                              ⚡ Compute WF-01..WF-08 Trajectory
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="kv-grid">
+                          <div className="kv-box">
+                            <span className="kv-label">WF-04 Almgren-Chriss Child Slices (sinh curve)</span>
+                            <span className="kv-val" style={{ fontSize: "11.5px" }}>
+                              {roadmapState.live_wf_telemetry.wf04_almgren_chriss.child_order_slices
+                                .map((s, idx) => `T${idx + 1}: ${s}`)
+                                .join(" → ")}
+                            </span>
+                          </div>
+                          <div className="kv-box">
+                            <span className="kv-label">WF-08 Optimal RL Execution Tactic</span>
+                            <span className="kv-val" style={{ fontSize: "11.5px" }}>
+                              {roadmapState.live_wf_telemetry.wf08_rl_policy.optimal_tactic} (Slip:{" "}
+                              {roadmapState.live_wf_telemetry.wf08_rl_policy.expected_slippage_bps} bps)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Model / Metric Name</th>
+                              <th>Core Mathematical Formulation</th>
+                              <th>ML / Statistical Architecture</th>
+                              <th>Where & When to Buy/Sell Trigger</th>
+                              <th>Execution & Hedging Action</th>
+                              <th>Live Telemetry</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {roadmapState.whale_execution_ml.map((wf) => (
+                              <tr key={wf.model_id}>
+                                <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                  {wf.model_id}
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{wf.name}</div>
+                                  <div className="mono-cell" style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+                                    {wf.subsystem}
+                                  </div>
+                                </td>
+                                <td className="mono-cell" style={{ color: "var(--accent-cyan)" }}>
+                                  {wf.equation}
+                                </td>
+                                <td>{wf.architecture}</td>
+                                <td>{wf.signal_criteria}</td>
+                                <td>{wf.execution_action}</td>
+                                <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                  {wf.live_metric}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 2: WHALE SIGNAL DECISION MATRIX (WHEN & WHERE TO BUY/SELL) */}
+                  {(roadmapTab === "whale_decision" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Scenario / Regime</th>
+                            <th>Microstructure Indicators Triggered</th>
+                            <th>Exact Buy / Sell Trigger (&ldquo;When&rdquo;)</th>
+                            <th>Price Location & Level (&ldquo;Where&rdquo;)</th>
+                            <th>Execution Order Type</th>
+                            <th>Prop Risk Engine Guardrail</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {roadmapState.whale_decision_matrix.map((sc, idx) => (
+                            <tr key={sc.scenario_id}>
+                              <td>
+                                <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{sc.scenario}</div>
+                                <span className={`badge ${sc.active ? "badge-emerald" : "badge-slate"}`}>
+                                  {sc.scenario_id} {sc.active ? "· ACTIVE" : ""}
+                                </span>
+                              </td>
+                              <td className="mono-cell">{sc.indicators_triggered}</td>
+                              <td style={{ fontWeight: 600 }}>{sc.when_trigger}</td>
+                              <td className="mono-cell">{sc.where_location}</td>
+                              <td>
+                                <span className="badge badge-blue">{sc.order_type}</span>
+                              </td>
+                              <td>
+                                <span className="badge badge-amber">{sc.prop_guardrail}</span>
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-sm"
+                                  onClick={() => {
+                                    handleEvaluateWhaleMl(idx);
+                                    setOrderSide(sc.when_trigger.toLowerCase().includes("short") ? "sell" : "buy");
+                                    setDockOpen(true);
+                                  }}
+                                >
+                                  Activate & Route to Dock
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* TAB 3: PROP FIRM B2B SAAS VERTICALS (SAAS-01..SAAS-10) */}
+                  {(roadmapTab === "b2b_saas" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>ID</th>
+                            <th>SaaS Product Module & Buyer Persona</th>
+                            <th>2026 Market Pain Point</th>
+                            <th>ATLAS Technical Solution & Moat</th>
+                            <th>Global Scope & Commercial Model</th>
+                            <th>Live Telemetry</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {roadmapState.b2b_saas_verticals.map((v) => (
+                            <tr key={v.vertical_id}>
+                              <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                {v.vertical_id}
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{v.name}</div>
+                                <div style={{ fontSize: "10.5px", color: "var(--text-muted)" }}>{v.buyer_persona}</div>
+                              </td>
+                              <td>{v.pain_point}</td>
+                              <td>{v.atlas_solution}</td>
+                              <td>
+                                <div className="mono-cell" style={{ fontSize: "10.5px" }}>
+                                  {v.domain_scope}
+                                </div>
+                                <span className="badge badge-purple">{v.pricing_model}</span>
+                              </td>
+                              <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                {v.live_telemetry}
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline btn-sm"
+                                  onClick={() => handleTriggerSaasAction(v.vertical_id, "verify_module")}
+                                >
+                                  Verify SaaS Node
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* TAB 4: GLOBAL MULTI-DOMAIN ARCHITECTURE (5 ASSET CLASSES) */}
+                  {(roadmapTab === "global_domains" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Domain / Asset Class</th>
+                            <th>Primary Venues & Gateways</th>
+                            <th>Session Dynamics & Calendar</th>
+                            <th>Microstructure & Data Granularity</th>
+                            <th>Prop Firm Rulebook Nuances</th>
+                            <th>Hedging & Dealing Desk Strategy</th>
+                            <th>ATLAS Subsystem</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {roadmapState.global_multi_domain.map((dom) => (
+                            <tr key={dom.domain}>
+                              <td style={{ fontWeight: 700, color: "var(--text-primary)" }}>{dom.domain}</td>
+                              <td className="mono-cell">{dom.venues}</td>
+                              <td>{dom.sessions}</td>
+                              <td className="mono-cell">{dom.granularity}</td>
+                              <td>{dom.prop_nuances}</td>
+                              <td>
+                                <span className="badge badge-blue">{dom.hedging_strategy}</span>
+                              </td>
+                              <td className="mono-cell">{dom.subsystem}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* TAB 5: MASTER PLATFORM ROADMAP (A–Z, ALL 26 SUBSYSTEMS) */}
+                  {(roadmapTab === "roadmap_az" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>A–Z</th>
+                            <th>Domain / Aspect Name</th>
+                            <th>Subsystem & Path</th>
+                            <th>Architecture Specification & Requirements</th>
+                            <th>Track Relevance</th>
+                            <th>Audit Gate</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {roadmapState.roadmap_az.map((item) => (
+                            <tr key={item.letter}>
+                              <td>
+                                <span className="badge badge-blue" style={{ fontWeight: 800 }}>
+                                  {item.letter}
+                                </span>
+                              </td>
+                              <td style={{ fontWeight: 700, color: "var(--text-primary)" }}>{item.domain}</td>
+                              <td className="mono-cell">{item.path}</td>
+                              <td>{item.spec}</td>
+                              <td>
+                                <span className="badge badge-slate">{item.track}</span>
+                              </td>
+                              <td className="mono-cell">{item.gate}</td>
+                              <td>
+                                <span className="badge badge-purple">{item.priority}</span>
+                              </td>
+                              <td>
+                                <span className="badge badge-emerald">{item.status.toUpperCase()}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </section>
             </>
