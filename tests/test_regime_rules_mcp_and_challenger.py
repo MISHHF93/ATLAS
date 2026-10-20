@@ -1035,6 +1035,46 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert tick_res.json()["status"] == "completed"
     assert tick_res.json()["execution_permission"] == "none"
 
+    # 9. Verify User Profile and Connectors Library endpoints
+    prof_get = client.get("/api/profile")
+    assert prof_get.status_code == 200
+    assert prof_get.json()["role"] == "founder_admin"
+    assert prof_get.json()["operator_id"] == "op:founder:001"
+
+    prof_post = client.post(
+        "/api/profile",
+        json={
+            "display_name": "Founder & Principal Architect",
+            "title": "Principal Quant & Control-Plane Architect",
+            "organization": "ATLAS Autonomous Intelligence",
+            "role": "founder_admin",
+            "default_track": "competition",
+            "risk_profile_pct": "0.75",
+            "preferred_timezone": "UTC",
+            "default_workload": "frequent",
+            "sec_user_agent": "ATLASResearch compliance@atlas.local",
+            "alerts_kill_switch": True,
+            "alerts_regime_shift": True,
+            "alerts_freshness_breach": True,
+        },
+    )
+    assert prof_post.status_code == 200
+    assert prof_post.json()["display_name"] == "Founder & Principal Architect"
+
+    conn_get = client.get("/api/connectors")
+    assert conn_get.status_code == 200
+    assert len(conn_get.json()["connectors"]) == 11
+
+    conn_act = client.post(
+        "/api/connectors/action",
+        json={"connector_id": "alpha_vantage_mcp", "action": "test_connection"},
+    )
+    assert conn_act.status_code == 200
+    assert conn_act.json()["status"] == "ok"
+    assert conn_act.json()["connector"]["connector_id"] == "alpha_vantage_mcp"
+
+
+
 
 
 

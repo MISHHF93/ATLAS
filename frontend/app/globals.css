@@ -211,6 +211,29 @@ tr:last-child td { border-bottom: 0; }
 .integration-row strong { font-size: 10px; }
 .integration-row small { margin-top: 2px; color: #7d887f; font-size: 9px; }
 .integration-status { color: #65736a; font-size: 9px; text-align: right; }
+
+.connectors-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.connector-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); background: var(--panel); transition: border-color 150ms ease; }
+.connector-card:hover { border-color: #9bb1a3; }
+.connector-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.connector-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.connector-logo { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 6px; border: 1px solid #d5ddd3; background: #f4f7f2; }
+.connector-title strong { display: block; font-size: 13px; font-weight: 650; color: var(--ink); }
+.connector-title small { display: block; color: var(--muted); font-size: 10px; }
+.tool-pill-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.tool-pill { padding: 3px 7px; background: #eef2eb; border: 1px solid #dce3d8; color: #3d5649; font: 600 9px "Cascadia Code", Consolas, monospace; }
+.connector-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 8px; border-top: 1px solid #ebeee8; font-size: 9px; color: var(--muted); }
+
+.profile-pill { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 6px; border: 1px solid #aeb9af; background: var(--panel); cursor: pointer; font-size: 11px; font-weight: 600; }
+.profile-pill:hover { border-color: var(--forest); background: #e9eee6; }
+.profile-avatar-sm { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--forest); color: var(--lime); font: 700 10px Georgia, serif; }
+.profile-hero { display: flex; align-items: center; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #e8ebe5; }
+.profile-avatar-lg { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--forest-deep); border: 2px solid var(--mint); color: var(--lime); font: 700 22px Georgia, serif; }
+
+.logo-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e8ebe5; }
+.logo-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px; border: 1px solid #dce1d8; background: #f6f8f3; font-size: 10px; font-weight: 600; cursor: pointer; }
+.logo-chip:hover { border-color: var(--forest); background: #ecf1e8; }
+
 .page-footer { display: flex; justify-content: space-between; gap: 15px; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); color: #849087; font-size: 8px; letter-spacing: .5px; }
 
 @media (max-width: 1100px) {

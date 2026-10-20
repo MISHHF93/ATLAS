@@ -435,3 +435,240 @@ def list_platform_documentation() -> dict[str, object]:
             }
         )
     return {"documents": documents}
+
+
+class OperatorProfilePayload(BaseModel):
+    display_name: str = "Founder / Principal Architect"
+    title: str = "Founder & Control-Plane Authority"
+    organization: str = "ATLAS Autonomous Intelligence"
+    role: Literal["founder_admin", "researcher", "monitoring"] = "founder_admin"
+    default_track: Literal["competition", "open_market"] = "competition"
+    risk_profile_pct: str = "0.75"
+    preferred_timezone: str = "UTC"
+    default_workload: Literal["frequent", "deep"] = "frequent"
+    sec_user_agent: str = "ATLASResearch compliance@atlas.local"
+    alerts_kill_switch: bool = True
+    alerts_regime_shift: bool = True
+    alerts_freshness_breach: bool = True
+
+
+_OPERATOR_PROFILE: dict[str, object] = {
+    "operator_id": "op:founder:001",
+    "display_name": "Founder / Principal Architect",
+    "title": "Founder & Control-Plane Authority",
+    "organization": "ATLAS Autonomous Intelligence",
+    "role": "founder_admin",
+    "default_track": "competition",
+    "risk_profile_pct": "0.75",
+    "preferred_timezone": "UTC",
+    "default_workload": "frequent",
+    "sec_user_agent": "ATLASResearch compliance@atlas.local",
+    "alerts_kill_switch": True,
+    "alerts_regime_shift": True,
+    "alerts_freshness_breach": True,
+    "ownership_rights": "100% Founder-Owned (Source, Strategy Logic, Model Artifacts & Signing Keys)",
+    "custody_boundary": "Non-Custodial (External Venue & Self-Custody Signer Only)",
+    "updated_at": datetime.now(timezone.utc).isoformat(),
+}
+
+_CONNECTORS_STATE: dict[str, dict[str, object]] = {
+    "alpha_vantage_mcp": {
+        "connector_id": "alpha_vantage_mcp",
+        "name": "Alpha Vantage Official MCP",
+        "vendor": "Alpha Vantage",
+        "category": "mcp_data",
+        "protocol": "MCP / JSON-RPC",
+        "status": "connected",
+        "enabled": True,
+        "tools": ["DIGITAL_CURRENCY_DAILY", "TIME_SERIES_DAILY_ADJUSTED", "TIME_SERIES_INTRADAY"],
+        "license_scope": "Commercial & Point-in-Time Verified",
+        "execution_permission": "none",
+        "latency_ms": 42,
+    },
+    "financial_datasets_mcp": {
+        "connector_id": "financial_datasets_mcp",
+        "name": "Financial Datasets MCP",
+        "vendor": "Financial Datasets",
+        "category": "mcp_data",
+        "protocol": "MCP / REST",
+        "status": "connected",
+        "enabled": True,
+        "tools": ["get_company_facts", "get_historical_stock_prices", "get_income_statements"],
+        "license_scope": "Point-in-Time Equities & Fundamentals",
+        "execution_permission": "none",
+        "latency_ms": 38,
+    },
+    "fin_data_mcp": {
+        "connector_id": "fin_data_mcp",
+        "name": "Fin-Data Research MCP",
+        "vendor": "Fin-Data",
+        "category": "mcp_data",
+        "protocol": "MCP / Stdio-HTTP",
+        "status": "connected",
+        "enabled": True,
+        "tools": ["fetch_equity_bars", "fetch_macro_calendar", "fetch_sec_filings_meta"],
+        "license_scope": "Macro Calendar & Multi-Asset Bars",
+        "execution_permission": "none",
+        "latency_ms": 51,
+    },
+    "google_gemini": {
+        "connector_id": "google_gemini",
+        "name": "Google Gemini Paid-Tier Narrator",
+        "vendor": "Google DeepMind",
+        "category": "ai_provider",
+        "protocol": "Google GenAI SDK (No Tools)",
+        "status": "connected",
+        "enabled": True,
+        "tools": ["frequent_synthesis", "deep_research_synthesis", "secret_context_screening"],
+        "license_scope": "Paid Tier (Zero Prompt Training Retention)",
+        "execution_permission": "none",
+        "latency_ms": 115,
+    },
+    "sec_edgar_xbrl": {
+        "connector_id": "sec_edgar_xbrl",
+        "name": "U.S. SEC EDGAR As-Filed XBRL",
+        "vendor": "U.S. Securities & Exchange Commission",
+        "category": "market_feed",
+        "protocol": "HTTPS / XBRL JSON (<=10 req/s)",
+        "status": "connected",
+        "enabled": True,
+        "tools": ["10-K", "10-Q", "8-K", "acceptance_time_pit_filter"],
+        "license_scope": "Public Domain Reuse (User-Agent Verified)",
+        "execution_permission": "none",
+        "latency_ms": 64,
+    },
+    "crypto_perp_feed": {
+        "connector_id": "crypto_perp_feed",
+        "name": "24/7 Crypto Perpetual & On-Chain Indexer",
+        "vendor": "Perpetual Venue & L2 Book",
+        "category": "market_feed",
+        "protocol": "Point-in-Time Feed + Microstructure Policy",
+        "status": "connected",
+        "enabled": True,
+        "tools": ["order_flow_imbalance", "exchange_outflow", "funding_rate", "open_interest"],
+        "license_scope": "Verified Commercial Feed (6+ Block Finality)",
+        "execution_permission": "none",
+        "latency_ms": 19,
+    },
+    "nyse_calendar": {
+        "connector_id": "nyse_calendar",
+        "name": "NYSE / Traditional Exchange Calendar",
+        "vendor": "ICE / NYSE Session Authority",
+        "category": "market_feed",
+        "protocol": "Authoritative Session Schedule",
+        "status": "connected",
+        "enabled": True,
+        "tools": ["opening_auction", "regular_open", "closing_auction", "early_close_holidays"],
+        "license_scope": "Versioned Exchange Schedule (nyse:regular-sessions)",
+        "execution_permission": "none",
+        "latency_ms": 4,
+    },
+    "atlas_local_ml": {
+        "connector_id": "atlas_local_ml",
+        "name": "ATLAS Scratch GBDT & Ridge Engine",
+        "vendor": "ATLAS Internal Core",
+        "category": "ai_provider",
+        "protocol": "Local Deterministic Python + SQLite Registry",
+        "status": "connected",
+        "enabled": True,
+        "tools": ["boosted_stump_v1", "gbdt_depth2_v1", "linear_ridge_v1", "regime_conditioned_tree"],
+        "license_scope": "100% Founder-Owned Proprietary Weights",
+        "execution_permission": "none",
+        "latency_ms": 8,
+    },
+    "xai_grok_bridge": {
+        "connector_id": "xai_grok_bridge",
+        "name": "xAI Secondary Research Narrator",
+        "vendor": "xAI",
+        "category": "ai_provider",
+        "protocol": "HTTPS Replaceable ResearchProvider Protocol",
+        "status": "standby",
+        "enabled": False,
+        "tools": ["secondary_narrative_check"],
+        "license_scope": "Contract Ready (Optional Secondary Narrator)",
+        "execution_permission": "none",
+        "latency_ms": 0,
+    },
+    "chronos_2_slot": {
+        "connector_id": "chronos_2_slot",
+        "name": "Chronos-2 Time-Series Foundation Slot",
+        "vendor": "Amazon Science (Apache-2.0)",
+        "category": "ai_provider",
+        "protocol": "ForecastProvider Contract Slot",
+        "status": "standby",
+        "enabled": False,
+        "tools": ["zero_shot_quantile_forecast"],
+        "license_scope": "Apache-2.0 Archive Verification Gate",
+        "execution_permission": "none",
+        "latency_ms": 0,
+    },
+    "irohan0_quant_mcp": {
+        "connector_id": "irohan0_quant_mcp",
+        "name": "irohan0/quant-mcp & FRED Training Guard",
+        "vendor": "Policy Quarantine",
+        "category": "quarantined",
+        "protocol": "Blocked by ProviderRuntime Allowlist",
+        "status": "blocked",
+        "enabled": False,
+        "tools": ["mutating_execution_rejected", "fred_ml_training_blocked"],
+        "license_scope": "Default-Deny Enforced (ISO 27001 / Master Spec)",
+        "execution_permission": "none",
+        "latency_ms": 0,
+    },
+}
+
+
+class ConnectorActionPayload(BaseModel):
+    connector_id: str
+    action: Literal["test_connection", "toggle_enabled", "sync_metadata"] = "test_connection"
+
+
+@app.get("/api/profile", include_in_schema=False)
+def get_operator_profile() -> dict[str, object]:
+    return dict(_OPERATOR_PROFILE)
+
+
+@app.post("/api/profile", include_in_schema=False)
+def update_operator_profile(payload: OperatorProfilePayload) -> dict[str, object]:
+    _OPERATOR_PROFILE.update(payload.model_dump())
+    _OPERATOR_PROFILE["updated_at"] = datetime.now(timezone.utc).isoformat()
+    control_engine.audit_log.append(
+        f"{_OPERATOR_PROFILE['updated_at']} | profile_updated | operator={payload.display_name} role={payload.role} track={payload.default_track}"
+    )
+    return dict(_OPERATOR_PROFILE)
+
+
+@app.get("/api/connectors", include_in_schema=False)
+def list_connectors() -> dict[str, object]:
+    return {"connectors": list(_CONNECTORS_STATE.values())}
+
+
+@app.post("/api/connectors/action", include_in_schema=False)
+def connector_action_endpoint(payload: ConnectorActionPayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc).isoformat()
+    conn = _CONNECTORS_STATE.get(payload.connector_id)
+    if conn is None:
+        return {"status": "error", "message": f"Unknown connector: {payload.connector_id}"}
+    if conn["category"] == "quarantined":
+        return {
+            "status": "blocked_by_policy",
+            "connector": conn,
+            "message": f"{conn['name']} is permanently blocked by deterministic control-plane policy.",
+            "timestamp": now,
+        }
+    if payload.action == "toggle_enabled":
+        next_enabled = not bool(conn["enabled"])
+        conn["enabled"] = next_enabled
+        conn["status"] = "connected" if next_enabled else "standby"
+    elif payload.action in ("test_connection", "sync_metadata"):
+        conn["status"] = "connected" if conn["enabled"] else "standby"
+    control_engine.audit_log.append(
+        f"{now} | connector_action | id={payload.connector_id} action={payload.action} status={conn['status']}"
+    )
+    return {
+        "status": "ok",
+        "action": payload.action,
+        "connector": conn,
+        "message": f"{conn['name']}: {payload.action} verified ({conn['status'].upper()})",
+        "timestamp": now,
+    }
