@@ -45,6 +45,13 @@ local experiment history. See the [implementation map](../architecture/UNIVERSAL
    governance alignment (`docs/architecture/ISO_GOVERNANCE_ALIGNMENT.md`) and
    expanded Next.js research terminal with role-based views.
 
+## Complete: Dual-Track Prop Trading & U.S. Stock Desk, 14-Layer Workbench & Enterprise API Data Warehouse (2026-10-20)
+
+1. Stateful `ActionableControlPlaneEngine` (`src/atlas/control/engine.py`) for deterministic pre-trade order authorization, kill-switch override, auto-flatten, and human-gated challenger promotion/rollback.
+2. Dual-Track Prop Trading & Stock Desk specialization across **Open-Market U.S. Stocks & ETFs (`SPY`, `NVDA`, `AAPL`, `MSFT`, `QQQ`, `TSLA`)** and **Prop Competition Challenges (`BTC-USD`, `ETH-USD`, `SOL-USD`)** with a Topbar Dual-Mode Switcher, 1-Click Stock/Prop Ticker Strip, and Prop Challenge Compliance Scorecard.
+3. Dedicated backend APIs and 17 static Next.js routes covering Live Listings (`/listings`), Live Charts & Market PIT (`/market`), Enterprise API Data Warehouse (`/warehouse` with **Google Cloud BigQuery & Analytics Hub**, **DuckDB + Parquet**, **Databento**, **Polygon.io**, **Coinbase Public Live API**, and **ClickHouse**), Data Syncing Center (`/sync`), Integrations & MCP Hub (`/integrations` with 11 SVG brand logos), Global Platform Configurations (`/configurations` + universal `⚙ Quick Config` drawer), User Profile (`/profile`), and Architecture Docs (`/docs`).
+4. Dual-Mode Institutional Chart Engine combining the native **ATLAS Point-in-Time Candlestick + Volume + Forecast Fan SVG** with **TradingView Live Internet Charts** and live market candle synchronization (`POST /api/market/live-internet-sync`).
+
 ## Next: external licensing and live-track prerequisites, in dependency order
 
 1. Obtain written vendor commercial/training data licenses (e.g., Alpha Vantage

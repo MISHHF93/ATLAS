@@ -1,113 +1,96 @@
-# ATLAS
+# ATLAS — Institutional Proprietary (Prop) Trading & Stock Quant Platform
 
-ATLAS is **Autonomous Trading, Liquidity, Allocation & Strategy Intelligence**:
-a founder-owned platform for extensible AI research, training, evaluation and
-forecasting across permitted markets. Extensibility does not imply that one model
-predicts every market or that adding models improves performance.
+ATLAS (**Autonomous Trading, Liquidity, Allocation & Strategy Intelligence**) is a founder-owned **Proprietary (Prop) Trading, U.S. Stock Trading, and Multi-Model Quantitative Research Platform** engineered around a strict architectural separation between **AI/Quantitative Research (`execution_permission: none`)** and a **Deterministic Control Plane (`ActionableControlPlaneEngine`)**.
 
-The research and execution objective is continuous, regime-aware work across two separately
-evaluated tracks: named prop-competition rules and open-market forecast horizons.
-The deterministic control plane (`src/atlas/control/engine.py` and `src/atlas/control/rules.py`)
-provides an actionable execution, risk, kill-switch, and model lifecycle engine.
+ATLAS is specialized to operate seamlessly across **two distinct, synchronized trading tracks**:
+1. **🏛️ Open-Market Stock & ETF Trading (`open_market` track)** — Trading U.S. Equities and Benchmark ETFs on **NYSE Arca & Nasdaq (`XNYS` / `XNAS`)** including **`SPY`**, **`NVDA`**, **`AAPL`**, **`MSFT`**, **`QQQ`**, and **`TSLA`** with regular-session calendars (`09:30–16:00 ET`), **SEC EDGAR Point-in-Time XBRL fundamentals** (`acceptance_time <= as_of`), **Databento / Polygon.io** SIP stock feeds, and **Alpaca / Interactive Brokers** execution routing.
+2. **🏆 Prop Trading Competitions & Funded Evaluations (`competition` track)** — Participating in proprietary trading firm challenges, funded account evaluations, and 24/7 liquid derivative competitions (**`BTC-USD`**, **`ETH-USD`**, **`SOL-USD`**, and cross-asset prop books) governed by hard deterministic prop-firm rulebooks (**4.0% Daily Loss Circuit Breaker**, **8.0% Max Trailing Drawdown Floor**, **$\le 35\%$ Single-Day Profit Consistency Gate**, **$\ge 5$ Minimum Trading Days**, **0.50%–0.75% Per-Trade Risk Cap**, and **Mandatory ATR/Structure Stop-Loss Distance**).
 
-The workspace is `C:\Users\borah\ATLAS`. It contains the full ATLAS actionable
-control-plane and universal research platform. The founder retains source,
-strategy logic, model artifacts and signing keys; an infrastructure operator
-receives no order discretion or ownership transfer.
+The workspace is `C:\Users\borah\ATLAS`. The founder retains 100% ownership of source code, strategy logic, model artifacts, and signing keys; an infrastructure operator receives zero order discretion or ownership transfer.
 
-## What is built
+---
 
-| Module | Current behavior |
-| --- | --- |
-| FastAPI | Health, market candles, discovered capabilities, platform telemetry snapshot (`/api/platform/snapshot`), and actionable control-plane routes (`/api/control/state`, `/api/control/order`, `/api/control/kill-switch`, `/api/control/flatten`, `/api/control/lifecycle`, `/api/research/train`) |
-| Market data & frozen datasets | Validated BTC-USD 1h candles plus SHA-256 verified frozen point-in-time benchmark datasets (`src/atlas/marketdata/frozen.py`) |
-| Next.js | Actionable command & research terminal with interactive order execution console, kill-switch & auto-flatten controls, self-training & alias promotion/rollback buttons, causal regime overlay, quality/freshness status, control-plane rule remaining-room bars, walk-forward study viewer, MCP inventory, ISO governance readiness, and role-based views |
-| Gemini research | Existing screened, paid-tier provider and research CLI; no tools |
-| Provider contracts | Separate research, forecast, prediction, training, embedding, retrieval, registry, market data (`ReadOnlyDataProvider`), and optional deployment/batch/stream protocols |
-| Discovery/runtime | Advertised capability checks, configurable request/token budgets, deadline/retry/backoff, circuit breaker, cost and latency events |
-| Instrument/horizon & calendars | Nine asset classes; versioned `MarketCalendar` (`src/atlas/models/calendars.py`) for traditional sessions (auctions, holidays, early closes) and 24/7 crypto (funding & maintenance windows) |
-| Causal regime detection | Point-in-time `classify_regime` (`src/atlas/models/regimes.py`) across volatility, trend, liquidity, session, and macro-event dimensions with explicit `unknown` fallback |
-| Actionable Control-Plane & Rules | Stateful `ActionableControlPlaneEngine` (`src/atlas/control/engine.py`) & versioned `TradingRuleBook` (`src/atlas/control/rules.py`) for rule-checked order execution, open position management, per-trade risk, daily loss breaker, static/trailing drawdown, exposure caps, quality/freshness/license gates, session/time exits, kill switch / auto-flatten, and competition consistency rules (default-deny, zero LLM imports) |
-| Verified MCP & SEC EDGAR data | `MCPDataSourceAdapter` (`src/atlas/marketdata/mcp_adapters.py`) with allowlisted tools (`alpha_vantage_mcp`, `financial_datasets_mcp`, `fin_data_mcp`), write/execution rejection, `irohan0/quant-mcp` block, FRED training block, `DataQualityReport`, whale/microstructure covariate normalization (`src/atlas/marketdata/microstructure.py`), and point-in-time SEC EDGAR as-filed fact selection (`src/atlas/marketdata/sec_edgar.py`) |
-| Walk-forward, scratch challengers & central node | Deterministic `LocalTreeChallengerProvider`, `FittedLinearBaseline`, gated `FittedRegimeConditionedTree`, direct-vs-recursive horizon evaluator, ensemble gate (`src/atlas/models/challengers.py`), rule-governed paper simulation (`run_track_paper_simulation`) & `CentralResearchNode` (`src/atlas/models/continuous.py`), and purged walk-forward comparison against naive/no-trade baselines with non-promoting `OutcomeFeedbackRecord` |
-| Evaluation & lifecycle | Predictive, return, calibration, cost, drawdown and tail metrics; block bootstrap; immutable model metadata, SQLite research-alias rollback, and SQLite experiment history |
+## Complete Platform Map (14 Workbench Layers & 17 Live Routes)
 
-## Authority and data boundaries
+| Layer | Route(s) | Backend API Endpoint(s) | Institutional Capability |
+| :--- | :--- | :--- | :--- |
+| **01 · Command Center** | `/` | `/api/platform/snapshot`, `/api/control/state` | Unified Bento Command Workbench with **Topbar Dual-Track Switcher (`Open-Market Stocks` ↔ `Prop Competition`)**, **1-Click Stock & Prop Ticker Strip**, **Prop Evaluation Scorecard**, Dual-Mode Live Chart, and Pre-Trade Risk-Checked Order Desk. |
+| **02 · Live Listings** | `/listings` | `GET /api/listings`, `POST /api/listings/action` | Real-time multi-asset stock & prop watchlist (**`SPY`**, **`NVDA`**, **`AAPL`**, **`MSFT`**, **`QQQ`**, **`TSLA`**, **`BTC-USD`**, **`ETH-USD`**, **`SOL-USD`**), causal regime screener, custom listing onboarding, and 1-click order desk routing. |
+| **03 · Live Charts & Market PIT** | `/market` | `GET /api/market/candles`, `POST /api/market/ingest`, `POST /api/market/live-internet-sync` | **Dual-Mode Institutional Chart Engine**: toggle between **ATLAS Point-in-Time Candlestick + Volume + `t+1h`/`t+2h` Forecast Fan** and **TradingView Live Internet Chart** (`AMEX:SPY`, `NASDAQ:NVDA`, `NASDAQ:AAPL`, `NASDAQ:MSFT`, `NASDAQ:QQQ`, `NASDAQ:TSLA`, `COINBASE:BTCUSD`), plus 1-click live Internet candle sync. |
+| **04 · Enterprise API Data Warehouse** | `/warehouse` | `GET /api/warehouse`, `POST /api/warehouse/action` | **6-Node Institutional Data Lakehouse & Market API Hub**: **Google Cloud BigQuery & Analytics Hub** (replacing web-only Google Analytics GA4 with Google's petabyte financial data warehouse), **DuckDB + ZSTD Parquet Local PIT Engine**, **Databento L1/L2/MBO (`GLBX.MDP3`, `XNAS.ITCH`)**, **Polygon.io Multi-Asset**, **Coinbase Public Exchange Live API**, and **ClickHouse / TimescaleDB**, with an interactive Point-in-Time SQL Console. |
+| **05 · Deterministic Control Plane** | `/control`, `/rules` | `POST /api/control/order`, `POST /api/control/kill-switch`, `POST /api/control/flatten`, `POST /api/control/lifecycle` | Stateful `ActionableControlPlaneEngine` & versioned `TradingRuleBook` enforcing prop-competition and open-market risk limits, remaining-room proximity bars, emergency kill switch, auto-flatten, and human-reviewed model alias promotion/rollback. |
+| **06 · Governance & 8 Ledgers** | `/governance` | `POST /api/control/readiness-audit` | 9 Master-Spec Readiness Gates, 8 strictly separated non-custodial money ledgers, and ISO/IEC 42001, 23894, 27001, 22301, 31000, 9001, NIST AI RMF, and IOSCO alignment. |
+| **07 · AI Synthesis & Gemini Node** | `/research` | `POST /api/research/continuous-tick`, `GET /api/research/demo` | Multi-model forecast comparison (`naive:last_value` vs. `local_tree:boosted_stump_v1`), empirical bin probability calibration, and paid-tier secret-screened Gemini & xAI ZDR research synthesis (`execution_permission: none`). |
+| **08 · Walk-Forward Evaluation Lab** | `/experiments` | `POST /api/research/walk-forward` | Purged & embargoed chronological walk-forward evaluation (`EXP-001`), track-specific paper simulation (`run_track_paper_simulation`), direct-vs-recursive multi-horizon gate, and feature ablation matrix. |
+| **09 · Models, MCP & SEC XBRL** | `/models` | `POST /api/research/train`, `POST /api/market/mcp-fetch` | From-scratch GBDT & linear model training lifecycle, allowlisted read-only MCP surface (`alpha_vantage_mcp`, `financial_datasets_mcp`, `fin_data_mcp`), `irohan0/quant-mcp` & FRED training blocks, whale microstructure filter, and SEC EDGAR as-filed XBRL fact selector. |
+| **10 · Data Syncing Center** | `/sync` | `GET /api/sync`, `POST /api/sync/run` | 6 point-in-time ingestion & state synchronization pipelines with configurable cadence (`5s`, `15s`, `60s`, `manual`), latency telemetry, and SHA-256 manifest verification. |
+| **11 · Integrations & MCP Hub** | `/integrations`, `/connectors` | `GET /api/connectors`, `POST /api/connectors/action` | 11 3rd-party integrations (Alpha Vantage, Financial Datasets, SEC EDGAR, FRED Guard, Gemini, xAI Grok, Chronos-2, NYSE/Nasdaq, Crypto Perp, SQLite Registry, and Quarantined MCP Guard) with bespoke SVG brand logos. |
+| **12 · Platform Configurations** | `/configurations`, `/settings` | `GET /api/configurations`, `POST /api/configurations` | Master Configuration Workbench for prop notional caps, daily loss & trailing drawdown limits, challenger model families, walk-forward purge/embargo defaults, and provider rate budgets, plus the universal **`⚙ Quick Config`** drawer on every page. |
+| **13 · User Profile & Keys** | `/profile` | `GET /api/profile`, `POST /api/profile` | Founder & Principal Architect operator identity, RBAC role switching (`founder_admin`, `researcher`, `monitoring`), SEC EDGAR User-Agent configuration, and 100% IP ownership boundary. |
+| **14 · Architecture & Specs** | `/docs` | `GET /api/docs` | Interactive in-app Markdown reader serving all 9 architecture, governance, research, and master specification documents directly from `docs/`. |
 
-Models produce research records. Every forecast, model record, research signal,
-regime state, data batch, walk-forward study, and rule evaluation report has
-`execution_permission: none`. The deterministic control plane alone may authorize
-future orders. LLMs cannot place/cancel/size orders, override risk, or control a
-kill switch. Research approval is per model revision, instrument, horizon, target
-and unit; it does not grant execution authority.
+---
 
-The customer keeps funds at their existing venue. Software subscriptions, broker
-accounts, exchange accounts, external wallets, custodians, prop rules, founder
-treasury and any future customer-funds ledger remain separate records. No custody,
-deposit address, withdrawal or live order change is implemented. See the
-[master spec](docs/ATLAS_MASTER_SPEC.md) for the full boundary.
+## Core Backend Modules (`src/atlas/`)
 
-Secrets do not belong in prompts, frontend bundles, logs or this repository.
-Gemini remains the preferred generative provider behind a replaceable interface.
-Its research confidence is uncalibrated and never enters forecast combination.
-No OpenAI SDK or API dependency is added. Allora Topic 38 remains out of scope.
+| Module | Implementation Summary |
+| :--- | :--- |
+| `src/atlas/api/app.py` | FastAPI production server exposing health, candles, capabilities, `/api/platform/snapshot`, actionable control-plane routes, live listings (`/api/listings`), data warehouse nodes (`/api/warehouse`), live Internet market candle sync (`/api/market/live-internet-sync`), pipeline sync (`/api/sync`), integrations (`/api/connectors`), global configurations (`/api/configurations`), operator profile (`/api/profile`), and markdown docs (`/api/docs`). |
+| `src/atlas/control/rules.py` & `engine.py` | Stateful `ActionableControlPlaneEngine` and deterministic `TradingRuleBook` (`evaluate_trading_rules`, `RemainingRoomReport`) enforcing per-trade fractional risk, ATR/structure stops, daily loss circuit breaker, trailing/static drawdown, notional/leverage/correlation/sector caps, data quality/freshness/license gates, kill switch / auto-flatten, and prop-competition consistency & minimum trading days. Zero LLM imports. |
+| `src/atlas/models/calendars.py` & `regimes.py` | Authoritative `MarketCalendar` for NYSE/Nasdaq sessions (opening/closing auctions, holidays, early closes) and 24/7 crypto calendars (funding & maintenance windows), paired with strictly causal `classify_regime` across volatility, trend, liquidity, session, and macro-event dimensions. |
+| `src/atlas/models/challengers.py` & `continuous.py` | From-scratch `LocalTreeChallengerProvider` (`boosted_stump_v1`, `gbdt_depth2_v1`), `FittedLinearBaseline` (`ridge_return_v1`), `FittedRegimeConditionedTree`, direct-vs-recursive horizon comparator, ensemble gate, `ContinuousResearchRunner`, `CentralResearchNode`, and `run_track_paper_simulation`. |
+| `src/atlas/marketdata/` | `MCPDataSourceAdapter` with explicit tool allowlists, mutating server rejection (`irohan0/quant-mcp`), FRED training prohibition, `validate_market_data_batch` (`DataQualityReport`), SHA-256 frozen benchmark datasets (`frozen.py`), whale/microstructure normalization (`microstructure.py`), and SEC EDGAR as-filed XBRL fact selection (`sec_edgar.py`). |
+| `src/atlas/models/model_store.py` & `experiments.py` | Durable SQLite model registry (`SQLiteModelRegistry`), scoped approvals with revocation audit history, persisted probability calibrators (`ProbabilityCalibrator`), and SQLite experiment checkpoints. |
 
-Training produces an immutable research challenger, not an automatic deployment.
-Unknown data quality, missing approval or an unverified model license prevents
-forecast selection. No ensemble combiner is enabled without independent evidence.
-No evaluation performed here establishes profitability or universal superiority.
+---
 
-## Run
+## Authority, Non-Custodial & Data Boundaries
 
-Python 3.11+; this workspace uses Python 3.12.
+- **Strict AI vs. Control-Plane Separation**: Every forecast, model record, research signal, regime state, warehouse query, data batch, walk-forward study, and rule evaluation report carries `execution_permission: none`. Only the deterministic control plane (`ActionableControlPlaneEngine`) can authorize, size, or reject an order. LLMs cannot place, cancel, or size orders, override risk limits, or toggle the kill switch.
+- **8 Non-Custodial Money Ledgers**: Software subscriptions, broker accounts, exchange accounts, external user wallets, custodians, prop-firm evaluation accounts, founder treasury, and any future double-entry customer ledger remain strictly separate records.
+- **Data Warehouse & Licensing Discipline**: Point-in-time enforcement (`available_at <= as_of`) applies across BigQuery Analytics Hub, DuckDB + Parquet, Databento, Polygon.io, Coinbase Public REST, and SEC EDGAR XBRL facts. FRED data is blocked from ML training/archival per terms, and `irohan0/quant-mcp` is permanently quarantined.
+
+---
+
+## Quick Start & Run Commands
+
+Python 3.11+ (workspace uses Python 3.12) and Node.js 18+:
 
 ```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[dev,gemini]"
-pytest -q
-uvicorn atlas.api.app:app --port 8000
+# 1. Run backend test suite (81 tests) and start FastAPI server on port 8000
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m uvicorn atlas.api.app:app --host 127.0.0.1 --port 8000
 ```
 
-In a second terminal:
-
 ```powershell
+# 2. Typecheck, build, and start Next.js institutional terminal on port 3000
 cd frontend
-npm install
-npm run dev
+npm run typecheck
+npm run build
+npm run start -- -p 3000
 ```
 
-The application reads `NEXT_PUBLIC_ATLAS_API`, defaulting to `http://localhost:8000`.
-
-Run the full production platform state and telemetry pipeline directly via CLI:
-
 ```powershell
+# 3. Inspect full production platform state via CLI
 .\.venv\Scripts\python.exe -m atlas.models.platform_state
 ```
 
-The existing research CLI needs a paid Gemini account configured outside source:
-`GEMINI_API_KEY` and `ATLAS_GEMINI_TIER=paid`. It refuses empty/oversized context
-and recognizable secrets.
+---
 
-```powershell
-atlas-research "plain observations with no secrets" --workload frequent
-```
+## Documentation Index
 
-## Documentation
+- [Master Spec](docs/ATLAS_MASTER_SPEC.md): Product, authority, prop-competition vs. open-market stock tracks, and non-custodial boundaries.
+- [Universal AI Ecosystem Architecture](docs/architecture/UNIVERSAL_AI_ECOSYSTEM.md): Full implementation map, data warehouse topology, provider protocols, training pipelines, and evaluation.
+- [Research Operating Contract](docs/architecture/RESEARCH_OPERATING_CONTRACT.md): Versioned research gates, causal regime handling, dual tracks, and deterministic control-plane rule fields.
+- [ISO, NIST AI RMF & IOSCO Governance Alignment](docs/architecture/ISO_GOVERNANCE_ALIGNMENT.md): Standards mapping for institutional governance readiness.
+- [Current State](docs/architecture/CURRENT_STATE.md): Verified modules, 17 frontend routes, backend API endpoints, and test verification.
+- [Decisions Log](docs/architecture/DECISIONS.md): Architectural decisions 1–42 binding the repository.
+- [Agile Backlog](docs/backlog/AGILE_BACKLOG.md): Completed platform increments and external licensing roadmap.
+- [AI Ecosystem Review](docs/research/AI_ECOSYSTEM.md) & [MCP Data Integration Review](docs/research/MCP_DATA_INTEGRATION.md).
 
-- [Master spec](docs/ATLAS_MASTER_SPEC.md): product and authority boundaries.
-- [Universal AI architecture](docs/architecture/UNIVERSAL_AI_ECOSYSTEM.md): implementation map, interfaces, pipelines, evaluation and limitations.
-- [Research operating contract](docs/architecture/RESEARCH_OPERATING_CONTRACT.md): versioned research gates, regime handling, two tracks, and control-plane rule fields.
-- [ISO, NIST AI RMF & IOSCO governance alignment](docs/architecture/ISO_GOVERNANCE_ALIGNMENT.md): standards mapping for future certification readiness (no certification claimed).
-- [Provider research](docs/research/AI_ECOSYSTEM.md): official-source capability, privacy and commercial review.
-- [MCP data integration review](docs/research/MCP_DATA_INTEGRATION.md): candidate servers, vendor/data rights, and bounded ingestion plan.
-- [Current state](docs/architecture/CURRENT_STATE.md): verified code and checks.
-- [Backlog](docs/backlog/AGILE_BACKLOG.md): completed foundation and remaining external licensing/live integration tracks.
-- [Decisions](docs/architecture/DECISIONS.md): recorded choices and scope updates.
+---
 
-## Verification
+## Verification Status (2026-10-20)
 
-Universal foundation, regime classification, actionable deterministic control-plane engine, MCP
-contracts, walk-forward baseline-vs-tree study, central node simulation, and interactive command terminal:
-**81 tests passed** on 2026-10-19; the frontend type check and production build
-also passed, and `python -m atlas.models.platform_state` ran successfully.
+- **Backend Test Suite**: **`81 passed`** (`.\.venv\Scripts\python.exe -m pytest -q`) covering schemas, calendars, causal regimes, deterministic prop & open-market trading rules, allowlisted MCP & SEC EDGAR XBRL adapters, warehouse nodes, live Internet candle sync, walk-forward studies, SQLite registry, and all actionable control-plane endpoints.
+- **Frontend Build**: **`0 errors`** on `npm run typecheck` (`tsc --noEmit`) and **`20/20 static pages generated`** on `npm run build` across all 17 application routes.

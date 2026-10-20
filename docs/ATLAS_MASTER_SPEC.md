@@ -120,3 +120,12 @@ External MCP/data services are read-only research inputs only. Tool annotations
 do not establish data rights or enforce safety. See the
 [MCP/data integration review](research/MCP_DATA_INTEGRATION.md); no listed MCP is
 currently connected or pre-approved for freezing/training.
+
+
+## Dual-Track Prop Trading, US Stock Desk & Enterprise Data Warehouse — 2026-10-20
+
+ATLAS operates visually and programmatically as a specialized **Dual-Track Proprietary (Prop) Trading & U.S. Stock Trading Platform**:
+
+1. **Open-Market U.S. Stock & ETF Track (`open_market`)**: Covers NYSE Arca & Nasdaq equities and ETFs (`SPY`, `NVDA`, `AAPL`, `MSFT`, `QQQ`, `TSLA`) with regular-session calendars (`09:30–16:00 ET`), SEC EDGAR as-filed XBRL facts (`acceptance_time <= as_of`), and SIP/Polygon/Databento market data feeds.
+2. **Prop Competition & Funded Challenge Track (`competition`)**: Covers prop-firm evaluations and 24/7 liquid competition markets (`BTC-USD`, `ETH-USD`, `SOL-USD`) under hard deterministic `TradingRuleBook` constraints (`4.0%` daily loss circuit breaker, `8.0%` trailing drawdown floor, `<= 35%` single-day profit consistency gate, `>= 5` minimum trading days, per-trade fractional risk caps, and mandatory stop-loss distances).
+3. **Enterprise API Data Warehouse & Dual-Mode Charts (`/warehouse` & `/market`)**: Pairs **Google Cloud BigQuery & BigQuery Analytics Hub** (Google's institutional financial data warehouse, distinct from website-only Google Analytics GA4), **DuckDB + ZSTD Parquet Local PIT Lakehouse**, **Databento L1/L2/MBO**, **Polygon.io**, **Coinbase Public Exchange Live API**, and **ClickHouse / TimescaleDB** with a **Dual-Mode Institutional Chart Engine** (**ATLAS PIT + Forecast Fan SVG** and **TradingView Live Internet Charts**). All data warehouse and research outputs preserve `execution_permission: none`.
