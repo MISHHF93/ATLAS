@@ -767,3 +767,229 @@ def run_feature_ablation_study(
         dataset_id=active_bundle.manifest.dataset_id,
         variants=tuple(variants),
     )
+
+
+class FittedRegimeConditionedTree(Record):
+    model_id: Text
+    dataset_id: Text
+    trained_through: datetime
+    calm_tree: FittedRegressionTree
+    stressed_tree: FittedRegressionTree
+    execution_permission: Literal["none"] = "none"
+
+    def predict_return(self, features: tuple[float, ...], volatility_regime: str) -> float:
+        if volatility_regime in {"high_vol", "shock_vol"}:
+            return self.stressed_tree.predict_return(features)
+        return self.calm_tree.predict_return(features)
+
+
+def fit_regime_conditioned_tree(
+    bundle: FrozenDatasetBundle,
+    *,
+    prerequisite_study: WalkForwardStudyResult,
+) -> FittedRegimeConditionedTree:
+    """Fit a regime-conditioned GBDT challenger ONLY after baseline-vs-tree shows independent evidence."""
+    if not prerequisite_study.regime_variant_unlocked:
+        raise PermissionError(
+            "Regime-aware tree variants are locked until baseline-vs-tree comparison shows independent evidence"
+        )
+    bundle.manifest.verify_content(bundle.serialized_bytes)
+    train_obs = tuple(o for o in bundle.observations if o.available_at <= bundle.manifest.train_end)
+    calm_tree = fit_boosted_regression_tree(
+        train_obs,
+        dataset_id=f"{bundle.manifest.dataset_id}:calm",
+        boost_rounds=2,
+        learning_rate=0.35,
+        use_depth_two=False,
+    )
+    stressed_tree = fit_boosted_regression_tree(
+        train_obs,
+        dataset_id=f"{bundle.manifest.dataset_id}:stressed",
+        boost_rounds=3,
+        learning_rate=0.55,
+        use_depth_two=True,
+    )
+    return FittedRegimeConditionedTree(
+        model_id=f"regime_gbdt:{bundle.manifest.dataset_id}",
+        dataset_id=bundle.manifest.dataset_id,
+        trained_through=train_obs[-1].available_at,
+        calm_tree=calm_tree,
+        stressed_tree=stressed_tree,
+    )
+
+
+class DirectVsRecursiveHorizonReport(Record):
+    dataset_id: Text
+    steps: int
+    direct_mae_by_step: tuple[float, ...]
+    recursive_mae_by_step: tuple[float, ...]
+    recommended_method_by_step: tuple[Literal["direct", "recursive"], ...]
+    execution_permission: Literal["none"] = "none"
+
+
+def compare_direct_vs_recursive_horizons(
+    bundle: FrozenDatasetBundle | None = None,
+    *,
+    steps: int = 3,
+) -> DirectVsRecursiveHorizonReport:
+    """Compare direct step-h models against recursive 1-step rollout error accumulation."""
+    if steps < 2 or steps > 5:
+        raise ValueError("steps must be in [2, 5]")
+    active_bundle = bundle or build_frozen_benchmark_dataset(track="competition")
+    obs = active_bundle.observations
+    train_obs = tuple(o for o in obs if o.available_at <= active_bundle.manifest.train_end)
+    one_step_tree = fit_boosted_regression_tree(train_obs, dataset_id=active_bundle.manifest.dataset_id, use_depth_two=True)
+
+    # Fit direct multi-step trees on cumulative h-step returns in the training window
+    direct_trees: list[FittedRegressionTree] = []
+    for h in range(1, steps + 1):
+        X_h: list[tuple[float, float, float]] = []
+        y_h: list[float] = []
+        for idx in range(4, len(train_obs) - h):
+            hist = train_obs[: idx + 1]
+            target_ret = (train_obs[idx + h].value - train_obs[idx].value) / train_obs[idx].value
+            X_h.append(_extract_causal_features(hist))
+            y_h.append(target_ret)
+        base_p = mean(y_h)
+        res = [t - base_p for t in y_h]
+        stump = _fit_best_stump(X_h, res, (0, 1, 2))
+        direct_trees.append(
+            FittedRegressionTree(
+                tree_id=f"direct_h{h}:{active_bundle.manifest.dataset_id}",
+                dataset_id=active_bundle.manifest.dataset_id,
+                trained_through=train_obs[-1].available_at,
+                nodes=(stump,),
+                learning_rate=0.5,
+                base_prediction=base_p,
+            )
+        )
+
+    start_idx = len(train_obs) + 2
+    direct_errs: list[list[float]] = [[] for _ in range(steps)]
+    recursive_errs: list[list[float]] = [[] for _ in range(steps)]
+
+    for idx in range(start_idx, len(obs) - steps):
+        hist = list(obs[: idx + 1])
+        base_price = obs[idx].value
+        feats = _extract_causal_features(tuple(hist))
+
+        # Direct predictions for each lead step h
+        for s_idx in range(steps):
+            h = s_idx + 1
+            pred_cum_ret = direct_trees[s_idx].predict_return(feats)
+            pred_price = base_price * (1.0 + pred_cum_ret)
+            direct_errs[s_idx].append(abs(pred_price - obs[idx + h].value))
+
+        # Recursive rollout using synthetic intermediate observations
+        rec_price = base_price
+        rec_hist = list(hist)
+        for s_idx in range(steps):
+            h = s_idx + 1
+            rec_feats = _extract_causal_features(tuple(rec_hist))
+            step_ret = one_step_tree.predict_return(rec_feats)
+            rec_price = rec_price * (1.0 + step_ret)
+            recursive_errs[s_idx].append(abs(rec_price - obs[idx + h].value))
+            rec_hist.append(
+                Observation(
+                    event_time=obs[idx + h].event_time,
+                    available_at=obs[idx + h].available_at,
+                    value=rec_price,
+                )
+            )
+
+    direct_maes = tuple(round(mean(e), 4) for e in direct_errs)
+    recursive_maes = tuple(round(mean(e), 4) for e in recursive_errs)
+    recommended: tuple[Literal["direct", "recursive"], ...] = tuple(
+        "direct" if d <= r else "recursive" for d, r in zip(direct_maes, recursive_maes)
+    )
+    return DirectVsRecursiveHorizonReport(
+        dataset_id=active_bundle.manifest.dataset_id,
+        steps=steps,
+        direct_mae_by_step=direct_maes,
+        recursive_mae_by_step=recursive_maes,
+        recommended_method_by_step=recommended,
+    )
+
+
+class EnsembleGateReport(Record):
+    dataset_id: Text
+    candidate_weights: tuple[float, float]
+    ensemble_mae: float
+    best_member_mae: float
+    naive_mae: float
+    ensemble_net_return: float
+    best_member_net_return: float
+    error_correlation: float
+    beats_naive: bool
+    beats_best_member: bool
+    survives_ablation: bool
+    combiner_enabled: bool
+    execution_permission: Literal["none"] = "none"
+
+
+def evaluate_ensemble_gate(
+    bundle: FrozenDatasetBundle | None = None,
+    *,
+    weights: tuple[float, float] = (0.5, 0.5),
+    max_error_correlation: float = 0.95,
+    cost_bps: float = 4.0,
+) -> EnsembleGateReport:
+    """Test whether a linear+tree ensemble beats both naive and best member on costed holdout."""
+    if abs(sum(weights) - 1.0) > 1e-6 or any(w < 0 for w in weights):
+        raise ValueError("Ensemble weights must be nonnegative and sum to 1.0")
+    active_bundle = bundle or build_frozen_benchmark_dataset(track="competition")
+    obs = active_bundle.observations
+    train_obs = tuple(o for o in obs if o.available_at <= active_bundle.manifest.train_end)
+
+    linear_model = fit_scratch_linear_baseline(train_obs, dataset_id=active_bundle.manifest.dataset_id)
+    tree_model = fit_boosted_regression_tree(train_obs, dataset_id=active_bundle.manifest.dataset_id, use_depth_two=True)
+
+    start_idx = len(train_obs) + 2
+    lin_rows = _evaluate_predictor_slice(
+        obs, start_idx, len(obs) - 1, lambda f, _h: linear_model.predict_return(f), active_bundle, cost_bps
+    )
+    tree_rows = _evaluate_predictor_slice(
+        obs, start_idx, len(obs) - 1, lambda f, _h: tree_model.predict_return(f), active_bundle, cost_bps
+    )
+    ens_rows = _evaluate_predictor_slice(
+        obs,
+        start_idx,
+        len(obs) - 1,
+        lambda f, _h: weights[0] * linear_model.predict_return(f) + weights[1] * tree_model.predict_return(f),
+        active_bundle,
+        cost_bps,
+    )
+
+    lin_rep = evaluate(lin_rows, block_size=2, bootstrap_samples=100, seed=42)
+    tree_rep = evaluate(tree_rows, block_size=2, bootstrap_samples=100, seed=42)
+    ens_rep = evaluate(ens_rows, block_size=2, bootstrap_samples=100, seed=42)
+
+    lin_errs = [abs(r.predicted - r.actual) for r in lin_rows]
+    tree_errs = [abs(r.predicted - r.actual) for r in tree_rows]
+    m_l, m_t = mean(lin_errs), mean(tree_errs)
+    num = sum((a - m_l) * (b - m_t) for a, b in zip(lin_errs, tree_errs))
+    den_l = sum((a - m_l) ** 2 for a in lin_errs) ** 0.5
+    den_t = sum((b - m_t) ** 2 for b in tree_errs) ** 0.5
+    corr = num / (den_l * den_t) if (den_l > 0 and den_t > 0) else 1.0
+
+    best_member_mae = min(lin_rep.mae, tree_rep.mae)
+    best_member_net = max(lin_rep.expected_net_return, tree_rep.expected_net_return)
+    beats_naive = ens_rep.mae < ens_rep.naive_mae
+    beats_best = ens_rep.mae < best_member_mae and ens_rep.expected_net_return > best_member_net
+    survives_ablation = beats_best and (corr <= max_error_correlation)
+
+    return EnsembleGateReport(
+        dataset_id=active_bundle.manifest.dataset_id,
+        candidate_weights=weights,
+        ensemble_mae=ens_rep.mae,
+        best_member_mae=best_member_mae,
+        naive_mae=ens_rep.naive_mae,
+        ensemble_net_return=ens_rep.expected_net_return,
+        best_member_net_return=best_member_net,
+        error_correlation=round(corr, 4),
+        beats_naive=beats_naive,
+        beats_best_member=beats_best,
+        survives_ablation=survives_ablation,
+        combiner_enabled=False,  # Combiner remains disabled until human approval & second holdout
+    )
+

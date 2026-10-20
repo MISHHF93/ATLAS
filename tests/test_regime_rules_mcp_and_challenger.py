@@ -25,6 +25,11 @@ from atlas.marketdata.microstructure import (
     normalize_microstructure_covariates,
 )
 from atlas.marketdata.quality import validate_market_data_batch
+from atlas.marketdata.sec_edgar import (
+    SECEdgarFilingFact,
+    select_as_filed_sec_facts,
+    validate_sec_user_agent,
+)
 from atlas.models.adapters import (
     NaiveForecastProvider,
     SeasonalStatisticalForecastProvider,
@@ -39,7 +44,10 @@ from atlas.models.calendars import (
 )
 from atlas.models.challengers import (
     LocalTreeChallengerProvider,
+    compare_direct_vs_recursive_horizons,
+    evaluate_ensemble_gate,
     fit_boosted_regression_tree,
+    fit_regime_conditioned_tree,
     fit_scratch_linear_baseline,
     run_baseline_vs_tree_study,
     run_feature_ablation_study,
@@ -721,4 +729,89 @@ def test_scratch_linear_and_tree_training_lifecycle_with_rollback(tmp_path) -> N
     assert lifecycle.alias_after_rollback.model_id == "last_value"
     assert lifecycle.linear_baseline_mae > 0
     assert lifecycle.tree_challenger_mae > 0
+
+
+def test_sec_edgar_point_in_time_as_filed_and_restatement_exclusion() -> None:
+    with pytest.raises(ValueError, match="User-Agent"):
+        validate_sec_user_agent("bad-agent")
+    assert validate_sec_user_agent("ATLASResearch compliance@atlas-example.com")
+
+    period_end = NOW - timedelta(days=45)
+    original_10q = SECEdgarFilingFact(
+        accession_number="0001-26-000001",
+        cik="0000320193",
+        instrument_id="open:spy-etf:v1",
+        form_type="10-Q",
+        concept="Revenues",
+        value=85_000.0,
+        unit="USD_millions",
+        fiscal_period_end=period_end,
+        acceptance_time=NOW - timedelta(days=10),
+    )
+    # Amendment 10-Q/A filed BEFORE as_of
+    prior_amendment = SECEdgarFilingFact(
+        accession_number="0001-26-000002",
+        cik="0000320193",
+        instrument_id="open:spy-etf:v1",
+        form_type="10-Q/A",
+        concept="Revenues",
+        value=84_200.0,
+        unit="USD_millions",
+        fiscal_period_end=period_end,
+        acceptance_time=NOW - timedelta(days=2),
+        is_amendment=True,
+    )
+    # Future restatement accepted AFTER as_of -> must never leak into as_of
+    future_restatement = SECEdgarFilingFact(
+        accession_number="0001-26-000003",
+        cik="0000320193",
+        instrument_id="open:spy-etf:v1",
+        form_type="10-Q/A",
+        concept="Revenues",
+        value=79_000.0,
+        unit="USD_millions",
+        fiscal_period_end=period_end,
+        acceptance_time=NOW + timedelta(days=5),
+        is_amendment=True,
+    )
+    facts = (original_10q, prior_amendment, future_restatement)
+
+    as_filed_only = select_as_filed_sec_facts(
+        facts, instrument_id="open:spy-etf:v1", as_of=NOW, allow_vintage_amendments=False
+    )
+    assert len(as_filed_only) == 1
+    assert as_filed_only[0].value == 85_000.0
+
+    vintage_replay = select_as_filed_sec_facts(
+        facts, instrument_id="open:spy-etf:v1", as_of=NOW, allow_vintage_amendments=True
+    )
+    assert len(vintage_replay) == 1
+    assert vintage_replay[0].value == 84_200.0
+
+
+def test_regime_conditioned_tree_gate_direct_vs_recursive_and_ensemble_gate() -> None:
+    bundle = build_frozen_benchmark_dataset(track="competition", anchor=NOW)
+    study = run_baseline_vs_tree_study(bundle, purge_bars=1, embargo_bars=1, cost_bps=4.0)
+
+    locked_study = study.model_copy(update={"regime_variant_unlocked": False})
+    with pytest.raises(PermissionError, match="locked"):
+        fit_regime_conditioned_tree(bundle, prerequisite_study=locked_study)
+
+    unlocked_study = study.model_copy(update={"regime_variant_unlocked": True})
+    regime_tree = fit_regime_conditioned_tree(bundle, prerequisite_study=unlocked_study)
+    assert regime_tree.execution_permission == "none"
+    assert regime_tree.predict_return((0.002, 0.001, 0.003), "low_vol") != regime_tree.predict_return(
+        (0.002, 0.001, 0.003), "shock_vol"
+    )
+
+    d_vs_r = compare_direct_vs_recursive_horizons(bundle, steps=3)
+    assert d_vs_r.steps == 3
+    assert len(d_vs_r.direct_mae_by_step) == 3
+    assert len(d_vs_r.recursive_mae_by_step) == 3
+    assert d_vs_r.execution_permission == "none"
+
+    ens_report = evaluate_ensemble_gate(bundle, weights=(0.4, 0.6))
+    assert ens_report.combiner_enabled is False
+    assert ens_report.execution_permission == "none"
+
 

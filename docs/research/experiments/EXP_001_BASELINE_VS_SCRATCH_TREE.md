@@ -39,3 +39,4 @@ Per Objective 7, regime-conditioned tree variants remain **locked** unless the u
 from-scratch tree challenger first demonstrates independent out-of-sample MAE improvement
 over **both** the naive baseline (`overall.mae < overall.naive_mae`) and the from-scratch
 linear baseline (`overall.mae <= linear_baseline_report.mae`).
+

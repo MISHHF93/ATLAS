@@ -1,4 +1,5 @@
-"""Read-only market data contracts, MCP allowlisted adapters, microstructure covariates, quality validation, and frozen datasets.
+"""Read-only market data contracts, MCP allowlisted adapters, SEC EDGAR point-in-time facts,
+microstructure covariates, quality validation, and frozen datasets.
 
 All outputs are research records with `execution_permission: none`.
 """
@@ -15,6 +16,11 @@ from atlas.marketdata.microstructure import (
     normalize_microstructure_covariates,
 )
 from atlas.marketdata.quality import DataQualityReport, validate_market_data_batch
+from atlas.marketdata.sec_edgar import (
+    SECEdgarFilingFact,
+    select_as_filed_sec_facts,
+    validate_sec_user_agent,
+)
 
 __all__ = [
     "ALLOWED_MCP_TOOLS",
@@ -24,8 +30,11 @@ __all__ = [
     "MCPDataSourceAdapter",
     "MCPTransport",
     "RawMicrostructureEvent",
+    "SECEdgarFilingFact",
     "WhaleMicrostructurePolicy",
     "build_frozen_benchmark_dataset",
     "normalize_microstructure_covariates",
+    "select_as_filed_sec_facts",
     "validate_market_data_batch",
+    "validate_sec_user_agent",
 ]

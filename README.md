@@ -28,8 +28,8 @@ operator receives no order discretion or ownership transfer.
 | Instrument/horizon & calendars | Nine asset classes; versioned `MarketCalendar` (`src/atlas/models/calendars.py`) for traditional sessions (auctions, holidays, early closes) and 24/7 crypto (funding & maintenance windows) |
 | Causal regime detection | Point-in-time `classify_regime` (`src/atlas/models/regimes.py`) across volatility, trend, liquidity, session, and macro-event dimensions with explicit `unknown` fallback |
 | Control-plane rules | Versioned `TradingRuleBook` & `evaluate_trading_rules` (`src/atlas/control/rules.py`) for per-trade risk, daily loss breaker, static/trailing drawdown, exposure caps, quality/freshness/license gates, session/time exits, kill switch, and competition consistency rules (default-deny, zero LLM imports) |
-| Read-only MCP data | `MCPDataSourceAdapter` (`src/atlas/marketdata/mcp_adapters.py`) with allowlisted tools (`alpha_vantage_mcp`, `financial_datasets_mcp`, `fin_data_mcp`), write/execution rejection, `irohan0/quant-mcp` block, FRED training block, and `DataQualityReport` |
-| Walk-forward & tree challenger | Deterministic `LocalTreeChallengerProvider` and purged walk-forward comparison (`src/atlas/models/challengers.py`) against naive/no-trade baselines with non-promoting `OutcomeFeedbackRecord` |
+| Read-only MCP & SEC EDGAR data | `MCPDataSourceAdapter` (`src/atlas/marketdata/mcp_adapters.py`) with allowlisted tools (`alpha_vantage_mcp`, `financial_datasets_mcp`, `fin_data_mcp`), write/execution rejection, `irohan0/quant-mcp` block, FRED training block, `DataQualityReport`, whale/microstructure covariate normalization (`src/atlas/marketdata/microstructure.py`), and point-in-time SEC EDGAR as-filed fact selection (`src/atlas/marketdata/sec_edgar.py`) |
+| Walk-forward & scratch challengers | Deterministic `LocalTreeChallengerProvider`, `FittedLinearBaseline`, gated `FittedRegimeConditionedTree`, direct-vs-recursive horizon evaluator, ensemble gate (`src/atlas/models/challengers.py`), and purged walk-forward comparison against naive/no-trade baselines with non-promoting `OutcomeFeedbackRecord` |
 | Evaluation & lifecycle | Predictive, return, calibration, cost, drawdown and tail metrics; block bootstrap; immutable model metadata, SQLite research-alias rollback, and SQLite experiment history |
 
 ## Authority and data boundaries
@@ -110,5 +110,5 @@ atlas-research "plain observations with no secrets" --workload frequent
 
 Universal foundation, regime classification, deterministic control rules, MCP
 contracts, walk-forward baseline-vs-tree study, and expanded research terminal:
-**76 tests passed** on 2026-10-19; the frontend type check and production build
+**79 tests passed** on 2026-10-19; the frontend type check and production build
 also passed, and the offline demo ran successfully.
