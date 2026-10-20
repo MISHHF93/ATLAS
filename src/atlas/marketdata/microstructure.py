@@ -139,3 +139,4 @@ def normalize_microstructure_covariates(
 
     normalized.sort(key=lambda item: (item.event_time, item.name))
     return tuple(normalized)
+

@@ -66,8 +66,11 @@ type StudyPayload = {
   manifest_sha256: string;
   purge_bars: number;
   embargo_bars: number;
+  linear_baseline_report?: EvaluationReport;
   overall_report: EvaluationReport;
   regime_reports: Record<string, EvaluationReport | null>;
+  regime_variant_unlocked?: boolean;
+  regime_variant_gate_reason?: string;
   feedback: {
     beats_naive_mae: boolean;
     beats_no_trade_net_return: boolean;
@@ -641,8 +644,10 @@ export default function Page() {
                   </div>
                   <div className="kpi-mini-grid">
                     <div className="kpi-mini">
-                      <span>CHALLENGER MAE / NAIVE MAE</span>
-                      <strong>{activeStudy.overall_report.mae.toFixed(2)} / {activeStudy.overall_report.naive_mae.toFixed(2)}</strong>
+                      <span>TREE / LINEAR / NAIVE MAE</span>
+                      <strong>
+                        {activeStudy.overall_report.mae.toFixed(2)} / {activeStudy.linear_baseline_report?.mae.toFixed(2) ?? "--"} / {activeStudy.overall_report.naive_mae.toFixed(2)}
+                      </strong>
                     </div>
                     <div className="kpi-mini">
                       <span>DIRECTIONAL ACCURACY</span>
@@ -694,7 +699,7 @@ export default function Page() {
                     </table>
                   </div>
                   <div className="permission-note">
-                    Next action: <strong>{activeStudy.feedback.recommended_next_action}</strong> · Execution permission: <strong>{activeStudy.feedback.execution_permission}</strong>
+                    Regime-variant gate: <strong>{activeStudy.regime_variant_unlocked ? "UNLOCKED" : "LOCKED"}</strong> · Next action: <strong>{activeStudy.feedback.recommended_next_action}</strong> · Permission: <strong>{activeStudy.feedback.execution_permission}</strong>
                   </div>
                 </article>
               </div>

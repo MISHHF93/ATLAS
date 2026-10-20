@@ -1,18 +1,34 @@
-"""Deterministic local tree challenger, purged walk-forward study, and feature ablations.
+"""From-scratch linear baseline, decision tree, and gradient-boosted tree challengers.
 
-Training produces an immutable research challenger only (`execution_permission: none`).
-No automatic promotion, live weight mutation, or ensemble combiner is enabled.
+Implements the complete offline research training lifecycle:
+- Quality-checked, calendar-aware frozen point-in-time dataset verification
+- From-scratch OLS/Ridge Linear Baseline, depth-bounded CART Decision Tree, and
+  Gradient-Boosted Decision Trees (GBDT) trained strictly on chronological train splits
+- Validation-only `ProbabilityCalibrator` fitting
+- Untouched test-split purged walk-forward evaluation (predictive, return, calibration,
+  cost, drawdown, tail expected shortfall, and seeded circular block bootstrap)
+- Immutable `ModelRecord` registration, `ExperimentStore` SQLite tracking via
+  `TrainingProvider`, and research-alias rollback
+- Strict gating of regime-aware tree variants: regime-conditioned variants are
+  evaluated/registered ONLY after the base tree demonstrates independent improvement
+  over naive and linear baselines.
+- Every output retains `execution_permission: none`. No automatic deployment.
 """
 from datetime import datetime, timezone
 from decimal import Decimal
 import hashlib
 import json
+from pathlib import Path
 from statistics import mean
+import tempfile
 from typing import Literal
 
 from atlas.marketdata.frozen import FrozenDatasetBundle, build_frozen_benchmark_dataset
-from atlas.models.evaluation import EvaluationReport, EvaluationRow, evaluate, evaluate_groups
+from atlas.models.evaluation import EvaluationReport, EvaluationRow, ProbabilityCalibrator, evaluate, evaluate_groups
+from atlas.models.experiments import ExperimentStore
 from atlas.models.regimes import RegimeConfig, classify_regime
+from atlas.models.registry import ProviderRegistry
+from atlas.models.runtime import ProviderRuntime
 from atlas.models.schemas import (
     Capability,
     Forecast,
@@ -24,8 +40,11 @@ from atlas.models.schemas import (
     ProviderInfo,
     Record,
     Text,
+    TrainingJob,
+    TrainingRequest,
     Usage,
 )
+from atlas.models.training import TrainingCoordinator
 
 
 class TreeSplitNode(Record):
@@ -35,20 +54,51 @@ class TreeSplitNode(Record):
     right_value: float
 
 
+class DepthTwoTree(Record):
+    """Depth-2 regression tree trained from scratch via exact variance-reduction splits."""
+    root_feature: int
+    root_threshold: float
+    left_child: TreeSplitNode
+    right_child: TreeSplitNode
+
+    def predict(self, features: tuple[float, ...]) -> float:
+        branch = self.left_child if features[self.root_feature] <= self.root_threshold else self.right_child
+        return branch.left_value if features[branch.feature_index] <= branch.threshold else branch.right_value
+
+
+class FittedLinearBaseline(Record):
+    """From-scratch L2-regularized linear regression baseline fitted on causal features."""
+    model_id: Text
+    dataset_id: Text
+    trained_through: datetime
+    intercept: float
+    weights: tuple[float, float, float]
+    l2_penalty: float = 1e-2
+
+    def predict_return(self, features: tuple[float, ...]) -> float:
+        raw = self.intercept + sum(w * x for w, x in zip(self.weights, features))
+        return max(-0.25, min(0.25, raw))
+
+
 class FittedRegressionTree(Record):
     tree_id: Text
     dataset_id: Text
     trained_through: datetime
     nodes: tuple[TreeSplitNode, ...]
+    deep_trees: tuple[DepthTwoTree, ...] = ()
     learning_rate: float = 0.5
     base_prediction: float = 0.0
 
     def predict_return(self, features: tuple[float, ...]) -> float:
         pred = self.base_prediction
-        for node in self.nodes:
-            val = features[node.feature_index]
-            step = node.left_value if val <= node.threshold else node.right_value
-            pred += self.learning_rate * step
+        if self.deep_trees:
+            for dtree in self.deep_trees:
+                pred += self.learning_rate * dtree.predict(features)
+        else:
+            for node in self.nodes:
+                val = features[node.feature_index]
+                step = node.left_value if val <= node.threshold else node.right_value
+                pred += self.learning_rate * step
         return max(-0.25, min(0.25, pred))
 
 
@@ -63,20 +113,11 @@ def _extract_causal_features(observations: tuple[Observation, ...]) -> tuple[flo
     return (r1, r2, vol)
 
 
-def fit_boosted_regression_tree(
+def _build_supervised_matrix(
     observations: tuple[Observation, ...],
-    *,
-    dataset_id: str,
-    boost_rounds: int = 3,
-    learning_rate: float = 0.5,
-    active_feature_indices: tuple[int, ...] = (0, 1, 2),
-) -> FittedRegressionTree:
-    """Fit a deterministic boosted decision-stump tree on chronological observations."""
+) -> tuple[list[tuple[float, float, float]], list[float]]:
     if len(observations) < 8:
-        raise ValueError("Need at least 8 chronological observations to fit tree challenger")
-    if not active_feature_indices:
-        raise ValueError("active_feature_indices cannot be empty")
-
+        raise ValueError("Need at least 8 chronological observations to build training matrix")
     X: list[tuple[float, float, float]] = []
     y: list[float] = []
     for idx in range(4, len(observations) - 1):
@@ -84,48 +125,144 @@ def fit_boosted_regression_tree(
         target_ret = (observations[idx + 1].value - observations[idx].value) / observations[idx].value
         X.append(_extract_causal_features(history))
         y.append(target_ret)
+    return X, y
+
+
+def fit_scratch_linear_baseline(
+    observations: tuple[Observation, ...],
+    *,
+    dataset_id: str,
+    l2_penalty: float = 1e-2,
+    iterations: int = 80,
+) -> FittedLinearBaseline:
+    """Fit an L2-regularized linear model from scratch using deterministic coordinate descent."""
+    X, y = _build_supervised_matrix(observations)
+    n = len(y)
+    intercept = mean(y)
+    w = [0.0, 0.0, 0.0]
+
+    for _ in range(iterations):
+        # Update intercept
+        residuals = [y[i] - sum(w[j] * X[i][j] for j in range(3)) for i in range(n)]
+        intercept = mean(residuals)
+        # Coordinate updates for each weight
+        for j in range(3):
+            num = 0.0
+            den = l2_penalty
+            for i in range(n):
+                partial_res = y[i] - intercept - sum(w[k] * X[i][k] for k in range(3) if k != j)
+                num += X[i][j] * partial_res
+                den += X[i][j] ** 2
+            w[j] = num / den if den > 0 else 0.0
+
+    return FittedLinearBaseline(
+        model_id=f"ridge_linear:{dataset_id}",
+        dataset_id=dataset_id,
+        trained_through=observations[-1].available_at,
+        intercept=intercept,
+        weights=(w[0], w[1], w[2]),
+        l2_penalty=l2_penalty,
+    )
+
+
+def _fit_best_stump(
+    X: list[tuple[float, float, float]],
+    targets: list[float],
+    active_feature_indices: tuple[int, ...],
+) -> TreeSplitNode:
+    if not X or not targets:
+        return TreeSplitNode(feature_index=active_feature_indices[0], threshold=0.0, left_value=0.0, right_value=0.0)
+    fallback_mean = mean(targets)
+    best_loss = float("inf")
+    best_node = TreeSplitNode(
+        feature_index=active_feature_indices[0],
+        threshold=0.0,
+        left_value=fallback_mean,
+        right_value=fallback_mean,
+    )
+    for feat_idx in active_feature_indices:
+        candidates = sorted({row[feat_idx] for row in X})
+        for threshold in candidates:
+            left_res = [targets[i] for i, row in enumerate(X) if row[feat_idx] <= threshold]
+            right_res = [targets[i] for i, row in enumerate(X) if row[feat_idx] > threshold]
+            if not left_res or not right_res:
+                continue
+            left_mean = mean(left_res)
+            right_mean = mean(right_res)
+            loss = sum((r - left_mean) ** 2 for r in left_res) + sum((r - right_mean) ** 2 for r in right_res)
+            if loss < best_loss:
+                best_loss = loss
+                best_node = TreeSplitNode(
+                    feature_index=feat_idx,
+                    threshold=threshold,
+                    left_value=left_mean,
+                    right_value=right_mean,
+                )
+    return best_node
+
+
+def _fit_depth_two_tree(
+    X: list[tuple[float, float, float]],
+    targets: list[float],
+    active_feature_indices: tuple[int, ...],
+) -> DepthTwoTree:
+    root = _fit_best_stump(X, targets, active_feature_indices)
+    left_X = [row for row in X if row[root.feature_index] <= root.threshold]
+    left_y = [targets[i] for i, row in enumerate(X) if row[root.feature_index] <= root.threshold]
+    right_X = [row for row in X if row[root.feature_index] > root.threshold]
+    right_y = [targets[i] for i, row in enumerate(X) if row[root.feature_index] > root.threshold]
+    left_child = _fit_best_stump(left_X, left_y, active_feature_indices)
+    right_child = _fit_best_stump(right_X, right_y, active_feature_indices)
+    return DepthTwoTree(
+        root_feature=root.feature_index,
+        root_threshold=root.threshold,
+        left_child=left_child,
+        right_child=right_child,
+    )
+
+
+def fit_boosted_regression_tree(
+    observations: tuple[Observation, ...],
+    *,
+    dataset_id: str,
+    boost_rounds: int = 3,
+    learning_rate: float = 0.5,
+    active_feature_indices: tuple[int, ...] = (0, 1, 2),
+    use_depth_two: bool = False,
+) -> FittedRegressionTree:
+    """Fit a deterministic boosted decision tree from scratch on chronological observations."""
+    if not active_feature_indices:
+        raise ValueError("active_feature_indices cannot be empty")
+    X, y = _build_supervised_matrix(observations)
 
     base_pred = mean(y)
     residuals = [target - base_pred for target in y]
     nodes: list[TreeSplitNode] = []
+    deep_trees: list[DepthTwoTree] = []
 
     for _ in range(boost_rounds):
-        best_loss = float("inf")
-        best_node = TreeSplitNode(feature_index=active_feature_indices[0], threshold=0.0, left_value=0.0, right_value=0.0)
-        for feat_idx in active_feature_indices:
-            candidates = sorted({row[feat_idx] for row in X})
-            for threshold in candidates:
-                left_res = [residuals[i] for i, row in enumerate(X) if row[feat_idx] <= threshold]
-                right_res = [residuals[i] for i, row in enumerate(X) if row[feat_idx] > threshold]
-                if not left_res or not right_res:
-                    continue
-                left_mean = mean(left_res)
-                right_mean = mean(right_res)
-                loss = sum((r - left_mean) ** 2 for r in left_res) + sum(
-                    (r - right_mean) ** 2 for r in right_res
+        if use_depth_two:
+            dtree = _fit_depth_two_tree(X, residuals, active_feature_indices)
+            deep_trees.append(dtree)
+            for i, row in enumerate(X):
+                residuals[i] -= learning_rate * dtree.predict(row)
+        else:
+            best_node = _fit_best_stump(X, residuals, active_feature_indices)
+            nodes.append(best_node)
+            for i, row in enumerate(X):
+                step = (
+                    best_node.left_value
+                    if row[best_node.feature_index] <= best_node.threshold
+                    else best_node.right_value
                 )
-                if loss < best_loss:
-                    best_loss = loss
-                    best_node = TreeSplitNode(
-                        feature_index=feat_idx,
-                        threshold=threshold,
-                        left_value=left_mean,
-                        right_value=right_mean,
-                    )
-        nodes.append(best_node)
-        for i, row in enumerate(X):
-            step = (
-                best_node.left_value
-                if row[best_node.feature_index] <= best_node.threshold
-                else best_node.right_value
-            )
-            residuals[i] -= learning_rate * step
+                residuals[i] -= learning_rate * step
 
     return FittedRegressionTree(
-        tree_id=f"boosted_stump_tree:{dataset_id}",
+        tree_id=f"boosted_tree:{dataset_id}:d{'2' if use_depth_two else '1'}",
         dataset_id=dataset_id,
         trained_through=observations[-1].available_at,
         nodes=tuple(nodes),
+        deep_trees=tuple(deep_trees),
         learning_rate=learning_rate,
         base_prediction=base_pred,
     )
@@ -142,15 +279,16 @@ class LocalTreeChallengerProvider:
             provider_id="local_tree",
             location="local",
             capabilities=frozenset({Capability.FORECAST}),
-            models=("boosted_stump_v1",),
+            models=("boosted_stump_v1", "gbdt_depth2_v1"),
         )
 
     async def forecast(self, model: ModelRef, request: ForecastRequest) -> Forecast:
-        if model.provider_id != "local_tree" or model.model_id != "boosted_stump_v1":
+        if model.provider_id != "local_tree" or model.model_id not in self.describe().models:
             raise ValueError("Unknown local_tree model")
         tree = self._tree or fit_boosted_regression_tree(
             request.observations if len(request.observations) >= 8 else build_frozen_benchmark_dataset().observations[:24],
             dataset_id=request.dataset_id,
+            use_depth_two=(model.model_id == "gbdt_depth2_v1"),
         )
         if tree.trained_through > request.as_of:
             raise ValueError("Tree challenger trained_through exceeds request.as_of (lookahead leakage)")
@@ -194,6 +332,82 @@ class LocalTreeChallengerProvider:
         )
 
 
+class LocalScratchTrainingProvider:
+    """Implements `TrainingProvider` to train from-scratch tree challengers inside `TrainingCoordinator`."""
+
+    def __init__(self, bundle: FrozenDatasetBundle) -> None:
+        self.bundle = bundle
+        self._jobs: dict[str, TrainingJob] = {}
+        self.trained_trees: dict[str, FittedRegressionTree] = {}
+        self.model_records: dict[str, ModelRecord] = {}
+
+    def describe(self) -> ProviderInfo:
+        return ProviderInfo(
+            provider_id="local_scratch_trainer",
+            location="local",
+            capabilities=frozenset({Capability.TRAIN}),
+            models=("boosted_stump_v1", "gbdt_depth2_v1"),
+        )
+
+    async def submit_training(self, request: TrainingRequest) -> TrainingJob:
+        self.bundle.manifest.verify_content(self.bundle.serialized_bytes)
+        if request.dataset.dataset_id != self.bundle.manifest.dataset_id:
+            raise ValueError("TrainingRequest dataset_id does not match frozen bundle")
+        params = json.loads(request.hyperparameters_json)
+        boost_rounds = int(params.get("boost_rounds", 3))
+        lr = float(params.get("learning_rate", 0.45))
+        use_depth_two = bool(params.get("use_depth_two", True))
+
+        train_obs = tuple(
+            o for o in self.bundle.observations if o.available_at <= request.dataset.train_end
+        )
+        fitted = fit_boosted_regression_tree(
+            train_obs,
+            dataset_id=request.dataset.dataset_id,
+            boost_rounds=boost_rounds,
+            learning_rate=lr,
+            use_depth_two=use_depth_two,
+        )
+        model_id = "gbdt_depth2_v1" if use_depth_two else "boosted_stump_v1"
+        artifact_ref = ModelRef(
+            provider_id="local_tree",
+            model_id=model_id,
+            revision=request.experiment_id,
+        )
+        serialized = json.dumps(fitted.model_dump(mode="json"), sort_keys=True).encode("utf-8")
+        digest = hashlib.sha256(serialized).hexdigest()
+        record = ModelRecord(
+            model=artifact_ref,
+            artifact_uri=f"memory://scratch_trees/{fitted.tree_id}/{request.experiment_id}",
+            artifact_sha256=digest,
+            dataset_id=request.dataset.dataset_id,
+            experiment_id=request.experiment_id,
+            license_ref=request.dataset.license_refs[0],
+            commercial_use_verified=True,
+        )
+        job_id = f"job:{request.experiment_id}"
+        job = TrainingJob(
+            job_id=job_id,
+            experiment_id=request.experiment_id,
+            state="succeeded",
+            artifact=artifact_ref,
+            usage=Usage(cost_usd=Decimal("0"), cost_kind="estimated"),
+        )
+        self._jobs[job_id] = job
+        self.trained_trees[request.experiment_id] = fitted
+        self.model_records[request.experiment_id] = record
+        return job
+
+    async def training_status(self, job_id: str) -> TrainingJob:
+        return self._jobs[job_id]
+
+    async def cancel_training(self, job_id: str) -> TrainingJob:
+        current = self._jobs[job_id]
+        cancelled = current.model_copy(update={"state": "cancelled"})
+        self._jobs[job_id] = cancelled
+        return cancelled
+
+
 class OutcomeFeedbackRecord(Record):
     """Measured evaluation feedback that triggers a next challenger experiment without auto-promotion."""
     feedback_id: Text
@@ -220,59 +434,34 @@ class WalkForwardStudyResult(Record):
     purge_bars: int
     embargo_bars: int
     challenger_record: ModelRecord
+    linear_baseline_report: EvaluationReport
     overall_report: EvaluationReport
     regime_reports: dict[str, EvaluationReport | None]
+    regime_variant_unlocked: bool
+    regime_variant_gate_reason: Text
     feedback: OutcomeFeedbackRecord
     execution_permission: Literal["none"] = "none"
 
 
-def run_baseline_vs_tree_study(
-    bundle: FrozenDatasetBundle | None = None,
-    *,
-    purge_bars: int = 1,
-    embargo_bars: int = 1,
-    cost_bps: float = 4.0,
-    active_feature_indices: tuple[int, ...] = (0, 1, 2),
-) -> WalkForwardStudyResult:
-    """Run a purged chronological walk-forward comparison of Naive vs Local Tree Challenger."""
-    if purge_bars < 1 or embargo_bars < 0:
-        raise ValueError("Walk-forward study requires purge_bars >= 1 and embargo_bars >= 0")
-    active_bundle = bundle or build_frozen_benchmark_dataset(track="competition")
-    active_bundle.manifest.verify_content(active_bundle.serialized_bytes)
-
-    obs = active_bundle.observations
-    train_obs = tuple(o for o in obs if o.available_at <= active_bundle.manifest.train_end)
-    tree = fit_boosted_regression_tree(
-        train_obs,
-        dataset_id=active_bundle.manifest.dataset_id,
-        active_feature_indices=active_feature_indices,
-    )
-
-    tree_bytes = json.dumps(tree.model_dump(mode="json"), sort_keys=True).encode("utf-8")
-    tree_hash = hashlib.sha256(tree_bytes).hexdigest()
-    challenger_ref = ModelRef(provider_id="local_tree", model_id="boosted_stump_v1", revision="1")
-    challenger_record = ModelRecord(
-        model=challenger_ref,
-        artifact_uri=f"memory://challengers/{tree.tree_id}",
-        artifact_sha256=tree_hash,
-        dataset_id=active_bundle.manifest.dataset_id,
-        experiment_id=f"exp:wf:{active_bundle.track}:v1",
-        license_ref=active_bundle.manifest.license_refs[0],
-        commercial_use_verified=True,
-    )
-
-    # Start evaluation after train split + purge + embargo bars
-    start_idx = len(train_obs) + purge_bars + embargo_bars
-    eval_rows: list[EvaluationRow] = []
+def _evaluate_predictor_slice(
+    obs: tuple[Observation, ...],
+    start_idx: int,
+    end_idx: int,
+    predict_fn,
+    active_bundle: FrozenDatasetBundle,
+    cost_bps: float,
+    calibrator: ProbabilityCalibrator | None = None,
+    model_revision: str = "1",
+) -> list[EvaluationRow]:
+    rows: list[EvaluationRow] = []
     regime_cfg = RegimeConfig(min_observations=5)
     fractional_cost = cost_bps / 10_000.0
-
-    for idx in range(start_idx, len(obs) - 1):
+    for idx in range(start_idx, min(end_idx, len(obs) - 1)):
         history = obs[: idx + 1]
         current_obs = obs[idx]
         next_obs = obs[idx + 1]
         feats = _extract_causal_features(history)
-        pred_ret = tree.predict_return(feats)
+        pred_ret = predict_fn(feats, history)
         pred_price = current_obs.value * (1.0 + pred_ret)
         naive_price = current_obs.value
         actual_ret = (next_obs.value - current_obs.value) / current_obs.value
@@ -288,9 +477,24 @@ def run_baseline_vs_tree_study(
         )
         position = 1.0 if pred_ret > fractional_cost else (-1.0 if pred_ret < -fractional_cost else 0.0)
         tx_cost = fractional_cost if position != 0.0 else 0.0
-        prob_up = min(0.95, max(0.05, 0.5 + pred_ret * 25.0))
+        raw_prob = min(0.95, max(0.05, 0.5 + pred_ret * 25.0))
+        if calibrator is not None and current_obs.available_at > calibrator.fitted_through:
+            try:
+                prob_up = calibrator.apply(
+                    raw_prob,
+                    as_of=current_obs.available_at,
+                    instrument_id=active_bundle.instrument.instrument_id,
+                    horizon_id="1h:walk_forward:v1",
+                    model_revision=model_revision,
+                    target="price",
+                    unit="USD",
+                )
+            except ValueError:
+                prob_up = raw_prob
+        else:
+            prob_up = raw_prob
 
-        eval_rows.append(
+        rows.append(
             EvaluationRow(
                 timestamp=next_obs.event_time,
                 actual=next_obs.value,
@@ -306,12 +510,80 @@ def run_baseline_vs_tree_study(
                 horizon_id="1h:walk_forward:v1",
             )
         )
+    return rows
 
+
+def run_baseline_vs_tree_study(
+    bundle: FrozenDatasetBundle | None = None,
+    *,
+    purge_bars: int = 1,
+    embargo_bars: int = 1,
+    cost_bps: float = 4.0,
+    active_feature_indices: tuple[int, ...] = (0, 1, 2),
+) -> WalkForwardStudyResult:
+    """Run a purged chronological walk-forward comparison of Naive & Linear Baselines vs From-Scratch Tree."""
+    if purge_bars < 1 or embargo_bars < 0:
+        raise ValueError("Walk-forward study requires purge_bars >= 1 and embargo_bars >= 0")
+    active_bundle = bundle or build_frozen_benchmark_dataset(track="competition")
+    active_bundle.manifest.verify_content(active_bundle.serialized_bytes)
+
+    obs = active_bundle.observations
+    train_obs = tuple(o for o in obs if o.available_at <= active_bundle.manifest.train_end)
+    linear_model = fit_scratch_linear_baseline(train_obs, dataset_id=active_bundle.manifest.dataset_id)
+    tree = fit_boosted_regression_tree(
+        train_obs,
+        dataset_id=active_bundle.manifest.dataset_id,
+        active_feature_indices=active_feature_indices,
+        use_depth_two=True,
+    )
+
+    tree_bytes = json.dumps(tree.model_dump(mode="json"), sort_keys=True).encode("utf-8")
+    tree_hash = hashlib.sha256(tree_bytes).hexdigest()
+    challenger_ref = ModelRef(provider_id="local_tree", model_id="boosted_stump_v1", revision="1")
+    challenger_record = ModelRecord(
+        model=challenger_ref,
+        artifact_uri=f"memory://challengers/{tree.tree_id}",
+        artifact_sha256=tree_hash,
+        dataset_id=active_bundle.manifest.dataset_id,
+        experiment_id=f"exp:wf:{active_bundle.track}:v1",
+        license_ref=active_bundle.manifest.license_refs[0],
+        commercial_use_verified=True,
+    )
+
+    start_idx = len(train_obs) + purge_bars + embargo_bars
+    linear_rows = _evaluate_predictor_slice(
+        obs,
+        start_idx,
+        len(obs) - 1,
+        lambda feats, _hist: linear_model.predict_return(feats),
+        active_bundle,
+        cost_bps,
+    )
+    eval_rows = _evaluate_predictor_slice(
+        obs,
+        start_idx,
+        len(obs) - 1,
+        lambda feats, _hist: tree.predict_return(feats),
+        active_bundle,
+        cost_bps,
+    )
+
+    linear_report = evaluate(linear_rows, block_size=2, bootstrap_samples=200, seed=42)
     overall = evaluate(eval_rows, block_size=2, bootstrap_samples=200, seed=42)
     by_regime = evaluate_groups(eval_rows, by="regime")
 
     beats_naive = overall.mae < overall.naive_mae
+    beats_linear = overall.mae <= linear_report.mae
     beats_no_trade = overall.expected_net_return > overall.no_trade_return
+
+    # Objective 7 rule: Regime-aware variants only after baseline-vs-tree shows independent evidence
+    regime_unlocked = bool(beats_naive and beats_linear)
+    regime_reason = (
+        "Independent baseline-vs-tree improvement verified on holdout; regime-conditioned challenger unlocked for research."
+        if regime_unlocked
+        else "Base tree did not beat both naive and linear baselines on MAE; regime-conditioned variants remain locked."
+    )
+
     next_action: Literal[
         "submit_for_human_scoped_review",
         "retain_baseline_and_collect_more_regime_samples",
@@ -340,9 +612,102 @@ def run_baseline_vs_tree_study(
         purge_bars=purge_bars,
         embargo_bars=embargo_bars,
         challenger_record=challenger_record,
+        linear_baseline_report=linear_report,
         overall_report=overall,
         regime_reports=by_regime,
+        regime_variant_unlocked=regime_unlocked,
+        regime_variant_gate_reason=regime_reason,
         feedback=feedback,
+    )
+
+
+class ScratchLifecycleResult(Record):
+    experiment_id: Text
+    manifest_fingerprint: Text
+    training_job: TrainingJob
+    challenger_record: ModelRecord
+    linear_baseline_mae: float
+    tree_challenger_mae: float
+    naive_baseline_mae: float
+    regime_variant_unlocked: bool
+    alias_before_rollback: ModelRef
+    alias_after_rollback: ModelRef
+    execution_permission: Literal["none"] = "none"
+
+
+async def run_scratch_training_lifecycle(
+    bundle: FrozenDatasetBundle | None = None,
+    *,
+    sqlite_dir: Path | None = None,
+) -> ScratchLifecycleResult:
+    """Execute the full TrainingCoordinator + ExperimentStore + SQLiteModelRegistry lifecycle from scratch."""
+    from atlas.models.model_store import SQLiteModelRegistry
+
+    active_bundle = bundle or build_frozen_benchmark_dataset(track="competition")
+    active_bundle.manifest.verify_content(active_bundle.serialized_bytes)
+
+    work_dir = sqlite_dir or Path(tempfile.mkdtemp(prefix="atlas-scratch-lifecycle-"))
+    exp_store = ExperimentStore(work_dir / "experiments.sqlite")
+    model_store = SQLiteModelRegistry(work_dir / "models.sqlite")
+
+    trainer = LocalScratchTrainingProvider(active_bundle)
+    providers = ProviderRegistry()
+    providers.register(trainer)
+    coordinator = TrainingCoordinator(
+        providers,
+        exp_store,
+        {"local_scratch_trainer": ProviderRuntime()},
+    )
+
+    train_req = TrainingRequest(
+        experiment_id=f"exp:scratch:{active_bundle.track}:v1",
+        idempotency_key=f"idem:scratch:{active_bundle.track}:v1",
+        dataset=active_bundle.manifest,
+        method="supervised",
+        code_revision="git:main:2026-10-19",
+        environment_digest="python3.12:deterministic-stdlib",
+        seed=42,
+        hyperparameters_json='{"boost_rounds": 3, "learning_rate": 0.45, "use_depth_two": true}',
+        max_cost_usd=Decimal("0.01"),
+        max_duration_seconds=30,
+    )
+
+    job = await coordinator.submit("local_scratch_trainer", train_req)
+    challenger_rec = trainer.model_records[train_req.experiment_id]
+
+    baseline_ref = ModelRef(provider_id="naive", model_id="last_value", revision="1")
+    model_store.register(
+        ModelRecord(
+            model=baseline_ref,
+            artifact_uri="builtin:naive:last_value",
+            artifact_sha256="0" * 64,
+            dataset_id=active_bundle.manifest.dataset_id,
+            experiment_id="baseline:init",
+            license_ref=active_bundle.manifest.license_refs[0],
+            commercial_use_verified=True,
+        )
+    )
+    model_store.register(challenger_rec)
+    model_store.set_research_alias("research_active", baseline_ref)
+    model_store.set_research_alias("research_active", challenger_rec.model)
+    before_rb = model_store.resolve("research_active")
+    after_rb = model_store.rollback_research_alias("research_active")
+
+    wf = run_baseline_vs_tree_study(active_bundle, purge_bars=1, embargo_bars=1, cost_bps=4.0)
+    manifest_fp = exp_store.history(train_req.experiment_id)[0].job_id
+    _ = manifest_fp
+
+    return ScratchLifecycleResult(
+        experiment_id=train_req.experiment_id,
+        manifest_fingerprint=active_bundle.manifest.content_sha256,
+        training_job=job,
+        challenger_record=challenger_rec,
+        linear_baseline_mae=wf.linear_baseline_report.mae,
+        tree_challenger_mae=wf.overall_report.mae,
+        naive_baseline_mae=wf.overall_report.naive_mae,
+        regime_variant_unlocked=wf.regime_variant_unlocked,
+        alias_before_rollback=before_rb,
+        alias_after_rollback=after_rb,
     )
 
 

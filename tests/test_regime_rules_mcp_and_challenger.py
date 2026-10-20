@@ -40,8 +40,10 @@ from atlas.models.calendars import (
 from atlas.models.challengers import (
     LocalTreeChallengerProvider,
     fit_boosted_regression_tree,
+    fit_scratch_linear_baseline,
     run_baseline_vs_tree_study,
     run_feature_ablation_study,
+    run_scratch_training_lifecycle,
 )
 from atlas.models.continuous import ContinuousResearchRunner
 from atlas.models.evaluation import (
@@ -704,3 +706,19 @@ def test_sqlite_durable_approvals_calibrators_and_continuous_runner_halt(tmp_pat
     assert halted.audit_event.scope_status == "unavailable_halted"
     assert halted.audit_event.halt_reason == "integrity_hash_mismatch"
     assert halted.audit_event.fallback_attempted is False
+
+
+def test_scratch_linear_and_tree_training_lifecycle_with_rollback(tmp_path) -> None:
+    bundle = build_frozen_benchmark_dataset(track="competition", anchor=NOW)
+    linear = fit_scratch_linear_baseline(bundle.observations[:24], dataset_id=bundle.manifest.dataset_id)
+    assert len(linear.weights) == 3
+
+    lifecycle = asyncio.run(run_scratch_training_lifecycle(bundle, sqlite_dir=tmp_path))
+    assert lifecycle.training_job.state == "succeeded"
+    assert lifecycle.challenger_record.execution_permission == "none"
+    assert lifecycle.execution_permission == "none"
+    assert lifecycle.alias_before_rollback.model_id == "gbdt_depth2_v1"
+    assert lifecycle.alias_after_rollback.model_id == "last_value"
+    assert lifecycle.linear_baseline_mae > 0
+    assert lifecycle.tree_challenger_mae > 0
+

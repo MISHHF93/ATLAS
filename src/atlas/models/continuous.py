@@ -202,3 +202,4 @@ class ContinuousResearchRunner:
             research_signal=signal,
             rule_report=rule_report,
         )
+
