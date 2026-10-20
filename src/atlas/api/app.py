@@ -402,3 +402,36 @@ def run_continuous_research_tick(payload: ContinuousResearchTickPayload) -> dict
             "reason": str(exc),
             "execution_permission": "none",
         }
+
+
+@app.get("/api/docs", include_in_schema=False)
+def list_platform_documentation() -> dict[str, object]:
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[3]
+    doc_paths = [
+        ("README.md", "Platform Overview & Run Guide", "README.md"),
+        ("ATLAS_MASTER_SPEC.md", "Master Product & Authority Spec", "docs/ATLAS_MASTER_SPEC.md"),
+        ("UNIVERSAL_AI_ECOSYSTEM.md", "Universal AI Architecture & Contracts", "docs/architecture/UNIVERSAL_AI_ECOSYSTEM.md"),
+        ("RESEARCH_OPERATING_CONTRACT.md", "Research Operating Contract & Gates", "docs/architecture/RESEARCH_OPERATING_CONTRACT.md"),
+        ("ISO_GOVERNANCE_ALIGNMENT.md", "ISO / NIST AI RMF / IOSCO Governance", "docs/architecture/ISO_GOVERNANCE_ALIGNMENT.md"),
+        ("CURRENT_STATE.md", "Verified Current State", "docs/architecture/CURRENT_STATE.md"),
+        ("DECISIONS.md", "Architectural Decisions", "docs/architecture/DECISIONS.md"),
+        ("AI_ECOSYSTEM.md", "Official AI Ecosystem Review", "docs/research/AI_ECOSYSTEM.md"),
+        ("MCP_DATA_INTEGRATION.md", "MCP Data Integration & Rights Review", "docs/research/MCP_DATA_INTEGRATION.md"),
+        ("EXP_001_BASELINE_VS_SCRATCH_TREE.md", "EXP-001 Baseline vs Scratch Tree Report", "docs/research/experiments/EXP_001_BASELINE_VS_SCRATCH_TREE.md"),
+        ("AGILE_BACKLOG.md", "Agile Backlog & Roadmap", "docs/backlog/AGILE_BACKLOG.md"),
+    ]
+    documents = []
+    for doc_id, title, rel_path in doc_paths:
+        full_path = repo_root / rel_path
+        content = full_path.read_text(encoding="utf-8") if full_path.exists() else f"# {title}\nFile not found: {rel_path}"
+        documents.append(
+            {
+                "doc_id": doc_id,
+                "title": title,
+                "path": rel_path,
+                "content": content,
+            }
+        )
+    return {"documents": documents}

@@ -237,7 +237,86 @@ type PlatformSnapshot = {
   roles?: Record<RoleKey, { label: string; permissions: string[]; live_order_entry: boolean }>;
 };
 
-export type SectionId = "all" | "overview" | "market" | "rules" | "research" | "experiments" | "models" | "governance";
+export type SectionId =
+  | "all"
+  | "overview"
+  | "market"
+  | "rules"
+  | "research"
+  | "experiments"
+  | "models"
+  | "governance"
+  | "docs";
+
+export type PlatformDoc = {
+  doc_id: string;
+  title: string;
+  path: string;
+  content: string;
+};
+
+const DEFAULT_DOCS: PlatformDoc[] = [
+  {
+    doc_id: "README.md",
+    title: "Platform Overview & Run Guide",
+    path: "README.md",
+    content: "# ATLAS — Autonomous Trading, Liquidity, Allocation & Strategy Intelligence\n\nFounder-owned platform for continuous, regime-aware research, training, evaluation, forecasting, and deterministic control-plane execution across competition and open-market tracks.\n\n- FastAPI backend on port 8000 (/api/platform/snapshot, /api/control/*, /api/research/*, /api/market/*, /api/docs)\n- Next.js interactive multi-page command terminal on port 3000\n- Deterministic Control Plane (ActionableControlPlaneEngine & TradingRuleBook) governs all order execution, risk limits, kill-switch & model alias lifecycle.",
+  },
+  {
+    doc_id: "ATLAS_MASTER_SPEC.md",
+    title: "Master Product & Authority Spec",
+    path: "docs/ATLAS_MASTER_SPEC.md",
+    content: "# ATLAS Master Spec\n\n1. Two Planes: Research/Forecasting vs Deterministic Authorization & Control.\n2. Every model record, forecast, research note, regime state, and walk-forward study carries execution_permission: none.\n3. Deterministic services alone authorize, size, and release orders or trigger the kill switch.\n4. Eight strictly separated money & account records (Subscription, Broker, Exchange, External Wallet, Custodian, Prop-Firm Rules, Founder Treasury, Reconciled Double-Entry Ledger).",
+  },
+  {
+    doc_id: "UNIVERSAL_AI_ECOSYSTEM.md",
+    title: "Universal AI Architecture & Contracts",
+    path: "docs/architecture/UNIVERSAL_AI_ECOSYSTEM.md",
+    content: "# Universal AI Ecosystem Architecture\n\n- Capability-specific protocols: ResearchProvider, ForecastProvider, PredictionProvider, TrainingProvider, ReadOnlyDataProvider.\n- Point-in-time DataProvenance, MarketCalendar (traditional & 24/7 crypto), and DataQualityReport gates.\n- Bounded ProviderRuntime with request/token budgets, retry/backoff, and circuit breaker.\n- Durable SQLite ModelRegistry & ExperimentStore with immutable model revisions and alias rollback.",
+  },
+  {
+    doc_id: "RESEARCH_OPERATING_CONTRACT.md",
+    title: "Research Operating Contract & Gates",
+    path: "docs/architecture/RESEARCH_OPERATING_CONTRACT.md",
+    content: "# Research Operating Contract\n\nDefines the 9 Master-Spec Readiness Gates:\n1. Frozen point-in-time dataset SHA-256 verification\n2. Commercial & training license verification\n3. Purged walk-forward beats naive MAE on holdout\n4. Purged walk-forward beats linear baseline MAE on holdout\n5. Costed net return beats no-trade baseline\n6. Paper simulation 100% compliant with deterministic rulebook\n7. Realized drawdown within track limit\n8. Competition consistency (<=35% single-day profit share) & minimum trading days (>=5d)\n9. Scoped human approval & independent holdout verification.",
+  },
+  {
+    doc_id: "ISO_GOVERNANCE_ALIGNMENT.md",
+    title: "ISO / NIST AI RMF / IOSCO Governance",
+    path: "docs/architecture/ISO_GOVERNANCE_ALIGNMENT.md",
+    content: "# ISO, NIST AI RMF & IOSCO Governance Alignment\n\nDesigned for future certification readiness (no certification claimed):\n- ISO/IEC 42001 (AI Management System)\n- ISO/IEC 23894 (AI Risk Management)\n- ISO/IEC 27001 (Information Security)\n- ISO 22301 (Business Continuity)\n- ISO 31000 (Risk Management)\n- ISO 9001 (Quality Management)",
+  },
+  {
+    doc_id: "MCP_DATA_INTEGRATION.md",
+    title: "MCP Data Integration & Rights Review",
+    path: "docs/research/MCP_DATA_INTEGRATION.md",
+    content: "# MCP Data Integration & Rights Review\n\n- Allowlisted read-only research adapters: alpha_vantage_mcp, financial_datasets_mcp, fin_data_mcp.\n- Blocked mutating/execution servers: irohan0/quant-mcp, quantgpt-mcp.\n- FRED policy: blocked_by_vendor_terms for ML training.\n- SEC EDGAR XBRL: strict acceptance_time <= as_of point-in-time filtering.",
+  },
+  {
+    doc_id: "EXP_001_BASELINE_VS_SCRATCH_TREE.md",
+    title: "EXP-001 Baseline vs Scratch Tree Report",
+    path: "docs/research/experiments/EXP_001_BASELINE_VS_SCRATCH_TREE.md",
+    content: "# EXP-001: Naive & Linear Baselines vs From-Scratch Boosted Tree Challenger\n\nPurged & embargoed walk-forward evaluation across Competition (comp:btc-perp:v1) and Open-Market (open:spy-etf:v1) frozen point-in-time datasets.",
+  },
+  {
+    doc_id: "CURRENT_STATE.md",
+    title: "Verified Current State",
+    path: "docs/architecture/CURRENT_STATE.md",
+    content: "# Verified Current State\n\n81 automated tests passing; full FastAPI actionable control plane + Next.js multi-page command terminal verified.",
+  },
+  {
+    doc_id: "AGILE_BACKLOG.md",
+    title: "Agile Backlog & Roadmap",
+    path: "docs/backlog/AGILE_BACKLOG.md",
+    content: "# ATLAS Agile Backlog\n\nCompleted: Initial scaffold, universal research foundation, causal regime detection, deterministic control plane, MCP & SEC EDGAR point-in-time adapters, scratch linear & GBDT challengers, central research node, and full multi-page Next.js command terminal.",
+  },
+  {
+    doc_id: "DECISIONS.md",
+    title: "Architectural Decisions",
+    path: "docs/architecture/DECISIONS.md",
+    content: "# Architectural Decisions (ADRs)\n\nRecords key design decisions separating generative/statistical research outputs (execution_permission: none) from the deterministic control plane.",
+  },
+];
 
 function isCandlePage(value: unknown): value is CandlePage {
   if (!value || typeof value !== "object") return false;
@@ -640,6 +719,8 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
   const [researchTickLog, setResearchTickLog] = useState<string>(
     "24/7 Continuous Research Node READY · Gemini paid-tier secret screening active · execution_permission=none"
   );
+  const [docsList, setDocsList] = useState<PlatformDoc[]>(DEFAULT_DOCS);
+  const [selectedDocId, setSelectedDocId] = useState<string>("README.md");
 
   async function handleNormalizeMicrostructure() {
     const val = Number(microValue) || 0;
@@ -1048,8 +1129,9 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
       readJson<unknown>("/api/market/candles?symbol=BTC-USD&interval=1h", controller.signal),
       readJson<Capabilities>("/api/research/capabilities", controller.signal),
       readJson<PlatformSnapshot>("/api/platform/snapshot", controller.signal),
+      readJson<{ documents: PlatformDoc[] }>("/api/docs", controller.signal).catch(() => ({ documents: DEFAULT_DOCS })),
     ])
-      .then(([healthBody, candleBody, capabilityBody, snapshotBody]) => {
+      .then(([healthBody, candleBody, capabilityBody, snapshotBody, docsBody]) => {
         if (cancelled) return;
         if (healthBody.status !== "ok" || !isCandlePage(candleBody) || !Array.isArray(capabilityBody.providers)) {
           throw new Error("The API returned an unexpected response.");
@@ -1058,6 +1140,9 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
         setPage(candleBody);
         setCapabilities(capabilityBody);
         setSnapshot(snapshotBody);
+        if (Array.isArray(docsBody.documents) && docsBody.documents.length > 0) {
+          setDocsList(docsBody.documents);
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -1179,6 +1264,34 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
           >
             <span className="nav-index">07</span>Governance &amp; Money Ledger
           </a>
+          <a
+            className={`nav-link ${activeSection === "docs" ? "is-active" : ""}`}
+            href="/docs"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveSection("docs");
+            }}
+          >
+            <span className="nav-index">08</span>Documentation &amp; Specs
+          </a>
+        </nav>
+        <div className="sidebar-label" style={{ marginTop: "14px" }}>DOCUMENTATION INDEX</div>
+        <nav className="primary-nav" aria-label="Documentation files" style={{ overflowY: "auto", maxHeight: "230px" }}>
+          {docsList.map((doc) => (
+            <a
+              key={doc.doc_id}
+              className={`nav-link ${activeSection === "docs" && selectedDocId === doc.doc_id ? "is-active" : ""}`}
+              href={`/docs#${doc.doc_id}`}
+              style={{ minHeight: "28px", fontSize: "11px" }}
+              onClick={(e) => {
+                e.preventDefault();
+                setSelectedDocId(doc.doc_id);
+                setActiveSection("docs");
+              }}
+            >
+              <span className="nav-index">DOC</span>{doc.doc_id.replace(".md", "")}
+            </a>
+          ))}
         </nav>
         <div className="sidebar-bottom">
           <span className="sidebar-rule" />
@@ -1235,6 +1348,7 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
                   ["experiments", "05 Walk-Forward & Horizons"],
                   ["models", "06 Models, MCP & SEC EDGAR"],
                   ["governance", "07 Governance & Money Ledger"],
+                  ["docs", "08 Documentation & Specs"],
                 ] as Array<[SectionId, string]>).map(([secId, label]) => (
                   <button
                     key={secId}
@@ -2109,6 +2223,83 @@ export function AtlasTerminal({ initialSection = "all" }: { initialSection?: Sec
                     </tbody>
                   </table>
                 </div>
+              </article>
+            </div>
+          </section>
+          ) : null}
+
+          {showSection("docs") ? (
+          <section className="section-block" id="docs">
+            <div className="section-heading">
+              <div><p className="eyebrow">08 / PLATFORM DOCUMENTATION, ARCHITECTURE &amp; MASTER SPECS</p><h2>Complete interactive documentation index &amp; live spec reader</h2></div>
+              <span className="quiet-tag">{docsList.length} VERIFIED DOCUMENTS</span>
+            </div>
+            <div className="market-layout">
+              <article className="panel card-pad">
+                <div className="panel-heading">
+                  <div>
+                    <span className="summary-label">DOCUMENTATION INDEX</span>
+                    <h3>Select specification or architecture document</h3>
+                  </div>
+                  <span className="state-pill state-verified">LIVE DOCS</span>
+                </div>
+                <div className="table-wrap" style={{ marginTop: "8px" }}>
+                  <table>
+                    <thead><tr><th>DOCUMENT</th><th>TITLE</th><th>ACTION</th></tr></thead>
+                    <tbody>
+                      {docsList.map((doc) => (
+                        <tr key={doc.doc_id}>
+                          <td><strong>{doc.doc_id}</strong></td>
+                          <td>{doc.title}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className={`action-btn ${selectedDocId === doc.doc_id ? "" : "action-btn-secondary"}`}
+                              style={{ minHeight: "26px", padding: "0 8px", fontSize: "10px" }}
+                              onClick={() => setSelectedDocId(doc.doc_id)}
+                            >
+                              {selectedDocId === doc.doc_id ? "Viewing" : "Open"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article className="panel card-pad">
+                {(() => {
+                  const currentDoc = docsList.find((d) => d.doc_id === selectedDocId) ?? docsList[0];
+                  return (
+                    <>
+                      <div className="panel-heading">
+                        <div>
+                          <span className="summary-label">{currentDoc.path}</span>
+                          <h3>{currentDoc.title}</h3>
+                        </div>
+                        <span className="state-pill state-verified">{currentDoc.doc_id}</span>
+                      </div>
+                      <pre
+                        style={{
+                          marginTop: "10px",
+                          padding: "14px",
+                          background: "#f4f6f1",
+                          border: "1px solid #dce1d8",
+                          fontSize: "11px",
+                          lineHeight: 1.55,
+                          fontFamily: "Cascadia Code, Consolas, monospace",
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                          maxHeight: "420px",
+                          overflowY: "auto",
+                        }}
+                      >
+                        {currentDoc.content}
+                      </pre>
+                    </>
+                  );
+                })()}
               </article>
             </div>
           </section>
