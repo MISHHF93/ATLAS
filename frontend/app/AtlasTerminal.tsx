@@ -313,9 +313,25 @@ export type WhaleDecisionScenarioRow = {
   active: boolean;
 };
 
+export type TrackRulesLimitRow = {
+  dimension: string;
+  open_market_spec: string;
+  prop_competition_spec: string;
+  deterministic_enforcement: string;
+};
+
+export type WorkbenchLayerApiRow = {
+  layer: string;
+  route: string;
+  description: string;
+  data_flow: string;
+};
+
 export type MasterRoadmapState = {
   focus_symbol: string;
   roadmap_az: RoadmapAzRow[];
+  track_rules_limits?: TrackRulesLimitRow[];
+  workbench_layers_apis?: WorkbenchLayerApiRow[];
   b2b_saas_verticals: B2BSaasVerticalRow[];
   whale_execution_ml: WhaleExecutionMlRow[];
   global_multi_domain: GlobalDomainRow[];
@@ -362,43 +378,73 @@ const DEFAULT_ROADMAP_STATE: MasterRoadmapState = {
   focus_symbol: "SPY",
   roadmap_az: [
     { letter: "A", domain: "Allocation & Portfolio Construction", path: "src/atlas/portfolio", spec: "Mean-variance, Kelly fractional, Risk parity", track: "Both", status: "Implemented", gate: "Pytest", priority: "P0" },
-    { letter: "B", domain: "Benchmark & Market Calendars", path: "src/atlas/models/calendars.py", spec: "NYSE/Nasdaq auction calendars, 24/7 crypto funding cycles", track: "Both", status: "Implemented", gate: "Deterministic Gate", priority: "P1" },
-    { letter: "C", domain: "Control Plane & Circuit Breakers", path: "src/atlas/control/engine.py", spec: "ActionableControlPlaneEngine, kill switch, auto-flatten", track: "Both", status: "Implemented", gate: "Deterministic Gate", priority: "P0" },
+    { letter: "B", domain: "Benchmark & Market Calendars", path: "src/atlas/market", spec: "NYSE/Nasdaq auction calendars, 24/7 crypto funding cycles", track: "Both", status: "Implemented", gate: "Deterministic Gate", priority: "P1" },
+    { letter: "C", domain: "Control Plane & Circuit Breakers", path: "src/atlas/control", spec: "ActionableControlPlaneEngine, kill switch, auto-flatten", track: "Both", status: "Implemented", gate: "Deterministic Gate", priority: "P0" },
     { letter: "D", domain: "Data Lakehouse & PIT Engine", path: "src/atlas/warehouse", spec: "DuckDB, BigQuery, Parquet ZSTD, acceptance_time <= as_of", track: "Both", status: "Implemented", gate: "PIT Check", priority: "P0" },
     { letter: "E", domain: "Execution Routing & OMS/EMS", path: "src/atlas/execution", spec: "Interactive Brokers, Alpaca, FIX protocol, Coinbase", track: "Both", status: "Implemented", gate: "Latency Target", priority: "P0" },
-    { letter: "F", domain: "Feature Engineering & Microstructure", path: "src/atlas/marketdata/microstructure.py", spec: "Order book imbalance, VWAP deviation, tick entropy, VPIN", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "F", domain: "Feature Engineering & Microstructure", path: "src/atlas/features", spec: "Order book imbalance, VWAP deviation, tick entropy, VPIN", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
     { letter: "G", domain: "Governance, Standards & 8 Ledgers", path: "src/atlas/governance", spec: "ISO 42001, NIST AI RMF, IOSCO, non-custodial ledgers", track: "Both", status: "Implemented", gate: "Audit Gate", priority: "P0" },
     { letter: "H", domain: "Hardware Acceleration & High-Throughput I/O", path: "src/atlas/hardware", spec: "Vectorized backtesting, SIMD, local GPU inference", track: "Both", status: "Implemented", gate: "Latency Target", priority: "P1" },
-    { letter: "I", domain: "Integrations & MCP Isolation", path: "src/atlas/marketdata/mcp_adapters.py", spec: "Quarantined tools, read-only MCP, SEC EDGAR, FRED guard", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
-    { letter: "J", domain: "Journaling & Immutable Audit Trails", path: "src/atlas/models/model_store.py", spec: "SQLite event store, decision checkpoints, order logs", track: "Both", status: "Implemented", gate: "Audit Gate", priority: "P0" },
-    { letter: "K", domain: "Key Management & Secret Scrubbing", path: "src/atlas/models/adapters.py", spec: "Signing keys, zero-leak credential masking", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
-    { letter: "L", domain: "Liquidity Analysis & Depth Modeling", path: "src/atlas/whale_saas_az.py", spec: "L2/L3 order book reconstruction, Kyle's Lambda impact models", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
-    { letter: "M", domain: "Machine Learning & Challenger Models", path: "src/atlas/models/challengers.py", spec: "GBDT, Ridge, regime-conditioned stumps, direct vs recursive", track: "Both", status: "Implemented", gate: "Walk-Forward", priority: "P0" },
-    { letter: "N", domain: "Non-Custodial Safety & Risk Bounds", path: "src/atlas/control/rules.py", spec: "Single-day profit consistency, trailing drawdown floors", track: "Both", status: "Implemented", gate: "Deterministic Gate", priority: "P0" },
-    { letter: "O", domain: "Order Types & Execution Tactics", path: "src/atlas/whale_saas_az.py", spec: "Almgren-Chriss TWAP/VWAP, iceberg, ATR bracket orders", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
-    { letter: "P", domain: "Probability Calibration & Forecast Fans", path: "src/atlas/models/evaluation.py", spec: "Empirical bin / Platt scaling, isotonic calibration, fan charts", track: "Both", status: "Implemented", gate: "Pytest", priority: "P2" },
-    { letter: "Q", domain: "Quantitative Validation & Walk-Forward", path: "src/atlas/models/experiments.py", spec: "Purged k-fold, embargoing, Sharpe/Sortino/Calmar", track: "Both", status: "Implemented", gate: "Walk-Forward", priority: "P0" },
-    { letter: "R", domain: "Regime Classification Engine", path: "src/atlas/models/regimes.py", spec: "Causal volatility, trend, liquidity, Hawkes & macro regime tagging", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
-    { letter: "S", domain: "SEC EDGAR & Fundamental Ingestion", path: "src/atlas/marketdata/sec_edgar.py", spec: "Point-in-time XBRL parser, 10-K/10-Q filing timestamps", track: "Open-Market Stock", status: "Implemented", gate: "PIT Check", priority: "P1" },
-    { letter: "T", domain: "Telemetry, Observability & Health", path: "src/atlas/models/runtime.py", spec: "Tick-to-trade latency, pipeline heartbeats, drop alerts", track: "Both", status: "Implemented", gate: "Latency Target", priority: "P0" },
-    { letter: "U", domain: "User Roles & RBAC Boundaries", path: "src/atlas/api/app.py", spec: "founder_admin, researcher, monitoring; zero operator discretion", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
-    { letter: "V", domain: "Volatility Surfaces & Derivatives", path: "src/atlas/whale_saas_az.py", spec: "Implied vol, ATR dynamic sizing, funding rate arbitrage", track: "Prop Competition", status: "Implemented", gate: "Pytest", priority: "P1" },
-    { letter: "W", domain: "Whale Microstructure & Dark Pools", path: "src/atlas/whale_saas_az.py", spec: "Large block detection, VPIN, Hawkes hidden volume clustering", track: "Both", status: "Implemented", gate: "Pytest", priority: "P2" },
-    { letter: "X", domain: "Cross-Asset Synchronization & Hedging", path: "src/atlas/api/app.py", spec: "Equities vs. Crypto perpetual delta hedging & 9x9 correlation gate", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
-    { letter: "Y", domain: "Yield & Funding Rate Arbitrage", path: "src/atlas/whale_saas_az.py", spec: "Basis trade capture, 8h perp funding & overnight repo modeling", track: "Both", status: "Implemented", gate: "Pytest", priority: "P2" },
-    { letter: "Z", domain: "Zero Data-Leakage Research & Sandbox", path: "src/atlas/marketdata/frozen.py", spec: "Air-gapped research sandbox, SHA-256 manifest, no lookahead bias", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
+    { letter: "I", domain: "Integrations & MCP Isolation", path: "src/atlas/integrations", spec: "Quarantined tools, read-only MCP, SEC EDGAR, FRED guard", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
+    { letter: "J", domain: "Journaling & Immutable Audit Trails", path: "src/atlas/journal", spec: "SQLite event store, decision checkpoints, order logs", track: "Both", status: "Implemented", gate: "Audit Gate", priority: "P0" },
+    { letter: "K", domain: "Key Management & Secret Scrubbing", path: "src/atlas/keys", spec: "Signing keys, zero-leak credential masking", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
+    { letter: "L", domain: "Liquidity Analysis & Depth Modeling", path: "src/atlas/liquidity", spec: "L2/L3 order book reconstruction, Kyle's Lambda impact models", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "M", domain: "Machine Learning & Challenger Models", path: "src/atlas/models", spec: "GBDT, Ridge, regime-conditioned stumps, direct vs recursive", track: "Both", status: "Implemented", gate: "Walk-Forward", priority: "P0" },
+    { letter: "N", domain: "Non-Custodial Safety & Risk Bounds", path: "src/atlas/risk", spec: "Single-day profit consistency, trailing drawdown floors", track: "Both", status: "Implemented", gate: "Deterministic Gate", priority: "P0" },
+    { letter: "O", domain: "Order Types & Execution Tactics", path: "src/atlas/execution/tactics", spec: "Almgren-Chriss TWAP/VWAP, iceberg, ATR bracket orders", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "P", domain: "Probability Calibration & Forecast Fans", path: "src/atlas/calibration", spec: "Empirical bin / Platt scaling, isotonic calibration, fan charts", track: "Both", status: "Implemented", gate: "Pytest", priority: "P2" },
+    { letter: "Q", domain: "Quantitative Validation & Walk-Forward", path: "src/atlas/experiments", spec: "Purged k-fold, embargoing, Sharpe/Sortino/Calmar", track: "Both", status: "Implemented", gate: "Walk-Forward", priority: "P0" },
+    { letter: "R", domain: "Regime Classification Engine", path: "src/atlas/regime", spec: "Causal volatility, trend, liquidity, Hawkes & macro regime tagging", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "S", domain: "SEC EDGAR & Fundamental Ingestion", path: "src/atlas/fundamentals", spec: "Point-in-time XBRL parser, 10-K/10-Q filing timestamps", track: "Open-Market Stock", status: "Implemented", gate: "PIT Check", priority: "P1" },
+    { letter: "T", domain: "Telemetry, Observability & Health", path: "src/atlas/telemetry", spec: "Tick-to-trade latency, pipeline heartbeats, drop alerts", track: "Both", status: "Implemented", gate: "Latency Target", priority: "P0" },
+    { letter: "U", domain: "User Roles & RBAC Boundaries", path: "src/atlas/profile", spec: "founder_admin, researcher, monitoring; zero operator discretion", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
+    { letter: "V", domain: "Volatility Surfaces & Derivatives", path: "src/atlas/volatility", spec: "Implied vol, ATR dynamic sizing, funding rate arbitrage", track: "Prop Competition", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "W", domain: "Whale Microstructure & Dark Pools", path: "src/atlas/microstructure", spec: "Large block detection, VPIN, Hawkes hidden volume clustering", track: "Both", status: "Implemented", gate: "Pytest", priority: "P2" },
+    { letter: "X", domain: "Cross-Asset Synchronization & Hedging", path: "src/atlas/sync", spec: "Equities vs. Crypto perpetual delta hedging & 9x9 correlation gate", track: "Both", status: "Implemented", gate: "Pytest", priority: "P1" },
+    { letter: "Y", domain: "Yield & Funding Rate Arbitrage", path: "src/atlas/yield", spec: "Basis trade capture, 8h perp funding & overnight repo modeling", track: "Both", status: "Implemented", gate: "Pytest", priority: "P2" },
+    { letter: "Z", domain: "Zero Data-Leakage Research & Sandbox", path: "src/atlas/research", spec: "Air-gapped research sandbox, SHA-256 manifest, no lookahead bias", track: "Both", status: "Implemented", gate: "Security Scan", priority: "P0" },
+  ],
+  track_rules_limits: [
+    { dimension: "Execution Target", open_market_spec: "NYSE Arca / Nasdaq (XNYS, XNAS)", prop_competition_spec: "BTC-USD, ETH-USD, SOL-USD & Multi-Asset Prop Books", deterministic_enforcement: "ActionableControlPlaneEngine" },
+    { dimension: "Assets", open_market_spec: "SPY, NVDA, AAPL, MSFT, QQQ, TSLA", prop_competition_spec: "24/7 Crypto / Derivative & Futures Books", deterministic_enforcement: "Kill switch, auto-flatten" },
+    { dimension: "Trading Hours", open_market_spec: "09:30-16:00 ET regular session + Auctions", prop_competition_spec: "24/7/365 Continuous Session", deterministic_enforcement: "Time-based calendar session gate" },
+    { dimension: "Max Daily Loss", open_market_spec: "3.0% Desk Daily Loss Limit", prop_competition_spec: "4.0% Daily Loss Circuit Breaker", deterministic_enforcement: "ActionableControlPlaneEngine" },
+    { dimension: "Max Trailing DD", open_market_spec: "10.0% Static Drawdown Floor", prop_competition_spec: "8.0% Max Trailing Drawdown Floor", deterministic_enforcement: "ActionableControlPlaneEngine" },
+    { dimension: "Per-Trade Risk Cap", open_market_spec: "0.50% Equity Risk Cap", prop_competition_spec: "0.50%-0.75% Per-Trade Risk Cap", deterministic_enforcement: "Mandatory ATR/Structure Stop + VPIN Widening" },
+    { dimension: "Consistency Gate", open_market_spec: "Unconstrained Open-Market Compounding", prop_competition_spec: "<= 35% Single-Day Profit Consistency Gate", deterministic_enforcement: ">= 5 Minimum Trading Days" },
+    { dimension: "Data Feeds", open_market_spec: "SEC EDGAR PIT XBRL, Databento / Polygon.io SIP", prop_competition_spec: "Databento L1/L2/MBO, Coinbase Public REST", deterministic_enforcement: "acceptance_time <= as_of (PIT Gate)" },
+    { dimension: "Broker Routing", open_market_spec: "Alpaca / Interactive Brokers DMA routing", prop_competition_spec: "FIX protocol, Coinbase, cTrader, Rithmic", deterministic_enforcement: "Zero operator discretion" },
+    { dimension: "Regulatory/Audit Standard", open_market_spec: "SEC T+1 / Reg-T / XBRL Audit", prop_competition_spec: "Prop Challenge Rulebook Verification", deterministic_enforcement: "ISO 42001, NIST AI RMF, IOSCO & 8 Ledgers" },
+  ],
+  workbench_layers_apis: [
+    { layer: "Command Center", route: "/", description: "Unified executive trading desk, live chart & prop scorecard", data_flow: "/api/platform/snapshot, /api/control/state" },
+    { layer: "Whale ML, SaaS & A-Z Roadmap", route: "/roadmap", description: "All 7 Excel tabs executed directly (A-Z, WF-01..08, SAAS-01..10)", data_flow: "/api/master-roadmap, /api/master-roadmap/evaluate-whale" },
+    { layer: "Quant & Signal Matrix", route: "/matrix", description: "9x4 Multi-Horizon Alpha, 9x9 Correlation, 5x5 Regime & L2 DOM", data_flow: "/api/matrix, /api/matrix/recompute" },
+    { layer: "Live Listings", route: "/listings", description: "Real-time multi-asset listings & 1-click order desk routing", data_flow: "/api/listings, /api/listings/action" },
+    { layer: "Live Charts & Market PIT", route: "/market", description: "Dual-mode ATLAS PIT + Forecast Fan & TradingView Live Charts", data_flow: "/api/market/candles, /api/market/live-internet-sync" },
+    { layer: "Enterprise API Data Warehouse", route: "/warehouse", description: "BigQuery Analytics Hub, DuckDB Parquet, Databento, Polygon, ClickHouse", data_flow: "/api/warehouse, /api/warehouse/action" },
+    { layer: "Deterministic Control Plane", route: "/control, /rules", description: "Risk enforcement, VPIN stop-widening & millisecond kill-switch", data_flow: "ActionableControlPlaneEngine (/api/control/*)" },
+    { layer: "Governance & 8 Ledgers", route: "/governance", description: "8 separated non-custodial ledgers & ISO 42001 / NIST AI RMF", data_flow: "/api/control/readiness-audit" },
+    { layer: "AI Synthesis & Gemini Node", route: "/research", description: "24/7 continuous research tick & probability calibration", data_flow: "/api/research/continuous-tick (permission=none)" },
+    { layer: "Walk-Forward Evaluation Lab", route: "/experiments", description: "Purged & embargoed walk-forward (EXP-001) & paper simulation", data_flow: "/api/research/walk-forward" },
+    { layer: "Models, MCP & SEC XBRL", route: "/models", description: "Anti-Gravity self-training loop, GBDT/Ridge, allowlisted MCP & SEC XBRL", data_flow: "/api/research/train, /api/market/mcp-fetch" },
+    { layer: "Data Syncing Center", route: "/sync", description: "Cross-asset PIT synchronization & SHA-256 manifests", data_flow: "/api/sync, /api/sync/run" },
+    { layer: "Integrations & MCP Hub", route: "/integrations, /connectors", description: "Quarantined tools guard (irohan0/quant-mcp) & read-only MCP", data_flow: "/api/connectors, /api/connectors/action" },
+    { layer: "Platform Configurations", route: "/configurations, /settings", description: "1-click Prop & Stock desk presets & rulebook thresholds", data_flow: "/api/configurations" },
+    { layer: "User Profile & Keys", route: "/profile", description: "RBAC boundaries, 100% founder IP ownership & secret scrubbing", data_flow: "/api/profile" },
+    { layer: "Architecture & Specs", route: "/docs", description: "Live in-app Markdown reader for all 9 specification docs", data_flow: "/api/docs" },
   ],
   b2b_saas_verticals: [
-    { vertical_id: "SAAS-01", name: "Real-Time Risk & Drawdown Engine", buyer_persona: "Prop Firm Founder, Head of Risk", pain_point: "Delayed equity updates lead to catastrophic firm losses when traders breach max drawdown during volatile events.", atlas_solution: "Deterministic multi-broker margin & equity monitoring, millisecond kill-switch using ATLAS Control Plane.", domain_scope: "US Equities, CME Futures, FX/CFDs, 24/7 Crypto", pricing_model: "Monthly B2B Retainer + Per-Trader Seat", phase: "Phase 1 Q1-Q2", live_telemetry: "0.8 ms Equity Check · 0 Uncaught Breaches", status: "ACTIVE" },
-    { vertical_id: "SAAS-02", name: "Trader Evaluation & Challenge Lifecycle Engine", buyer_persona: "Prop Firm Founder, Operations Lead", pain_point: "Manual challenge verification and easily gamified rules lead to unprofitable funded traders.", atlas_solution: "Configurable pass/fail criteria, <=35% consistency scorecards, anti-gaming algorithms powered by ATLAS walk-forward validation.", domain_scope: "FX/CFDs, CME Futures, US Equities", pricing_model: "Revenue Share on Evaluation Fees", phase: "Phase 1 Q1-Q2", live_telemetry: "Consistency Gate <=35% · Min 5 Days Enforced", status: "ACTIVE" },
-    { vertical_id: "SAAS-03", name: "Sybil & Latency Arbitrage Detection", buyer_persona: "Head of Risk, Compliance Officer", pain_point: "Sophisticated rings use account sharing and toxic tick-scalping to extract risk-free profits from B-Book firms.", atlas_solution: "Account-sharing detection, toxic tick-scalping identifier, IP/behavioral fingerprinting using ATLAS ML models.", domain_scope: "FX/CFDs, 24/7 Crypto", pricing_model: "Tiered SaaS Subscription based on Trade Volume", phase: "Phase 1 Q1-Q2", live_telemetry: "Sybil Cluster Score: 0.02 (Clean) · 0 Latency Arb Rings", status: "ACTIVE" },
-    { vertical_id: "SAAS-04", name: "AI-Powered Synthetic Copier / Dealing Desk Hedger", buyer_persona: "Dealing Desk Lead, Chief Investment Officer", pain_point: "Inefficient manual B-Book to A-Book routing leaves alpha on the table and exposes the firm to directional risk.", atlas_solution: "B-Book to A-Book smart order routing, alpha clustering utilizing ATLAS regime classification engine.", domain_scope: "US Equities, FX/CFDs, 24/7 Crypto", pricing_model: "AUM / Volume-based Basis Point Fee", phase: "Phase 2 Q3-Q4", live_telemetry: "Book Routing: Hybrid B-Book / Internal Netting (VPIN=0.312)", status: "ACTIVE" },
-    { vertical_id: "SAAS-05", name: "Point-in-Time Regulatory & Audit Ledger", buyer_persona: "Compliance Officer, Legal Counsel", pain_point: "Increasing regulatory scrutiny requires immutable, point-in-time proof of trade execution and pricing.", atlas_solution: "ISO 42001 & IOSCO aligned tamper-proof trade audit logs backed by ATLAS Journaling & Immutable Audit Trails.", domain_scope: "Global (All Asset Classes)", pricing_model: "Fixed Enterprise Annual License", phase: "Phase 2 Q3-Q4", live_telemetry: "SHA-256 Event Chain Verified · ISO 42001 / IOSCO", status: "ACTIVE" },
-    { vertical_id: "SAAS-06", name: "Prop Trader Behavioral Co-Pilot & Coach", buyer_persona: "Prop Trader, Community Manager", pain_point: "High churn rate of funded traders due to emotional trading and lack of personalized, data-driven feedback.", atlas_solution: "Execution bias detection, overtrading alerts, disciplined sizing guides leveraging ATLAS Probability Calibration.", domain_scope: "US Equities, CME Futures, FX/CFDs", pricing_model: "B2B2C Freemium Upsell", phase: "Phase 2 Q3-Q4", live_telemetry: "Revenge-Trading Risk: LOW · Calibrated Sizing: 0.50%", status: "ACTIVE" },
-    { vertical_id: "SAAS-07", name: "Multi-Broker Bridge & Execution Router", buyer_persona: "CTO, Head of Trading", pain_point: "Fragmented API integrations across different asset classes create a maintenance nightmare and execution latency.", atlas_solution: "Unified FIX / REST abstraction across Alpaca, IBKR, cTrader, DXtrade, Bybit, Coinbase via ATLAS Execution Routing.", domain_scope: "Global (All Asset Classes)", pricing_model: "Monthly B2B Retainer + API Call Volume Tier", phase: "Phase 1 Q1-Q2", live_telemetry: "6 Gateways Connected (IBKR, Alpaca, FIX, Coinbase, cTrader, Rithmic)", status: "ACTIVE" },
-    { vertical_id: "SAAS-08", name: "Dynamic Margin & Trailing Drawdown Visualizer", buyer_persona: "Prop Trader, Frontend Developer", pain_point: "Traders lack real-time visibility into their complex trailing drawdown limits, causing accidental breaches and support tickets.", atlas_solution: "Interactive real-time remaining-room HUD for web & mobile streaming from ATLAS Data Lakehouse.", domain_scope: "US Equities, CME Futures, FX/CFDs, 24/7 Crypto", pricing_model: "Flat Monthly API Access Fee", phase: "Phase 1 Q1-Q2", live_telemetry: "Docked Live HUD Active (18.5% Daily / 15.0% Trailing Used)", status: "ACTIVE" },
-    { vertical_id: "SAAS-09", name: "Backtesting & Rule Verification Sandbox", buyer_persona: "Quant Researcher, Prop Trader", pain_point: "Traders cannot accurately backtest their strategies against the specific, complex rules of prop firm evaluations.", atlas_solution: "Deterministic prop evaluation replay for strategy verification using ATLAS Zero Data-Leakage Research Sandbox.", domain_scope: "US Equities, CME Futures, FX/CFDs", pricing_model: "Pay-per-Compute / Backtest Hour", phase: "Phase 2 Q3-Q4", live_telemetry: "Purged Walk-Forward + Prop Rule Replay Verified", status: "ACTIVE" },
-    { vertical_id: "SAAS-10", name: "Whale & Microstructure Liquidity Intelligence", buyer_persona: "Dealing Desk Lead, Head of Risk", pain_point: "Prop firms unknowingly internalize toxic, informed institutional flow, resulting in severe B-Book losses.", atlas_solution: "Institutional flow detector protecting firm B-Book from toxic informed flow powered by ATLAS Feature Engineering (WF-01..WF-08).", domain_scope: "US Equities, 24/7 Crypto", pricing_model: "Premium Data Feed Subscription", phase: "Phase 2 Q3-Q4", live_telemetry: "Kyle Lambda=0.0014 · Hawkes=1.685", status: "ACTIVE" },
+    { vertical_id: "SAAS-01", name: "Real-Time Risk & Drawdown Engine", buyer_persona: "Prop Firm Founder, Head of Risk", pain_point: "Delayed equity updates lead to catastrophic firm losses when traders breach max drawdown during volatile events.", atlas_solution: "Deterministic multi-broker margin & equity monitoring, millisecond kill-switch using ATLAS Control Plane.", domain_scope: "US Equities, CME Futures, FX/CFDs, 24/7 Crypto", pricing_model: "Monthly B2B Retainer + Per-Trader Seat", phase: "Executed Directly (Live)", live_telemetry: "0.8 ms Equity Check · 0 Uncaught Breaches", status: "ACTIVE" },
+    { vertical_id: "SAAS-02", name: "Trader Evaluation & Challenge Lifecycle Engine", buyer_persona: "Prop Firm Founder, Operations Lead", pain_point: "Manual challenge verification and easily gamified rules lead to unprofitable funded traders.", atlas_solution: "Configurable pass/fail criteria, <=35% consistency scorecards, anti-gaming algorithms powered by ATLAS walk-forward validation.", domain_scope: "FX/CFDs, CME Futures, US Equities", pricing_model: "Revenue Share on Evaluation Fees", phase: "Executed Directly (Live)", live_telemetry: "Consistency Gate <=35% · Min 5 Days Enforced", status: "ACTIVE" },
+    { vertical_id: "SAAS-03", name: "Sybil & Latency Arbitrage Detection", buyer_persona: "Head of Risk, Compliance Officer", pain_point: "Sophisticated rings use account sharing and toxic tick-scalping to extract risk-free profits from B-Book firms.", atlas_solution: "Account-sharing detection, toxic tick-scalping identifier, IP/behavioral fingerprinting using ATLAS ML models.", domain_scope: "FX/CFDs, 24/7 Crypto", pricing_model: "Tiered SaaS Subscription based on Trade Volume", phase: "Executed Directly (Live)", live_telemetry: "Sybil Cluster Score: 0.02 (Clean) · 0 Latency Arb Rings", status: "ACTIVE" },
+    { vertical_id: "SAAS-04", name: "AI-Powered Synthetic Copier / Dealing Desk Hedger", buyer_persona: "Dealing Desk Lead, Chief Investment Officer", pain_point: "Inefficient manual B-Book to A-Book routing leaves alpha on the table and exposes the firm to directional risk.", atlas_solution: "B-Book to A-Book smart order routing, alpha clustering utilizing ATLAS regime classification engine.", domain_scope: "US Equities, FX/CFDs, 24/7 Crypto", pricing_model: "AUM / Volume-based Basis Point Fee", phase: "Executed Directly (Live)", live_telemetry: "Book Routing: Hybrid B-Book / Internal Netting (VPIN=0.312)", status: "ACTIVE" },
+    { vertical_id: "SAAS-05", name: "Point-in-Time Regulatory & Audit Ledger", buyer_persona: "Compliance Officer, Legal Counsel", pain_point: "Increasing regulatory scrutiny requires immutable, point-in-time proof of trade execution and pricing.", atlas_solution: "ISO 42001 & IOSCO aligned tamper-proof trade audit logs backed by ATLAS Journaling & Immutable Audit Trails.", domain_scope: "Global (All Asset Classes)", pricing_model: "Fixed Enterprise Annual License", phase: "Executed Directly (Live)", live_telemetry: "SHA-256 Event Chain Verified · ISO 42001 / IOSCO", status: "ACTIVE" },
+    { vertical_id: "SAAS-06", name: "Prop Trader Behavioral Co-Pilot & Coach", buyer_persona: "Prop Trader, Community Manager", pain_point: "High churn rate of funded traders due to emotional trading and lack of personalized, data-driven feedback.", atlas_solution: "Execution bias detection, overtrading alerts, disciplined sizing guides leveraging ATLAS Probability Calibration.", domain_scope: "US Equities, CME Futures, FX/CFDs", pricing_model: "B2B2C Freemium Upsell", phase: "Executed Directly (Live)", live_telemetry: "Revenge-Trading Risk: LOW · Calibrated Sizing: 0.50%", status: "ACTIVE" },
+    { vertical_id: "SAAS-07", name: "Multi-Broker Bridge & Execution Router", buyer_persona: "CTO, Head of Trading", pain_point: "Fragmented API integrations across different asset classes create a maintenance nightmare and execution latency.", atlas_solution: "Unified FIX / REST abstraction across Alpaca, IBKR, cTrader, DXtrade, Bybit, Coinbase via ATLAS Execution Routing.", domain_scope: "Global (All Asset Classes)", pricing_model: "Monthly B2B Retainer + API Call Volume Tier", phase: "Executed Directly (Live)", live_telemetry: "6 Gateways Connected (IBKR, Alpaca, FIX, Coinbase, cTrader, Rithmic)", status: "ACTIVE" },
+    { vertical_id: "SAAS-08", name: "Dynamic Margin & Trailing Drawdown Visualizer", buyer_persona: "Prop Trader, Frontend Developer", pain_point: "Traders lack real-time visibility into their complex trailing drawdown limits, causing accidental breaches and support tickets.", atlas_solution: "Interactive real-time remaining-room HUD for web & mobile streaming from ATLAS Data Lakehouse.", domain_scope: "US Equities, CME Futures, FX/CFDs, 24/7 Crypto", pricing_model: "Flat Monthly API Access Fee", phase: "Executed Directly (Live)", live_telemetry: "Docked Live HUD Active (18.5% Daily / 15.0% Trailing Used)", status: "ACTIVE" },
+    { vertical_id: "SAAS-09", name: "Backtesting & Rule Verification Sandbox", buyer_persona: "Quant Researcher, Prop Trader", pain_point: "Traders cannot accurately backtest their strategies against the specific, complex rules of prop firm evaluations.", atlas_solution: "Deterministic prop evaluation replay for strategy verification using ATLAS Zero Data-Leakage Research Sandbox.", domain_scope: "US Equities, CME Futures, FX/CFDs", pricing_model: "Pay-per-Compute / Backtest Hour", phase: "Executed Directly (Live)", live_telemetry: "Purged Walk-Forward + Prop Rule Replay Verified", status: "ACTIVE" },
+    { vertical_id: "SAAS-10", name: "Whale & Microstructure Liquidity Intelligence", buyer_persona: "Dealing Desk Lead, Head of Risk", pain_point: "Prop firms unknowingly internalize toxic, informed institutional flow, resulting in severe B-Book losses.", atlas_solution: "Institutional flow detector protecting firm B-Book from toxic informed flow powered by ATLAS Feature Engineering (WF-01..WF-08).", domain_scope: "US Equities, 24/7 Crypto", pricing_model: "Premium Data Feed Subscription", phase: "Executed Directly (Live)", live_telemetry: "Kyle Lambda=0.0014 · Hawkes=1.685", status: "ACTIVE" },
   ],
   whale_execution_ml: [
     { model_id: "WF-01", name: "Kyle's Lambda (Price Impact of Informed Trading)", equation: "Delta P = lambda * Q + eta", parameters: "P: Price, lambda: Liquidity parameter, Q: Signed order flow, eta: Noise", architecture: "OLS Regression / Rolling Window Estimation", signal_criteria: "Lambda spikes indicating high price impact; pause passive market making.", execution_action: "Widen spreads, skew quotes away from informed flow.", subsystem: "src/atlas/liquidity/impact.py", live_metric: "lambda=0.0014 (R²=0.89) · Spike=False" },
@@ -2216,7 +2262,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
   );
 
   const [matrixData, setMatrixData] = useState<InstitutionalMatrix>(DEFAULT_MATRIX);
-  const [matrixTab, setMatrixTab] = useState<"signals" | "correlation" | "regime_models" | "dom">("signals");
+  const [matrixTab, setMatrixTab] = useState<"all_matrix" | "signals" | "correlation" | "regime_models" | "dom">("all_matrix");
   const [matrixNotice, setMatrixNotice] = useState<string>(
     "Institutional 9-Asset Quant Matrix Online · Multi-Horizon Alpha, 9x9 Cross-Asset Correlation, Model x Regime & L2 DOM"
   );
@@ -2225,13 +2271,13 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
 
   const [roadmapState, setRoadmapState] = useState<MasterRoadmapState>(DEFAULT_ROADMAP_STATE);
   const [roadmapTab, setRoadmapTab] = useState<
-    "whale_ml" | "whale_decision" | "b2b_saas" | "global_domains" | "roadmap_az"
-  >("whale_ml");
+    "all_7_tabs" | "whale_ml" | "whale_decision" | "b2b_saas" | "global_domains" | "track_rules" | "workbench_layers" | "roadmap_az"
+  >("all_7_tabs");
   const [whaleShares, setWhaleShares] = useState<string>("15000");
   const [urgencyKappa, setUrgencyKappa] = useState<string>("0.55");
   const [activeScenarioIdx, setActiveScenarioIdx] = useState<number>(0);
   const [roadmapNotice, setRoadmapNotice] = useState<string>(
-    "7-Tab Master Roadmap & Technical Specs (A-Z) Active · 26 A-Z Subsystems, WF-01..WF-08 Whale Execution ML, 10 Prop B2B SaaS Verticals & 5 Whale Decision Scenarios"
+    "All 7 Excel Specification Sheets Executed Directly (Zero Timeframe) · 26 A–Z Subsystems, WF-01..WF-08 Whale ML, 10 Prop B2B SaaS Verticals, 5 Global Domains, Track Rules & 5 Decision Scenarios"
   );
 
   async function handleEvaluateWhaleMl(scenarioIndex?: number) {
@@ -3375,6 +3421,19 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
             <div className="nav-group-label">Trading Desk & Markets</div>
             <button
               type="button"
+              className={`nav-item ${activeSection === "all" ? "active" : ""}`}
+              onClick={() => navigateSection("all")}
+            >
+              <span className="nav-item-left">
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M2 3h12M2 8h12M2 13h12" />
+                </svg>
+                <span className="nav-label">Unified Flattened Desk</span>
+              </span>
+              <span className="nav-badge">ALL A–Z</span>
+            </button>
+            <button
+              type="button"
               className={`nav-item ${activeSection === "overview" ? "active" : ""}`}
               onClick={() => navigateSection("overview")}
             >
@@ -3731,10 +3790,18 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           <div className="topbar-controls">
             <button
               type="button"
+              className={`btn btn-sm ${activeSection === "all" ? "btn-primary" : "btn-outline"}`}
+              onClick={() => navigateSection(activeSection === "all" ? "overview" : "all")}
+            >
+              {activeSection === "all" ? "✓ Flattened All-In-One Active" : "⚡ Flattened View (All-In-One)"}
+            </button>
+
+            <button
+              type="button"
               className={`btn btn-sm ${activeSection === "roadmap" ? "btn-primary" : "btn-outline"}`}
               onClick={() => navigateSection("roadmap")}
             >
-              Whale ML & A–Z (26)
+              Master Spec (7 Sheets · A–Z)
             </button>
 
             <button
@@ -3747,34 +3814,10 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
 
             <button
               type="button"
-              className={`btn btn-sm ${activeSection === "listings" ? "btn-primary" : "btn-outline"}`}
-              onClick={() => navigateSection("listings")}
-            >
-              Listings ({listingsList.length})
-            </button>
-
-            <button
-              type="button"
-              className={`btn btn-sm ${activeSection === "warehouse" ? "btn-primary" : "btn-outline"}`}
-              onClick={() => navigateSection("warehouse")}
-            >
-              Warehouse ({warehouseNodes.length})
-            </button>
-
-            <button
-              type="button"
-              className={`btn btn-sm ${activeSection === "configurations" ? "btn-primary" : "btn-outline"}`}
-              onClick={() => navigateSection("configurations")}
-            >
-              Configurations
-            </button>
-
-            <button
-              type="button"
               className={`btn btn-sm ${dockOpen ? "btn-primary" : "btn-dark"}`}
               onClick={() => setDockOpen((d) => !d)}
             >
-              {dockOpen ? "📊 Hide Order/DOM Dock" : "📊 Open Order/DOM Dock"}
+              {dockOpen ? "📊 Hide Order/DOM" : "📊 Order/DOM Dock"}
             </button>
 
             <button
@@ -3798,7 +3841,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               className="operator-pill"
               onClick={() => navigateSection("profile")}
             >
-              <span>Profile: {profile.display_name.split(" ")[0]}</span>
+              <span>{profile.display_name.split(" ")[0]}</span>
               <span className="badge badge-emerald" style={{ padding: "1px 6px", fontSize: "9.5px" }}>
                 {role}
               </span>
@@ -4409,34 +4452,41 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                 <div className="panel-header">
                   <div className="panel-header-left">
                     <span className="panel-eyebrow">
-                      ATLAS Platform Master Roadmap & Technical Specifications (A–Z) · /api/master-roadmap
+                      ATLAS Platform Master Roadmap & Technical Specifications (A–Z) · All 7 Excel Sheets Executed Directly · /api/master-roadmap
                     </span>
                     <h2 className="panel-title">
-                      Whale Order Flow ML (WF-01..08), When/Where Decision Matrix, Prop B2B SaaS & A–Z Subsystems
+                      Unified 7-Sheet Specification: Whale ML (WF-01..08), Decision Matrix, Prop B2B SaaS, Track Rules, 16 Layers, Global Domains & A–Z
                     </h2>
                   </div>
                   <div className="btn-row">
                     <div className="segmented-tabs">
                       <button
                         type="button"
+                        className={`seg-tab ${roadmapTab === "all_7_tabs" ? "active" : ""}`}
+                        onClick={() => setRoadmapTab("all_7_tabs")}
+                      >
+                        ⚡ All 7 Sheets (Flattened)
+                      </button>
+                      <button
+                        type="button"
                         className={`seg-tab ${roadmapTab === "whale_ml" ? "active" : ""}`}
                         onClick={() => setRoadmapTab("whale_ml")}
                       >
-                        1. Whale Order Flow ML (WF-01..08)
+                        1. Whale ML (WF-01..08)
                       </button>
                       <button
                         type="button"
                         className={`seg-tab ${roadmapTab === "whale_decision" ? "active" : ""}`}
                         onClick={() => setRoadmapTab("whale_decision")}
                       >
-                        2. Whale Decision Matrix (When/Where)
+                        2. Whale Decision Matrix
                       </button>
                       <button
                         type="button"
                         className={`seg-tab ${roadmapTab === "b2b_saas" ? "active" : ""}`}
                         onClick={() => setRoadmapTab("b2b_saas")}
                       >
-                        3. Prop Firm B2B SaaS (10)
+                        3. Prop B2B SaaS (10)
                       </button>
                       <button
                         type="button"
@@ -4447,10 +4497,24 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                       </button>
                       <button
                         type="button"
+                        className={`seg-tab ${roadmapTab === "track_rules" ? "active" : ""}`}
+                        onClick={() => setRoadmapTab("track_rules")}
+                      >
+                        5. Track Rules & Limits (10)
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-tab ${roadmapTab === "workbench_layers" ? "active" : ""}`}
+                        onClick={() => setRoadmapTab("workbench_layers")}
+                      >
+                        6. Workbench 16 Layers & APIs
+                      </button>
+                      <button
+                        type="button"
                         className={`seg-tab ${roadmapTab === "roadmap_az" ? "active" : ""}`}
                         onClick={() => setRoadmapTab("roadmap_az")}
                       >
-                        5. Master Roadmap (A–Z, 26)
+                        7. Master Roadmap (A–Z, 26)
                       </button>
                     </div>
                   </div>
@@ -4462,12 +4526,12 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                   </div>
 
                   {/* TAB 1: WHALE ORDER FLOW & EXECUTION ML (WF-01..WF-08) */}
-                  {(roadmapTab === "whale_ml" || activeSection === "all") && (
+                  {(roadmapTab === "whale_ml" || roadmapTab === "all_7_tabs" || activeSection === "all") && (
                     <div className="bento-stack">
                       <div className="workbench-box">
                         <div className="workbench-title">
                           <span>
-                            Interactive Whale Microstructure & Optimal Execution Simulator (WF-01..WF-08 ·{" "}
+                            Sheet 5 · Interactive Whale Microstructure & Optimal Execution Simulator (WF-01..WF-08 ·{" "}
                             {domSymbol})
                           </span>
                           <span className="badge badge-emerald">execution_permission: none</span>
@@ -4587,12 +4651,12 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                   )}
 
                   {/* TAB 2: WHALE SIGNAL DECISION MATRIX (WHEN & WHERE TO BUY/SELL) */}
-                  {(roadmapTab === "whale_decision" || activeSection === "all") && (
+                  {(roadmapTab === "whale_decision" || roadmapTab === "all_7_tabs" || activeSection === "all") && (
                     <div className="table-wrap">
                       <table className="data-table">
                         <thead>
                           <tr>
-                            <th>Scenario / Regime</th>
+                            <th>Sheet 7 · Scenario / Regime</th>
                             <th>Microstructure Indicators Triggered</th>
                             <th>Exact Buy / Sell Trigger (&ldquo;When&rdquo;)</th>
                             <th>Price Location & Level (&ldquo;Where&rdquo;)</th>
@@ -4640,16 +4704,17 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                   )}
 
                   {/* TAB 3: PROP FIRM B2B SAAS VERTICALS (SAAS-01..SAAS-10) */}
-                  {(roadmapTab === "b2b_saas" || activeSection === "all") && (
+                  {(roadmapTab === "b2b_saas" || roadmapTab === "all_7_tabs" || activeSection === "all") && (
                     <div className="table-wrap">
                       <table className="data-table">
                         <thead>
                           <tr>
-                            <th>ID</th>
+                            <th>Sheet 4 · ID</th>
                             <th>SaaS Product Module & Buyer Persona</th>
                             <th>2026 Market Pain Point</th>
                             <th>ATLAS Technical Solution & Moat</th>
                             <th>Global Scope & Commercial Model</th>
+                            <th>Direct Execution Status</th>
                             <th>Live Telemetry</th>
                             <th>Action</th>
                           </tr>
@@ -4672,6 +4737,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                                 </div>
                                 <span className="badge badge-purple">{v.pricing_model}</span>
                               </td>
+                              <td>
+                                <span className="badge badge-emerald">{v.phase || "Executed Directly (Live)"}</span>
+                              </td>
                               <td className="mono-cell" style={{ fontWeight: 700 }}>
                                 {v.live_telemetry}
                               </td>
@@ -4692,12 +4760,12 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                   )}
 
                   {/* TAB 4: GLOBAL MULTI-DOMAIN ARCHITECTURE (5 ASSET CLASSES) */}
-                  {(roadmapTab === "global_domains" || activeSection === "all") && (
+                  {(roadmapTab === "global_domains" || roadmapTab === "all_7_tabs" || activeSection === "all") && (
                     <div className="table-wrap">
                       <table className="data-table">
                         <thead>
                           <tr>
-                            <th>Domain / Asset Class</th>
+                            <th>Sheet 6 · Domain / Asset Class</th>
                             <th>Primary Venues & Gateways</th>
                             <th>Session Dynamics & Calendar</th>
                             <th>Microstructure & Data Granularity</th>
@@ -4725,13 +4793,77 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     </div>
                   )}
 
-                  {/* TAB 5: MASTER PLATFORM ROADMAP (A–Z, ALL 26 SUBSYSTEMS) */}
-                  {(roadmapTab === "roadmap_az" || activeSection === "all") && (
+                  {/* TAB 5: SHEET 2 — TRACK RULES & LIMITS (10 DIMENSIONS) */}
+                  {(roadmapTab === "track_rules" || roadmapTab === "all_7_tabs" || activeSection === "all") && (
                     <div className="table-wrap">
                       <table className="data-table">
                         <thead>
                           <tr>
-                            <th>A–Z</th>
+                            <th>Sheet 2 · Rule / Dimension</th>
+                            <th>Track 1: Prop Trading Competition</th>
+                            <th>Track 2: Open-Market Stock & Multi-Asset Desk</th>
+                            <th>Deterministic Enforcement Engine Module</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(roadmapState.track_rules_limits ?? DEFAULT_ROADMAP_STATE.track_rules_limits ?? []).map(
+                            (tr) => (
+                              <tr key={tr.dimension}>
+                                <td style={{ fontWeight: 700, color: "var(--text-primary)" }}>{tr.dimension}</td>
+                                <td>
+                                  <span className="badge badge-purple">{tr.prop_competition_spec}</span>
+                                </td>
+                                <td>
+                                  <span className="badge badge-blue">{tr.open_market_spec}</span>
+                                </td>
+                                <td className="mono-cell">{tr.deterministic_enforcement}</td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* TAB 6: SHEET 3 — WORKBENCH 16 LAYERS & APIS */}
+                  {(roadmapTab === "workbench_layers" || roadmapTab === "all_7_tabs" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Sheet 3 · Layer</th>
+                            <th>UI Route / Tab</th>
+                            <th>Capabilities & Description</th>
+                            <th>Primary Backend APIs & Data Flow</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(roadmapState.workbench_layers_apis ?? DEFAULT_ROADMAP_STATE.workbench_layers_apis ?? []).map(
+                            (wl) => (
+                              <tr key={wl.layer}>
+                                <td>
+                                  <span className="badge badge-blue">{wl.layer}</span>
+                                </td>
+                                <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                  {wl.route}
+                                </td>
+                                <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{wl.description}</td>
+                                <td className="mono-cell">{wl.data_flow}</td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* TAB 7: SHEET 1 — MASTER PLATFORM ROADMAP (A–Z, ALL 26 SUBSYSTEMS) */}
+                  {(roadmapTab === "roadmap_az" || roadmapTab === "all_7_tabs" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Sheet 1 · A–Z</th>
                             <th>Domain / Aspect Name</th>
                             <th>Subsystem & Path</th>
                             <th>Architecture Specification & Requirements</th>
@@ -4843,6 +4975,13 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     <div className="segmented-tabs">
                       <button
                         type="button"
+                        className={`seg-tab ${matrixTab === "all_matrix" ? "active" : ""}`}
+                        onClick={() => setMatrixTab("all_matrix")}
+                      >
+                        ⚡ All 4 Matrices (Flattened)
+                      </button>
+                      <button
+                        type="button"
                         className={`seg-tab ${matrixTab === "signals" ? "active" : ""}`}
                         onClick={() => setMatrixTab("signals")}
                       >
@@ -4885,7 +5024,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     <div className="console-line">&gt; {matrixNotice}</div>
                   </div>
 
-                  {(matrixTab === "signals" || activeSection === "all") && (
+                  {(matrixTab === "signals" || matrixTab === "all_matrix" || activeSection === "all") && (
                     <div className="table-wrap">
                       <table className="data-table">
                         <thead>
@@ -5021,7 +5160,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     </div>
                   )}
 
-                  {(matrixTab === "correlation" || activeSection === "all") && (
+                  {(matrixTab === "correlation" || matrixTab === "all_matrix" || activeSection === "all") && (
                     <div className="bento-stack">
                       <div className="workbench-box">
                         <div className="workbench-title">
@@ -5072,7 +5211,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     </div>
                   )}
 
-                  {(matrixTab === "regime_models" || activeSection === "all") && (
+                  {(matrixTab === "regime_models" || matrixTab === "all_matrix" || activeSection === "all") && (
                     <div className="table-wrap">
                       <table className="data-table">
                         <thead>
@@ -5129,7 +5268,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                     </div>
                   )}
 
-                  {(matrixTab === "dom" || activeSection === "all") && (
+                  {(matrixTab === "dom" || matrixTab === "all_matrix" || activeSection === "all") && (
                     <div className="bento-grid-2">
                       <div className="workbench-box">
                         <div className="workbench-title">
