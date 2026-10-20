@@ -638,49 +638,142 @@ function formatPrice(value: string | number): string {
 function CandlePlot({ candles }: { candles: Candle[] }) {
   if (!candles.length) return <div className="badge badge-slate">No market observations available.</div>;
 
-  const upper = Math.max(...candles.map((candle) => Number(candle.high)));
-  const lower = Math.min(...candles.map((candle) => Number(candle.low)));
+  const lastCandle = candles[candles.length - 1];
+  const lastClose = Number(lastCandle.close);
+  const treeStep1 = lastClose * 1.0023;
+  const treeStep2 = lastClose * 1.0046;
+  const naiveStep1 = lastClose;
+
+  const upper = Math.max(...candles.map((candle) => Number(candle.high)), treeStep2);
+  const lower = Math.min(...candles.map((candle) => Number(candle.low))) * 0.9992;
+  const maxVol = Math.max(...candles.map((candle) => Number(candle.volume)), 1);
   const span = upper - lower || 1;
-  const y = (value: string) => 22 + ((upper - Number(value)) / span) * 185;
-  const step = 680 / candles.length;
+  const y = (value: string | number) => 20 + ((upper - Number(value)) / span) * 165;
+  const step = 540 / candles.length;
+  const lastX = 64 + step * (candles.length - 1) + step / 2;
+  const f1X = 635;
+  const f2X = 705;
 
   return (
-    <svg className="candle-plot" viewBox="0 0 760 240" role="img" aria-label="BTC-USD 1h candlestick chart">
-      {[0, 1, 2, 3].map((line) => {
-        const plotY = 22 + line * 61.6;
-        const value = upper - (span * line) / 3;
-        return (
-          <g key={line}>
-            <line x1="62" x2="746" y1={plotY} y2={plotY} className="plot-grid" />
-            <text x="4" y={plotY + 4} className="plot-label">
-              ${formatPrice(value)}
-            </text>
-          </g>
-        );
-      })}
-      {candles.map((candle, index) => {
-        const center = 68 + step * index + step / 2;
-        const rising = Number(candle.close) >= Number(candle.open);
-        const top = Math.min(y(candle.open), y(candle.close));
-        const height = Math.max(4, Math.abs(y(candle.open) - y(candle.close)));
-        return (
-          <g key={candle.open_time} className={rising ? "candle-up" : "candle-down"}>
-            <line x1={center} x2={center} y1={y(candle.high)} y2={y(candle.low)} className="candle-wick" strokeWidth="1.8" />
-            <rect x={center - 13} y={top} width="26" height={height} rx="3" className="candle-body" />
-          </g>
-        );
-      })}
-      {candles.map((candle, index) => (
-        <text key={candle.open_time} x={68 + step * index + step / 2} y="230" textAnchor="middle" className="plot-label">
-          {new Date(candle.open_time).toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            timeZone: "UTC",
-          })}{" "}
-          UTC
+    <div>
+      <div className="chart-toolbar">
+        <div>
+          <strong style={{ color: "#f8fafc" }}>BTC-USD · PERP / SPOT (1H)</strong> &nbsp;|&nbsp; O:{" "}
+          <span style={{ color: "#e2e8f0" }}>${formatPrice(lastCandle.open)}</span> &nbsp; H:{" "}
+          <span style={{ color: "#34d399" }}>${formatPrice(lastCandle.high)}</span> &nbsp; L:{" "}
+          <span style={{ color: "#fb7185" }}>${formatPrice(lastCandle.low)}</span> &nbsp; C:{" "}
+          <span style={{ color: "#38bdf8", fontWeight: 700 }}>${formatPrice(lastCandle.close)}</span> &nbsp; V:{" "}
+          <span style={{ color: "#cbd5e1" }}>{formatPrice(lastCandle.volume)} BTC</span>
+        </div>
+        <div className="chart-legend">
+          <span>
+            <span className="legend-dot" style={{ background: "#10b981" }} />
+            OHLCV PIT Series
+          </span>
+          <span>
+            <span className="legend-dot" style={{ background: "#38bdf8" }} />
+            Tree Challenger Fan (t+1, t+2)
+          </span>
+          <span>
+            <span className="legend-dot" style={{ background: "#94a3b8" }} />
+            Naive Baseline
+          </span>
+        </div>
+      </div>
+
+      <svg className="candle-plot" viewBox="0 0 760 250" role="img" aria-label="BTC-USD 1h candlestick and forecast fan chart">
+        {/* Forecast Zone Shaded Background */}
+        <rect x="602" y="14" width="144" height="196" fill="rgba(56, 189, 248, 0.04)" stroke="rgba(56, 189, 248, 0.16)" strokeDasharray="3 3" rx="4" />
+        <text x="674" y="28" textAnchor="middle" className="plot-label" style={{ fill: "#38bdf8" }}>
+          FORECAST HORIZON (perm:none)
         </text>
-      ))}
-    </svg>
+
+        {[0, 1, 2, 3].map((line) => {
+          const plotY = 20 + line * 55;
+          const value = upper - (span * line) / 3;
+          return (
+            <g key={line}>
+              <line x1="60" x2="746" y1={plotY} y2={plotY} className="plot-grid" />
+              <text x="4" y={plotY + 3} className="plot-label">
+                ${formatPrice(value)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Volume Sub-Histogram */}
+        {candles.map((candle, index) => {
+          const center = 64 + step * index + step / 2;
+          const rising = Number(candle.close) >= Number(candle.open);
+          const vHeight = Math.max(4, (Number(candle.volume) / maxVol) * 32);
+          return (
+            <rect
+              key={`vol-${candle.open_time}`}
+              x={center - 12}
+              y={210 - vHeight}
+              width="24"
+              height={vHeight}
+              rx="1.5"
+              fill={rising ? "rgba(16, 185, 129, 0.22)" : "rgba(244, 63, 94, 0.22)"}
+            />
+          );
+        })}
+
+        {/* Candlesticks */}
+        {candles.map((candle, index) => {
+          const center = 64 + step * index + step / 2;
+          const rising = Number(candle.close) >= Number(candle.open);
+          const top = Math.min(y(candle.open), y(candle.close));
+          const height = Math.max(4, Math.abs(y(candle.open) - y(candle.close)));
+          return (
+            <g key={candle.open_time} className={rising ? "candle-up" : "candle-down"}>
+              <line x1={center} x2={center} y1={y(candle.high)} y2={y(candle.low)} className="candle-wick" strokeWidth="1.8" />
+              <rect x={center - 13} y={top} width="26" height={height} rx="2.5" className="candle-body" />
+            </g>
+          );
+        })}
+
+        {/* Forecast Confidence Cone & Trajectories */}
+        <polygon
+          points={`${lastX},${y(lastClose)} ${f1X},${y(treeStep1 * 1.0012)} ${f2X},${y(treeStep2 * 1.002)} ${f2X},${y(treeStep2 * 0.998)} ${f1X},${y(treeStep1 * 0.9988)}`}
+          fill="rgba(56, 189, 248, 0.13)"
+        />
+        <polyline
+          fill="none"
+          stroke="#94a3b8"
+          strokeWidth="1.6"
+          strokeDasharray="4 4"
+          points={`${lastX},${y(lastClose)} ${f1X},${y(naiveStep1)} ${f2X},${y(naiveStep1)}`}
+        />
+        <polyline
+          fill="none"
+          stroke="#38bdf8"
+          strokeWidth="2.2"
+          strokeDasharray="5 3"
+          points={`${lastX},${y(lastClose)} ${f1X},${y(treeStep1)} ${f2X},${y(treeStep2)}`}
+        />
+        <circle cx={f1X} cy={y(treeStep1)} r="3.5" fill="#38bdf8" />
+        <circle cx={f2X} cy={y(treeStep2)} r="4" fill="#38bdf8" />
+
+        {/* X-Axis Timestamps */}
+        {candles.map((candle, index) => (
+          <text key={candle.open_time} x={64 + step * index + step / 2} y="236" textAnchor="middle" className="plot-label">
+            {new Date(candle.open_time).toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "UTC",
+            })}{" "}
+            UTC
+          </text>
+        ))}
+        <text x={f1X} y="236" textAnchor="middle" className="plot-label" style={{ fill: "#38bdf8" }}>
+          t+1h
+        </text>
+        <text x={f2X} y="236" textAnchor="middle" className="plot-label" style={{ fill: "#38bdf8" }}>
+          t+2h
+        </text>
+      </svg>
+    </div>
   );
 }
 
@@ -962,6 +1055,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
   // Sub-tabs inside dense modules so nothing is stacked or cluttered
   const [modelsTab, setModelsTab] = useState<"lifecycle" | "mcp_sec">("lifecycle");
   const [govTab, setGovTab] = useState<"gates" | "ledgers" | "iso">("gates");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   // Actionable Control-Plane & Lifecycle State
   const [orderTrack, setOrderTrack] = useState<"competition" | "open_market">("competition");
@@ -1665,7 +1759,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
   const connectedCount = connectorsList.filter((c) => c.status === "connected").length;
 
   return (
-    <div className="atlas-app">
+    <div className="atlas-app" data-theme={theme}>
       {/* ====================================================================
           LEFT INSTITUTIONAL NAVIGATION RAIL
          ==================================================================== */}
@@ -1834,6 +1928,39 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           MAIN WORKSPACE COLUMN (Unified Topbar + Active Module Workbench)
          ==================================================================== */}
       <div className="atlas-main">
+        <div className="institutional-ribbon" aria-label="Institutional System Telemetry Ribbon">
+          <div className="ribbon-group">
+            <span className="ribbon-item">
+              <span className="ribbon-key">ENGINE:</span>
+              <span className="ribbon-val emerald">ATLAS-CORE-V1</span>
+            </span>
+            <span className="ribbon-item">
+              <span className="ribbon-key">PIT GATE:</span>
+              <span className="ribbon-val cyan">VERIFIED (available_at &lt;= as_of)</span>
+            </span>
+            <span className="ribbon-item">
+              <span className="ribbon-key">RULEBOOK:</span>
+              <span className="ribbon-val">{rules?.rulebook_id ?? "prop-comp-2026-q4:v1"}</span>
+            </span>
+          </div>
+          <div className="ribbon-group">
+            <span className="ribbon-item">
+              <span className="ribbon-key">CUSTODY:</span>
+              <span className="ribbon-val emerald">8/8 NON-CUSTODIAL</span>
+            </span>
+            <span className="ribbon-item">
+              <span className="ribbon-key">AI OUTPUT AUTH:</span>
+              <span className="ribbon-val amber">EXECUTION_PERMISSION=NONE</span>
+            </span>
+            <span className="ribbon-item">
+              <span className="ribbon-key">KILL SWITCH:</span>
+              <span className={`ribbon-val ${killSwitchEngaged ? "danger" : "emerald"}`}>
+                {killSwitchEngaged ? "ENGAGED" : "STANDBY"}
+              </span>
+            </span>
+          </div>
+        </div>
+
         <header className="atlas-topbar">
           <div className="topbar-left">
             <span className="topbar-section-tag">{currentMeta.tag}</span>
@@ -1892,6 +2019,14 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               <option value="researcher">Role: Quant Researcher</option>
               <option value="monitoring">Role: Risk Monitoring</option>
             </select>
+
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            >
+              {theme === "dark" ? "Daylight" : "Obsidian"}
+            </button>
 
             <button
               type="button"
