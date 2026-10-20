@@ -147,3 +147,4 @@ def compute_almgren_chriss_trajectory(
         is_strictly_monotonic=monotonic,
         terminal_inventory_zero=terminal_zero,
     )
+

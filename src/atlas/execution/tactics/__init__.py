@@ -10,3 +10,4 @@ __all__ = [
     "AlmgrenChrissStep",
     "compute_almgren_chriss_trajectory",
 ]
+

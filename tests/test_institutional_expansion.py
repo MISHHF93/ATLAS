@@ -251,3 +251,105 @@ def test_control_plane_vpin_toxicity_stop_widening_and_pause() -> None:
     assert decision_pause.control_plane_decision == "rejected_by_control_plane"
     assert decision_pause.rule_evaluation.adverse_selection_pause_active is True
     assert any("vpin_adverse_selection_pause" in v for v in decision_pause.violations)
+
+
+def test_master_roadmap_excel_wf01_to_wf08_and_az_subsystems() -> None:
+    """Verify every target subsystem path from the 7-tab Excel Master Roadmap exists and executes."""
+    import importlib
+    from pathlib import Path
+
+    from atlas.calibration import platt_scale_probability
+    from atlas.execution.rl_agent import evaluate_rl_execution_policy
+    from atlas.hardware import run_vectorized_backtest
+    from atlas.journal import append_chained_audit_entry
+    from atlas.liquidity.impact import estimate_l2_market_impact
+    from atlas.marketdata.crypto import evaluate_crypto_perp_domain
+    from atlas.marketdata.equities import evaluate_us_equity_domain
+    from atlas.marketdata.futures import evaluate_cme_futures_domain
+    from atlas.marketdata.fx import evaluate_fx_cfd_domain
+    from atlas.marketdata.synthetics import evaluate_synthetic_index_domain
+    from atlas.microstructure.orderbook import compute_book_shannon_entropy
+    from atlas.microstructure.predatory import evaluate_predatory_liquidation
+    from atlas.models.microstructure_gbdt import predict_microstructure_spread_gbdt
+    from atlas.portfolio import compute_portfolio_allocation
+    from atlas.profile import check_rbac_boundary
+    from atlas.regime.hawkes_detector import compute_hawkes_intensity as hawkes_det
+    from atlas.sync import compute_cross_asset_delta_hedge
+    from atlas.telemetry import evaluate_pipeline_telemetry
+    from atlas.volatility import compute_atr_dynamic_sizing
+    from atlas.warehouse import filter_observations_point_in_time
+    from atlas.whale_saas_az import build_master_roadmap_state
+
+    repo_root = Path(__file__).resolve().parents[1]
+    state = build_master_roadmap_state("SPY", 0)
+    assert len(state["roadmap_az"]) == 26
+    for row in state["roadmap_az"]:
+        assert row["status"] == "Implemented"
+        assert (repo_root / row["path"]).exists(), f"Missing A-Z path: {row['path']}"
+
+    for wf in state["whale_execution_ml"]:
+        assert (repo_root / wf["subsystem"]).exists(), f"Missing WF path: {wf['subsystem']}"
+
+    # WF-01..WF-08 & A-Z module checks
+    book = (
+        BookLevelSnapshot(level=1, bid_price=100.0, bid_size=15.0, ask_price=100.2, ask_size=15.0),
+        BookLevelSnapshot(level=2, bid_price=99.8, bid_size=25.0, ask_price=100.4, ask_size=25.0),
+    )
+    l2_imp = estimate_l2_market_impact(book, order_quantity=25.0, side="buy")
+    assert l2_imp.execution_permission == "none"
+    assert l2_imp.levels_swept == 2
+
+    entropy = compute_book_shannon_entropy(book)
+    assert entropy > 0.0
+
+    gbdt_pred = predict_microstructure_spread_gbdt(
+        ofi_normalized=0.72,
+        vpin=0.52,
+        depth_levels=[15.0, 25.0, 30.0],
+        l1_spread_bps=1.2,
+        l2_spread_bps=2.5,
+    )
+    assert gbdt_pred.execution_permission == "none"
+    assert gbdt_pred.cancel_passive_resting_orders is True
+
+    pred_liq = evaluate_predatory_liquidation(350_000.0, 5_000_000.0, side="sell")
+    assert pred_liq.execution_permission == "none"
+    assert pred_liq.predatory_liquidation_alert is True
+
+    rl_adv = evaluate_rl_execution_policy(ofi_normalized=0.30, spread_bps=1.5, inventory_fraction=0.70, vpin=0.25)
+    assert rl_adv.execution_permission == "none"
+    assert rl_adv.recommended_action == "almgren_chriss_twap_slice"
+
+    # Global Multi-Domain Architecture (5 domains)
+    assert evaluate_us_equity_domain("SPY").execution_permission == "none"
+    assert evaluate_cme_futures_domain("ESZ6").execution_permission == "none"
+    assert evaluate_crypto_perp_domain("BTC-PERP").execution_permission == "none"
+    assert evaluate_fx_cfd_domain("EUR/USD", vpin_toxicity=0.55).dealing_desk_routing == "a_book_lp_exhaust"
+    assert evaluate_synthetic_index_domain("VOL-75").execution_permission == "none"
+
+    # A-Z Subsystems
+    port = compute_portfolio_allocation(["SPY", "NVDA", "BTC-USD"], [0.12, 0.24, 0.30], [0.15, 0.35, 0.55])
+    assert port.execution_permission == "none"
+    assert pytest.approx(sum(port.risk_parity_weights), abs=1e-4) == 1.0
+
+    obs = _build_synthetic_observations(10)
+    kept, pit_rep = filter_observations_point_in_time(obs, as_of=obs[5].available_at)
+    assert len(kept) == 6
+    assert pit_rep.zero_lookahead_verified is True
+
+    vec_bt = run_vectorized_backtest([0.01, -0.005, 0.012, 0.008], [1.0, 0.5, 1.0, 1.0])
+    assert vec_bt.execution_permission == "none"
+
+    audit_entry = append_chained_audit_entry(1, "order_checked", "SPY 100 shares")
+    assert len(audit_entry.entry_sha256) == 64
+    assert 0.0 < platt_scale_probability(0.8) < 1.0
+    assert evaluate_pipeline_telemetry("databento_l2").health_status == "healthy"
+    assert check_rbac_boundary("external_operator", "authorize_order").allowed is False
+    assert compute_atr_dynamic_sizing("SPY").execution_permission == "none"
+    assert compute_cross_asset_delta_hedge("NVDA", "BTC-USD").correlation_gate_passed is True
+    assert hawkes_det([1.0, 1.2], eval_time_sec=1.5).execution_permission == "none"
+
+    yield_mod = importlib.import_module("atlas.yield")
+    basis_rep = yield_mod.evaluate_basis_funding_arbitrage("BTC-PERP")
+    assert basis_rep.execution_permission == "none"
+
