@@ -20,8 +20,11 @@ from atlas.control.rules import (
 )
 from atlas.marketdata.frozen import build_frozen_benchmark_dataset
 from atlas.marketdata.mcp_adapters import ALLOWED_MCP_TOOLS, FORBIDDEN_MCP_SERVERS
+from atlas.marketdata.microstructure import RawMicrostructureEvent, normalize_microstructure_covariates
 from atlas.marketdata.quality import validate_market_data_batch
+from atlas.marketdata.sec_edgar import SECEdgarFilingFact, select_as_filed_sec_facts
 from atlas.models.adapters import NaiveForecastProvider
+from atlas.models.calendars import calendar_session_state
 from atlas.models.challengers import LocalTreeChallengerProvider, fit_boosted_regression_tree
 from atlas.models.continuous import CentralResearchNode
 from atlas.models.evaluation import ProbabilityCalibrator
@@ -330,6 +333,97 @@ async def build_platform_snapshot() -> dict:
     comp_study = node_report.competition_walk_forward
     open_study = node_report.open_market_walk_forward
 
+    raw_micro_events = (
+        RawMicrostructureEvent(
+            event_id="micro:btc:ofi:001",
+            kind="order_flow_imbalance",
+            instrument_id=frozen_comp.instrument.instrument_id,
+            event_time=now - timedelta(minutes=15),
+            available_at=now - timedelta(minutes=14, seconds=50),
+            value=0.38,
+            unit="ratio",
+            source="venue_l2_book",
+            lineage_ref="book:btc-perp:l2:v1",
+            license_ref="commercial:verified-data:v1",
+            attribution_confidence=0.98,
+            confirmations=12,
+        ),
+        RawMicrostructureEvent(
+            event_id="micro:btc:outflow:002",
+            kind="exchange_outflow",
+            instrument_id=frozen_comp.instrument.instrument_id,
+            event_time=now - timedelta(minutes=30),
+            available_at=now - timedelta(minutes=25),
+            value=1450.0,
+            unit="BTC",
+            source="onchain_verified_indexer",
+            lineage_ref="chain:btc:tx:8a9f",
+            license_ref="commercial:verified-data:v1",
+            attribution_confidence=0.91,
+            confirmations=8,
+        ),
+        RawMicrostructureEvent(
+            event_id="micro:btc:funding:003",
+            kind="funding_rate",
+            instrument_id=frozen_comp.instrument.instrument_id,
+            event_time=now - timedelta(minutes=10),
+            available_at=now - timedelta(minutes=9, seconds=50),
+            value=0.0105,
+            unit="pct_8h",
+            source="perp_exchange_index",
+            lineage_ref="perp:btc:funding:v1",
+            license_ref="commercial:verified-data:v1",
+            attribution_confidence=1.0,
+            confirmations=10,
+        ),
+    )
+    normalized_micro = normalize_microstructure_covariates(
+        raw_micro_events,
+        frozen_comp.instrument,
+        as_of=now,
+    )
+
+    sec_filings = (
+        SECEdgarFilingFact(
+            accession_number="0000320193-26-000010",
+            cik="0000320193",
+            instrument_id=frozen_open.instrument.instrument_id,
+            form_type="10-Q",
+            concept="Revenues",
+            value=94930000000.0,
+            unit="USD",
+            fiscal_period_end=now - timedelta(days=45),
+            acceptance_time=now - timedelta(days=12),
+        ),
+        SECEdgarFilingFact(
+            accession_number="0000320193-26-000010",
+            cik="0000320193",
+            instrument_id=frozen_open.instrument.instrument_id,
+            form_type="10-Q",
+            concept="NetIncomeLoss",
+            value=23636000000.0,
+            unit="USD",
+            fiscal_period_end=now - timedelta(days=45),
+            acceptance_time=now - timedelta(days=12),
+        ),
+        SECEdgarFilingFact(
+            accession_number="0000320193-26-000010",
+            cik="0000320193",
+            instrument_id=frozen_open.instrument.instrument_id,
+            form_type="10-Q",
+            concept="Assets",
+            value=364980000000.0,
+            unit="USD",
+            fiscal_period_end=now - timedelta(days=45),
+            acceptance_time=now - timedelta(days=12),
+        ),
+    )
+    as_filed_sec = select_as_filed_sec_facts(
+        sec_filings,
+        instrument_id=frozen_open.instrument.instrument_id,
+        as_of=now,
+    )
+
     return {
         "source": "atlas_production_engine",
         "notice": "Scoped human governance and deterministic control-plane execution active.",
@@ -339,6 +433,36 @@ async def build_platform_snapshot() -> dict:
         "quality_report": verified_quality.model_dump(mode="json"),
         "calibrator": calibrator.model_dump(mode="json"),
         "rule_evaluation": rule_report.model_dump(mode="json"),
+        "calendars_telemetry": {
+            "competition_calendar": {
+                "calendar_ref": frozen_comp.calendar.calendar_ref,
+                "market_type": frozen_comp.calendar.market_type,
+                "timezone": frozen_comp.calendar.timezone,
+                "session_state": calendar_session_state(frozen_comp.calendar, as_of=now),
+                "funding_windows_count": len(frozen_comp.calendar.funding_timestamps),
+                "maintenance_windows_count": len(frozen_comp.calendar.maintenance_windows),
+            },
+            "open_market_calendar": {
+                "calendar_ref": frozen_open.calendar.calendar_ref,
+                "market_type": frozen_open.calendar.market_type,
+                "timezone": frozen_open.calendar.timezone,
+                "session_state": calendar_session_state(frozen_open.calendar, as_of=now),
+                "session_targets_count": len(frozen_open.calendar.session_targets),
+                "holidays": list(frozen_open.calendar.holidays),
+            },
+        },
+        "microstructure_covariates": [item.model_dump(mode="json") for item in normalized_micro],
+        "sec_edgar_facts": [item.model_dump(mode="json") for item in as_filed_sec],
+        "money_records": [
+            {"record_id": "money:01:subscription", "category": "1. Software Subscription", "book_of_record": "billing_ledger", "custody_by_atlas": False, "commingled": False, "status": "isolated"},
+            {"record_id": "money:02:broker", "category": "2. Broker Account", "book_of_record": "external_broker_venue", "custody_by_atlas": False, "commingled": False, "status": "isolated"},
+            {"record_id": "money:03:exchange", "category": "3. Exchange Account", "book_of_record": "external_exchange_venue", "custody_by_atlas": False, "commingled": False, "status": "isolated"},
+            {"record_id": "money:04:wallet", "category": "4. User External Wallet", "book_of_record": "user_self_custody_signer", "custody_by_atlas": False, "commingled": False, "status": "isolated"},
+            {"record_id": "money:05:custodian", "category": "5. Regulated Custodian", "book_of_record": "external_qualified_custodian", "custody_by_atlas": False, "commingled": False, "status": "isolated"},
+            {"record_id": "money:06:prop_firm", "category": "6. Prop-Firm Rules Account", "book_of_record": "prop_competition_evaluator", "custody_by_atlas": False, "commingled": False, "status": "isolated"},
+            {"record_id": "money:07:treasury", "category": "7. Founder Treasury", "book_of_record": "founder_corporate_treasury", "custody_by_atlas": False, "commingled": False, "status": "isolated"},
+            {"record_id": "money:08:double_entry", "category": "8. Reconciled Double-Entry Ledger", "book_of_record": "regulated_provider_reconciliation", "custody_by_atlas": False, "commingled": False, "status": "isolated"},
+        ],
         "studies": {
             "competition": comp_study.model_dump(mode="json"),
             "open_market": open_study.model_dump(mode="json"),

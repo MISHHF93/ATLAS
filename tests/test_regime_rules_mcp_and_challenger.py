@@ -1006,6 +1006,36 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert audit_res.status_code == 200
     assert audit_res.json()["research_challenger_ready"] is True
 
+    # 8. Verify snapshot telemetry & interactive microstructure, SEC EDGAR, and 24/7 research tick endpoints
+    assert len(snap_body["money_records"]) == 8
+    assert len(snap_body["microstructure_covariates"]) == 3
+    assert len(snap_body["sec_edgar_facts"]) == 3
+    assert snap_body["calendars_telemetry"]["competition_calendar"]["market_type"] == "continuous_crypto"
+
+    micro_res = client.post(
+        "/api/market/microstructure",
+        json={"kind": "order_flow_imbalance", "value": 0.45, "unit": "ratio", "confirmations": 10, "is_internal_custody_reshuffle": False},
+    )
+    assert micro_res.status_code == 200
+    assert micro_res.json()["accepted_count"] == 1
+
+    sec_res = client.post(
+        "/api/market/sec-edgar",
+        json={"concept": "Revenues", "value": 96500000000.0, "form_type": "10-Q/A", "allow_vintage_amendments": False},
+    )
+    assert sec_res.status_code == 200
+    assert sec_res.json()["selected_count"] == 0
+    assert sec_res.json()["execution_permission"] == "none"
+
+    tick_res = client.post(
+        "/api/research/continuous-tick",
+        json={"observation_note": "Liquid perpetual session with steady basis.", "workload": "frequent"},
+    )
+    assert tick_res.status_code == 200
+    assert tick_res.json()["status"] == "completed"
+    assert tick_res.json()["execution_permission"] == "none"
+
+
 
 
 

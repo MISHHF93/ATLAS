@@ -2,14 +2,23 @@
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import json
 from typing import Literal
 from pydantic import BaseModel
 
+from atlas.ai.gemini_provider import GeminiResearchProvider
+from atlas.ai.policy import PolicyError
 from atlas.control.engine import ActionableControlPlaneEngine, ActionableOrderRequest
 from atlas.control.rules import MasterSpecGateInput, evaluate_master_spec_readiness
 from atlas.marketdata.frozen import build_frozen_benchmark_dataset
 from atlas.marketdata.mcp_adapters import ALLOWED_MCP_TOOLS, MCPDataSourceAdapter
+from atlas.marketdata.microstructure import (
+    MicrostructureKind,
+    RawMicrostructureEvent,
+    normalize_microstructure_covariates,
+)
 from atlas.marketdata.quality import validate_market_data_batch
+from atlas.marketdata.sec_edgar import SECEdgarFilingFact, select_as_filed_sec_facts
 from atlas.models.adapters import NaiveForecastProvider
 from atlas.models.challengers import run_baseline_vs_tree_study
 from atlas.models.continuous import run_track_paper_simulation
@@ -282,3 +291,114 @@ def readiness_audit_endpoint() -> dict[str, object]:
         evaluated_at=now,
     )
     return comp_gate.model_dump(mode="json")
+
+
+class MicrostructureNormalizePayload(BaseModel):
+    kind: MicrostructureKind = "order_flow_imbalance"
+    value: float = 0.42
+    unit: str = "ratio"
+    confirmations: int = 10
+    is_internal_custody_reshuffle: bool = False
+
+
+class SECEdgarFilterPayload(BaseModel):
+    concept: str = "Revenues"
+    value: float = 96500000000.0
+    form_type: Literal["10-K", "10-Q", "8-K", "10-K/A", "10-Q/A"] = "10-Q"
+    allow_vintage_amendments: bool = False
+
+
+class ContinuousResearchTickPayload(BaseModel):
+    observation_note: str = "BTC-USD perpetual basis steady at +3.5bps; order flow imbalance positive across liquid session."
+    workload: Literal["frequent", "deep"] = "frequent"
+
+
+@app.post("/api/market/microstructure", include_in_schema=False)
+def normalize_microstructure_endpoint(payload: MicrostructureNormalizePayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc)
+    bundle = build_frozen_benchmark_dataset(track="competition", anchor=now)
+    evt = RawMicrostructureEvent(
+        event_id=f"micro:{payload.kind}:{int(now.timestamp())}",
+        kind=payload.kind,
+        instrument_id=bundle.instrument.instrument_id,
+        event_time=now - timedelta(minutes=5),
+        available_at=now - timedelta(minutes=4, seconds=50),
+        value=payload.value,
+        unit=payload.unit,
+        source="venue_microstructure_stream",
+        lineage_ref=f"micro:{payload.kind}:v1",
+        license_ref="commercial:verified-data:v1",
+        attribution_confidence=0.95,
+        confirmations=max(0, payload.confirmations),
+        is_internal_custody_reshuffle=payload.is_internal_custody_reshuffle,
+    )
+    normalized = normalize_microstructure_covariates((evt,), bundle.instrument, as_of=now)
+    return {
+        "accepted_count": len(normalized),
+        "excluded_internal_reshuffle": payload.is_internal_custody_reshuffle,
+        "features": [f.model_dump(mode="json") for f in normalized],
+    }
+
+
+@app.post("/api/market/sec-edgar", include_in_schema=False)
+def filter_sec_edgar_endpoint(payload: SECEdgarFilterPayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc)
+    bundle = build_frozen_benchmark_dataset(track="open_market", anchor=now)
+    is_amend = payload.form_type.endswith("/A")
+    fact = SECEdgarFilingFact(
+        accession_number=f"0000320193-26-{int(now.timestamp()) % 100000:06d}",
+        cik="0000320193",
+        instrument_id=bundle.instrument.instrument_id,
+        form_type=payload.form_type,
+        concept=payload.concept,
+        value=payload.value,
+        unit="USD",
+        fiscal_period_end=now - timedelta(days=30),
+        acceptance_time=now - timedelta(days=2),
+        is_amendment=is_amend,
+    )
+    selected = select_as_filed_sec_facts(
+        (fact,),
+        instrument_id=bundle.instrument.instrument_id,
+        as_of=now,
+        allow_vintage_amendments=payload.allow_vintage_amendments,
+    )
+    return {
+        "selected_count": len(selected),
+        "facts": [f.model_dump(mode="json") for f in selected],
+        "execution_permission": "none",
+    }
+
+
+@app.post("/api/research/continuous-tick", include_in_schema=False)
+def run_continuous_research_tick(payload: ContinuousResearchTickPayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc)
+    try:
+        provider = GeminiResearchProvider(
+            workload=payload.workload,
+            tier="paid",
+            generate=lambda model, ctx: json.dumps(
+                {
+                    "regime": "trending",
+                    "summary": f"Synthesized ({model}): {payload.observation_note[:140]}",
+                    "confidence": 0.62,
+                    "risk_flags": ["uncalibrated_llm_confidence_isolated_from_combiner"],
+                }
+            ),
+        )
+        note_result = provider.analyze(payload.observation_note)
+        return {
+            "status": "completed",
+            "tick_timestamp": now.isoformat(),
+            "workload": payload.workload,
+            "research_note": note_result.model_dump(mode="json"),
+            "execution_permission": "none",
+        }
+    except PolicyError as exc:
+        return {
+            "status": "blocked_by_policy",
+            "tick_timestamp": now.isoformat(),
+            "workload": payload.workload,
+            "reason": str(exc),
+            "execution_permission": "none",
+        }
