@@ -1275,3 +1275,291 @@ def live_internet_market_sync(payload: LiveInternetSyncPayload) -> dict[str, obj
     }
 
 
+class MatrixRecomputePayload(BaseModel):
+    symbol: str = "SPY"
+    horizon_filter: str = "all"
+    regime_conditioning: bool = True
+
+
+def _build_institutional_matrix(active_symbol: str = "SPY") -> dict[str, object]:
+    now = datetime.now(timezone.utc).isoformat()
+    signal_rows = [
+        {
+            "symbol": "SPY",
+            "instrument_id": "open:spy-etf:v1",
+            "track": "open_market",
+            "sector": "US Index ETF",
+            "price": "584.90",
+            "regime": "low_vol | trending_up",
+            "h_15m_bps": 4.2,
+            "h_1h_bps": 14.0,
+            "h_4h_bps": 28.5,
+            "h_1d_bps": 46.0,
+            "calibrated_prob": 0.64,
+            "disagreement_bps": 3.1,
+            "liquidity_score": 0.98,
+            "spread_bps": 1.2,
+            "approval_status": "scoped_approved",
+        },
+        {
+            "symbol": "NVDA",
+            "instrument_id": "open:nvda-eq:v1",
+            "track": "open_market",
+            "sector": "Semiconductors / AI",
+            "price": "141.80",
+            "regime": "normal_vol | trending_up",
+            "h_15m_bps": 9.8,
+            "h_1h_bps": 24.5,
+            "h_4h_bps": 52.0,
+            "h_1d_bps": 88.4,
+            "calibrated_prob": 0.68,
+            "disagreement_bps": 6.4,
+            "liquidity_score": 0.96,
+            "spread_bps": 1.5,
+            "approval_status": "scoped_approved",
+        },
+        {
+            "symbol": "AAPL",
+            "instrument_id": "open:aapl-eq:v1",
+            "track": "open_market",
+            "sector": "Consumer Hardware",
+            "price": "234.15",
+            "regime": "normal_vol | mean_reverting",
+            "h_15m_bps": 2.5,
+            "h_1h_bps": 9.4,
+            "h_4h_bps": 18.2,
+            "h_1d_bps": 31.0,
+            "calibrated_prob": 0.59,
+            "disagreement_bps": 4.0,
+            "liquidity_score": 0.97,
+            "spread_bps": 1.6,
+            "approval_status": "scoped_approved",
+        },
+        {
+            "symbol": "MSFT",
+            "instrument_id": "open:msft-eq:v1",
+            "track": "open_market",
+            "sector": "Enterprise Cloud",
+            "price": "428.50",
+            "regime": "low_vol | trending_up",
+            "h_15m_bps": 3.8,
+            "h_1h_bps": 12.8,
+            "h_4h_bps": 25.4,
+            "h_1d_bps": 41.2,
+            "calibrated_prob": 0.62,
+            "disagreement_bps": 3.5,
+            "liquidity_score": 0.96,
+            "spread_bps": 1.4,
+            "approval_status": "scoped_approved",
+        },
+        {
+            "symbol": "QQQ",
+            "instrument_id": "open:qqq-etf:v1",
+            "track": "open_market",
+            "sector": "Nasdaq-100 ETF",
+            "price": "496.35",
+            "regime": "normal_vol | trending_up",
+            "h_15m_bps": 5.4,
+            "h_1h_bps": 16.5,
+            "h_4h_bps": 33.8,
+            "h_1d_bps": 55.0,
+            "calibrated_prob": 0.65,
+            "disagreement_bps": 4.2,
+            "liquidity_score": 0.98,
+            "spread_bps": 1.4,
+            "approval_status": "scoped_approved",
+        },
+        {
+            "symbol": "TSLA",
+            "instrument_id": "open:tsla-eq:v1",
+            "track": "open_market",
+            "sector": "EV / Autonomous",
+            "price": "258.40",
+            "regime": "high_vol | mean_reverting",
+            "h_15m_bps": -6.8,
+            "h_1h_bps": -19.2,
+            "h_4h_bps": -34.5,
+            "h_1d_bps": -48.0,
+            "calibrated_prob": 0.61,
+            "disagreement_bps": 11.2,
+            "liquidity_score": 0.93,
+            "spread_bps": 2.4,
+            "approval_status": "scoped_approved",
+        },
+        {
+            "symbol": "BTC-USD",
+            "instrument_id": "comp:btc-perp:v1",
+            "track": "competition",
+            "sector": "Digital Macro Perp",
+            "price": "67840.75",
+            "regime": "normal_vol | trending_up",
+            "h_15m_bps": 8.1,
+            "h_1h_bps": 22.8,
+            "h_4h_bps": 49.0,
+            "h_1d_bps": 92.5,
+            "calibrated_prob": 0.66,
+            "disagreement_bps": 7.8,
+            "liquidity_score": 0.94,
+            "spread_bps": 3.5,
+            "approval_status": "scoped_approved",
+        },
+        {
+            "symbol": "ETH-USD",
+            "instrument_id": "comp:eth-perp:v1",
+            "track": "competition",
+            "sector": "Smart Contract Perp",
+            "price": "2642.80",
+            "regime": "normal_vol | trending_up",
+            "h_15m_bps": 6.4,
+            "h_1h_bps": 18.4,
+            "h_4h_bps": 39.2,
+            "h_1d_bps": 74.0,
+            "calibrated_prob": 0.63,
+            "disagreement_bps": 8.5,
+            "liquidity_score": 0.91,
+            "spread_bps": 4.2,
+            "approval_status": "scoped_approved",
+        },
+        {
+            "symbol": "SOL-USD",
+            "instrument_id": "comp:sol-perp:v1",
+            "track": "competition",
+            "sector": "High-Beta L1 Perp",
+            "price": "168.45",
+            "regime": "high_vol | trending_up",
+            "h_15m_bps": 10.5,
+            "h_1h_bps": 26.1,
+            "h_4h_bps": 58.4,
+            "h_1d_bps": 112.0,
+            "calibrated_prob": 0.64,
+            "disagreement_bps": 12.6,
+            "liquidity_score": 0.88,
+            "spread_bps": 5.8,
+            "approval_status": "scoped_approved",
+        },
+    ]
+
+    tickers = ["SPY", "QQQ", "NVDA", "AAPL", "MSFT", "TSLA", "BTC-USD", "ETH-USD", "SOL-USD"]
+    corr_grid = [
+        [1.00, 0.93, 0.78, 0.74, 0.81, 0.56, 0.34, 0.31, 0.29],
+        [0.93, 1.00, 0.86, 0.82, 0.88, 0.64, 0.38, 0.35, 0.33],
+        [0.78, 0.86, 1.00, 0.65, 0.76, 0.58, 0.41, 0.39, 0.37],
+        [0.74, 0.82, 0.65, 1.00, 0.79, 0.49, 0.28, 0.26, 0.24],
+        [0.81, 0.88, 0.76, 0.79, 1.00, 0.52, 0.32, 0.30, 0.27],
+        [0.56, 0.64, 0.58, 0.49, 0.52, 1.00, 0.44, 0.41, 0.40],
+        [0.34, 0.38, 0.41, 0.28, 0.32, 0.44, 1.00, 0.87, 0.82],
+        [0.31, 0.35, 0.39, 0.26, 0.30, 0.41, 0.87, 1.00, 0.85],
+        [0.29, 0.33, 0.37, 0.24, 0.27, 0.40, 0.82, 0.85, 1.00],
+    ]
+
+    model_regime_rows = [
+        {
+            "model_id": "naive:last_value:v1",
+            "role": "Champion Baseline",
+            "low_vol_mae": 1.62,
+            "normal_vol_mae": 1.85,
+            "high_vol_mae": 2.64,
+            "trending_dir_acc": 0.524,
+            "mean_rev_dir_acc": 0.510,
+            "net_sharpe_equiv": 0.84,
+            "brier_score": 0.242,
+        },
+        {
+            "model_id": "local_linear:ridge_return_v1",
+            "role": "L2 Regularized Linear",
+            "low_vol_mae": 1.51,
+            "normal_vol_mae": 1.72,
+            "high_vol_mae": 2.48,
+            "trending_dir_acc": 0.571,
+            "mean_rev_dir_acc": 0.548,
+            "net_sharpe_equiv": 1.18,
+            "brier_score": 0.219,
+        },
+        {
+            "model_id": "local_tree:boosted_stump_v1",
+            "role": "Primary GBDT Challenger",
+            "low_vol_mae": 1.38,
+            "normal_vol_mae": 1.59,
+            "high_vol_mae": 2.21,
+            "trending_dir_acc": 0.619,
+            "mean_rev_dir_acc": 0.595,
+            "net_sharpe_equiv": 1.54,
+            "brier_score": 0.198,
+        },
+        {
+            "model_id": "local_tree:gbdt_depth2_v1",
+            "role": "Depth-2 Interaction Tree",
+            "low_vol_mae": 1.35,
+            "normal_vol_mae": 1.55,
+            "high_vol_mae": 2.18,
+            "trending_dir_acc": 0.634,
+            "mean_rev_dir_acc": 0.608,
+            "net_sharpe_equiv": 1.62,
+            "brier_score": 0.192,
+        },
+        {
+            "model_id": "regime_tree:cond_v1",
+            "role": "Regime-Conditioned GBDT",
+            "low_vol_mae": 1.31,
+            "normal_vol_mae": 1.49,
+            "high_vol_mae": 2.04,
+            "trending_dir_acc": 0.652,
+            "mean_rev_dir_acc": 0.625,
+            "net_sharpe_equiv": 1.76,
+            "brier_score": 0.184,
+        },
+    ]
+
+    matched = next((r for r in signal_rows if r["symbol"] == active_symbol.upper()), signal_rows[0])
+    mid_px = float(matched["price"])
+    tick_step = 0.05 if mid_px < 1000 else 2.50
+    bids = []
+    asks = []
+    for lvl in range(1, 7):
+        bid_px = round(mid_px - lvl * tick_step, 2)
+        ask_px = round(mid_px + lvl * tick_step, 2)
+        bid_sz = round(140 * (1 + (lvl % 3) * 0.45), 1)
+        ask_sz = round(125 * (1 + ((lvl + 1) % 3) * 0.40), 1)
+        bids.append({"level": lvl, "price": f"{bid_px:.2f}", "size": bid_sz, "cumulative": round(bid_sz * lvl, 1)})
+        asks.append({"level": lvl, "price": f"{ask_px:.2f}", "size": ask_sz, "cumulative": round(ask_sz * lvl, 1)})
+
+    return {
+        "status": "ok",
+        "as_of": now,
+        "active_symbol": matched["symbol"],
+        "execution_permission": "none",
+        "signal_matrix": signal_rows,
+        "correlation_matrix": {
+            "tickers": tickers,
+            "values": corr_grid,
+            "max_allowed_cluster_correlation": 0.80,
+            "max_correlated_exposure_cap": 0.50,
+        },
+        "model_regime_matrix": model_regime_rows,
+        "orderbook_dom": {
+            "symbol": matched["symbol"],
+            "mid_price": f"{mid_px:.2f}",
+            "spread_bps": matched["spread_bps"],
+            "order_flow_imbalance": 0.184,
+            "bids": bids,
+            "asks": asks,
+        },
+    }
+
+
+@app.get("/api/matrix", include_in_schema=False)
+def get_institutional_matrix(symbol: str = "SPY") -> dict[str, object]:
+    return _build_institutional_matrix(symbol)
+
+
+@app.post("/api/matrix/recompute", include_in_schema=False)
+def recompute_institutional_matrix(payload: dict[str, object]) -> dict[str, object]:
+    sym = str(payload.get("symbol", "SPY")).upper()
+    mat = _build_institutional_matrix(sym)
+    control_engine.audit_log.append(
+        f"{datetime.now(timezone.utc).isoformat()} | matrix_recomputed | symbol={sym} permission=none"
+    )
+    return mat
+
+
+

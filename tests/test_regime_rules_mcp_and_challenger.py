@@ -1158,6 +1158,26 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert live_sync.json()["status"] == "ok"
     assert len(live_sync.json()["candles"]) >= 6
 
+    # 12. Verify Institutional Quant, Signal, Correlation & DOM Matrix (/api/matrix, /api/matrix/recompute)
+    mat_get = client.get("/api/matrix")
+    assert mat_get.status_code == 200
+    mat_body = mat_get.json()
+    assert len(mat_body["signal_matrix"]) == 9
+    assert len(mat_body["correlation_matrix"]["tickers"]) == 9
+    assert len(mat_body["correlation_matrix"]["values"]) == 9
+    assert len(mat_body["model_regime_matrix"]) == 5
+    assert len(mat_body["orderbook_dom"]["bids"]) == 6
+
+    mat_recomp = client.post(
+        "/api/matrix/recompute",
+        json={"symbol": "NVDA", "horizon_filter": "1h"},
+    )
+    assert mat_recomp.status_code == 200
+    assert mat_recomp.json()["status"] == "ok"
+    assert mat_recomp.json()["execution_permission"] == "none"
+    assert mat_recomp.json()["active_symbol"] == "NVDA"
+
+
 
 
 

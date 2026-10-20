@@ -1453,3 +1453,187 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ==========================================================================
+   PERSISTENT MARKET TICKER TAPE, RIGHT TRADING DOCK & MATRIX HEATMAPS
+   ========================================================================== */
+
+.atlas-ticker-tape {
+  background: #04070d;
+  border-bottom: 1px solid var(--border-light);
+  padding: 5px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.ticker-chip {
+  appearance: none;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  border-radius: 4px;
+  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s ease;
+}
+
+.ticker-chip:hover {
+  border-color: var(--accent-blue);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.ticker-chip.active {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.16);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25);
+}
+
+.ticker-sym {
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.ticker-px {
+  color: #cbd5e1;
+}
+
+.ticker-chg {
+  font-weight: 700;
+  font-size: 9.5px;
+}
+
+.ticker-chg.up {
+  color: #34d399;
+}
+
+.ticker-chg.down {
+  color: #fb7185;
+}
+
+/* Split Main Body + Persistent Right Trading & Risk Dock */
+.atlas-body-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.atlas-body-split.dock-closed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.atlas-right-dock {
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding: 12px;
+  gap: 12px;
+}
+
+.dock-section {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 10px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dock-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 6px;
+}
+
+/* L2 Orderbook Depth-of-Market (DOM) Ladder */
+.dom-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.dom-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 2.5px 6px;
+  border-radius: 2px;
+  z-index: 1;
+}
+
+.dom-row.ask {
+  background: linear-gradient(90deg, transparent 35%, rgba(244, 63, 94, 0.14) 100%);
+  color: #fda4af;
+}
+
+.dom-row.bid {
+  background: linear-gradient(90deg, transparent 35%, rgba(16, 185, 129, 0.14) 100%);
+  color: #6ee7b7;
+}
+
+.dom-mid-banner {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 3px 0;
+}
+
+/* Matrix Heatmap Cells */
+.matrix-heat-cell {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  padding: 6px 8px;
+  border-radius: 3px;
+}
+
+.nav-icon-svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--accent-emerald);
+  opacity: 0.88;
+}
+
+@media (max-width: 1280px) {
+  .atlas-body-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .atlas-right-dock {
+    display: none;
+  }
+}
+

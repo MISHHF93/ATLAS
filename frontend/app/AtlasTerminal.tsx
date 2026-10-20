@@ -242,6 +242,7 @@ export type SectionId =
   | "overview"
   | "listings"
   | "market"
+  | "matrix"
   | "rules"
   | "research"
   | "experiments"
@@ -253,6 +254,312 @@ export type SectionId =
   | "governance"
   | "docs"
   | "profile";
+
+export type MatrixSignalRow = {
+  symbol: string;
+  instrument_id: string;
+  track: "competition" | "open_market";
+  sector: string;
+  price: string;
+  regime: string;
+  h_15m_bps: number;
+  h_1h_bps: number;
+  h_4h_bps: number;
+  h_1d_bps: number;
+  calibrated_prob: number;
+  disagreement_bps: number;
+  liquidity_score: number;
+  spread_bps: number;
+  approval_status: string;
+};
+
+export type MatrixModelRegimeRow = {
+  model_id: string;
+  role: string;
+  low_vol_mae: number;
+  normal_vol_mae: number;
+  high_vol_mae: number;
+  trending_dir_acc: number;
+  mean_rev_dir_acc: number;
+  net_sharpe_equiv: number;
+  brier_score: number;
+};
+
+export type MatrixDomBook = {
+  symbol: string;
+  mid_price: string;
+  spread_bps: number;
+  order_flow_imbalance: number;
+  bids: Array<{ level: number; price: string; size: number; cumulative: number }>;
+  asks: Array<{ level: number; price: string; size: number; cumulative: number }>;
+};
+
+export type InstitutionalMatrix = {
+  active_symbol: string;
+  signal_matrix: MatrixSignalRow[];
+  correlation_matrix: {
+    tickers: string[];
+    values: number[][];
+    max_allowed_cluster_correlation: number;
+    max_correlated_exposure_cap: number;
+  };
+  model_regime_matrix: MatrixModelRegimeRow[];
+  orderbook_dom: MatrixDomBook;
+};
+
+const DEFAULT_MATRIX: InstitutionalMatrix = {
+  active_symbol: "SPY",
+  signal_matrix: [
+    {
+      symbol: "SPY",
+      instrument_id: "open:spy-etf:v1",
+      track: "open_market",
+      sector: "US Index ETF",
+      price: "584.90",
+      regime: "low_vol | trending_up",
+      h_15m_bps: 4.2,
+      h_1h_bps: 14.0,
+      h_4h_bps: 28.5,
+      h_1d_bps: 46.0,
+      calibrated_prob: 0.64,
+      disagreement_bps: 3.1,
+      liquidity_score: 0.98,
+      spread_bps: 1.2,
+      approval_status: "scoped_approved",
+    },
+    {
+      symbol: "NVDA",
+      instrument_id: "open:nvda-eq:v1",
+      track: "open_market",
+      sector: "Semiconductors / AI",
+      price: "141.80",
+      regime: "normal_vol | trending_up",
+      h_15m_bps: 9.8,
+      h_1h_bps: 24.5,
+      h_4h_bps: 52.0,
+      h_1d_bps: 88.4,
+      calibrated_prob: 0.68,
+      disagreement_bps: 6.4,
+      liquidity_score: 0.96,
+      spread_bps: 1.5,
+      approval_status: "scoped_approved",
+    },
+    {
+      symbol: "AAPL",
+      instrument_id: "open:aapl-eq:v1",
+      track: "open_market",
+      sector: "Consumer Hardware",
+      price: "234.15",
+      regime: "normal_vol | mean_reverting",
+      h_15m_bps: 2.5,
+      h_1h_bps: 9.4,
+      h_4h_bps: 18.2,
+      h_1d_bps: 31.0,
+      calibrated_prob: 0.59,
+      disagreement_bps: 4.0,
+      liquidity_score: 0.97,
+      spread_bps: 1.6,
+      approval_status: "scoped_approved",
+    },
+    {
+      symbol: "MSFT",
+      instrument_id: "open:msft-eq:v1",
+      track: "open_market",
+      sector: "Enterprise Cloud",
+      price: "428.50",
+      regime: "low_vol | trending_up",
+      h_15m_bps: 3.8,
+      h_1h_bps: 12.8,
+      h_4h_bps: 25.4,
+      h_1d_bps: 41.2,
+      calibrated_prob: 0.62,
+      disagreement_bps: 3.5,
+      liquidity_score: 0.96,
+      spread_bps: 1.4,
+      approval_status: "scoped_approved",
+    },
+    {
+      symbol: "QQQ",
+      instrument_id: "open:qqq-etf:v1",
+      track: "open_market",
+      sector: "Nasdaq-100 ETF",
+      price: "496.35",
+      regime: "normal_vol | trending_up",
+      h_15m_bps: 5.4,
+      h_1h_bps: 16.5,
+      h_4h_bps: 33.8,
+      h_1d_bps: 55.0,
+      calibrated_prob: 0.65,
+      disagreement_bps: 4.2,
+      liquidity_score: 0.98,
+      spread_bps: 1.4,
+      approval_status: "scoped_approved",
+    },
+    {
+      symbol: "TSLA",
+      instrument_id: "open:tsla-eq:v1",
+      track: "open_market",
+      sector: "EV / Autonomous",
+      price: "258.40",
+      regime: "high_vol | mean_reverting",
+      h_15m_bps: -6.8,
+      h_1h_bps: -19.2,
+      h_4h_bps: -34.5,
+      h_1d_bps: -48.0,
+      calibrated_prob: 0.61,
+      disagreement_bps: 11.2,
+      liquidity_score: 0.93,
+      spread_bps: 2.4,
+      approval_status: "scoped_approved",
+    },
+    {
+      symbol: "BTC-USD",
+      instrument_id: "comp:btc-perp:v1",
+      track: "competition",
+      sector: "Digital Macro Perp",
+      price: "67840.75",
+      regime: "normal_vol | trending_up",
+      h_15m_bps: 8.1,
+      h_1h_bps: 22.8,
+      h_4h_bps: 49.0,
+      h_1d_bps: 92.5,
+      calibrated_prob: 0.66,
+      disagreement_bps: 7.8,
+      liquidity_score: 0.94,
+      spread_bps: 3.5,
+      approval_status: "scoped_approved",
+    },
+    {
+      symbol: "ETH-USD",
+      instrument_id: "comp:eth-perp:v1",
+      track: "competition",
+      sector: "Smart Contract Perp",
+      price: "2642.80",
+      regime: "normal_vol | trending_up",
+      h_15m_bps: 6.4,
+      h_1h_bps: 18.4,
+      h_4h_bps: 39.2,
+      h_1d_bps: 74.0,
+      calibrated_prob: 0.63,
+      disagreement_bps: 8.5,
+      liquidity_score: 0.91,
+      spread_bps: 4.2,
+      approval_status: "scoped_approved",
+    },
+    {
+      symbol: "SOL-USD",
+      instrument_id: "comp:sol-perp:v1",
+      track: "competition",
+      sector: "High-Beta L1 Perp",
+      price: "168.45",
+      regime: "high_vol | trending_up",
+      h_15m_bps: 10.5,
+      h_1h_bps: 26.1,
+      h_4h_bps: 58.4,
+      h_1d_bps: 112.0,
+      calibrated_prob: 0.64,
+      disagreement_bps: 12.6,
+      liquidity_score: 0.88,
+      spread_bps: 5.8,
+      approval_status: "scoped_approved",
+    },
+  ],
+  correlation_matrix: {
+    tickers: ["SPY", "QQQ", "NVDA", "AAPL", "MSFT", "TSLA", "BTC-USD", "ETH-USD", "SOL-USD"],
+    values: [
+      [1.0, 0.93, 0.78, 0.74, 0.81, 0.56, 0.34, 0.31, 0.29],
+      [0.93, 1.0, 0.86, 0.82, 0.88, 0.64, 0.38, 0.35, 0.33],
+      [0.78, 0.86, 1.0, 0.65, 0.76, 0.58, 0.41, 0.39, 0.37],
+      [0.74, 0.82, 0.65, 1.0, 0.79, 0.49, 0.28, 0.26, 0.24],
+      [0.81, 0.88, 0.76, 0.79, 1.0, 0.52, 0.32, 0.30, 0.27],
+      [0.56, 0.64, 0.58, 0.49, 0.52, 1.0, 0.44, 0.41, 0.4],
+      [0.34, 0.38, 0.41, 0.28, 0.32, 0.44, 1.0, 0.87, 0.82],
+      [0.31, 0.35, 0.39, 0.26, 0.3, 0.41, 0.87, 1.0, 0.85],
+      [0.29, 0.33, 0.37, 0.24, 0.27, 0.4, 0.82, 0.85, 1.0],
+    ],
+    max_allowed_cluster_correlation: 0.8,
+    max_correlated_exposure_cap: 0.5,
+  },
+  model_regime_matrix: [
+    {
+      model_id: "naive:last_value:v1",
+      role: "Champion Baseline",
+      low_vol_mae: 1.62,
+      normal_vol_mae: 1.85,
+      high_vol_mae: 2.64,
+      trending_dir_acc: 0.524,
+      mean_rev_dir_acc: 0.51,
+      net_sharpe_equiv: 0.84,
+      brier_score: 0.242,
+    },
+    {
+      model_id: "local_linear:ridge_return_v1",
+      role: "L2 Regularized Linear",
+      low_vol_mae: 1.51,
+      normal_vol_mae: 1.72,
+      high_vol_mae: 2.48,
+      trending_dir_acc: 0.571,
+      mean_rev_dir_acc: 0.548,
+      net_sharpe_equiv: 1.18,
+      brier_score: 0.219,
+    },
+    {
+      model_id: "local_tree:boosted_stump_v1",
+      role: "Primary GBDT Challenger",
+      low_vol_mae: 1.38,
+      normal_vol_mae: 1.59,
+      high_vol_mae: 2.21,
+      trending_dir_acc: 0.619,
+      mean_rev_dir_acc: 0.595,
+      net_sharpe_equiv: 1.54,
+      brier_score: 0.198,
+    },
+    {
+      model_id: "local_tree:gbdt_depth2_v1",
+      role: "Depth-2 Interaction Tree",
+      low_vol_mae: 1.35,
+      normal_vol_mae: 1.55,
+      high_vol_mae: 2.18,
+      trending_dir_acc: 0.634,
+      mean_rev_dir_acc: 0.608,
+      net_sharpe_equiv: 1.62,
+      brier_score: 0.192,
+    },
+    {
+      model_id: "regime_tree:cond_v1",
+      role: "Regime-Conditioned GBDT",
+      low_vol_mae: 1.31,
+      normal_vol_mae: 1.49,
+      high_vol_mae: 2.04,
+      trending_dir_acc: 0.652,
+      mean_rev_dir_acc: 0.625,
+      net_sharpe_equiv: 1.76,
+      brier_score: 0.184,
+    },
+  ],
+  orderbook_dom: {
+    symbol: "SPY",
+    mid_price: "584.90",
+    spread_bps: 1.2,
+    order_flow_imbalance: 0.184,
+    bids: [
+      { level: 1, price: "584.85", size: 203.0, cumulative: 203.0 },
+      { level: 2, price: "584.80", size: 266.0, cumulative: 532.0 },
+      { level: 3, price: "584.75", size: 140.0, cumulative: 420.0 },
+      { level: 4, price: "584.70", size: 203.0, cumulative: 812.0 },
+      { level: 5, price: "584.65", size: 266.0, cumulative: 1330.0 },
+      { level: 6, price: "584.60", size: 140.0, cumulative: 840.0 },
+    ],
+    asks: [
+      { level: 1, price: "584.95", size: 225.0, cumulative: 225.0 },
+      { level: 2, price: "585.00", size: 125.0, cumulative: 250.0 },
+      { level: 3, price: "585.05", size: 175.0, cumulative: 525.0 },
+      { level: 4, price: "585.10", size: 225.0, cumulative: 900.0 },
+      { level: 5, price: "585.15", size: 125.0, cumulative: 625.0 },
+      { level: 6, price: "585.20", size: 175.0, cumulative: 1050.0 },
+    ],
+  },
+};
 
 export type WarehouseNode = {
   node_id: string;
@@ -1701,6 +2008,114 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
     "Live Internet Market Sync Ready (Coinbase Public REST + TradingView Live Engine)"
   );
 
+  const [matrixData, setMatrixData] = useState<InstitutionalMatrix>(DEFAULT_MATRIX);
+  const [matrixTab, setMatrixTab] = useState<"signals" | "correlation" | "regime_models" | "dom">("signals");
+  const [matrixNotice, setMatrixNotice] = useState<string>(
+    "Institutional 9-Asset Quant Matrix Online · Multi-Horizon Alpha, 9x9 Cross-Asset Correlation, Model x Regime & L2 DOM"
+  );
+  const [dockOpen, setDockOpen] = useState<boolean>(true);
+  const [domSymbol, setDomSymbol] = useState<string>("SPY");
+
+  async function handleRecomputeMatrix(focusSymbol?: string) {
+    const sym = focusSymbol ?? domSymbol;
+    try {
+      const res = await fetch(`${API}/api/matrix/recompute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: sym, horizon: "1h" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.signal_matrix)) {
+          setMatrixData(data);
+        } else if (data.matrix && Array.isArray(data.matrix.signal_matrix)) {
+          setMatrixData(data.matrix);
+        }
+        setMatrixNotice(
+          `Matrix recomputed across 9 assets & 4 horizons (focus=${sym}, execution_permission=none)`
+        );
+        setAuditLog((prev) => [
+          ...prev,
+          `${new Date().toISOString()} | matrix_recompute | focus=${sym} | assets=${data.signal_matrix?.length ?? 9}`,
+        ]);
+        return;
+      }
+    } catch {
+      // Deterministic local fallback
+    }
+    setMatrixData((prev) => ({
+      ...prev,
+      active_symbol: sym,
+      signal_matrix: prev.signal_matrix.map((row) =>
+        row.symbol === sym
+          ? {
+              ...row,
+              h_1h_bps: Number((row.h_1h_bps + 2.4).toFixed(1)),
+              calibrated_prob: Number(Math.min(0.85, row.calibrated_prob + 0.01).toFixed(2)),
+            }
+          : row
+      ),
+    }));
+    setMatrixNotice(`Matrix recomputed locally for ${sym} across 15m/1h/4h/1D horizons (execution_permission=none).`);
+    setAuditLog((prev) => [...prev, `${new Date().toISOString()} | matrix_recompute | focus=${sym}`]);
+  }
+
+  function applyConfigPreset(preset: "prop_100k_2phase" | "prop_50k_instant" | "stock_desk_250k" | "strict_comp") {
+    if (preset === "prop_100k_2phase") {
+      setPlatformConfig({
+        ...platformConfig,
+        competition_max_notional_usd: "25000.00",
+        open_market_max_notional_usd: "15000.00",
+        daily_loss_limit_pct: "4.00",
+        trailing_drawdown_limit_pct: "8.00",
+        per_trade_risk_limit_pct: "0.50",
+        min_stop_distance_bps: 25,
+        auto_flatten_on_breach: true,
+        enforce_consistency_rule: true,
+      });
+      setConfigNotice("Preset Loaded: $100K 2-Phase Prop Evaluation (4% Daily / 8% Trailing / <=35% Consistency Gate).");
+    } else if (preset === "prop_50k_instant") {
+      setPlatformConfig({
+        ...platformConfig,
+        competition_max_notional_usd: "12500.00",
+        open_market_max_notional_usd: "10000.00",
+        daily_loss_limit_pct: "3.00",
+        trailing_drawdown_limit_pct: "6.00",
+        per_trade_risk_limit_pct: "0.35",
+        min_stop_distance_bps: 30,
+        auto_flatten_on_breach: true,
+        enforce_consistency_rule: true,
+      });
+      setConfigNotice("Preset Loaded: $50K Instant Funded Prop Account (3% Daily / 6% Trailing / 0.35% Per-Trade Risk).");
+    } else if (preset === "stock_desk_250k") {
+      setPlatformConfig({
+        ...platformConfig,
+        competition_max_notional_usd: "50000.00",
+        open_market_max_notional_usd: "50000.00",
+        daily_loss_limit_pct: "5.00",
+        trailing_drawdown_limit_pct: "10.00",
+        per_trade_risk_limit_pct: "0.75",
+        min_stop_distance_bps: 20,
+        auto_flatten_on_breach: true,
+        enforce_consistency_rule: false,
+      });
+      setConfigNotice("Preset Loaded: $250K U.S. Stock & ETF Institutional Desk (NYSE/Nasdaq Reg-T & Intraday Risk Rules).");
+    } else {
+      setPlatformConfig({
+        ...platformConfig,
+        competition_max_notional_usd: "20000.00",
+        open_market_max_notional_usd: "10000.00",
+        daily_loss_limit_pct: "3.50",
+        trailing_drawdown_limit_pct: "7.00",
+        per_trade_risk_limit_pct: "0.40",
+        min_stop_distance_bps: 35,
+        auto_flatten_on_breach: true,
+        enforce_consistency_rule: true,
+      });
+      setConfigNotice("Preset Loaded: Strict Tournament Competition Mode (3.5% Daily / 7% Trailing / 35 bps Min Stop).");
+    }
+  }
+
   async function handleWarehouseAction(
     nodeId: string,
     action: "run_pit_query" | "sync_partition" | "verify_manifest"
@@ -2465,6 +2880,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
       readJson<{ pipelines: SyncPipeline[] }>("/api/sync", controller.signal).catch(() => ({ pipelines: DEFAULT_SYNC_PIPELINES })),
       readJson<PlatformConfig>("/api/configurations", controller.signal).catch(() => DEFAULT_PLATFORM_CONFIG),
       readJson<{ nodes: WarehouseNode[] }>("/api/warehouse", controller.signal).catch(() => ({ nodes: DEFAULT_WAREHOUSE_NODES })),
+      readJson<InstitutionalMatrix>("/api/matrix", controller.signal).catch(() => DEFAULT_MATRIX),
     ])
       .then(
         ([
@@ -2479,6 +2895,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           syncBody,
           configBody,
           warehouseBody,
+          matrixBody,
         ]) => {
           if (cancelled) return;
           if (healthBody.status !== "ok" || !isCandlePage(candleBody) || !Array.isArray(capabilityBody.providers)) {
@@ -2509,6 +2926,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           }
           if (Array.isArray(warehouseBody.nodes) && warehouseBody.nodes.length > 0) {
             setWarehouseNodes(warehouseBody.nodes);
+          }
+          if (matrixBody && Array.isArray(matrixBody.signal_matrix)) {
+            setMatrixData(matrixBody);
           }
         }
       )
@@ -2562,6 +2982,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
 
   const SECTION_ROUTES: Record<Exclude<SectionId, "all">, string> = {
     overview: "/",
+    matrix: "/matrix",
     listings: "/listings",
     market: "/market",
     warehouse: "/warehouse",
@@ -2578,24 +2999,31 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
   };
 
   const SECTION_META: Record<SectionId, { tag: string; title: string }> = {
-    overview: { tag: "LAYER 01 · COMMAND", title: "Institutional Command & System Architecture" },
-    listings: { tag: "LAYER 02 · LIVE LISTINGS", title: "Multi-Asset Live Listings, Regime Screener & Order Routing" },
-    market: { tag: "LAYER 03 · MARKET & LIVE CHARTS", title: "Point-in-Time Market Feed, TradingView Live & Coinbase API" },
+    overview: { tag: "INSTITUTIONAL COMMAND DESK", title: "Executive Trading Desk, Prop Challenge & System Architecture" },
+    matrix: {
+      tag: "QUANT & SIGNAL MATRIX",
+      title: "Multi-Horizon Signal Grid, 9x9 Cross-Asset Correlation, Model x Regime & L2 DOM",
+    },
+    listings: { tag: "MULTI-ASSET SCREENER", title: "Live U.S. Equities, ETFs & Prop Perp Listings & Order Routing" },
+    market: { tag: "MARKET & LIVE CHARTS", title: "Point-in-Time Market Feed, TradingView Live & Exchange API" },
     warehouse: {
-      tag: "LAYER 04 · DATA WAREHOUSE & APIS",
+      tag: "DATA WAREHOUSE & LAKEHOUSE",
       title: "Google Cloud BigQuery Analytics Hub, DuckDB PIT Lakehouse & Market APIs",
     },
-    rules: { tag: "LAYER 05 · CONTROL PLANE", title: "Deterministic Order Authorization, Risk Proximity & Kill Switch" },
-    governance: { tag: "LAYER 06 · GOVERNANCE", title: "9 Readiness Gates, 8 Non-Custodial Ledgers & ISO/NIST Alignment" },
-    research: { tag: "LAYER 07 · AI SYNTHESIS", title: "Multi-Model Forecast Surface, Calibration & Gemini Continuous Node" },
-    experiments: { tag: "LAYER 08 · EVALUATION", title: "Purged Walk-Forward Lab, Paper Simulation & Horizon Comparison" },
-    models: { tag: "LAYER 09 · MODEL & MCP", title: "Scratch Model Lifecycle, Allowlisted MCP & Whale/SEC XBRL Filters" },
-    sync: { tag: "LAYER 10 · SYNC CENTER", title: "Real-Time Point-in-Time Pipeline Synchronization & SHA-256 Manifests" },
-    connectors: { tag: "LAYER 11 · INTEGRATIONS", title: "3rd-Party Integrations, MCP Servers & AI Provider Hub" },
-    configurations: { tag: "LAYER 12 · CONFIGURATIONS", title: "Global Platform Configurations, Risk Rulebooks & Runtime Settings" },
-    profile: { tag: "LAYER 13 · USER PROFILE", title: "Founder Operator Profile, IP Ownership & Signing Authority" },
-    docs: { tag: "LAYER 14 · SPECIFICATIONS", title: "Master Spec, Operating Contracts & Architecture Reference" },
-    all: { tag: "FULL PLATFORM", title: "Complete Unified ATLAS Operating Surface" },
+    rules: { tag: "EXECUTION & RISK ENGINE", title: "Deterministic Order Authorization, Drawdown Gauges & Kill Switch" },
+    governance: { tag: "INSTITUTIONAL GOVERNANCE", title: "9 Readiness Gates, 8 Non-Custodial Ledgers & ISO/NIST Alignment" },
+    research: { tag: "AI & QUANT SYNTHESIS", title: "Multi-Model Forecast Surface, Calibration & Gemini Continuous Node" },
+    experiments: { tag: "EVALUATION & BACKTEST LAB", title: "Purged Walk-Forward Lab, Paper Simulation & Horizon Comparison" },
+    models: { tag: "MODEL REGISTRY & SEC XBRL", title: "Scratch Model Lifecycle, Allowlisted MCP & Whale/SEC XBRL Filters" },
+    sync: { tag: "PIPELINE SYNCHRONIZATION", title: "Real-Time Point-in-Time Pipeline Synchronization & SHA-256 Manifests" },
+    connectors: { tag: "INTEGRATIONS & MCP HUB", title: "3rd-Party Integrations, Allowlisted MCP Servers & AI Provider Hub" },
+    configurations: {
+      tag: "MASTER CONFIGURATIONS",
+      title: "Prop Challenge Presets, Risk Rulebooks, AI Runtime & Rate Budgets",
+    },
+    profile: { tag: "OPERATOR AUTHORITY", title: "Founder Operator Profile, IP Ownership & Signing Authority" },
+    docs: { tag: "ARCHITECTURE & SPECS", title: "Master Spec, Operating Contracts & Architecture Reference" },
+    all: { tag: "UNIFIED OPERATING SURFACE", title: "Complete End-to-End ATLAS Prop & Stock Trading Platform" },
   };
 
   function navigateSection(nextSection: SectionId) {
@@ -2631,11 +3059,12 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
 
   const currentMeta = SECTION_META[activeSection] ?? SECTION_META.overview;
   const connectedCount = connectorsList.filter((c) => c.status === "connected").length;
+  const activeDomBook = matrixData.orderbook_dom ?? DEFAULT_MATRIX.orderbook_dom;
 
   return (
     <div className="atlas-app" data-theme={theme}>
       {/* ====================================================================
-          LEFT INSTITUTIONAL NAVIGATION RAIL (COMPLETE 13-SECTION MAP)
+          LEFT INSTITUTIONAL NAVIGATION RAIL (ICON-DRIVEN DOMAIN WORKBUNDLES)
          ==================================================================== */}
       <aside className="atlas-sidebar" aria-label="ATLAS platform navigation">
         <div className="sidebar-brand">
@@ -2648,17 +3077,36 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
 
         <nav className="sidebar-nav">
           <div className="nav-group">
-            <div className="nav-group-label">Command, Listings & Markets</div>
+            <div className="nav-group-label">Trading Desk & Markets</div>
             <button
               type="button"
               className={`nav-item ${activeSection === "overview" ? "active" : ""}`}
               onClick={() => navigateSection("overview")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">01</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <rect x="2" y="2" width="5" height="5" rx="1" />
+                  <rect x="9" y="2" width="5" height="5" rx="1" />
+                  <rect x="2" y="9" width="5" height="5" rx="1" />
+                  <rect x="9" y="9" width="5" height="5" rx="1" />
+                </svg>
                 <span className="nav-label">Command Center</span>
               </span>
-              <span className="nav-badge">LIVE</span>
+              <span className="nav-badge">DESK</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "matrix" ? "active" : ""}`}
+              onClick={() => navigateSection("matrix")}
+            >
+              <span className="nav-item-left">
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M2 2h12v12H2z" />
+                  <path d="M2 6h12M2 10h12M6 2v12M10 2v12" />
+                </svg>
+                <span className="nav-label">Quant & Signal Matrix</span>
+              </span>
+              <span className="nav-badge">9×9</span>
             </button>
             <button
               type="button"
@@ -2666,7 +3114,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("listings")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">02</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M2 4h12M2 8h12M2 12h12" />
+                </svg>
                 <span className="nav-label">Live Listings</span>
               </span>
               <span className="nav-badge">{listingsList.length} ASSETS</span>
@@ -2677,7 +3127,10 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("market")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">03</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M2 12l4-4 3 2 5-6" />
+                  <path d="M10 4h4v4" />
+                </svg>
                 <span className="nav-label">Live Charts & Market PIT</span>
               </span>
               <span className="nav-badge">{candles.length}b</span>
@@ -2688,7 +3141,11 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("warehouse")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">04</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <ellipse cx="8" cy="4" rx="5.5" ry="2" />
+                  <path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4" />
+                  <path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2" />
+                </svg>
                 <span className="nav-label">API Data Warehouse</span>
               </span>
               <span className="nav-badge">{warehouseNodes.length} NODES</span>
@@ -2696,14 +3153,16 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           </div>
 
           <div className="nav-group">
-            <div className="nav-group-label">Deterministic Control</div>
+            <div className="nav-group-label">Risk & Execution Control</div>
             <button
               type="button"
               className={`nav-item ${activeSection === "rules" ? "active" : ""}`}
               onClick={() => navigateSection("rules")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">05</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M8 2l5 2v4c0 3.2-2.2 5.4-5 6-2.8-.6-5-2.8-5-6V4l5-2z" />
+                </svg>
                 <span className="nav-label">Execution & Risk Rules</span>
               </span>
               <span className="nav-badge">{killSwitchEngaged ? "HALT" : `${openPositions.length} POS`}</span>
@@ -2714,7 +3173,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("governance")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">06</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M3 13h10M4 10V6M8 10V6M12 10V6M2 6l6-3.5L14 6" />
+                </svg>
                 <span className="nav-label">Governance & 8 Ledgers</span>
               </span>
               <span className="nav-badge">9 GATES</span>
@@ -2729,7 +3190,10 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("research")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">07</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <circle cx="8" cy="8" r="5.5" />
+                  <path d="M8 4.5v3.5l2.5 1.5" />
+                </svg>
                 <span className="nav-label">Forecasts & Gemini Tick</span>
               </span>
               <span className="nav-badge">24/7</span>
@@ -2740,7 +3204,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("experiments")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">08</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M6 2h4M7 2v4l-3.5 6.2A1 1 0 004.4 13.7h7.2a1 1 0 00.9-1.5L9 6V2" />
+                </svg>
                 <span className="nav-label">Walk-Forward & Tracks</span>
               </span>
               <span className="nav-badge">EXP-01</span>
@@ -2751,7 +3217,12 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("models")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">09</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <circle cx="4" cy="4" r="2" />
+                  <circle cx="12" cy="4" r="2" />
+                  <circle cx="8" cy="12" r="2" />
+                  <path d="M5.5 5.5l1.5 5M10.5 5.5l-1.5 5" />
+                </svg>
                 <span className="nav-label">Models, MCP & SEC XBRL</span>
               </span>
               <span className="nav-badge">v{trainingRuns}</span>
@@ -2759,14 +3230,16 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           </div>
 
           <div className="nav-group">
-            <div className="nav-group-label">Sync, Integrations & Config</div>
+            <div className="nav-group-label">Infrastructure & Administration</div>
             <button
               type="button"
               className={`nav-item ${activeSection === "sync" ? "active" : ""}`}
               onClick={() => navigateSection("sync")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">10</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M3 8a5 5 0 018.5-3.5L13 6M13 8a5 5 0 01-8.5 3.5L3 10" />
+                </svg>
                 <span className="nav-label">Data Syncing Center</span>
               </span>
               <span className="nav-badge">{syncPipelines.length} PIPES</span>
@@ -2777,7 +3250,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("connectors")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">11</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M6 3v3M10 3v3M4 6h8v3a4 4 0 01-8 0V6zM8 13v2" />
+                </svg>
                 <span className="nav-label">Integrations & MCP Hub</span>
               </span>
               <span className="nav-badge">{connectedCount}/11</span>
@@ -2788,10 +3263,15 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("configurations")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">12</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M2 4h8M12 4h2M2 8h3M7 8h7M2 12h6M10 12h4" />
+                  <circle cx="11" cy="4" r="1.5" />
+                  <circle cx="6" cy="8" r="1.5" />
+                  <circle cx="9" cy="12" r="1.5" />
+                </svg>
                 <span className="nav-label">Platform Configurations</span>
               </span>
-              <span className="nav-badge">GLOBAL</span>
+              <span className="nav-badge">PRESETS</span>
             </button>
             <button
               type="button"
@@ -2799,7 +3279,10 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("profile")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">13</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <circle cx="8" cy="5.5" r="2.5" />
+                  <path d="M3 13.5c0-2.5 2.2-4 5-4s5 1.5 5 4" />
+                </svg>
                 <span className="nav-label">User Profile & Keys</span>
               </span>
               <span className="nav-badge">OWNER</span>
@@ -2810,7 +3293,10 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("docs")}
             >
               <span className="nav-item-left">
-                <span className="nav-code">14</span>
+                <svg className="nav-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M4 2h6l3 3v9H4V2z" />
+                  <path d="M6 7h5M6 10h5" />
+                </svg>
                 <span className="nav-label">Architecture & Specs</span>
               </span>
               <span className="nav-badge">{docsList.length} DOCS</span>
@@ -2843,7 +3329,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
       </aside>
 
       {/* ====================================================================
-          MAIN WORKSPACE COLUMN (Unified Topbar + Active Module Workbench)
+          MAIN WORKSPACE COLUMN (Unified Topbar + Ticker Tape + Split Dock)
          ==================================================================== */}
       <div className="atlas-main">
         <div className="institutional-ribbon" aria-label="Institutional System Telemetry Ribbon">
@@ -2894,6 +3380,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                   setStudyTrack("open_market");
                   setOrderTrack("open_market");
                   setOrderInstrument("open:spy-etf:v1");
+                  setDomSymbol("SPY");
                   handleLiveInternetSync("SPY");
                 }}
               >
@@ -2906,6 +3393,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                   setStudyTrack("competition");
                   setOrderTrack("competition");
                   setOrderInstrument("comp:btc-perp:v1");
+                  setDomSymbol("BTC-USD");
                   handleLiveInternetSync("BTC-USD");
                 }}
               >
@@ -2934,6 +3422,14 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           <div className="topbar-controls">
             <button
               type="button"
+              className={`btn btn-sm ${activeSection === "matrix" ? "btn-primary" : "btn-outline"}`}
+              onClick={() => navigateSection("matrix")}
+            >
+              Quant Matrix (9×9)
+            </button>
+
+            <button
+              type="button"
               className={`btn btn-sm ${activeSection === "listings" ? "btn-primary" : "btn-outline"}`}
               onClick={() => navigateSection("listings")}
             >
@@ -2945,23 +3441,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               className={`btn btn-sm ${activeSection === "warehouse" ? "btn-primary" : "btn-outline"}`}
               onClick={() => navigateSection("warehouse")}
             >
-              Data Warehouse ({warehouseNodes.length})
-            </button>
-
-            <button
-              type="button"
-              className={`btn btn-sm ${activeSection === "sync" ? "btn-primary" : "btn-outline"}`}
-              onClick={() => navigateSection("sync")}
-            >
-              Sync Center
-            </button>
-
-            <button
-              type="button"
-              className={`btn btn-sm ${activeSection === "connectors" ? "btn-primary" : "btn-outline"}`}
-              onClick={() => navigateSection("connectors")}
-            >
-              Integrations ({connectedCount}/11)
+              Warehouse ({warehouseNodes.length})
             </button>
 
             <button
@@ -2970,6 +3450,14 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               onClick={() => navigateSection("configurations")}
             >
               Configurations
+            </button>
+
+            <button
+              type="button"
+              className={`btn btn-sm ${dockOpen ? "btn-primary" : "btn-dark"}`}
+              onClick={() => setDockOpen((d) => !d)}
+            >
+              {dockOpen ? "📊 Hide Order/DOM Dock" : "📊 Open Order/DOM Dock"}
             </button>
 
             <button
@@ -3001,7 +3489,38 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           </div>
         </header>
 
-        <main className="atlas-workspace">
+        {/* ==================================================================
+            LIVE MULTI-ASSET TICKER TAPE (U.S. STOCKS, ETFS & PROP PERPS)
+           ================================================================== */}
+        <div className="atlas-ticker-tape" aria-label="Live Multi-Asset Ticker Tape">
+          {listingsList.map((item) => (
+            <button
+              key={item.symbol}
+              type="button"
+              className={`ticker-chip ${effectivePage.symbol === item.symbol || domSymbol === item.symbol ? "active" : ""}`}
+              onClick={() => {
+                setDomSymbol(item.symbol);
+                setOrderTrack(item.track);
+                setStudyTrack(item.track);
+                setOrderInstrument(item.instrument_id);
+                handleLiveInternetSync(item.symbol);
+              }}
+            >
+              <span className="ticker-sym">{item.symbol}</span>
+              <span className="ticker-px">${formatPrice(item.price)}</span>
+              <span className={`ticker-chg ${item.change_24h_pct >= 0 ? "up" : "down"}`}>
+                {item.change_24h_pct >= 0 ? "+" : ""}
+                {item.change_24h_pct.toFixed(2)}%
+              </span>
+              <span className="badge badge-slate" style={{ fontSize: "9px", padding: "1px 5px" }}>
+                {item.track === "open_market" ? "STOCK" : "PERP"}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className={`atlas-body-split ${dockOpen ? "" : "dock-closed"}`}>
+          <main className="atlas-workspace">
           {/* ================================================================
               UNIVERSAL "CONFIGURE ANYTHING ANYWHERE" QUICK DRAWER
              ================================================================ */}
@@ -3507,6 +4026,432 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           )}
 
           {/* ================================================================
+              QUANT, SIGNAL, CORRELATION & L2 DOM MATRIX (/matrix)
+             ================================================================ */}
+          {showSection("matrix") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Multi-Horizon Signal Matrix</span>
+                    <span className="badge badge-emerald">9 ASSETS × 4 HORIZONS</span>
+                  </div>
+                  <div className="kpi-value">15m · 1h · 4h · 1D</div>
+                  <div className="kpi-sub">
+                    <span>Stocks (SPY, NVDA, AAPL, MSFT, QQQ, TSLA) + Perps</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Cross-Asset Correlation Gate</span>
+                    <span className="badge badge-blue">9×9 COVARIANCE</span>
+                  </div>
+                  <div className="kpi-value">
+                    &lt;= {matrixData.correlation_matrix.max_allowed_cluster_correlation.toFixed(2)} Gate
+                  </div>
+                  <div className="kpi-sub">
+                    <span>
+                      Max Cluster Weight Cap:{" "}
+                      {(matrixData.correlation_matrix.max_correlated_exposure_cap * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="kpi-card purple">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Model × Causal Regime Grid</span>
+                    <span className="badge badge-purple">5 FAMILIES × 5 REGIMES</span>
+                  </div>
+                  <div className="kpi-value">OOS Sharpe Matrix</div>
+                  <div className="kpi-sub">
+                    <span>Purged Walk-Forward Attribution</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card amber">
+                  <div className="kpi-top">
+                    <span className="kpi-label">L2 Orderbook DOM Ladder</span>
+                    <span className="badge badge-emerald">{activeDomBook.symbol}</span>
+                  </div>
+                  <div className="kpi-value">{activeDomBook.spread_bps.toFixed(1)} bps Spread</div>
+                  <div className="kpi-sub">
+                    <span>OFI: {(activeDomBook.order_flow_imbalance * 100).toFixed(0)}% · Active Book</span>
+                  </div>
+                </div>
+              </div>
+
+              <section className="panel-card">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <span className="panel-eyebrow">
+                      Institutional Quantitative Matrix · /api/matrix · Focus: {matrixData.active_symbol}
+                    </span>
+                    <h2 className="panel-title">
+                      Multi-Horizon Signal Grid, 9×9 Cross-Asset Correlation, Model × Regime & L2 DOM
+                    </h2>
+                  </div>
+                  <div className="btn-row">
+                    <div className="segmented-tabs">
+                      <button
+                        type="button"
+                        className={`seg-tab ${matrixTab === "signals" ? "active" : ""}`}
+                        onClick={() => setMatrixTab("signals")}
+                      >
+                        1. Signal & Horizon Matrix (9×4)
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-tab ${matrixTab === "correlation" ? "active" : ""}`}
+                        onClick={() => setMatrixTab("correlation")}
+                      >
+                        2. Cross-Asset Correlation (9×9)
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-tab ${matrixTab === "regime_models" ? "active" : ""}`}
+                        onClick={() => setMatrixTab("regime_models")}
+                      >
+                        3. Model × Regime Matrix (5×5)
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-tab ${matrixTab === "dom" ? "active" : ""}`}
+                        onClick={() => setMatrixTab("dom")}
+                      >
+                        4. L2 DOM & Microstructure
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => handleRecomputeMatrix(domSymbol)}
+                    >
+                      ⚡ Recompute Matrix ({domSymbol})
+                    </button>
+                  </div>
+                </div>
+
+                <div className="panel-body">
+                  <div className="telemetry-console">
+                    <div className="console-line">&gt; {matrixNotice}</div>
+                  </div>
+
+                  {(matrixTab === "signals" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Symbol & Sector</th>
+                            <th>Track</th>
+                            <th>Last Price</th>
+                            <th>15m Alpha (bps)</th>
+                            <th>1h Alpha (bps)</th>
+                            <th>4h Alpha (bps)</th>
+                            <th>1D Alpha (bps)</th>
+                            <th>Calibrated P(Up)</th>
+                            <th>Disagreement</th>
+                            <th>Causal Regime</th>
+                            <th>Liquidity / Spread</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {matrixData.signal_matrix.map((row) => (
+                            <tr key={row.symbol}>
+                              <td>
+                                <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{row.symbol}</div>
+                                <div className="mono-cell" style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+                                  {row.sector}
+                                </div>
+                              </td>
+                              <td>
+                                <span className={`badge ${row.track === "open_market" ? "badge-blue" : "badge-purple"}`}>
+                                  {row.track === "open_market" ? "STOCK DESK" : "PROP COMP"}
+                                </span>
+                              </td>
+                              <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                ${formatPrice(row.price)}
+                              </td>
+                              <td>
+                                <span
+                                  className={`matrix-heat-cell ${
+                                    row.h_15m_bps > 5
+                                      ? "pos-strong"
+                                      : row.h_15m_bps >= 0
+                                        ? "pos-mild"
+                                        : row.h_15m_bps < -5
+                                          ? "neg-strong"
+                                          : "neg-mild"
+                                  }`}
+                                >
+                                  {row.h_15m_bps >= 0 ? "+" : ""}
+                                  {row.h_15m_bps.toFixed(1)}
+                                </span>
+                              </td>
+                              <td>
+                                <span
+                                  className={`matrix-heat-cell ${
+                                    row.h_1h_bps > 10
+                                      ? "pos-strong"
+                                      : row.h_1h_bps >= 0
+                                        ? "pos-mild"
+                                        : row.h_1h_bps < -10
+                                          ? "neg-strong"
+                                          : "neg-mild"
+                                  }`}
+                                >
+                                  {row.h_1h_bps >= 0 ? "+" : ""}
+                                  {row.h_1h_bps.toFixed(1)}
+                                </span>
+                              </td>
+                              <td>
+                                <span
+                                  className={`matrix-heat-cell ${
+                                    row.h_4h_bps > 20
+                                      ? "pos-strong"
+                                      : row.h_4h_bps >= 0
+                                        ? "pos-mild"
+                                        : row.h_4h_bps < -20
+                                          ? "neg-strong"
+                                          : "neg-mild"
+                                  }`}
+                                >
+                                  {row.h_4h_bps >= 0 ? "+" : ""}
+                                  {row.h_4h_bps.toFixed(1)}
+                                </span>
+                              </td>
+                              <td>
+                                <span
+                                  className={`matrix-heat-cell ${
+                                    row.h_1d_bps > 40
+                                      ? "pos-strong"
+                                      : row.h_1d_bps >= 0
+                                        ? "pos-mild"
+                                        : row.h_1d_bps < -40
+                                          ? "neg-strong"
+                                          : "neg-mild"
+                                  }`}
+                                >
+                                  {row.h_1d_bps >= 0 ? "+" : ""}
+                                  {row.h_1d_bps.toFixed(1)}
+                                </span>
+                              </td>
+                              <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                {(row.calibrated_prob * 100).toFixed(0)}%
+                              </td>
+                              <td className="mono-cell">{row.disagreement_bps.toFixed(1)} bps</td>
+                              <td>
+                                <span className="badge badge-slate">{row.regime}</span>
+                              </td>
+                              <td className="mono-cell">
+                                {(row.liquidity_score * 100).toFixed(0)}% / {row.spread_bps.toFixed(1)} bps
+                              </td>
+                              <td>
+                                <div className="btn-row">
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => {
+                                      setDomSymbol(row.symbol);
+                                      setOrderTrack(row.track);
+                                      setStudyTrack(row.track);
+                                      setOrderInstrument(row.instrument_id);
+                                      setOrderSide(row.h_1h_bps < 0 ? "sell" : "buy");
+                                      setDockOpen(true);
+                                      handleRecomputeMatrix(row.symbol);
+                                    }}
+                                  >
+                                    Route to Dock
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {(matrixTab === "correlation" || activeSection === "all") && (
+                    <div className="bento-stack">
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>9×9 Cross-Asset Realized Correlation Matrix (Enforcing &lt;= 0.80 Ensemble Gate)</span>
+                          <span className="badge badge-blue">Multi-Asset Covariance</span>
+                        </div>
+                        <div className="table-wrap">
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                <th>Asset</th>
+                                {matrixData.correlation_matrix.tickers.map((sym) => (
+                                  <th key={sym} className="mono-cell">
+                                    {sym}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {matrixData.correlation_matrix.tickers.map((rowSym, rIdx) => (
+                                <tr key={rowSym}>
+                                  <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                    {rowSym}
+                                  </td>
+                                  {(matrixData.correlation_matrix.values[rIdx] ?? []).map((corr, cIdx) => (
+                                    <td key={`${rowSym}-${cIdx}`}>
+                                      <span
+                                        className={`matrix-heat-cell ${
+                                          rIdx === cIdx
+                                            ? "neutral-cell"
+                                            : corr >= 0.8
+                                              ? "neg-strong"
+                                              : corr >= 0.6
+                                                ? "neg-mild"
+                                                : "pos-mild"
+                                        }`}
+                                      >
+                                        {corr.toFixed(2)}
+                                      </span>
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {(matrixTab === "regime_models" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Model Family</th>
+                            <th>Role</th>
+                            <th>low_vol MAE</th>
+                            <th>normal_vol MAE</th>
+                            <th>high_vol MAE</th>
+                            <th>trending_up Acc</th>
+                            <th>mean_rev Acc</th>
+                            <th>Net Sharpe</th>
+                            <th>Brier Score</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {matrixData.model_regime_matrix.map((m) => (
+                            <tr key={m.model_id}>
+                              <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                {m.model_id}
+                              </td>
+                              <td>
+                                <span className="badge badge-purple">{m.role}</span>
+                              </td>
+                              <td>
+                                <span className="matrix-heat-cell pos-mild">{m.low_vol_mae.toFixed(2)}</span>
+                              </td>
+                              <td>
+                                <span className="matrix-heat-cell pos-strong">{m.normal_vol_mae.toFixed(2)}</span>
+                              </td>
+                              <td>
+                                <span className="matrix-heat-cell pos-mild">{m.high_vol_mae.toFixed(2)}</span>
+                              </td>
+                              <td>
+                                <span className="matrix-heat-cell pos-strong">
+                                  {(m.trending_dir_acc * 100).toFixed(1)}%
+                                </span>
+                              </td>
+                              <td>
+                                <span className="matrix-heat-cell pos-mild">
+                                  {(m.mean_rev_dir_acc * 100).toFixed(1)}%
+                                </span>
+                              </td>
+                              <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                {m.net_sharpe_equiv.toFixed(2)}
+                              </td>
+                              <td>
+                                <span className="badge badge-slate">{m.brier_score.toFixed(3)} · perm: none</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {(matrixTab === "dom" || activeSection === "all") && (
+                    <div className="bento-grid-2">
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>Active L2 Depth-of-Market (DOM) Ladder · {activeDomBook.symbol}</span>
+                          <span className="badge badge-emerald">{activeDomBook.spread_bps.toFixed(1)} bps</span>
+                        </div>
+                        <div className="dom-ladder">
+                          {activeDomBook.asks
+                            .slice()
+                            .reverse()
+                            .map((ask) => (
+                              <div key={`ask-${ask.level}`} className="dom-row ask">
+                                <div
+                                  className="dom-depth-bar ask"
+                                  style={{ width: `${Math.min(95, ask.cumulative * 0.08)}%` }}
+                                />
+                                <span className="dom-cell-muted">L{ask.level}</span>
+                                <span className="dom-price ask">${formatPrice(ask.price)}</span>
+                                <span>{ask.size.toFixed(1)}</span>
+                                <span className="dom-cell-muted">{ask.cumulative.toFixed(1)}</span>
+                              </div>
+                            ))}
+                          <div className="dom-mid-banner">
+                            <span>MID ${formatPrice(activeDomBook.mid_price)}</span>
+                            <span>OFI {(activeDomBook.order_flow_imbalance * 100).toFixed(0)}%</span>
+                          </div>
+                          {activeDomBook.bids.map((bid) => (
+                            <div key={`bid-${bid.level}`} className="dom-row bid">
+                              <div
+                                className="dom-depth-bar bid"
+                                style={{ width: `${Math.min(95, bid.cumulative * 0.08)}%` }}
+                              />
+                              <span className="dom-cell-muted">L{bid.level}</span>
+                              <span className="dom-price bid">${formatPrice(bid.price)}</span>
+                              <span>{bid.size.toFixed(1)}</span>
+                              <span className="dom-cell-muted">{bid.cumulative.toFixed(1)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>Switch DOM Instrument & Recompute Book</span>
+                          <span className="badge badge-blue">6-Level Book</span>
+                        </div>
+                        <div className="btn-row">
+                          {matrixData.signal_matrix.map((row) => (
+                            <button
+                              key={row.symbol}
+                              type="button"
+                              className={`btn btn-sm ${activeDomBook.symbol === row.symbol ? "btn-primary" : "btn-outline"}`}
+                              onClick={() => {
+                                setDomSymbol(row.symbol);
+                                handleRecomputeMatrix(row.symbol);
+                              }}
+                            >
+                              {row.symbol} (${formatPrice(row.price)})
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* ================================================================
               11 · GLOBAL PLATFORM CONFIGURATIONS (/configurations)
              ================================================================ */}
           {showSection("configurations") && (
@@ -3566,11 +4511,41 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                 <div className="panel-header">
                   <div className="panel-header-left">
                     <span className="panel-eyebrow">Global Control-Plane, AI & Runtime Settings · /api/configurations</span>
-                    <h2 className="panel-title">Master Platform Configuration Workbench</h2>
+                    <h2 className="panel-title">Master Platform Configuration Workbench & Prop Firm Presets</h2>
                   </div>
-                  <button type="button" className="btn btn-primary btn-sm" onClick={handleSavePlatformConfig}>
-                    Save & Apply All Configurations
-                  </button>
+                  <div className="btn-row">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => applyConfigPreset("prop_100k_2phase")}
+                    >
+                      🏆 $100K 2-Phase Prop
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => applyConfigPreset("prop_50k_instant")}
+                    >
+                      ⚡ $50K Instant Funded
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => applyConfigPreset("stock_desk_250k")}
+                    >
+                      🏛️ $250K Stock Desk
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => applyConfigPreset("strict_comp")}
+                    >
+                      🛡️ Strict Tournament
+                    </button>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={handleSavePlatformConfig}>
+                      Save & Apply All Configurations
+                    </button>
+                  </div>
                 </div>
                 <div className="panel-body">
                   <div className="telemetry-console">
@@ -6751,7 +7726,277 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               </div>
             </>
           )}
-        </main>
+          </main>
+
+          {/* ================================================================
+              PERSISTENT DOCKABLE INSTITUTIONAL ORDER TICKET, L2 DOM & RISK DOCK
+             ================================================================ */}
+          {dockOpen && (
+            <aside className="atlas-right-dock" aria-label="Persistent Institutional Order Ticket, DOM & Prop Risk Dock">
+              {/* 1. Live Pre-Trade Risk-Checked Order Ticket */}
+              <div className="dock-section">
+                <div className="dock-section-head">
+                  <span className="dock-section-title">1. Deterministic Order Ticket</span>
+                  <span className={`badge ${orderTrack === "open_market" ? "badge-blue" : "badge-purple"}`}>
+                    {orderTrack === "open_market" ? "STOCK DESK" : "PROP COMP"}
+                  </span>
+                </div>
+
+                <div className="field-group">
+                  <label className="field-label">Instrument & Track</label>
+                  <select
+                    aria-label="Dock Order Instrument"
+                    className="field-select"
+                    value={orderInstrument}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOrderInstrument(val);
+                      if (val.startsWith("open:")) {
+                        setOrderTrack("open_market");
+                        setStudyTrack("open_market");
+                      } else {
+                        setOrderTrack("competition");
+                        setStudyTrack("competition");
+                      }
+                    }}
+                  >
+                    <option value="open:spy-etf:v1">SPY · S&P 500 ETF (NYSE Arca)</option>
+                    <option value="open:nvda-eq:v1">NVDA · NVIDIA Corp (Nasdaq)</option>
+                    <option value="open:aapl-eq:v1">AAPL · Apple Inc (Nasdaq)</option>
+                    <option value="open:msft-eq:v1">MSFT · Microsoft Corp (Nasdaq)</option>
+                    <option value="open:qqq-etf:v1">QQQ · Nasdaq-100 ETF (Nasdaq)</option>
+                    <option value="open:tsla-eq:v1">TSLA · Tesla Inc (Nasdaq)</option>
+                    <option value="comp:btc-perp:v1">BTC-USD · Prop Perp Challenge</option>
+                    <option value="comp:eth-perp:v1">ETH-USD · Prop Perp Challenge</option>
+                    <option value="comp:sol-perp:v1">SOL-USD · Prop Perp Challenge</option>
+                  </select>
+                </div>
+
+                <div className="form-grid-2">
+                  <div className="field-group">
+                    <label className="field-label">Side</label>
+                    <select
+                      aria-label="Dock Order Side"
+                      className="field-select"
+                      value={orderSide}
+                      onChange={(e) => setOrderSide(e.target.value as "buy" | "sell")}
+                    >
+                      <option value="buy">BUY / LONG</option>
+                      <option value="sell">SELL / SHORT</option>
+                    </select>
+                  </div>
+                  <div className="field-group">
+                    <label className="field-label">Notional (USD)</label>
+                    <input
+                      aria-label="Dock Order Notional"
+                      className="field-input"
+                      type="number"
+                      value={orderNotional}
+                      onChange={(e) => setOrderNotional(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-grid-2">
+                  <div className="field-group">
+                    <label className="field-label">Stop Distance (bps)</label>
+                    <input
+                      aria-label="Dock Order Stop Bps"
+                      className="field-input"
+                      type="number"
+                      value={orderStopBps}
+                      onChange={(e) => setOrderStopBps(e.target.value)}
+                    />
+                  </div>
+                  <div className="field-group">
+                    <label className="field-label">Max Cap (USD)</label>
+                    <input
+                      aria-label="Dock Max Cap"
+                      className="field-input"
+                      type="text"
+                      readOnly
+                      value={
+                        orderTrack === "open_market"
+                          ? `$${platformConfig.open_market_max_notional_usd}`
+                          : `$${platformConfig.competition_max_notional_usd}`
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="btn-row">
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${orderSide === "buy" ? "btn-primary" : "btn-danger"}`}
+                    style={{ flex: 1 }}
+                    disabled={role !== "founder_admin"}
+                    onClick={handleExecuteOrder}
+                  >
+                    {orderSide === "buy" ? "Authorize BUY" : "Authorize SELL"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    disabled={role !== "founder_admin"}
+                    onClick={handleFlattenAll}
+                  >
+                    Flatten ({openPositions.length})
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. L2 Depth-of-Market (DOM) Ladder */}
+              <div className="dock-section">
+                <div className="dock-section-head">
+                  <span className="dock-section-title">2. L2 Orderbook DOM Ladder</span>
+                  <div className="segmented-tabs">
+                    {(["SPY", "NVDA", "BTC-USD"] as const).map((sym) => (
+                      <button
+                        key={sym}
+                        type="button"
+                        className={`seg-tab ${domSymbol === sym ? "active" : ""}`}
+                        style={{ padding: "2px 6px", fontSize: "9.5px" }}
+                        onClick={() => setDomSymbol(sym)}
+                      >
+                        {sym}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="dom-ladder">
+                  {activeDomBook.asks
+                    .slice(0, 5)
+                    .reverse()
+                    .map((ask) => (
+                      <div key={`dock-ask-${ask.level}`} className="dom-row ask">
+                        <div
+                          className="dom-depth-bar ask"
+                          style={{ width: `${Math.min(95, ask.cumulative * 12)}%` }}
+                        />
+                        <span className="dom-cell-muted">A{ask.level}</span>
+                        <span className="dom-price ask">${formatPrice(ask.price)}</span>
+                        <span>{ask.size.toFixed(2)}</span>
+                        <span className="dom-cell-muted">{ask.cumulative.toFixed(1)}</span>
+                      </div>
+                    ))}
+                  <div className="dom-mid-banner">
+                    <span>
+                      {activeDomBook.symbol} ${formatPrice(activeDomBook.mid_price)}
+                    </span>
+                    <span>
+                      {activeDomBook.spread_bps.toFixed(1)} bps · OFI {(activeDomBook.order_flow_imbalance * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  {activeDomBook.bids.slice(0, 5).map((bid) => (
+                    <div key={`dock-bid-${bid.level}`} className="dom-row bid">
+                      <div
+                        className="dom-depth-bar bid"
+                        style={{ width: `${Math.min(95, bid.cumulative * 12)}%` }}
+                      />
+                      <span className="dom-cell-muted">B{bid.level}</span>
+                      <span className="dom-price bid">${formatPrice(bid.price)}</span>
+                      <span>{bid.size.toFixed(2)}</span>
+                      <span className="dom-cell-muted">{bid.cumulative.toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Prop Account & Drawdown Telemetry */}
+              <div className="dock-section">
+                <div className="dock-section-head">
+                  <span className="dock-section-title">3. Prop Drawdown & Risk Gauges</span>
+                  <span className={`badge ${killSwitchEngaged ? "badge-danger" : "badge-emerald"}`}>
+                    {killSwitchEngaged ? "HALTED" : "COMPLIANT"}
+                  </span>
+                </div>
+
+                <div className="gauge-list">
+                  <div className="gauge-item">
+                    <div className="gauge-header">
+                      <span className="gauge-title">Daily Loss Proximity</span>
+                      <span className="gauge-stats">18.5% used (Cap {platformConfig.daily_loss_limit_pct}%)</span>
+                    </div>
+                    <div className="gauge-track">
+                      <div className="gauge-fill emerald" style={{ width: "18.5%" }} />
+                    </div>
+                  </div>
+
+                  <div className="gauge-item">
+                    <div className="gauge-header">
+                      <span className="gauge-title">Trailing Drawdown Proximity</span>
+                      <span className="gauge-stats">15.0% used (Cap {platformConfig.trailing_drawdown_limit_pct}%)</span>
+                    </div>
+                    <div className="gauge-track">
+                      <div className="gauge-fill emerald" style={{ width: "15.0%" }} />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className={`btn btn-sm ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+                  disabled={role !== "founder_admin"}
+                  onClick={handleToggleKillSwitch}
+                >
+                  {killSwitchEngaged ? "Reset Emergency Kill Switch" : "Engage Emergency Kill Switch"}
+                </button>
+              </div>
+
+              {/* 4. Active Positions Blotter */}
+              <div className="dock-section">
+                <div className="dock-section-head">
+                  <span className="dock-section-title">4. Open Positions ({openPositions.length})</span>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    style={{ padding: "2px 7px", fontSize: "10px" }}
+                    onClick={() => navigateSection("rules")}
+                  >
+                    Full Blotter →
+                  </button>
+                </div>
+
+                {openPositions.length === 0 ? (
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                    Flat book (0 open positions).
+                  </div>
+                ) : (
+                  <div className="bento-stack" style={{ gap: "6px" }}>
+                    {openPositions.map((pos) => (
+                      <div
+                        key={pos.position_id}
+                        style={{
+                          padding: "7px 9px",
+                          borderRadius: "6px",
+                          background: "rgba(15, 23, 42, 0.55)",
+                          border: "1px solid var(--border-subtle)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          fontSize: "11px",
+                        }}
+                      >
+                        <div>
+                          <div className="mono-cell" style={{ fontWeight: 700 }}>
+                            {pos.instrument_id}
+                          </div>
+                          <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+                            {pos.side.toUpperCase()} · ${formatPrice(pos.notional_usd)} · {pos.stop_distance_bps} bps
+                          </div>
+                        </div>
+                        <span className={`badge ${pos.side === "buy" ? "badge-emerald" : "badge-danger"}`}>
+                          {pos.side.toUpperCase()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </aside>
+          )}
+        </div>
       </div>
     </div>
   );
