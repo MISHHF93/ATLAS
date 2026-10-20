@@ -1,0 +1,13 @@
+{
+  "name": "atlas-workspace",
+  "private": true,
+  "description": "Root workspace scripts forwarding to frontend/ Next.js terminal",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend run start",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "lint": "npm --prefix frontend run lint"
+  }
+}
+

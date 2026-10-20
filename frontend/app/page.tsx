@@ -267,6 +267,233 @@ function CandlePlot({ candles }: { candles: Candle[] }) {
   );
 }
 
+const OFFLINE_CANDLE_PAGE: CandlePage = {
+  symbol: "BTC-USD",
+  interval: "1h",
+  source: "fixture",
+  candles: [
+    { open_time: "2026-10-19T00:00:00Z", open: "67000.00", high: "67250.00", low: "66920.00", close: "67110.50", volume: "124.50" },
+    { open_time: "2026-10-19T01:00:00Z", open: "67110.50", high: "67480.00", low: "67050.00", close: "67390.25", volume: "158.20" },
+    { open_time: "2026-10-19T02:00:00Z", open: "67390.25", high: "67510.00", low: "67180.00", close: "67260.00", volume: "112.10" },
+    { open_time: "2026-10-19T03:00:00Z", open: "67260.00", high: "67790.00", low: "67220.00", close: "67685.10", volume: "194.80" },
+    { open_time: "2026-10-19T04:00:00Z", open: "67685.10", high: "67940.00", low: "67540.00", close: "67840.75", volume: "167.35" },
+  ],
+};
+
+const OFFLINE_CAPABILITIES: Capabilities = {
+  providers: [
+    { provider_id: "naive", location: "local", capabilities: ["forecast"], models: ["last_value", "zero_return"] },
+  ],
+  components: {
+    market_data: "fixture_only",
+    forecasting: "local_baselines",
+    evaluation: "offline_library_only",
+    training: "contracts_only",
+    experiment_store: "local_sqlite_library_only",
+  },
+  execution: { enabled: false, permission: "none", order_routes: false },
+};
+
+const OFFLINE_DEMO: DemoResult = {
+  source: "invented_fixture",
+  notice: "Offline fixture snapshot active (start uvicorn on :8000 for live FastAPI queries). Execution permission: none.",
+  without_approval: { forecasts: [], execution_permission: "none" },
+  with_simulated_fixture_approval: {
+    forecasts: [
+      {
+        model: { provider_id: "naive", model_id: "last_value", revision: "1" },
+        points: [
+          { timestamp: "2026-10-20T00:00:00Z", value: 67840.75 },
+          { timestamp: "2026-10-21T00:00:00Z", value: 67840.75 },
+        ],
+      },
+      {
+        model: { provider_id: "local_tree", model_id: "boosted_stump_v1", revision: "1" },
+        points: [
+          { timestamp: "2026-10-20T00:00:00Z", value: 67995.40 },
+          { timestamp: "2026-10-21T00:00:00Z", value: 68150.20 },
+        ],
+      },
+    ],
+    disagreement_by_step: [154.65, 309.45],
+    strategy_candidates: ["fixture:demonstration", "fixture:tree_challenger"],
+    execution_permission: "none",
+  },
+  regime_overlay: {
+    volatility: "normal_vol",
+    trend: "trending_up",
+    liquidity: "liquid",
+    session: "continuous_24_7",
+    macro_event: "pre_event_window",
+    realized_volatility: 0.0042,
+    cumulative_return: 0.0125,
+    liquidity_score: 0.84,
+    spread_bps: 3.5,
+    composite_label: "normal_vol|trending_up|liquid|continuous_24_7|pre_event_window",
+    taxonomy_revision: "regime-taxonomy:v1",
+  },
+  quality_report: {
+    quality_status: "verified",
+    freshness_age_seconds: 5,
+    is_fresh: true,
+    license_valid_for_use: true,
+    calendar_matched: true,
+    point_in_time_valid: true,
+    blocking_issues: [],
+  },
+  calibrator: {
+    calibration_id: "cal:tree:fixture:v1",
+    bin_rates: [0.0, 0.33, 0.75, 1.0],
+    bin_counts: [6, 9, 8, 7],
+  },
+  rule_evaluation: {
+    rulebook_id: "prop-comp-2026-q4:v1",
+    revision: "1.0.0",
+    track: "competition",
+    compliance_passed: true,
+    auto_flatten_required: false,
+    kill_switch_active: false,
+    violations: [],
+    execution_permission: "none",
+    remaining_room: {
+      max_safe_trade_notional_usd: "42437.50",
+      daily_loss_room_usd: "3066.00",
+      drawdown_room_usd: "6998.00",
+      leverage_room_usd: "220550.00",
+      consistency_compliant: true,
+      minimum_days_met: true,
+      proximities: [
+        { rule_name: "per_trade_risk_fraction", current_value: "0.004418", limit_value: "0.007500", utilization_pct: 58.91, remaining_pct: 41.09, status: "healthy" },
+        { rule_name: "daily_loss_fraction", current_value: "0.010204", limit_value: "0.040000", utilization_pct: 25.51, remaining_pct: 74.49, status: "healthy" },
+        { rule_name: "drawdown_trailing_fraction", current_value: "0.012124", limit_value: "0.080000", utilization_pct: 15.16, remaining_pct: 84.84, status: "healthy" },
+      ],
+    },
+  },
+  studies: {
+    competition: {
+      study_id: "wf-study:competition:v1",
+      track: "competition",
+      competition_rulebook_ref: "prop-comp-2026-q4:v1",
+      dataset_id: "frozen:competition:btc-perp:v1",
+      manifest_sha256: "8f9b2c1a4d3e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a",
+      purge_bars: 1,
+      embargo_bars: 1,
+      linear_baseline_report: {
+        samples: 21, mae: 198.4, rmse: 245.1, naive_mae: 212.6, return_rmse: 0.0038,
+        directional_accuracy: 0.571, brier_score: 0.214, expected_net_return: 0.0011,
+        no_trade_return: 0.0, compounded_net_return: 0.023, max_drawdown: 0.012,
+        expected_shortfall_95: -0.006, paired_mae_improvement_interval: [2.1, 24.8],
+      },
+      overall_report: {
+        samples: 21, mae: 184.2, rmse: 229.5, naive_mae: 212.6, return_rmse: 0.0035,
+        directional_accuracy: 0.619, brier_score: 0.198, expected_net_return: 0.0016,
+        no_trade_return: 0.0, compounded_net_return: 0.034, max_drawdown: 0.009,
+        expected_shortfall_95: -0.005, paired_mae_improvement_interval: [8.4, 38.2],
+      },
+      regime_reports: {
+        "regime:normal_vol": {
+          samples: 12, mae: 162.1, rmse: 198.0, naive_mae: 190.4, return_rmse: 0.0031,
+          directional_accuracy: 0.667, brier_score: 0.185, expected_net_return: 0.0019,
+          no_trade_return: 0.0, compounded_net_return: 0.022, max_drawdown: 0.006,
+          expected_shortfall_95: -0.004, paired_mae_improvement_interval: [6.0, 31.0],
+        },
+      },
+      regime_variant_unlocked: true,
+      feedback: {
+        beats_naive_mae: true,
+        beats_no_trade_net_return: true,
+        recommended_next_action: "submit_for_human_scoped_review",
+        auto_promoted: false,
+        execution_permission: "none",
+      },
+    },
+    open_market: {
+      study_id: "wf-study:open_market:v1",
+      track: "open_market",
+      competition_rulebook_ref: null,
+      dataset_id: "frozen:open_market:spy-etf:v1",
+      manifest_sha256: "3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+      purge_bars: 1,
+      embargo_bars: 1,
+      linear_baseline_report: {
+        samples: 21, mae: 1.72, rmse: 2.11, naive_mae: 1.85, return_rmse: 0.0036,
+        directional_accuracy: 0.571, brier_score: 0.219, expected_net_return: 0.0009,
+        no_trade_return: 0.0, compounded_net_return: 0.019, max_drawdown: 0.011,
+        expected_shortfall_95: -0.005, paired_mae_improvement_interval: [0.02, 0.24],
+      },
+      overall_report: {
+        samples: 21, mae: 1.59, rmse: 1.96, naive_mae: 1.85, return_rmse: 0.0033,
+        directional_accuracy: 0.619, brier_score: 0.204, expected_net_return: 0.0014,
+        no_trade_return: 0.0, compounded_net_return: 0.029, max_drawdown: 0.008,
+        expected_shortfall_95: -0.004, paired_mae_improvement_interval: [0.07, 0.35],
+      },
+      regime_reports: {
+        "regime:normal_vol": {
+          samples: 12, mae: 1.41, rmse: 1.75, naive_mae: 1.68, return_rmse: 0.0029,
+          directional_accuracy: 0.667, brier_score: 0.191, expected_net_return: 0.0016,
+          no_trade_return: 0.0, compounded_net_return: 0.019, max_drawdown: 0.005,
+          expected_shortfall_95: -0.003, paired_mae_improvement_interval: [0.05, 0.29],
+        },
+      },
+      regime_variant_unlocked: true,
+      feedback: {
+        beats_naive_mae: true,
+        beats_no_trade_net_return: true,
+        recommended_next_action: "submit_for_human_scoped_review",
+        auto_promoted: false,
+        execution_permission: "none",
+      },
+    },
+  },
+  central_node: {
+    node_run_id: "node:offline-snapshot:v1",
+    auto_promoted: false,
+    in_place_weight_mutation: false,
+    execution_permission: "none",
+    competition_paper_simulation: {
+      simulation_id: "papersim:competition:v1",
+      initial_equity_usd: "100000.00",
+      final_equity_usd: "100840.25",
+      max_realized_drawdown_fraction: 0.0042,
+      total_steps: 31,
+      permitted_paper_trades: 18,
+      blocked_paper_trades: 0,
+      simulation_only: true,
+    },
+    open_market_paper_simulation: {
+      simulation_id: "papersim:open_market:v1",
+      initial_equity_usd: "100000.00",
+      final_equity_usd: "100612.80",
+      max_realized_drawdown_fraction: 0.0031,
+      total_steps: 31,
+      permitted_paper_trades: 19,
+      blocked_paper_trades: 0,
+      simulation_only: true,
+    },
+    horizon_strategy_comparison: {
+      steps: 3,
+      direct_mae_by_step: [1.59, 2.31, 2.88],
+      recursive_mae_by_step: [1.59, 2.44, 3.12],
+      recommended_method_by_step: ["direct", "direct", "direct"],
+    },
+    ensemble_gate: {
+      ensemble_mae: 1.56,
+      best_member_mae: 1.59,
+      error_correlation: 0.82,
+      combiner_enabled: false,
+    },
+  },
+  mcp_data_surfaces: {
+    allowlisted_providers: {
+      alpha_vantage_mcp: ["DIGITAL_CURRENCY_DAILY", "TIME_SERIES_DAILY_ADJUSTED", "TIME_SERIES_INTRADAY"],
+      financial_datasets_mcp: ["get_company_facts", "get_historical_stock_prices", "get_income_statements"],
+      fin_data_mcp: ["fetch_equity_bars", "fetch_macro_calendar", "fetch_sec_filings_meta"],
+    },
+    blocked_providers: ["irohan0/quant-mcp", "quantgpt-mcp"],
+    fred_training_policy: "blocked_by_vendor_terms",
+  },
+};
+
 export default function Page() {
   const [health, setHealth] = useState<"checking" | "online" | "offline">("checking");
   const [page, setPage] = useState<CandlePage | null>(null);
@@ -304,10 +531,13 @@ export default function Page() {
         setCapabilities(capabilityBody);
         setDemo(demoBody);
       })
-      .catch((reason: unknown) => {
+      .catch(() => {
         if (!cancelled) {
           setHealth("offline");
-          setError(reason instanceof Error ? reason.message : "Cannot verify the API connection.");
+          setPage((prev) => prev ?? OFFLINE_CANDLE_PAGE);
+          setCapabilities((prev) => prev ?? OFFLINE_CAPABILITIES);
+          setDemo((prev) => prev ?? OFFLINE_DEMO);
+          setError("");
         }
       })
       .finally(() => {

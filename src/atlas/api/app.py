@@ -13,7 +13,12 @@ from atlas.market.schemas import CandlePage
 app = FastAPI(title="ATLAS", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ],
     allow_methods=["GET"],
     allow_headers=["Accept"],
 )
