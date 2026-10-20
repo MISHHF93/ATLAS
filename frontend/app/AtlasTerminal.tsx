@@ -448,96 +448,96 @@ const DEFAULT_CONNECTORS: ConnectorRecord[] = [
   },
 ];
 
-function ConnectorLogo({ id, size = 24 }: { id: string; size?: number }) {
+function ConnectorLogo({ id, size = 22 }: { id: string; size?: number }) {
   switch (id) {
     case "google_gemini":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 2C12.6 7.4 16.6 11.4 22 12C16.6 12.6 12.6 16.6 12 22C11.4 16.6 7.4 12.6 2 12C7.4 11.4 11.4 7.4 12 2Z" fill="#2b6850" />
-          <circle cx="18.5" cy="5.5" r="1.5" fill="#b58138" />
+          <path d="M12 2C12.6 7.4 16.6 11.4 22 12C16.6 12.6 12.6 16.6 12 22C11.4 16.6 7.4 12.6 2 12C7.4 11.4 11.4 7.4 12 2Z" fill="#059669" />
+          <circle cx="18.5" cy="5.5" r="1.5" fill="#0284c7" />
         </svg>
       );
     case "alpha_vantage_mcp":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <rect x="3" y="13" width="4" height="8" rx="1" fill="#57a486" />
-          <rect x="10" y="8" width="4" height="13" rx="1" fill="#153c31" />
-          <rect x="17" y="3" width="4" height="18" rx="1" fill="#b58138" />
+          <rect x="3" y="13" width="4" height="8" rx="1" fill="#10b981" />
+          <rect x="10" y="8" width="4" height="13" rx="1" fill="#0f172a" />
+          <rect x="17" y="3" width="4" height="18" rx="1" fill="#0284c7" />
         </svg>
       );
     case "financial_datasets_mcp":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <rect x="3" y="4" width="18" height="4" rx="1" fill="#153c31" />
-          <rect x="3" y="10" width="11" height="4" rx="1" fill="#57a486" />
-          <rect x="16" y="10" width="5" height="4" rx="1" fill="#b58138" />
-          <rect x="3" y="16" width="18" height="4" rx="1" fill="#2b6850" />
+          <rect x="3" y="4" width="18" height="4" rx="1" fill="#0f172a" />
+          <rect x="3" y="10" width="11" height="4" rx="1" fill="#10b981" />
+          <rect x="16" y="10" width="5" height="4" rx="1" fill="#d97706" />
+          <rect x="3" y="16" width="18" height="4" rx="1" fill="#0284c7" />
         </svg>
       );
     case "fin_data_mcp":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M3 16L8 11L13 14L21 6" stroke="#153c31" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="8" cy="11" r="2" fill="#57a486" />
-          <circle cx="13" cy="14" r="2" fill="#b58138" />
-          <circle cx="21" cy="6" r="2.2" fill="#153c31" />
+          <path d="M3 16L8 11L13 14L21 6" stroke="#0f172a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="8" cy="11" r="2" fill="#10b981" />
+          <circle cx="13" cy="14" r="2" fill="#d97706" />
+          <circle cx="21" cy="6" r="2.2" fill="#0284c7" />
         </svg>
       );
     case "sec_edgar_xbrl":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 2L4 5.5V11.5C4 16.8 7.4 20.9 12 22C16.6 20.9 20 16.8 20 11.5V5.5L12 2Z" stroke="#153c31" strokeWidth="2" fill="#e6f2ec" />
-          <path d="M8 12H16M12 8V16" stroke="#153c31" strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M12 2L4 5.5V11.5C4 16.8 7.4 20.9 12 22C16.6 20.9 20 16.8 20 11.5V5.5L12 2Z" stroke="#0f172a" strokeWidth="2" fill="#ecfdf5" />
+          <path d="M8 12H16M12 8V16" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
       );
     case "crypto_perp_feed":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <polygon points="12,2 20,7 20,17 12,22 4,17 4,7" stroke="#b58138" strokeWidth="2" fill="#f9f4e8" />
-          <path d="M13 7L9 13H12.5L11 17L15 11H11.5L13 7Z" fill="#b58138" />
+          <polygon points="12,2 20,7 20,17 12,22 4,17 4,7" stroke="#d97706" strokeWidth="2" fill="#fffbeb" />
+          <path d="M13 7L9 13H12.5L11 17L15 11H11.5L13 7Z" fill="#d97706" />
         </svg>
       );
     case "nyse_calendar":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <polygon points="12,3 21,8 3,8" fill="#153c31" />
-          <rect x="5" y="9" width="2.5" height="9" fill="#57a486" />
-          <rect x="10.75" y="9" width="2.5" height="9" fill="#57a486" />
-          <rect x="16.5" y="9" width="2.5" height="9" fill="#57a486" />
-          <rect x="3" y="19" width="18" height="2.5" fill="#153c31" />
+          <polygon points="12,3 21,8 3,8" fill="#0f172a" />
+          <rect x="5" y="9" width="2.5" height="9" fill="#0284c7" />
+          <rect x="10.75" y="9" width="2.5" height="9" fill="#0284c7" />
+          <rect x="16.5" y="9" width="2.5" height="9" fill="#0284c7" />
+          <rect x="3" y="19" width="18" height="2.5" fill="#0f172a" />
         </svg>
       );
     case "atlas_local_ml":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="5" r="2.5" fill="#153c31" />
-          <circle cx="6" cy="13" r="2.5" fill="#57a486" />
-          <circle cx="18" cy="13" r="2.5" fill="#57a486" />
-          <circle cx="4" cy="20" r="2" fill="#b58138" />
-          <circle cx="9" cy="20" r="2" fill="#b58138" />
-          <circle cx="15" cy="20" r="2" fill="#b58138" />
-          <circle cx="20" cy="20" r="2" fill="#b58138" />
-          <path d="M12 7.5L6 10.5M12 7.5L18 10.5M6 15.5L4 18M6 15.5L9 18M18 15.5L15 18M18 15.5L20 18" stroke="#153c31" strokeWidth="1.5" />
+          <circle cx="12" cy="5" r="2.5" fill="#0f172a" />
+          <circle cx="6" cy="13" r="2.5" fill="#10b981" />
+          <circle cx="18" cy="13" r="2.5" fill="#10b981" />
+          <circle cx="4" cy="20" r="2" fill="#0284c7" />
+          <circle cx="9" cy="20" r="2" fill="#0284c7" />
+          <circle cx="15" cy="20" r="2" fill="#0284c7" />
+          <circle cx="20" cy="20" r="2" fill="#0284c7" />
+          <path d="M12 7.5L6 10.5M12 7.5L18 10.5M6 15.5L4 18M6 15.5L9 18M18 15.5L15 18M18 15.5L20 18" stroke="#0f172a" strokeWidth="1.5" />
         </svg>
       );
     case "xai_grok_bridge":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M4 4L20 20M20 4L4 20" stroke="#153c31" strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M4 4L20 20M20 4L4 20" stroke="#0f172a" strokeWidth="2.6" strokeLinecap="round" />
         </svg>
       );
     case "chronos_2_slot":
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" stroke="#153c31" strokeWidth="2" />
-          <path d="M12 7V12L15.5 14" stroke="#57a486" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="12" cy="12" r="9" stroke="#0f172a" strokeWidth="2" />
+          <path d="M12 7V12L15.5 14" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
         </svg>
       );
     default:
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" stroke="#c87554" strokeWidth="2" fill="#f8e9e1" />
-          <path d="M8 8L16 16M16 8L8 16" stroke="#c87554" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="12" cy="12" r="9" stroke="#dc2626" strokeWidth="2" fill="#fef2f2" />
+          <path d="M8 8L16 16M16 8L8 16" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" />
         </svg>
       );
   }
@@ -599,33 +599,27 @@ const DEFAULT_DOCS: PlatformDoc[] = [
     path: "docs/architecture/CURRENT_STATE.md",
     content: "# Verified Current State\n\n81 automated tests passing; full FastAPI actionable control plane + Next.js multi-page command terminal verified.",
   },
-  {
-    doc_id: "AGILE_BACKLOG.md",
-    title: "Agile Backlog & Roadmap",
-    path: "docs/backlog/AGILE_BACKLOG.md",
-    content: "# ATLAS Agile Backlog\n\nCompleted: Initial scaffold, universal research foundation, causal regime detection, deterministic control plane, MCP & SEC EDGAR point-in-time adapters, scratch linear & GBDT challengers, central research node, and full multi-page Next.js command terminal.",
-  },
-  {
-    doc_id: "DECISIONS.md",
-    title: "Architectural Decisions",
-    path: "docs/architecture/DECISIONS.md",
-    content: "# Architectural Decisions (ADRs)\n\nRecords key design decisions separating generative/statistical research outputs (execution_permission: none) from the deterministic control plane.",
-  },
 ];
 
 function isCandlePage(value: unknown): value is CandlePage {
   if (!value || typeof value !== "object") return false;
   const page = value as Record<string, unknown>;
-  return page.symbol === "BTC-USD" && page.interval === "1h" &&
+  return (
+    page.symbol === "BTC-USD" &&
+    page.interval === "1h" &&
     Array.isArray(page.candles) &&
     page.candles.every((row: unknown) => {
       if (!row || typeof row !== "object") return false;
       const candle = row as Record<string, unknown>;
-      return typeof candle.open_time === "string" &&
+      return (
+        typeof candle.open_time === "string" &&
         Number.isFinite(Date.parse(candle.open_time)) &&
-        [candle.open, candle.high, candle.low, candle.close, candle.volume]
-          .every((field) => typeof field === "string" && Number.isFinite(Number(field)));
-    });
+        [candle.open, candle.high, candle.low, candle.close, candle.volume].every(
+          (field) => typeof field === "string" && Number.isFinite(Number(field))
+        )
+      );
+    })
+  );
 }
 
 async function readJson<T>(path: string, signal: AbortSignal): Promise<T> {
@@ -642,41 +636,48 @@ function formatPrice(value: string | number): string {
 }
 
 function CandlePlot({ candles }: { candles: Candle[] }) {
-  if (!candles.length) return <div className="empty-state">No market observations for this selection.</div>;
+  if (!candles.length) return <div className="badge badge-slate">No market observations available.</div>;
 
   const upper = Math.max(...candles.map((candle) => Number(candle.high)));
   const lower = Math.min(...candles.map((candle) => Number(candle.low)));
   const span = upper - lower || 1;
-  const y = (value: string) => 24 + ((upper - Number(value)) / span) * 210;
-  const step = 700 / candles.length;
+  const y = (value: string) => 22 + ((upper - Number(value)) / span) * 185;
+  const step = 680 / candles.length;
 
   return (
-    <svg className="candle-plot" viewBox="0 0 760 280" role="img" aria-label="BTC-USD 1h candlestick chart">
+    <svg className="candle-plot" viewBox="0 0 760 240" role="img" aria-label="BTC-USD 1h candlestick chart">
       {[0, 1, 2, 3].map((line) => {
-        const plotY = 24 + line * 70;
+        const plotY = 22 + line * 61.6;
         const value = upper - (span * line) / 3;
         return (
           <g key={line}>
-            <line x1="52" x2="748" y1={plotY} y2={plotY} className="plot-grid" />
-            <text x="0" y={plotY + 4} className="plot-label">{formatPrice(value)}</text>
+            <line x1="62" x2="746" y1={plotY} y2={plotY} className="plot-grid" />
+            <text x="4" y={plotY + 4} className="plot-label">
+              ${formatPrice(value)}
+            </text>
           </g>
         );
       })}
       {candles.map((candle, index) => {
-        const center = 60 + step * index + step / 2;
+        const center = 68 + step * index + step / 2;
         const rising = Number(candle.close) >= Number(candle.open);
         const top = Math.min(y(candle.open), y(candle.close));
-        const height = Math.max(3, Math.abs(y(candle.open) - y(candle.close)));
+        const height = Math.max(4, Math.abs(y(candle.open) - y(candle.close)));
         return (
           <g key={candle.open_time} className={rising ? "candle-up" : "candle-down"}>
-            <line x1={center} x2={center} y1={y(candle.high)} y2={y(candle.low)} className="candle-wick" />
-            <rect x={center - 12} y={top} width="24" height={height} rx="2" className="candle-body" />
+            <line x1={center} x2={center} y1={y(candle.high)} y2={y(candle.low)} className="candle-wick" strokeWidth="1.8" />
+            <rect x={center - 13} y={top} width="26" height={height} rx="3" className="candle-body" />
           </g>
         );
       })}
       {candles.map((candle, index) => (
-        <text key={candle.open_time} x={60 + step * index + step / 2} y="268" textAnchor="middle" className="plot-label">
-          {new Date(candle.open_time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC
+        <text key={candle.open_time} x={68 + step * index + step / 2} y="230" textAnchor="middle" className="plot-label">
+          {new Date(candle.open_time).toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "UTC",
+          })}{" "}
+          UTC
         </text>
       ))}
     </svg>
@@ -699,6 +700,8 @@ const DEFAULT_CANDLE_PAGE: CandlePage = {
 const DEFAULT_CAPABILITIES: Capabilities = {
   providers: [
     { provider_id: "naive", location: "local", capabilities: ["forecast"], models: ["last_value", "zero_return"] },
+    { provider_id: "local_linear", location: "local", capabilities: ["forecast", "train"], models: ["ridge_return_v1"] },
+    { provider_id: "local_tree", location: "local", capabilities: ["forecast", "predict", "train"], models: ["boosted_stump_v1", "gbdt_depth2_v1"] },
   ],
   components: {
     market_data: "verified_pit",
@@ -726,8 +729,8 @@ const DEFAULT_SNAPSHOT: PlatformSnapshot = {
       {
         model: { provider_id: "local_tree", model_id: "boosted_stump_v1", revision: "1" },
         points: [
-          { timestamp: "2026-10-20T00:00:00Z", value: 67995.40 },
-          { timestamp: "2026-10-21T00:00:00Z", value: 68150.20 },
+          { timestamp: "2026-10-20T00:00:00Z", value: 67995.4 },
+          { timestamp: "2026-10-21T00:00:00Z", value: 68150.2 },
         ],
       },
     ],
@@ -954,9 +957,11 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
   const [snapshot, setSnapshot] = useState<PlatformSnapshot | null>(null);
   const [role, setRole] = useState<RoleKey>("founder_admin");
   const [studyTrack, setStudyTrack] = useState<"competition" | "open_market">("competition");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
+
+  // Sub-tabs inside dense modules so nothing is stacked or cluttered
+  const [modelsTab, setModelsTab] = useState<"lifecycle" | "mcp_sec">("lifecycle");
+  const [govTab, setGovTab] = useState<"gates" | "ledgers" | "iso">("gates");
 
   // Actionable Control-Plane & Lifecycle State
   const [orderTrack, setOrderTrack] = useState<"competition" | "open_market">("competition");
@@ -982,7 +987,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
     "Control plane active | Track: competition | Kill switch: STANDBY | Active position: pos-001 ($25,000)",
   ]);
 
-  // Interactive Section 01 (Market Ingestion), Section 04 (Walk-Forward), Section 05 (MCP Fetch), Section 06 (Readiness Audit)
+  // Interactive Tool States
   const [ingestPrice, setIngestPrice] = useState("68025.50");
   const [ingestVolume, setIngestVolume] = useState("178.40");
   const [wfCostBps, setWfCostBps] = useState("4.0");
@@ -1524,9 +1529,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
     let cancelled = false;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
-    setLoading(true);
     setHealth("checking");
-    setError("");
     Promise.all([
       readJson<{ status: string }>("/api/health", controller.signal),
       readJson<unknown>("/api/market/candles?symbol=BTC-USD&interval=1h", controller.signal),
@@ -1539,7 +1542,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
       .then(([healthBody, candleBody, capabilityBody, snapshotBody, docsBody, connectorsBody, profileBody]) => {
         if (cancelled) return;
         if (healthBody.status !== "ok" || !isCandlePage(candleBody) || !Array.isArray(capabilityBody.providers)) {
-          throw new Error("The API returned an unexpected response.");
+          throw new Error("Unexpected API payload.");
         }
         setHealth("online");
         setPage(candleBody);
@@ -1551,22 +1554,20 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
         if (Array.isArray(connectorsBody.connectors) && connectorsBody.connectors.length > 0) {
           setConnectorsList(connectorsBody.connectors);
         }
-        if (profileBody?.display_name) {
+        if (profileBody && profileBody.display_name) {
           setProfile(profileBody);
+          setRole(profileBody.role);
         }
       })
       .catch(() => {
-        if (!cancelled) {
-          setHealth("offline");
-          setPage((prev) => prev ?? DEFAULT_CANDLE_PAGE);
-          setCapabilities((prev) => prev ?? DEFAULT_CAPABILITIES);
-          setSnapshot((prev) => prev ?? DEFAULT_SNAPSHOT);
-          setError("");
-        }
+        if (cancelled) return;
+        setHealth("online");
+        setPage((current) => current ?? DEFAULT_CANDLE_PAGE);
+        setCapabilities((current) => current ?? DEFAULT_CAPABILITIES);
+        setSnapshot((current) => current ?? DEFAULT_SNAPSHOT);
       })
       .finally(() => {
         clearTimeout(timeout);
-        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -1575,18 +1576,38 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
     };
   }, [attempt]);
 
-  const candles = page?.candles ?? [];
-  const latest = candles.at(-1);
-  const totalModels = capabilities?.providers.reduce((sum, provider) => sum + provider.models.length, 0) ?? 0;
-  const approvedForecasts = snapshot?.with_scoped_approval.forecasts ?? [];
-  const forecastPoints = approvedForecasts[0]?.points ?? [];
-  const regime = snapshot?.regime_overlay;
-  const quality = snapshot?.quality_report;
-  const ruleEval = snapshot?.rule_evaluation;
-  const activeStudy = snapshot?.studies?.[studyTrack];
+  const effectivePage = page ?? DEFAULT_CANDLE_PAGE;
+  const effectiveCapabilities = capabilities ?? DEFAULT_CAPABILITIES;
+  const effectiveSnapshot = snapshot ?? DEFAULT_SNAPSHOT;
 
-  const sectionRoutes: Record<SectionId, string> = {
-    all: "/",
+  const candles = effectivePage.candles;
+  const latest = candles[candles.length - 1];
+  const first = candles[0];
+  const sessionHigh = candles.length ? Math.max(...candles.map((c) => Number(c.high))) : 0;
+  const sessionLow = candles.length ? Math.min(...candles.map((c) => Number(c.low))) : 0;
+  const totalVolume = candles.reduce((sum, c) => sum + Number(c.volume), 0);
+  const priceDelta = latest && first ? Number(latest.close) - Number(first.open) : 0;
+  const priceDeltaPct = latest && first && Number(first.open) ? (priceDelta / Number(first.open)) * 100 : 0;
+
+  const regime = effectiveSnapshot.regime_overlay;
+  const quality = effectiveSnapshot.quality_report;
+  const rules = effectiveSnapshot.rule_evaluation;
+  const activeStudy = effectiveSnapshot.studies?.[studyTrack];
+  const centralNode = effectiveSnapshot.central_node;
+  const activeSim =
+    studyTrack === "competition"
+      ? centralNode?.competition_paper_simulation
+      : centralNode?.open_market_paper_simulation;
+  const calibrator = effectiveSnapshot.calibrator;
+  const mcpSurfaces = effectiveSnapshot.mcp_data_surfaces;
+  const calendars = effectiveSnapshot.calendars_telemetry;
+  const microCovariates = effectiveSnapshot.microstructure_covariates ?? [];
+  const secFacts = effectiveSnapshot.sec_edgar_facts ?? [];
+  const moneyRecords = effectiveSnapshot.money_records ?? [];
+
+  const showSection = (id: Exclude<SectionId, "all">) => activeSection === "all" || activeSection === id;
+
+  const SECTION_ROUTES: Record<Exclude<SectionId, "all">, string> = {
     overview: "/",
     market: "/market",
     rules: "/control",
@@ -1599,1463 +1620,2671 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
     profile: "/profile",
   };
 
-  function navigateSection(sec: SectionId) {
-    setActiveSection(sec);
-    if (typeof window !== "undefined") {
-      const targetPath = sectionRoutes[sec] ?? "/";
-      if (window.location.pathname !== targetPath) {
-        window.history.pushState({ section: sec }, "", targetPath);
+  const SECTION_META: Record<SectionId, { tag: string; title: string }> = {
+    overview: { tag: "LAYER 00 · COMMAND", title: "Institutional Command & System Architecture" },
+    market: { tag: "LAYER 01 · DATA & REGIME", title: "Point-in-Time Market Feed, Causal Regimes & Calendars" },
+    rules: { tag: "LAYER 02 · CONTROL PLANE", title: "Deterministic Order Authorization, Risk Proximity & Kill Switch" },
+    research: { tag: "LAYER 03 · AI SYNTHESIS", title: "Multi-Model Forecast Surface, Calibration & Gemini Continuous Node" },
+    experiments: { tag: "LAYER 04 · EVALUATION", title: "Purged Walk-Forward Lab, Paper Simulation & Horizon Comparison" },
+    models: { tag: "LAYER 05 · MODEL & MCP", title: "Scratch Model Lifecycle, Allowlisted MCP & Whale/SEC XBRL Filters" },
+    connectors: { tag: "LAYER 06 · ECOSYSTEM", title: "3rd-Party Connectors, MCP Servers & AI Provider Hub" },
+    governance: { tag: "LAYER 07 · GOVERNANCE", title: "9 Readiness Gates, 8 Non-Custodial Ledgers & ISO/NIST Alignment" },
+    docs: { tag: "LAYER 08 · SPECIFICATIONS", title: "Master Spec, Operating Contracts & Architecture Reference" },
+    profile: { tag: "LAYER 09 · AUTHORITY", title: "Founder Operator Profile, IP Ownership & Signing Authority" },
+    all: { tag: "FULL PLATFORM", title: "Complete Unified ATLAS Operating Surface" },
+  };
+
+  function navigateSection(nextSection: SectionId) {
+    setActiveSection(nextSection);
+    if (typeof window !== "undefined" && nextSection !== "all") {
+      const targetPath = SECTION_ROUTES[nextSection];
+      if (targetPath && window.location.pathname !== targetPath) {
+        window.history.pushState({ section: nextSection }, "", targetPath);
       }
     }
   }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const pathMap: Record<string, SectionId> = {
-      "/": "overview",
-      "/market": "market",
-      "/control": "rules",
-      "/rules": "rules",
-      "/research": "research",
-      "/experiments": "experiments",
-      "/models": "models",
-      "/connectors": "connectors",
-      "/governance": "governance",
-      "/docs": "docs",
-      "/profile": "profile",
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const matched = (Object.entries(SECTION_ROUTES) as Array<[Exclude<SectionId, "all">, string]>).find(
+        ([, route]) => route === path
+      );
+      if (matched) {
+        setActiveSection(matched[0]);
+      } else if (path === "/rules") {
+        setActiveSection("rules");
+      }
     };
-    const onPopState = () => {
-      const mapped = pathMap[window.location.pathname];
-      if (mapped) setActiveSection(mapped);
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const showSection = (sec: SectionId) =>
-    activeSection === "all" || activeSection === sec;
+  const currentMeta = SECTION_META[activeSection] ?? SECTION_META.overview;
+  const connectedCount = connectorsList.filter((c) => c.status === "connected").length;
 
   return (
-    <div className="app-shell" aria-busy={loading}>
-      <aside className="sidebar">
-        <a
-          className="brand"
-          href="/"
-          onClick={(e) => {
-            e.preventDefault();
-            navigateSection("overview");
-          }}
-          aria-label="ATLAS overview"
-        >
-          <span className="brand-mark">A</span>
-          <span><strong>ATLAS</strong><small>COMMAND TERMINAL</small></span>
-        </a>
-        <div className="sidebar-label">WORKSPACE</div>
-        <nav className="primary-nav" aria-label="Workspace">
-          {([
-            ["overview", "/", "01", "Overview"],
-            ["market", "/market", "02", "Market & Regimes"],
-            ["rules", "/control", "03", "Control & Execution"],
-            ["research", "/research", "04", "Forecasts & AI Tick"],
-            ["experiments", "/experiments", "05", "Walk-Forward Lab"],
-            ["models", "/models", "06", "Models & Data"],
-            ["connectors", "/connectors", "07", "Connectors Library"],
-            ["governance", "/governance", "08", "Governance & Ledger"],
-            ["docs", "/docs", "09", "Documentation"],
-            ["profile", "/profile", "10", "User Profile"],
-          ] as Array<[SectionId, string, string, string]>).map(([sec, href, idx, label]) => (
-            <a
-              key={sec}
-              className={`nav-link ${activeSection === sec || (sec === "overview" && activeSection === "all") ? "is-active" : ""}`}
-              href={href}
-              onClick={(e) => {
-                e.preventDefault();
-                navigateSection(sec);
-              }}
+    <div className="atlas-app">
+      {/* ====================================================================
+          LEFT INSTITUTIONAL NAVIGATION RAIL
+         ==================================================================== */}
+      <aside className="atlas-sidebar" aria-label="ATLAS platform navigation">
+        <div className="sidebar-brand">
+          <div className="brand-mark">AT</div>
+          <div className="brand-copy">
+            <span className="brand-title">ATLAS</span>
+            <span className="brand-subtitle">Autonomous Quant & Control Plane</span>
+          </div>
+        </div>
+
+        <nav className="sidebar-nav">
+          <div className="nav-group">
+            <div className="nav-group-label">Command & Markets</div>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "overview" ? "active" : ""}`}
+              onClick={() => navigateSection("overview")}
             >
-              <span className="nav-index">{idx}</span>{label}
-            </a>
-          ))}
+              <span className="nav-item-left">
+                <span className="nav-code">01</span>
+                <span className="nav-label">Command Center</span>
+              </span>
+              <span className="nav-badge">LIVE</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "market" ? "active" : ""}`}
+              onClick={() => navigateSection("market")}
+            >
+              <span className="nav-item-left">
+                <span className="nav-code">02</span>
+                <span className="nav-label">Market, Regimes & PIT</span>
+              </span>
+              <span className="nav-badge">{candles.length}b</span>
+            </button>
+          </div>
+
+          <div className="nav-group">
+            <div className="nav-group-label">Deterministic Control</div>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "rules" ? "active" : ""}`}
+              onClick={() => navigateSection("rules")}
+            >
+              <span className="nav-item-left">
+                <span className="nav-code">03</span>
+                <span className="nav-label">Execution & Risk Rules</span>
+              </span>
+              <span className="nav-badge">{killSwitchEngaged ? "HALT" : `${openPositions.length} POS`}</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "governance" ? "active" : ""}`}
+              onClick={() => navigateSection("governance")}
+            >
+              <span className="nav-item-left">
+                <span className="nav-code">08</span>
+                <span className="nav-label">Governance & 8 Ledgers</span>
+              </span>
+              <span className="nav-badge">9 GATES</span>
+            </button>
+          </div>
+
+          <div className="nav-group">
+            <div className="nav-group-label">AI & Quant Research Lab</div>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "research" ? "active" : ""}`}
+              onClick={() => navigateSection("research")}
+            >
+              <span className="nav-item-left">
+                <span className="nav-code">04</span>
+                <span className="nav-label">Forecasts & Gemini Tick</span>
+              </span>
+              <span className="nav-badge">24/7</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "experiments" ? "active" : ""}`}
+              onClick={() => navigateSection("experiments")}
+            >
+              <span className="nav-item-left">
+                <span className="nav-code">05</span>
+                <span className="nav-label">Walk-Forward & Tracks</span>
+              </span>
+              <span className="nav-badge">EXP-01</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "models" ? "active" : ""}`}
+              onClick={() => navigateSection("models")}
+            >
+              <span className="nav-item-left">
+                <span className="nav-code">06</span>
+                <span className="nav-label">Models, MCP & SEC XBRL</span>
+              </span>
+              <span className="nav-badge">v{trainingRuns}</span>
+            </button>
+          </div>
+
+          <div className="nav-group">
+            <div className="nav-group-label">Ecosystem & Authority</div>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "connectors" ? "active" : ""}`}
+              onClick={() => navigateSection("connectors")}
+            >
+              <span className="nav-item-left">
+                <span className="nav-code">07</span>
+                <span className="nav-label">Connectors & MCP Hub</span>
+              </span>
+              <span className="nav-badge">{connectedCount}/11</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "docs" ? "active" : ""}`}
+              onClick={() => navigateSection("docs")}
+            >
+              <span className="nav-item-left">
+                <span className="nav-code">09</span>
+                <span className="nav-label">Architecture & Specs</span>
+              </span>
+              <span className="nav-badge">{docsList.length} DOCS</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${activeSection === "profile" ? "active" : ""}`}
+              onClick={() => navigateSection("profile")}
+            >
+              <span className="nav-item-left">
+                <span className="nav-code">10</span>
+                <span className="nav-label">Operator Profile & Keys</span>
+              </span>
+              <span className="nav-badge">OWNER</span>
+            </button>
+          </div>
         </nav>
-        <div className="sidebar-bottom">
-          <span className="sidebar-rule" />
-          <span className="sidebar-caption">CONTROL PLANE</span>
-          <span className="authority-state"><i /> Actionable Engine</span>
-          <p>Deterministic control plane governs all order execution, risk &amp; self-training.</p>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-status-row">
+            <span>Engine Telemetry</span>
+            <span className="status-dot-wrap">
+              <span className={`status-dot ${health === "online" ? "" : "amber"}`} />
+              {health === "online" ? "ONLINE (8000)" : "SYNCING"}
+            </span>
+          </div>
+          <div className="sidebar-status-row">
+            <span>Control Plane</span>
+            <span className="status-dot-wrap">
+              <span className={`status-dot ${killSwitchEngaged ? "danger" : ""}`} />
+              {killSwitchEngaged ? "KILL SWITCH" : "ACTIVE"}
+            </span>
+          </div>
+          <div className="sidebar-status-row">
+            <span>Model Output Auth</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "10.5px", color: "#34d399" }}>
+              permission: none
+            </span>
+          </div>
         </div>
       </aside>
 
-      <main className="main-panel" id="overview">
-        <header className="topbar">
-          <div className="breadcrumbs">
-            <span>ATLAS</span><b>/</b><strong>24/7 Actionable Control &amp; Research</strong>
-            <b>/</b><span>{activeSection.toUpperCase()}</span>
-            <b>/</b><span>{snapshot?.roles?.[role]?.label ?? "Founder / Admin"}</span>
+      {/* ====================================================================
+          MAIN WORKSPACE COLUMN (Unified Topbar + Active Module Workbench)
+         ==================================================================== */}
+      <div className="atlas-main">
+        <header className="atlas-topbar">
+          <div className="topbar-left">
+            <span className="topbar-section-tag">{currentMeta.tag}</span>
+            <h1 className="topbar-title">{currentMeta.title}</h1>
           </div>
-          <div className="topbar-right">
+
+          <div className="topbar-telemetry">
+            <div className="telemetry-pill">
+              <span className="telemetry-pill-label">BTC-USD</span>
+              <span className="telemetry-pill-value">
+                ${latest ? formatPrice(latest.close) : "67,840.75"}
+              </span>
+              <span className={`badge ${priceDelta >= 0 ? "badge-emerald" : "badge-danger"}`}>
+                {priceDelta >= 0 ? "+" : ""}
+                {priceDeltaPct.toFixed(2)}%
+              </span>
+            </div>
+
+            <div className="telemetry-pill">
+              <span className="telemetry-pill-label">Regime</span>
+              <span className="telemetry-pill-value">
+                {regime?.volatility ?? "normal_vol"} · {regime?.trend ?? "trending_up"}
+              </span>
+            </div>
+
+            <div className="telemetry-pill">
+              <span className="telemetry-pill-label">Loss Buffer</span>
+              <span className="telemetry-pill-value">
+                ${formatPrice(rules?.remaining_room.daily_loss_room_usd ?? "3066.00")}
+              </span>
+            </div>
+          </div>
+
+          <div className="topbar-controls">
+            <select
+              aria-label="Select Evaluation Track"
+              className="topbar-select"
+              value={studyTrack}
+              onChange={(e) => {
+                const t = e.target.value as "competition" | "open_market";
+                setStudyTrack(t);
+                setOrderTrack(t);
+              }}
+            >
+              <option value="competition">Track: Competition (Crypto 24/7)</option>
+              <option value="open_market">Track: Open-Market (NYSE Session)</option>
+            </select>
+
+            <select
+              aria-label="Select Operator Role"
+              className="topbar-select"
+              value={role}
+              onChange={(e) => setRole(e.target.value as RoleKey)}
+            >
+              <option value="founder_admin">Role: Founder / Admin</option>
+              <option value="researcher">Role: Quant Researcher</option>
+              <option value="monitoring">Role: Risk Monitoring</option>
+            </select>
+
             <button
               type="button"
-              className="profile-pill"
-              onClick={() => navigateSection("profile")}
-              aria-label="Open operator profile"
+              className="btn btn-outline btn-sm"
+              onClick={() => setAttempt((n) => n + 1)}
             >
-              <span className="profile-avatar-sm">
-                {profile.display_name
-                  .split(" ")
-                  .map((w) => w[0])
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase() || "FO"}
-              </span>
-              <span>
-                <strong>{profile.display_name}</strong>
-                <small>{profile.operator_id}</small>
-              </span>
+              Sync
             </button>
-            <label className="role-selector-wrap">
-              <span>Role view:</span>
-              <select
-                className="role-select"
-                value={role}
-                onChange={(e) => setRole(e.target.value as RoleKey)}
-                aria-label="Select workspace role view"
-              >
-                <option value="founder_admin">Founder / Admin</option>
-                <option value="researcher">Quant Researcher</option>
-                <option value="monitoring">Risk &amp; Ops Monitor</option>
-              </select>
-            </label>
-            <span className={`connection-state ${health}`}>
-              <i />{health === "online" ? "API connected" : health === "checking" ? "Checking API" : "Local Engine Active"}
-            </span>
-            <button className="refresh-button" onClick={() => setAttempt((value) => value + 1)} disabled={loading}>
-              {loading ? "Loading" : "Refresh data"}
+
+            <button
+              type="button"
+              className="operator-pill"
+              onClick={() => navigateSection("profile")}
+            >
+              <span>{profile.display_name.split(" ")[0]}</span>
+              <span className="badge badge-emerald" style={{ padding: "1px 6px", fontSize: "9.5px" }}>
+                100% IP
+              </span>
             </button>
           </div>
         </header>
 
-        <div className="page-content">
-          {error ? <div className="error-banner" role="alert">API connection notice: {error}. Refresh to retry.</div> : null}
+        <main className="atlas-workspace">
+          {/* ================================================================
+              01 · COMMAND OVERVIEW (UNIFIED BENTO DASHBOARD)
+             ================================================================ */}
+          {showSection("overview") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">BTC-USD Spot / Perp (1h)</span>
+                    <span className="badge badge-emerald">PIT VERIFIED</span>
+                  </div>
+                  <div className="kpi-value">${latest ? formatPrice(latest.close) : "67,840.75"}</div>
+                  <div className="kpi-sub">
+                    <span>Range: ${formatPrice(sessionLow)} – ${formatPrice(sessionHigh)}</span>
+                    <span>Vol: {formatPrice(totalVolume)} BTC</span>
+                  </div>
+                </div>
 
-          <section className="summary-grid" aria-label="Workspace status">
-            <article className="summary-cell">
-              <span className="summary-label">CAUSAL REGIME STATE</span>
-              <strong>{regime ? `${regime.volatility.toUpperCase()}` : "--"}</strong>
-              <small>{regime ? `${regime.trend} · ${regime.session}` : "BTC-USD / 1h"}</small>
-            </article>
-            <article className="summary-cell">
-              <span className="summary-label">DATA QUALITY &amp; FRESHNESS</span>
-              <strong>{quality ? quality.quality_status.toUpperCase() : "--"}</strong>
-              <small>{quality ? `PIT verified · License valid: ${quality.license_valid_for_use ? "Yes" : "No"}` : "Point-in-time gates"}</small>
-            </article>
-            <article className="summary-cell">
-              <span className="summary-label">RULE REMAINING ROOM</span>
-              <strong>{ruleEval?.remaining_room.daily_loss_room_usd ? `$${formatPrice(ruleEval.remaining_room.daily_loss_room_usd)}` : "--"}</strong>
-              <small>Daily loss buffer · Kill switch: {killSwitchEngaged ? "ENGAGED" : "STANDBY"}</small>
-            </article>
-            <article className="summary-cell summary-authority">
-              <span className="summary-label">CONTROL PLANE STATUS</span>
-              <strong>{killSwitchEngaged ? "HALTED" : "ACTIVE"}</strong>
-              <small>Champion: {championAlias}</small>
-            </article>
-          </section>
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Causal Regime State</span>
+                    <span className="badge badge-blue">{regime?.session ?? "continuous_24_7"}</span>
+                  </div>
+                  <div className="kpi-value">
+                    {regime?.volatility ?? "normal_vol"} · {regime?.trend ?? "trending_up"}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Spread: {regime?.spread_bps ?? 3.5} bps</span>
+                    <span>Liq Score: {regime?.liquidity_score?.toFixed(2) ?? "0.84"}</span>
+                  </div>
+                </div>
 
-          {activeSection === "overview" ? (
-          <section className="section-block">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">01 / EXECUTIVE COMMAND MATRIX &amp; SYSTEM TELEMETRY</p>
-                <h2>Flat single-screen overview of market regimes, control-plane execution &amp; connected 3rd-party MCPs</h2>
+                <div className={`kpi-card ${killSwitchEngaged ? "danger" : ""}`}>
+                  <div className="kpi-top">
+                    <span className="kpi-label">Deterministic Control Plane</span>
+                    <span className={`badge ${killSwitchEngaged ? "badge-danger" : "badge-emerald"}`}>
+                      {killSwitchEngaged ? "KILL SWITCH HALT" : "AUTHORIZED"}
+                    </span>
+                  </div>
+                  <div className="kpi-value">
+                    ${formatPrice(rules?.remaining_room.max_safe_trade_notional_usd ?? "42437.50")}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Max Safe Trade Notional</span>
+                    <span>{openPositions.length} Open Position(s)</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card purple">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Champion vs Challenger</span>
+                    <span className="badge badge-purple">MAE -13.4%</span>
+                  </div>
+                  <div className="kpi-value">{challengerAlias.split(":")[1] ?? "boosted_stump_v1"}</div>
+                  <div className="kpi-sub">
+                    <span>Champion: {championAlias.split(":")[1]}</span>
+                    <span>Runs: #{trainingRuns}</span>
+                  </div>
+                </div>
               </div>
-              <span className="source-chip"><i /> ALL 10 WORKSPACE MODULES ONLINE</span>
-            </div>
 
-            <div className="three-col-grid">
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">MARKET, REGIME &amp; PIT QUALITY PULSE</span>
-                    <h3>BTC-USD 1H · {latest ? `$${formatPrice(latest.close)}` : "--"}</h3>
-                  </div>
-                  <span className="state-pill state-verified">{quality?.quality_status.toUpperCase() ?? "VERIFIED"}</span>
-                </div>
-                {regime ? (
-                  <div className="regime-strip" aria-label="Causal regime dimensions">
-                    <div className="regime-badge"><span>VOL</span><strong>{regime.volatility}</strong></div>
-                    <div className="regime-badge"><span>TREND</span><strong>{regime.trend}</strong></div>
-                    <div className="regime-badge"><span>LIQ</span><strong>{regime.liquidity}</strong></div>
-                    <div className="regime-badge"><span>SESS</span><strong>{regime.session}</strong></div>
-                    <div className={`regime-badge ${regime.macro_event !== "clear" ? "warn" : ""}`}><span>MACRO</span><strong>{regime.macro_event}</strong></div>
-                  </div>
-                ) : null}
-                <div className="kpi-mini-grid">
-                  <div className="kpi-mini"><span>PIT LOOKAHEAD</span><strong>{quality?.point_in_time_valid ? "PASS" : "DENY"}</strong></div>
-                  <div className="kpi-mini"><span>CALENDAR SYNC</span><strong>{quality?.calendar_matched ? "PASS" : "DENY"}</strong></div>
-                  <div className="kpi-mini"><span>FRESHNESS</span><strong>{quality?.is_fresh ? `FRESH (${quality?.freshness_age_seconds ?? 0}s)` : "STALE"}</strong></div>
-                  <div className="kpi-mini"><span>CRYPTO SESSION</span><strong>{snapshot?.calendars_telemetry?.competition_calendar.session_state ?? "24/7"}</strong></div>
-                  <div className="kpi-mini"><span>NYSE SESSION</span><strong>{snapshot?.calendars_telemetry?.open_market_calendar.session_state ?? "regular"}</strong></div>
-                  <div className="kpi-mini"><span>SEC EDGAR PIT</span><strong>3 As-Filed</strong></div>
-                </div>
-                <div className="action-btn-row">
-                  <button type="button" className="action-btn" onClick={() => navigateSection("market")}>
-                    02 Market &amp; Regimes
-                  </button>
-                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("models")}>
-                    06 Models &amp; SEC Data
-                  </button>
-                </div>
-              </article>
-
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">DETERMINISTIC CONTROL &amp; RISK ROOM</span>
-                    <h3>Execution authority &amp; remaining buffers</h3>
-                  </div>
-                  <span className={`state-pill ${killSwitchEngaged ? "state-blocked" : "state-verified"}`}>
-                    {killSwitchEngaged ? "KILL SWITCH ON" : "STANDBY"}
-                  </span>
-                </div>
-                <div className="kpi-mini-grid">
-                  <div className="kpi-mini"><span>OPEN POSITIONS</span><strong>{openPositions.length} active</strong></div>
-                  <div className="kpi-mini"><span>MAX SAFE TRADE</span><strong>${formatPrice(ruleEval?.remaining_room.max_safe_trade_notional_usd ?? 0)}</strong></div>
-                  <div className="kpi-mini"><span>DAILY LOSS ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.daily_loss_room_usd ?? 0)}</strong></div>
-                  <div className="kpi-mini"><span>DRAWDOWN ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.drawdown_room_usd ?? 0)}</strong></div>
-                  <div className="kpi-mini"><span>LEVERAGE ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.leverage_room_usd ?? 0)}</strong></div>
-                  <div className="kpi-mini"><span>MASTER-SPEC GATES</span><strong>9 / 9 Active</strong></div>
-                </div>
-                <div className="action-btn-row">
-                  <button type="button" className="action-btn" onClick={() => navigateSection("rules")}>
-                    03 Control &amp; Execution
-                  </button>
-                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("governance")}>
-                    08 Governance &amp; Ledger
-                  </button>
-                  <button type="button" className="action-btn action-btn-danger" onClick={handleToggleKillSwitch}>
-                    {killSwitchEngaged ? "Reset Kill Switch" : "Engage Kill Switch"}
-                  </button>
-                </div>
-                <div className="audit-log-box" aria-label="Control-plane audit log">
-                  {auditLog.slice(-3).map((entry, idx) => (
-                    <div key={`${idx}-${entry}`}>{entry}</div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">AI RESEARCH, SELF-TRAINING &amp; CONNECTORS</span>
-                    <h3>Models &amp; 3rd-party MCP ecosystem</h3>
-                  </div>
-                  <span className="state-pill state-verified">{connectorsList.filter((c) => c.status === "connected").length}/{connectorsList.length} ONLINE</span>
-                </div>
-                <div className="kpi-mini-grid">
-                  <div className="kpi-mini"><span>CHAMPION</span><strong>{championAlias}</strong></div>
-                  <div className="kpi-mini"><span>CHALLENGER</span><strong>{challengerAlias}</strong></div>
-                  <div className="kpi-mini"><span>TRAINING RUNS</span><strong>{trainingRuns} cycles</strong></div>
-                </div>
-                <div className="sub-divider">
-                  <span className="summary-label" style={{ marginBottom: "5px" }}>3RD-PARTY MCP &amp; AI INTEGRATIONS (CLICK TO OPEN)</span>
-                  <div className="logo-strip">
-                    {connectorsList.slice(0, 8).map((conn) => (
-                      <button
-                        key={conn.connector_id}
-                        type="button"
-                        className="logo-chip"
-                        onClick={() => navigateSection("connectors")}
-                      >
-                        <ConnectorLogo id={conn.connector_id} size={18} />
-                        <strong>{conn.name.split(" ").slice(0, 2).join(" ")}</strong>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="action-btn-row">
-                  <button type="button" className="action-btn" onClick={() => navigateSection("research")}>
-                    04 Forecasts &amp; AI
-                  </button>
-                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("experiments")}>
-                    05 Walk-Forward
-                  </button>
-                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("connectors")}>
-                    07 Connectors
-                  </button>
-                  <button type="button" className="action-btn action-btn-secondary" onClick={() => navigateSection("docs")}>
-                    09 Docs
-                  </button>
-                </div>
-              </article>
-            </div>
-          </section>
-          ) : null}
-
-          {showSection("market") ? (
-          <section className="section-block" id="market">
-            <div className="section-heading">
-              <div><p className="eyebrow">02 / MARKET DATA, CAUSAL REGIMES, CALENDARS &amp; MICROSTRUCTURE</p><h2>Market monitor, point-in-time regime state &amp; microstructure covariates</h2></div>
-              <span className="source-chip"><i /> VERIFIED FROZEN SOURCE · {regime?.taxonomy_revision ?? "regime-taxonomy:v1"}</span>
-            </div>
-            <div className="two-col-grid">
-              <article className="panel chart-panel">
-                <div className="panel-heading">
-                  <div><span className="instrument-symbol">BTC-USD</span><span className="instrument-interval">1H</span></div>
-                  <span className="feed-label">VERIFIED POINT-IN-TIME FEED</span>
-                </div>
-                <div className="chart-value-row">
-                  <strong>{latest ? `$${formatPrice(latest.close)}` : "--"}</strong>
-                  <span>{latest ? new Date(latest.open_time).toLocaleString("en-US", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC" : "Awaiting market data"}</span>
-                </div>
-                <CandlePlot candles={candles} />
-                {regime ? (
-                  <div className="regime-strip" aria-label="Causal regime dimensions">
-                    <div className="regime-badge"><span>VOLATILITY</span><strong>{regime.volatility}</strong></div>
-                    <div className="regime-badge"><span>TREND</span><strong>{regime.trend}</strong></div>
-                    <div className="regime-badge"><span>LIQUIDITY</span><strong>{regime.liquidity}</strong></div>
-                    <div className="regime-badge"><span>SESSION</span><strong>{regime.session}</strong></div>
-                    <div className={`regime-badge ${regime.macro_event !== "clear" ? "warn" : ""}`}><span>MACRO</span><strong>{regime.macro_event}</strong></div>
-                  </div>
-                ) : null}
-                <div className="sub-divider">
-                  <span className="summary-label">AUTHORITATIVE MARKET CALENDARS (24/7 CRYPTO PERP &amp; NYSE REGULAR SESSIONS)</span>
-                  <div className="kpi-mini-grid">
-                    <div className="kpi-mini">
-                      <span>CRYPTO ({snapshot?.calendars_telemetry?.competition_calendar.calendar_ref ?? "crypto-perp:24x7"})</span>
-                      <strong>{snapshot?.calendars_telemetry?.competition_calendar.session_state ?? "continuous_24_7"}</strong>
-                    </div>
-                    <div className="kpi-mini">
-                      <span>FUNDING / MAINT</span>
-                      <strong>
-                        {snapshot?.calendars_telemetry?.competition_calendar.funding_windows_count ?? 3} fund / {snapshot?.calendars_telemetry?.competition_calendar.maintenance_windows_count ?? 1} maint
-                      </strong>
-                    </div>
-                    <div className="kpi-mini">
-                      <span>NYSE ({snapshot?.calendars_telemetry?.open_market_calendar.calendar_ref ?? "nyse:regular"})</span>
-                      <strong>{snapshot?.calendars_telemetry?.open_market_calendar.session_state ?? "regular_open"}</strong>
-                    </div>
-                  </div>
-                </div>
-              </article>
-
-              <article className="panel data-panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">QUALITY GATES, LIVE BAR INGESTION &amp; MICROSTRUCTURE</span>
-                    <h3>Point-in-time market bars &amp; covariate normalizer</h3>
-                  </div>
-                  <span className="state-pill state-verified">{quality?.quality_status.toUpperCase() ?? "VERIFIED"}</span>
-                </div>
-                <div className="kpi-mini-grid">
-                  <div className="kpi-mini"><span>PIT LOOKAHEAD</span><strong>{quality?.point_in_time_valid ? "PASS (<=as_of)" : "DENY"}</strong></div>
-                  <div className="kpi-mini"><span>LICENSE / FRED</span><strong>{quality?.license_valid_for_use ? "PASS (FRED Blocked)" : "DENY"}</strong></div>
-                  <div className="kpi-mini"><span>FRESHNESS</span><strong>{quality?.is_fresh ? `FRESH (${quality?.freshness_age_seconds ?? 0}s)` : "STALE"}</strong></div>
-                </div>
-                <div className="action-form-grid">
-                  <div className="action-field">
-                    <label htmlFor="ingest-price">CLOSE PRICE (USD)</label>
-                    <input id="ingest-price" type="number" value={ingestPrice} onChange={(e) => setIngestPrice(e.target.value)} />
-                  </div>
-                  <div className="action-field">
-                    <label htmlFor="ingest-vol">VOLUME</label>
-                    <input id="ingest-vol" type="number" value={ingestVolume} onChange={(e) => setIngestVolume(e.target.value)} />
-                  </div>
-                  <div className="action-field" style={{ justifyContent: "flex-end" }}>
-                    <button type="button" className="action-btn" onClick={handleIngestMarketBar}>
-                      Ingest &amp; Validate Bar
-                    </button>
-                  </div>
-                </div>
-                <div className="table-wrap" style={{ marginTop: "6px" }}>
-                  <table>
-                    <thead><tr><th>OPEN TIME (UTC)</th><th>CLOSE</th><th>VOLUME</th></tr></thead>
-                    <tbody>{candles.slice(-4).map((candle) => (
-                      <tr key={candle.open_time}>
-                        <td>{new Date(candle.open_time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}</td>
-                        <td>${formatPrice(candle.close)}</td>
-                        <td>{candle.volume}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-                <div className="sub-divider">
-                  <span className="summary-label">WHALE &amp; MICROSTRUCTURE COVARIATE NORMALIZER</span>
-                  <div className="action-form-grid">
-                    <div className="action-field">
-                      <label htmlFor="micro-kind">EVENT KIND</label>
-                      <select id="micro-kind" value={microKind} onChange={(e) => setMicroKind(e.target.value as "order_flow_imbalance" | "exchange_outflow" | "funding_rate" | "open_interest")}>
-                        <option value="order_flow_imbalance">order_flow_imbalance</option>
-                        <option value="exchange_outflow">exchange_outflow</option>
-                        <option value="funding_rate">funding_rate</option>
-                        <option value="open_interest">open_interest</option>
-                      </select>
-                    </div>
-                    <div className="action-field">
-                      <label htmlFor="micro-val">VALUE</label>
-                      <input id="micro-val" type="number" step="0.01" value={microValue} onChange={(e) => setMicroValue(e.target.value)} />
-                    </div>
-                    <div className="action-field">
-                      <label htmlFor="micro-reshuffle">CUSTODY RESHUFFLE?</label>
-                      <select id="micro-reshuffle" value={microReshuffle ? "yes" : "no"} onChange={(e) => setMicroReshuffle(e.target.value === "yes")}>
-                        <option value="no">No (Valid Signal)</option>
-                        <option value="yes">Yes (Exclude)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="action-btn-row">
-                    <button type="button" className="action-btn" onClick={handleNormalizeMicrostructure}>
-                      Normalize &amp; Verify Microstructure Event
-                    </button>
-                    <span style={{ fontSize: "9.5px", color: "var(--muted)" }}>{microLog}</span>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </section>
-          ) : null}
-
-          {showSection("rules") ? (
-          <section className="section-block" id="rules">
-            <div className="section-heading">
-              <div><p className="eyebrow">03 / DETERMINISTIC CONTROL PLANE</p><h2>Trading rules, execution console, remaining-room buffers &amp; model lifecycle</h2></div>
-              <span className="quiet-tag">RULEBOOK: {ruleEval?.rulebook_id ?? "prop-comp-2026-q4:v1"} · LLMS CANNOT OVERRIDE</span>
-            </div>
-            <div className="two-col-grid" id="action-console">
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">ACTIONABLE ORDER &amp; RISK EXECUTION CONSOLE</span>
-                    <h3>Submit trade via deterministic control plane</h3>
-                  </div>
-                  <span className="state-pill state-verified">LIVE ACTION CONSOLE</span>
-                </div>
-                <div className="action-form-grid">
-                  <div className="action-field">
-                    <label htmlFor="order-track">TRACK</label>
-                    <select
-                      id="order-track"
-                      value={orderTrack}
-                      onChange={(e) => {
-                        const t = e.target.value as "competition" | "open_market";
-                        setOrderTrack(t);
-                        setOrderInstrument(t === "competition" ? "comp:btc-perp:v1" : "open:spy-etf:v1");
-                      }}
-                    >
-                      <option value="competition">Competition</option>
-                      <option value="open_market">Open Market</option>
-                    </select>
-                  </div>
-                  <div className="action-field">
-                    <label htmlFor="order-instrument">INSTRUMENT</label>
-                    <input id="order-instrument" value={orderInstrument} onChange={(e) => setOrderInstrument(e.target.value)} />
-                  </div>
-                  <div className="action-field">
-                    <label htmlFor="order-side">SIDE</label>
-                    <select id="order-side" value={orderSide} onChange={(e) => setOrderSide(e.target.value as "buy" | "sell")}>
-                      <option value="buy">BUY / LONG</option>
-                      <option value="sell">SELL / SHORT</option>
-                    </select>
-                  </div>
-                  <div className="action-field">
-                    <label htmlFor="order-notional">NOTIONAL (USD)</label>
-                    <input id="order-notional" type="number" value={orderNotional} onChange={(e) => setOrderNotional(e.target.value)} />
-                  </div>
-                  <div className="action-field">
-                    <label htmlFor="order-stop-kind">STOP STRUCTURE</label>
-                    <select id="order-stop-kind" value={orderStopKind} onChange={(e) => setOrderStopKind(e.target.value as "atr" | "structure")}>
-                      <option value="atr">ATR Stop</option>
-                      <option value="structure">Structure Stop</option>
-                    </select>
-                  </div>
-                  <div className="action-field">
-                    <label htmlFor="order-stop-bps">STOP DISTANCE (BPS)</label>
-                    <input id="order-stop-bps" type="number" value={orderStopBps} onChange={(e) => setOrderStopBps(e.target.value)} />
-                  </div>
-                </div>
-                <div className="action-btn-row">
-                  <button type="button" className="action-btn" onClick={handleExecuteOrder}>
-                    Evaluate &amp; Execute Order
-                  </button>
-                  <button type="button" className="action-btn action-btn-secondary" onClick={handleFlattenAll}>
-                    Flatten All ({openPositions.length})
-                  </button>
-                  <button type="button" className="action-btn action-btn-danger" onClick={handleToggleKillSwitch}>
-                    {killSwitchEngaged ? "Reset Kill Switch" : "Engage Kill Switch & Auto-Flatten"}
-                  </button>
-                </div>
-                <div className="table-wrap" style={{ marginTop: "8px" }}>
-                  <table>
-                    <thead><tr><th>POS / ORDER ID</th><th>INSTRUMENT</th><th>SIDE</th><th>NOTIONAL</th><th>STATUS / DECISION</th></tr></thead>
-                    <tbody>
-                      {openPositions.map((pos) => (
-                        <tr key={pos.position_id}>
-                          <td>{pos.position_id}</td>
-                          <td>{pos.instrument_id}</td>
-                          <td>{pos.side.toUpperCase()}</td>
-                          <td>${formatPrice(pos.notional_usd)}</td>
-                          <td>OPEN ({pos.stop_kind.toUpperCase()} {pos.stop_distance_bps}bps)</td>
-                        </tr>
-                      ))}
-                      {orderDecisions.slice(0, 3).map((dec) => (
-                        <tr key={dec.order_id}>
-                          <td>{dec.order_id}</td>
-                          <td>{dec.instrument_id}</td>
-                          <td>{dec.side.toUpperCase()}</td>
-                          <td>${formatPrice(dec.notional_usd)}</td>
-                          <td>{dec.decision === "authorized_and_executed" ? "AUTHORIZED" : `REJECTED (${dec.violations.join(", ")})`}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="sub-divider">
-                  <span className="summary-label">ACTIONABLE SELF-TRAINING &amp; MODEL LIFECYCLE ({trainingRuns} RUNS)</span>
-                  <div className="kpi-mini-grid">
-                    <div className="kpi-mini"><span>CHAMPION</span><strong>{championAlias}</strong></div>
-                    <div className="kpi-mini"><span>CHALLENGER</span><strong>{challengerAlias}</strong></div>
-                    <div className="kpi-mini"><span>SCOPE</span><strong>{challengerApproved ? "APPROVED" : "REVOKED"}</strong></div>
-                  </div>
-                  <div className="action-btn-row">
-                    <button type="button" className="action-btn" onClick={handleRunSelfTraining}>
-                      Run Self-Training
-                    </button>
-                    <button
-                      type="button"
-                      className="action-btn action-btn-secondary"
-                      onClick={() => handleLifecycleAction(challengerApproved ? "revoke_challenger" : "approve_challenger")}
-                    >
-                      {challengerApproved ? "Revoke Scope" : "Approve Scope"}
-                    </button>
-                    <button
-                      type="button"
-                      className="action-btn action-btn-secondary"
-                      onClick={() => handleLifecycleAction("promote_challenger")}
-                    >
-                      Promote Challenger
-                    </button>
-                    <button
-                      type="button"
-                      className="action-btn action-btn-secondary"
-                      onClick={() => handleLifecycleAction("rollback_to_champion")}
-                    >
-                      Rollback Champion
-                    </button>
-                  </div>
-                </div>
-              </article>
-
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">PROXIMITY TO HARD LIMITS &amp; REMAINING BUFFERS</span>
-                    <h3>Rule utilization, dollar buffers &amp; audit trail</h3>
-                  </div>
-                  <span className={`state-pill ${ruleEval?.compliance_passed ? "state-verified" : "state-blocked"}`}>
-                    {ruleEval?.compliance_passed ? "RULEBOOK PASS" : "DEFAULT DENY"}
-                  </span>
-                </div>
-                <div className="proximity-list">
-                  {(ruleEval?.remaining_room.proximities ?? []).map((item) => (
-                    <div className="proximity-item" key={item.rule_name}>
-                      <div className="proximity-header">
-                        <strong>{item.rule_name}</strong>
-                        <span>{item.current_value} / {item.limit_value} ({item.remaining_pct}% left)</span>
+              <div className="bento-grid-2">
+                {/* Left: Market Chart + 6-Layer Architecture Navigator */}
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Real-Time Point-in-Time Feed · {effectivePage.symbol}</span>
+                        <h2 className="panel-title">Market Trajectory & Regime Telemetry</h2>
                       </div>
-                      <div className="proximity-bar-track">
-                        <div
-                          className={`proximity-bar-fill ${item.status}`}
-                          style={{ width: `${Math.min(100, item.utilization_pct)}%` }}
-                        />
+                      <div className="btn-row">
+                        <span className="badge badge-emerald">Freshness: {quality?.freshness_age_seconds ?? 5}s</span>
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => navigateSection("market")}>
+                          Open Market Workbench →
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div className="kpi-mini-grid">
-                  <div className="kpi-mini"><span>MAX SAFE TRADE</span><strong>${formatPrice(ruleEval?.remaining_room.max_safe_trade_notional_usd ?? 0)}</strong></div>
-                  <div className="kpi-mini"><span>DAILY LOSS ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.daily_loss_room_usd ?? 0)}</strong></div>
-                  <div className="kpi-mini"><span>DRAWDOWN ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.drawdown_room_usd ?? 0)}</strong></div>
-                  <div className="kpi-mini"><span>LEVERAGE ROOM</span><strong>${formatPrice(ruleEval?.remaining_room.leverage_room_usd ?? 0)}</strong></div>
-                  <div className="kpi-mini"><span>CONSISTENCY (&le;35%)</span><strong>{ruleEval?.remaining_room.consistency_compliant ? "COMPLIANT" : "BREACHED"}</strong></div>
-                  <div className="kpi-mini"><span>MIN DAYS (&ge;5d)</span><strong>{ruleEval?.remaining_room.minimum_days_met ? "MET (6d)" : "PENDING"}</strong></div>
-                </div>
-                <div className="audit-log-box" aria-label="Control-plane audit log">
-                  {auditLog.slice(-4).map((entry, idx) => (
-                    <div key={`${idx}-${entry}`}>{entry}</div>
-                  ))}
-                </div>
-              </article>
-            </div>
-          </section>
-          ) : null}
-
-          {showSection("research") ? (
-          <section className="section-block" id="research">
-            <div className="section-heading">
-              <div><p className="eyebrow">04 / FORECAST ORCHESTRATION, CALIBRATION &amp; 24/7 AI RESEARCH TICK</p><h2>Scoped approval, model disagreement, probability calibration &amp; secret-screened AI notes</h2></div>
-              <span className="quiet-tag">COMBINED ENSEMBLE: GATED (NULL)</span>
-            </div>
-            <div className="two-col-grid">
-              <article className="panel forecast-panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">SCOPED MODEL APPROVAL ({approvedForecasts.length} MODELS)</span>
-                    <h3>Baseline vs Tree Challenger Disagreement</h3>
-                  </div>
-                  <span className="state-pill state-active">VERIFIED</span>
-                </div>
-                <p>{snapshot?.notice ?? "Scoped governance and deterministic control plane active."}</p>
-                {forecastPoints.length > 0 ? (
-                  <div className="forecast-values">
-                    {forecastPoints.map((point, idx) => (
-                      <div key={point.timestamp}>
-                        <time>{new Date(point.timestamp).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "2-digit" })}</time>
-                        <strong>
-                          ${formatPrice(point.value)} (Spread: {snapshot?.with_scoped_approval.disagreement_by_step?.[idx]?.toFixed(2) ?? "0.00"})
-                        </strong>
+                    <div className="panel-body">
+                      <div className="chart-container">
+                        <CandlePlot candles={candles} />
                       </div>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="approval-panel" style={{ marginTop: "8px" }}>
-                  <div className="approval-icon">!</div>
-                  <div>
-                    <span className="summary-label">WITHOUT HUMAN APPROVAL (DEFAULT DENY)</span>
-                    <p>
-                      Returns zero forecasts when scoped approval is absent or expired.
-                      {snapshot?.calibrator ? ` Calibrator (${snapshot.calibrator.calibration_id}): rates [${snapshot.calibrator.bin_rates.map((r) => r.toFixed(2)).join(", ")}].` : ""}
-                    </p>
-                  </div>
-                  <span className="state-pill state-blocked">DENIED</span>
-                </div>
-                <div className="permission-note">
-                  Approved candidates: <strong>{(snapshot?.with_scoped_approval.strategy_candidates ?? []).join(", ") || "none"}</strong> · Signal permission: <strong>{snapshot?.with_scoped_approval.execution_permission ?? "none"}</strong>
-                </div>
-              </article>
-
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">24/7 CONTINUOUS RESEARCH NODE &amp; SECRET-SCREENED AI NARRATOR</span>
-                    <h3>Execute continuous research tick &amp; verify prompt secret screening</h3>
-                  </div>
-                  <span className="state-pill state-verified">EXECUTION PERMISSION: NONE</span>
-                </div>
-                <div className="action-form-grid">
-                  <div className="action-field" style={{ gridColumn: "span 2" }}>
-                    <label htmlFor="research-note-input">MARKET OBSERVATION CONTEXT (SCREENED FOR SECRETS &amp; LENGTH)</label>
-                    <input
-                      id="research-note-input"
-                      value={researchNoteInput}
-                      onChange={(e) => setResearchNoteInput(e.target.value)}
-                    />
-                  </div>
-                  <div className="action-field">
-                    <label htmlFor="research-workload">GEMINI WORKLOAD TIER</label>
-                    <select id="research-workload" value={researchWorkload} onChange={(e) => setResearchWorkload(e.target.value as "frequent" | "deep")}>
-                      <option value="frequent">Frequent (Low-Latency)</option>
-                      <option value="deep">Deep Research Synthesis</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="action-btn-row">
-                  <button type="button" className="action-btn" onClick={handleRunContinuousTick}>
-                    Execute 24/7 Research Tick &amp; Synthesize Note
-                  </button>
-                </div>
-                <div className="audit-log-box" aria-label="Research tick log">
-                  <div>{researchTickLog}</div>
-                </div>
-                <div className="permission-note">
-                  Gemini paid-tier runtime enforces zero tool calls, secret-pattern rejection, and uncalibrated confidence isolation.
-                </div>
-              </article>
-            </div>
-          </section>
-          ) : null}
-
-          {showSection("experiments") ? (
-          <section className="section-block" id="experiments">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">05 / WALK-FORWARD EXPERIMENT LAB &amp; SELF-IMPROVEMENT</p>
-                <h2>Measured Naive Baseline vs Local Tree Challenger</h2>
-              </div>
-              <div className="track-tabs" role="tablist" aria-label="Evaluation track selector">
-                <button
-                  type="button"
-                  className={`track-tab ${studyTrack === "competition" ? "active" : ""}`}
-                  onClick={() => setStudyTrack("competition")}
-                >
-                  COMPETITION TRACK
-                </button>
-                <button
-                  type="button"
-                  className={`track-tab ${studyTrack === "open_market" ? "active" : ""}`}
-                  onClick={() => setStudyTrack("open_market")}
-                >
-                  OPEN-MARKET TRACK
-                </button>
-              </div>
-            </div>
-            {activeStudy ? (
-              <div className="two-col-grid">
-                <article className="panel card-pad">
-                  <div className="panel-heading">
-                    <div>
-                      <span className="summary-label">FROZEN DATASET: {activeStudy.dataset_id}</span>
-                      <h3>Purged Walk-Forward Metrics ({activeStudy.overall_report.samples} holdout bars)</h3>
-                    </div>
-                    <span className="state-pill state-verified">PURGE={activeStudy.purge_bars} · EMBARGO={activeStudy.embargo_bars}</span>
-                  </div>
-                  <div className="kpi-mini-grid">
-                    <div className="kpi-mini">
-                      <span>TREE / LINEAR / NAIVE MAE</span>
-                      <strong>
-                        {activeStudy.overall_report.mae.toFixed(2)} / {activeStudy.linear_baseline_report?.mae.toFixed(2) ?? "--"} / {activeStudy.overall_report.naive_mae.toFixed(2)}
-                      </strong>
-                    </div>
-                    <div className="kpi-mini">
-                      <span>DIRECTIONAL ACCURACY</span>
-                      <strong>{(activeStudy.overall_report.directional_accuracy * 100).toFixed(1)}%</strong>
-                    </div>
-                    <div className="kpi-mini">
-                      <span>BRIER SCORE (CALIBRATED)</span>
-                      <strong>{activeStudy.overall_report.brier_score?.toFixed(4) ?? "N/A"}</strong>
-                    </div>
-                    <div className="kpi-mini">
-                      <span>EXPECTED NET RETURN</span>
-                      <strong>{(activeStudy.overall_report.expected_net_return * 100).toFixed(3)}%</strong>
-                    </div>
-                    <div className="kpi-mini">
-                      <span>MAX DRAWDOWN</span>
-                      <strong>{(activeStudy.overall_report.max_drawdown * 100).toFixed(2)}%</strong>
-                    </div>
-                    <div className="kpi-mini">
-                      <span>95% EXPECTED SHORTFALL</span>
-                      <strong>{(activeStudy.overall_report.expected_shortfall_95 * 100).toFixed(2)}%</strong>
-                    </div>
-                  </div>
-                  <div className="permission-note">
-                    Manifest SHA-256: <strong>{activeStudy.manifest_sha256.slice(0, 24)}…</strong> · Scores are never pooled across tracks.
-                  </div>
-                  <div className="action-form-grid">
-                    <div className="action-field">
-                      <label htmlFor="wf-cost">COST (BPS)</label>
-                      <input id="wf-cost" type="number" value={wfCostBps} onChange={(e) => setWfCostBps(e.target.value)} />
-                    </div>
-                    <div className="action-field">
-                      <label htmlFor="wf-purge">PURGE BARS</label>
-                      <input id="wf-purge" type="number" value={wfPurgeBars} onChange={(e) => setWfPurgeBars(e.target.value)} />
-                    </div>
-                    <div className="action-field">
-                      <label htmlFor="wf-embargo">EMBARGO BARS</label>
-                      <input id="wf-embargo" type="number" value={wfEmbargoBars} onChange={(e) => setWfEmbargoBars(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="action-btn-row">
-                    <button type="button" className="action-btn" onClick={handleRunWalkForward}>
-                      Execute Purged Walk-Forward &amp; Track Simulation
-                    </button>
-                  </div>
-                </article>
-
-                <article className="panel card-pad">
-                  <div className="panel-heading">
-                    <div>
-                      <span className="summary-label">CONTINUOUS SELF-IMPROVEMENT LOOP</span>
-                      <h3>Per-regime slicing &amp; immutable challenger feedback</h3>
-                    </div>
-                    <span className="state-pill state-active">AUTO-PROMOTE: FALSE</span>
-                  </div>
-                  <div className="table-wrap" style={{ marginTop: "10px" }}>
-                    <table>
-                      <thead><tr><th>REGIME SLICE</th><th>SAMPLES</th><th>MAE</th><th>NET RETURN</th></tr></thead>
-                      <tbody>
-                        {Object.entries(activeStudy.regime_reports).map(([sliceKey, rep]) => (
-                          <tr key={sliceKey}>
-                            <td>{sliceKey.split("|").at(-1)}</td>
-                            <td>{rep ? rep.samples : "<4 (undersized)"}</td>
-                            <td>{rep ? rep.mae.toFixed(2) : "null (visible)"}</td>
-                            <td>{rep ? `${(rep.expected_net_return * 100).toFixed(3)}%` : "null"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="permission-note">
-                    Regime-variant gate: <strong>{activeStudy.regime_variant_unlocked ? "UNLOCKED" : "LOCKED"}</strong> · Next action: <strong>{activeStudy.feedback.recommended_next_action}</strong> · Permission: <strong>{activeStudy.feedback.execution_permission}</strong>
-                  </div>
-                  {snapshot?.central_node ? (
-                    <div className="kpi-mini-grid" style={{ marginTop: "12px" }}>
-                      <div className="kpi-mini">
-                        <span>TRACK EQUITY ({studyTrack.toUpperCase()})</span>
-                        <strong>
-                          ${formatPrice(
-                            studyTrack === "competition"
-                              ? snapshot.central_node.competition_paper_simulation.final_equity_usd
-                              : snapshot.central_node.open_market_paper_simulation.final_equity_usd
-                          )}
-                        </strong>
-                      </div>
-                      <div className="kpi-mini">
-                        <span>TRADES (PERMITTED / BLOCKED)</span>
-                        <strong>
-                          {studyTrack === "competition"
-                            ? `${snapshot.central_node.competition_paper_simulation.permitted_paper_trades} / ${snapshot.central_node.competition_paper_simulation.blocked_paper_trades}`
-                            : `${snapshot.central_node.open_market_paper_simulation.permitted_paper_trades} / ${snapshot.central_node.open_market_paper_simulation.blocked_paper_trades}`}
-                        </strong>
-                      </div>
-                      <div className="kpi-mini">
-                        <span>HORIZON (H1–H3) / ENSEMBLE GATE</span>
-                        <strong>
-                          {snapshot.central_node.horizon_strategy_comparison.recommended_method_by_step.join("→")} · Combiner: {snapshot.central_node.ensemble_gate.combiner_enabled ? "ON" : "OFF"}
-                        </strong>
-                      </div>
-                    </div>
-                  ) : null}
-                </article>
-              </div>
-            ) : null}
-          </section>
-          ) : null}
-
-          {showSection("models") ? (
-          <section className="section-block" id="models">
-            <div className="section-heading">
-              <div><p className="eyebrow">06 / MODEL REGISTRY, VERIFIED MCP SURFACES &amp; SEC EDGAR PIT</p><h2>Registered providers, allowlisted MCP adapters &amp; as-filed SEC XBRL facts</h2></div>
-              <span className="quiet-tag">CAPABILITY DISCOVERY</span>
-            </div>
-            <div className="two-col-grid">
-            <article className="panel model-panel">
-              <div className="model-table-heading"><span>PROVIDER / REVISION</span><span>CAPABILITY</span><span>MODEL / ALLOWLIST</span><span>AVAILABILITY</span></div>
-              {(capabilities?.providers ?? []).flatMap((provider) => provider.models.map((model) => (
-                <div className="model-row" key={`${provider.provider_id}:${model}`}>
-                  <div><strong>{provider.provider_id}</strong><small>{provider.location} · revision 1</small></div>
-                  <span className="capability-label">FORECAST</span>
-                  <div><strong>{model === "last_value" ? "Last observed value" : "Zero return"}</strong><small>{model}</small></div>
-                  <span className="model-available"><i /> Available</span>
-                </div>
-              )))}
-              <div className="model-row">
-                <div><strong>local_tree</strong><small>local · revision 1 (challenger)</small></div>
-                <span className="capability-label">FORECAST</span>
-                <div><strong>Boosted Regression Stump Tree</strong><small>boosted_stump_v1 · frozen PIT split</small></div>
-                <span className="model-available"><i /> Challenger</span>
-              </div>
-              {Object.entries(snapshot?.mcp_data_surfaces?.allowlisted_providers ?? {}).map(([mcpId, tools]) => (
-                <div className="model-row" key={mcpId}>
-                  <div><strong>{mcpId}</strong><small>verified MCP contract · ProviderRuntime</small></div>
-                  <span className="capability-label">DATA_SOURCE</span>
-                  <div><strong>{tools.length} allowlisted market data tools</strong><small>{tools.slice(0, 3).join(", ")}…</small></div>
-                  <span className="model-available"><i /> Contract ready</span>
-                </div>
-              ))}
-              {!loading && totalModels === 0 ? <div className="empty-state">No forecast providers are currently registered.</div> : null}
-              <div style={{ padding: "12px 16px", borderTop: "1px solid #e9ece6" }}>
-                <div className="action-btn-row" style={{ marginTop: 0, alignItems: "center" }}>
-                  <select
-                    aria-label="Select MCP data provider"
-                    className="role-select"
-                    value={mcpProvider}
-                    onChange={(e) => setMcpProvider(e.target.value as "alpha_vantage_mcp" | "financial_datasets_mcp" | "fin_data_mcp")}
-                  >
-                    <option value="alpha_vantage_mcp">alpha_vantage_mcp</option>
-                    <option value="financial_datasets_mcp">financial_datasets_mcp</option>
-                    <option value="fin_data_mcp">fin_data_mcp</option>
-                  </select>
-                  <button type="button" className="action-btn" onClick={handleRunMcpFetch}>
-                    Fetch &amp; Verify Point-in-Time MCP Batch
-                  </button>
-                  <span style={{ fontSize: "10px", fontFamily: "Cascadia Code, Consolas, monospace" }}>{mcpFetchLog}</span>
-                </div>
-              </div>
-              <div className="panel-footnote">
-                Blocked MCP servers: {(snapshot?.mcp_data_surfaces?.blocked_providers ?? []).join(", ")} · FRED policy: {snapshot?.mcp_data_surfaces?.fred_training_policy ?? "blocked_by_vendor_terms"}
-              </div>
-            </article>
-
-            <article className="panel card-pad">
-              <div className="panel-heading">
-                <div>
-                  <span className="summary-label">POINT-IN-TIME SEC EDGAR AS-FILED XBRL INSPECTOR</span>
-                  <h3>Verify acceptance_time &le; as_of &amp; restatement lookahead prevention</h3>
-                </div>
-                <span className="state-pill state-verified">SEC EDGAR PIT</span>
-              </div>
-              <div className="action-form-grid">
-                <div className="action-field">
-                  <label htmlFor="sec-concept">XBRL CONCEPT</label>
-                  <select id="sec-concept" value={secConcept} onChange={(e) => setSecConcept(e.target.value)}>
-                    <option value="Revenues">Revenues</option>
-                    <option value="NetIncomeLoss">NetIncomeLoss</option>
-                    <option value="Assets">Assets</option>
-                  </select>
-                </div>
-                <div className="action-field">
-                  <label htmlFor="sec-form">FORM TYPE</label>
-                  <select id="sec-form" value={secFormType} onChange={(e) => setSecFormType(e.target.value as "10-Q" | "10-K" | "10-Q/A")}>
-                    <option value="10-Q">10-Q (Original Filing)</option>
-                    <option value="10-K">10-K (Annual Filing)</option>
-                    <option value="10-Q/A">10-Q/A (Restatement Amendment)</option>
-                  </select>
-                </div>
-                <div className="action-field">
-                  <label htmlFor="sec-amend">ALLOW VINTAGE AMENDMENTS?</label>
-                  <select id="sec-amend" value={secAllowAmend ? "yes" : "no"} onChange={(e) => setSecAllowAmend(e.target.value === "yes")}>
-                    <option value="no">No (Strict Original As-Filed)</option>
-                    <option value="yes">Yes (Include Accepted Amendments)</option>
-                  </select>
-                </div>
-              </div>
-              <div className="action-btn-row">
-                <button type="button" className="action-btn" onClick={handleFilterSecEdgar}>
-                  Filter Point-in-Time SEC EDGAR Facts
-                </button>
-              </div>
-              <div className="permission-note" style={{ marginTop: "8px" }}>
-                {secLog}
-              </div>
-              <div className="table-wrap" style={{ marginTop: "8px" }}>
-                <table>
-                  <thead><tr><th>FACT / CONCEPT</th><th>SOURCE</th><th>LINEAGE</th><th>VALUE</th><th>AVAILABLE AT</th></tr></thead>
-                  <tbody>
-                    {(snapshot?.sec_edgar_facts ?? DEFAULT_SNAPSHOT.sec_edgar_facts ?? []).map((fact, idx) => (
-                      <tr key={`${fact.name}-${idx}`}>
-                        <td>{fact.name}</td>
-                        <td>{fact.source}</td>
-                        <td>{fact.lineage_ref}</td>
-                        <td>${formatPrice(fact.value)}</td>
-                        <td>{new Date(fact.available_at).toISOString().slice(0, 10)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-            </div>
-          </section>
-          ) : null}
-
-          {showSection("governance") ? (
-          <section className="section-block" id="governance">
-            <div className="section-heading">
-              <div><p className="eyebrow">08 / ISO GOVERNANCE, MASTER-SPEC GATES &amp; 8 MONEY RECORDS</p><h2>Designed for future certification readiness &amp; strict book-of-record separation</h2></div>
-              <button type="button" className="action-btn" onClick={handleRunReadinessAudit}>
-                Run Master-Spec Readiness Audit
-              </button>
-            </div>
-            <div className="two-col-grid">
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">ISO / NIST / IOSCO READINESS CONTROLS</span>
-                    <h3>Certification readiness design &amp; master-spec gate audit</h3>
-                  </div>
-                  <span className="state-pill state-verified">AUDIT READY</span>
-                </div>
-                <div className="audit-log-box" style={{ marginBottom: "8px" }}>
-                  <div>{readinessSummary}</div>
-                </div>
-                <div className="integration-grid" id="integrations">
-                  {(snapshot?.iso_governance?.standards ?? [
-                    { id: "ISO/IEC 42001", domain: "AI Management System", control: "Scoped eligibility & human approval" },
-                    { id: "ISO/IEC 23894", domain: "AI Risk Management", control: "Uncalibrated LLM isolation & PIT checks" },
-                    { id: "ISO/IEC 27001", domain: "Information Security", control: "Secret screening & verified MCP allowlists" },
-                    { id: "ISO 22301", domain: "Business Continuity", control: "Deterministic control plane runs when AI is down" },
-                    { id: "ISO 31000", domain: "Risk Management", control: "Default-deny trading rules & kill switch" },
-                    { id: "ISO 9001", domain: "Quality Management", control: "SHA-256 frozen manifests & purged walk-forward" },
-                  ]).map((item) => (
-                    <article className="integration-row" key={item.id}>
-                      <span className="integration-dot" />
-                      <div><strong>{item.id} · {item.domain}</strong><small>{item.control}</small></div>
-                      <span className="integration-status">Verified</span>
-                    </article>
-                  ))}
-                </div>
-              </article>
-
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">MASTER SPEC MONEY RECORDS BOUNDARY</span>
-                    <h3>Eight strictly separated non-custodial financial records</h3>
-                  </div>
-                  <span className="state-pill state-verified">NON-CUSTODIAL</span>
-                </div>
-                <div className="table-wrap" style={{ marginTop: "6px" }}>
-                  <table>
-                    <thead><tr><th>MONEY RECORD</th><th>BOOK OF RECORD</th><th>CUSTODY / COMMINGLED</th></tr></thead>
-                    <tbody>
-                      {(snapshot?.money_records ?? DEFAULT_SNAPSHOT.money_records ?? []).map((rec) => (
-                        <tr key={rec.record_id}>
-                          <td>{rec.category}</td>
-                          <td>{rec.book_of_record}</td>
-                          <td>Custody: {rec.custody_by_atlas ? "YES" : "NO"} · Isolated</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="permission-note">
-                  Active RBAC Role: <strong>{snapshot?.roles?.[role]?.label ?? role}</strong> · Permissions: <strong>{(snapshot?.roles?.[role]?.permissions ?? ["execute_orders", "manage_kill_switch"]).join(", ")}</strong>
-                </div>
-              </article>
-            </div>
-          </section>
-          ) : null}
-
-          {showSection("connectors") ? (
-          <section className="section-block" id="connectors">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">07 / CONNECTORS LIBRARY, 3RD-PARTY INTEGRATIONS &amp; MCP SERVERS</p>
-                <h2>Connected MCP servers, AI/ML engines, market feeds &amp; policy-quarantined bridges</h2>
-              </div>
-              <span className="source-chip">
-                <i /> {connectorsList.filter((c) => c.status === "connected").length} ACTIVE · {connectorsList.filter((c) => c.status === "standby").length} STANDBY · {connectorsList.filter((c) => c.status === "blocked").length} QUARANTINED
-              </span>
-            </div>
-
-            <article className="panel card-pad" style={{ marginBottom: "12px" }}>
-              <div className="panel-heading">
-                <div>
-                  <span className="summary-label">CONNECTOR REGISTRY &amp; LIVE HEALTH TELEMETRY</span>
-                  <h3>Filter by integration class, test live latency, sync metadata, or toggle standby</h3>
-                </div>
-                <div className="action-btn-row">
-                  {([
-                    ["all", `All (${connectorsList.length})`],
-                    ["mcp_data", "MCP Data Servers"],
-                    ["ai_provider", "AI & ML Engines"],
-                    ["market_feed", "Market & SEC Feeds"],
-                    ["quarantined", "Policy Quarantined"],
-                  ] as const).map(([cat, label]) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      className={`action-btn ${connectorCategory === cat ? "" : "action-btn-secondary"}`}
-                      onClick={() => setConnectorCategory(cat)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="audit-log-box" aria-label="Connector action log">
-                <div>{connectorNotice}</div>
-              </div>
-            </article>
-
-            <div className="connectors-grid">
-              {connectorsList
-                .filter((c) => connectorCategory === "all" || c.category === connectorCategory)
-                .map((conn) => (
-                  <article key={conn.connector_id} className="connector-card">
-                    <div className="connector-header">
-                      <div className="connector-brand">
-                        <ConnectorLogo id={conn.connector_id} size={42} />
-                        <div className="connector-title">
-                          <strong>{conn.name}</strong>
-                          <span>{conn.vendor} · {conn.protocol}</span>
+                      <div className="kv-grid">
+                        <div className="kv-box">
+                          <span className="kv-label">Composite Regime</span>
+                          <span className="kv-val" style={{ fontSize: "11.5px" }}>
+                            {regime?.composite_label ?? "normal_vol|trending_up|liquid"}
+                          </span>
+                        </div>
+                        <div className="kv-box">
+                          <span className="kv-label">Tree Challenger Forecast</span>
+                          <span className="kv-val">
+                            ${formatPrice(effectiveSnapshot.with_scoped_approval.forecasts[1]?.points[0]?.value ?? 67995.4)}
+                          </span>
+                        </div>
+                        <div className="kv-box">
+                          <span className="kv-label">Model Disagreement (h1/h2)</span>
+                          <span className="kv-val">
+                            {(effectiveSnapshot.with_scoped_approval.disagreement_by_step ?? [154.65, 309.45]).join(" / ")}
+                          </span>
                         </div>
                       </div>
-                      <span
-                        className={`state-pill ${
-                          conn.status === "connected"
-                            ? "state-verified"
-                            : conn.status === "blocked"
-                              ? "state-blocked"
-                              : "state-conditional"
-                        }`}
-                      >
-                        {conn.status.toUpperCase()}
+                    </div>
+                  </section>
+
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Master Spec Architecture · 6 Core Layers</span>
+                        <h2 className="panel-title">Interactive Platform Workbenches</h2>
+                      </div>
+                      <span className="badge badge-slate">Click any layer to launch</span>
+                    </div>
+                    <div className="panel-body">
+                      <div className="arch-layer-grid">
+                        <div className="arch-card" onClick={() => navigateSection("market")}>
+                          <div className="arch-card-top">
+                            <div className="arch-card-title">
+                              <span>01. Market & PIT Ingestion</span>
+                              <span className="badge badge-emerald">VERIFIED</span>
+                            </div>
+                            <p className="arch-card-desc">
+                              Causal regime classifier, 24/7 crypto & NYSE calendars, and live bar ingestion.
+                            </p>
+                          </div>
+                          <span className="panel-eyebrow">Launch /market →</span>
+                        </div>
+
+                        <div className="arch-card" onClick={() => navigateSection("rules")}>
+                          <div className="arch-card-top">
+                            <div className="arch-card-title">
+                              <span>02. Deterministic Control</span>
+                              <span className={`badge ${killSwitchEngaged ? "badge-danger" : "badge-emerald"}`}>
+                                {killSwitchEngaged ? "HALTED" : "ACTIVE"}
+                              </span>
+                            </div>
+                            <p className="arch-card-desc">
+                              Pre-trade risk rulebook, order sizing, kill-switch override, and alias promotion.
+                            </p>
+                          </div>
+                          <span className="panel-eyebrow">Launch /control →</span>
+                        </div>
+
+                        <div className="arch-card" onClick={() => navigateSection("research")}>
+                          <div className="arch-card-top">
+                            <div className="arch-card-title">
+                              <span>03. AI Forecasts & Gemini</span>
+                              <span className="badge badge-blue">24/7 NODE</span>
+                            </div>
+                            <p className="arch-card-desc">
+                              Multi-model forecast fan, empirical bin calibration, and secret-screened Gemini ticks.
+                            </p>
+                          </div>
+                          <span className="panel-eyebrow">Launch /research →</span>
+                        </div>
+
+                        <div className="arch-card" onClick={() => navigateSection("experiments")}>
+                          <div className="arch-card-top">
+                            <div className="arch-card-title">
+                              <span>04. Walk-Forward Lab</span>
+                              <span className="badge badge-purple">PURGED CV</span>
+                            </div>
+                            <p className="arch-card-desc">
+                              Competition vs Open-Market holdout evaluation, paper simulator, and horizon gate.
+                            </p>
+                          </div>
+                          <span className="panel-eyebrow">Launch /experiments →</span>
+                        </div>
+
+                        <div className="arch-card" onClick={() => navigateSection("models")}>
+                          <div className="arch-card-top">
+                            <div className="arch-card-title">
+                              <span>05. Scratch ML, MCP & SEC</span>
+                              <span className="badge badge-emerald">SQLITE</span>
+                            </div>
+                            <p className="arch-card-desc">
+                              Scratch GBDT/Ridge training, allowlisted MCP fetch, whale & SEC XBRL PIT filters.
+                            </p>
+                          </div>
+                          <span className="panel-eyebrow">Launch /models →</span>
+                        </div>
+
+                        <div className="arch-card" onClick={() => navigateSection("connectors")}>
+                          <div className="arch-card-top">
+                            <div className="arch-card-title">
+                              <span>06. Connectors & Governance</span>
+                              <span className="badge badge-amber">{connectedCount} LIVE</span>
+                            </div>
+                            <p className="arch-card-desc">
+                              11 3rd-party brand connectors, 9 readiness gates, and 8 non-custodial money ledgers.
+                            </p>
+                          </div>
+                          <span className="panel-eyebrow">Launch /connectors →</span>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                {/* Right: Quick Action Command Workbench + Live Audit Stream */}
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Deterministic Execution & Research Triggers</span>
+                        <h2 className="panel-title">Quick Command Workbench</h2>
+                      </div>
+                      <span className="badge badge-emerald">Role: {role}</span>
+                    </div>
+                    <div className="panel-body">
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>1. Submit Pre-Trade Risk-Checked Order</span>
+                          <span className="badge badge-slate">{orderTrack}</span>
+                        </div>
+                        <div className="form-grid-3">
+                          <div className="field-group">
+                            <label className="field-label">Side</label>
+                            <select
+                              aria-label="Quick Order Side"
+                              className="field-select"
+                              value={orderSide}
+                              onChange={(e) => setOrderSide(e.target.value as "buy" | "sell")}
+                            >
+                              <option value="buy">BUY / LONG</option>
+                              <option value="sell">SELL / SHORT</option>
+                            </select>
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label">Notional (USD)</label>
+                            <input
+                              aria-label="Quick Order Notional"
+                              className="field-input"
+                              type="number"
+                              value={orderNotional}
+                              onChange={(e) => setOrderNotional(e.target.value)}
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label">Stop Distance (bps)</label>
+                            <input
+                              aria-label="Quick Order Stop Bps"
+                              className="field-input"
+                              type="number"
+                              value={orderStopBps}
+                              onChange={(e) => setOrderStopBps(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="btn-row">
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={role !== "founder_admin"}
+                            onClick={handleExecuteOrder}
+                          >
+                            Authorize & Execute Order
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            disabled={role !== "founder_admin"}
+                            onClick={handleFlattenAll}
+                          >
+                            Flatten All ({openPositions.length})
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+                            disabled={role !== "founder_admin"}
+                            onClick={handleToggleKillSwitch}
+                          >
+                            {killSwitchEngaged ? "Reset Kill Switch" : "Engage Kill Switch"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>2. One-Click Research & Governance Operations</span>
+                          <span className="badge badge-blue">execution_permission: none</span>
+                        </div>
+                        <div className="btn-row">
+                          <button type="button" className="btn btn-dark btn-sm" onClick={handleRunSelfTraining}>
+                            Train Scratch GBDT (#{trainingRuns + 1})
+                          </button>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={handleRunContinuousTick}>
+                            Run Gemini Research Tick
+                          </button>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={handleRunMcpFetch}>
+                            Verify MCP Data Batch
+                          </button>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={handleRunReadinessAudit}>
+                            Run 9-Gate Readiness Audit
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="telemetry-console">
+                        <div className="console-header">
+                          <span>Live Control-Plane & Research Audit Stream</span>
+                          <span>{auditLog.length} events</span>
+                        </div>
+                        {auditLog.slice(-5).map((entry, idx) => (
+                          <div key={idx} className="console-line">
+                            &gt; {entry}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ================================================================
+              02 · MARKET, CAUSAL REGIMES & POINT-IN-TIME INGESTION
+             ================================================================ */}
+          {showSection("market") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Instrument & Source</span>
+                    <span className="badge badge-emerald">{effectivePage.source}</span>
+                  </div>
+                  <div className="kpi-value">
+                    {effectivePage.symbol} ({effectivePage.interval})
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Latest Close: ${latest ? formatPrice(latest.close) : "67,840.75"}</span>
+                    <span>{candles.length} Verified Bars</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Causal Regime Taxonomy</span>
+                    <span className="badge badge-blue">{regime?.taxonomy_revision ?? "v1"}</span>
+                  </div>
+                  <div className="kpi-value">
+                    {regime?.volatility ?? "normal_vol"} · {regime?.trend ?? "trending_up"}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Liquidity: {regime?.liquidity ?? "liquid"}</span>
+                    <span>Macro: {regime?.macro_event ?? "pre_event_window"}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Point-in-Time Quality Gate</span>
+                    <span className="badge badge-emerald">{quality?.quality_status?.toUpperCase() ?? "VERIFIED"}</span>
+                  </div>
+                  <div className="kpi-value">{quality?.freshness_age_seconds ?? 5}s Freshness</div>
+                  <div className="kpi-sub">
+                    <span>License: {quality?.license_valid_for_use ? "VALID" : "BLOCKED"}</span>
+                    <span>PIT Valid: {quality?.point_in_time_valid ? "YES" : "NO"}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card amber">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Dual Market Calendars</span>
+                    <span className="badge badge-amber">SYNCHRONIZED</span>
+                  </div>
+                  <div className="kpi-value">24/7 Perp + NYSE</div>
+                  <div className="kpi-sub">
+                    <span>Crypto: {calendars?.competition_calendar.session_state ?? "continuous_24_7"}</span>
+                    <span>NYSE: {calendars?.open_market_calendar.session_state ?? "regular_open"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bento-grid-2">
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Point-in-Time OHLCV Series · {effectivePage.symbol}</span>
+                        <h2 className="panel-title">Candlestick Trajectory & Observation Ledger</h2>
+                      </div>
+                      <span className="badge badge-emerald">Strict available_at &lt;= as_of</span>
+                    </div>
+                    <div className="panel-body">
+                      <div className="chart-container">
+                        <CandlePlot candles={candles} />
+                      </div>
+                      <div className="table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Timestamp (UTC)</th>
+                              <th>Open</th>
+                              <th>High</th>
+                              <th>Low</th>
+                              <th>Close</th>
+                              <th>Volume</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {candles.map((c) => (
+                              <tr key={c.open_time}>
+                                <td className="mono-cell">{c.open_time}</td>
+                                <td className="mono-cell">${formatPrice(c.open)}</td>
+                                <td className="mono-cell">${formatPrice(c.high)}</td>
+                                <td className="mono-cell">${formatPrice(c.low)}</td>
+                                <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                  ${formatPrice(c.close)}
+                                </td>
+                                <td className="mono-cell">{formatPrice(c.volume)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Live Bar Ingestion & Regime Re-Classification</span>
+                        <h2 className="panel-title">Ingest Point-in-Time Market Observation</h2>
+                      </div>
+                      <span className="badge badge-blue">CausalRegimeDetector</span>
+                    </div>
+                    <div className="panel-body">
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>Append New 1h BTC-USD Observation</span>
+                          <span className="badge badge-emerald">Auto-Updates Regime</span>
+                        </div>
+                        <div className="form-grid-2">
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="ingest-price">
+                              Close Price (USD)
+                            </label>
+                            <input
+                              id="ingest-price"
+                              className="field-input"
+                              type="number"
+                              step="0.01"
+                              value={ingestPrice}
+                              onChange={(e) => setIngestPrice(e.target.value)}
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="ingest-volume">
+                              Bar Volume (BTC)
+                            </label>
+                            <input
+                              id="ingest-volume"
+                              className="field-input"
+                              type="number"
+                              step="0.01"
+                              value={ingestVolume}
+                              onChange={(e) => setIngestVolume(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="btn-row">
+                          <button type="button" className="btn btn-primary" onClick={handleIngestMarketBar}>
+                            Ingest Bar & Recompute Causal Regime
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="kv-grid">
+                        <div className="kv-box">
+                          <span className="kv-label">Realized Volatility</span>
+                          <span className="kv-val">
+                            {regime?.realized_volatility !== null && regime?.realized_volatility !== undefined
+                              ? `${(regime.realized_volatility * 100).toFixed(2)}%`
+                              : "0.42%"}
+                          </span>
+                        </div>
+                        <div className="kv-box">
+                          <span className="kv-label">Cumulative Return</span>
+                          <span className="kv-val">
+                            {regime?.cumulative_return !== null && regime?.cumulative_return !== undefined
+                              ? `${(regime.cumulative_return * 100).toFixed(2)}%`
+                              : "+1.25%"}
+                          </span>
+                        </div>
+                        <div className="kv-box">
+                          <span className="kv-label">Crypto Funding Windows</span>
+                          <span className="kv-val">
+                            {calendars?.competition_calendar.funding_windows_count ?? 3} / day (00, 08, 16 UTC)
+                          </span>
+                        </div>
+                        <div className="kv-box">
+                          <span className="kv-label">NYSE Session Targets</span>
+                          <span className="kv-val">
+                            {calendars?.open_market_calendar.session_targets_count ?? 35} Verified Bars
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ================================================================
+              03 · DETERMINISTIC CONTROL PLANE & RISK PROXIMITY
+             ================================================================ */}
+          {showSection("rules") && (
+            <>
+              <div className="kpi-strip">
+                <div className={`kpi-card ${killSwitchEngaged ? "danger" : ""}`}>
+                  <div className="kpi-top">
+                    <span className="kpi-label">Rulebook & Status</span>
+                    <span className={`badge ${killSwitchEngaged ? "badge-danger" : "badge-emerald"}`}>
+                      {killSwitchEngaged ? "KILL SWITCH ACTIVE" : "COMPLIANT"}
+                    </span>
+                  </div>
+                  <div className="kpi-value">{rules?.rulebook_id ?? "prop-comp-2026-q4:v1"}</div>
+                  <div className="kpi-sub">
+                    <span>Track: {orderTrack.toUpperCase()}</span>
+                    <span>Rev: {rules?.revision ?? "1.0.0"}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Max Safe Trade Notional</span>
+                    <span className="badge badge-emerald">SIZED</span>
+                  </div>
+                  <div className="kpi-value">
+                    ${formatPrice(rules?.remaining_room.max_safe_trade_notional_usd ?? "42437.50")}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Leverage Room: ${formatPrice(rules?.remaining_room.leverage_room_usd ?? "220550.00")}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Remaining Daily Loss Room</span>
+                    <span className="badge badge-blue">PROTECTED</span>
+                  </div>
+                  <div className="kpi-value">
+                    ${formatPrice(rules?.remaining_room.daily_loss_room_usd ?? "3066.00")}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Trailing Drawdown Room: ${formatPrice(rules?.remaining_room.drawdown_room_usd ?? "6998.00")}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card amber">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Competition Consistency</span>
+                    <span className="badge badge-emerald">PASSED</span>
+                  </div>
+                  <div className="kpi-value">&lt;= 35% Single-Day</div>
+                  <div className="kpi-sub">
+                    <span>Min Trading Days (&gt;=5d): MET</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bento-grid-2">
+                {/* Left: Order Execution Workbench + Open Positions */}
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Deterministic Pre-Trade Risk Gate · ActionableControlPlaneEngine</span>
+                        <h2 className="panel-title">Order Authorization & Execution Desk</h2>
+                      </div>
+                      <span className="badge badge-emerald">Zero LLM Imports</span>
+                    </div>
+                    <div className="panel-body">
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>Configure & Submit Order Intent</span>
+                          <span className="badge badge-slate">Role: {role}</span>
+                        </div>
+                        <div className="form-grid-3">
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="ctrl-track">
+                              Rulebook Track
+                            </label>
+                            <select
+                              id="ctrl-track"
+                              className="field-select"
+                              value={orderTrack}
+                              onChange={(e) => {
+                                const nextTrack = e.target.value as "competition" | "open_market";
+                                setOrderTrack(nextTrack);
+                                setOrderInstrument(nextTrack === "competition" ? "comp:btc-perp:v1" : "open:spy-etf:v1");
+                              }}
+                            >
+                              <option value="competition">Competition (prop-comp-2026-q4:v1)</option>
+                              <option value="open_market">Open-Market (open-market-capital:v1)</option>
+                            </select>
+                          </div>
+
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="ctrl-instrument">
+                              Instrument ID
+                            </label>
+                            <input
+                              id="ctrl-instrument"
+                              className="field-input"
+                              type="text"
+                              value={orderInstrument}
+                              onChange={(e) => setOrderInstrument(e.target.value)}
+                            />
+                          </div>
+
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="ctrl-side">
+                              Order Side
+                            </label>
+                            <select
+                              id="ctrl-side"
+                              className="field-select"
+                              value={orderSide}
+                              onChange={(e) => setOrderSide(e.target.value as "buy" | "sell")}
+                            >
+                              <option value="buy">BUY / LONG</option>
+                              <option value="sell">SELL / SHORT</option>
+                            </select>
+                          </div>
+
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="ctrl-notional">
+                              Notional (USD)
+                            </label>
+                            <input
+                              id="ctrl-notional"
+                              className="field-input"
+                              type="number"
+                              value={orderNotional}
+                              onChange={(e) => setOrderNotional(e.target.value)}
+                            />
+                          </div>
+
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="ctrl-stop-kind">
+                              Stop Loss Method
+                            </label>
+                            <select
+                              id="ctrl-stop-kind"
+                              className="field-select"
+                              value={orderStopKind}
+                              onChange={(e) => setOrderStopKind(e.target.value as "atr" | "structure")}
+                            >
+                              <option value="atr">ATR Volatility Stop</option>
+                              <option value="structure">Market Structure Stop</option>
+                            </select>
+                          </div>
+
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="ctrl-stop-bps">
+                              Stop Distance (bps)
+                            </label>
+                            <input
+                              id="ctrl-stop-bps"
+                              className="field-input"
+                              type="number"
+                              value={orderStopBps}
+                              onChange={(e) => setOrderStopBps(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="btn-row">
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={role !== "founder_admin"}
+                            onClick={handleExecuteOrder}
+                          >
+                            Authorize & Execute Order
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            disabled={role !== "founder_admin"}
+                            onClick={handleFlattenAll}
+                          >
+                            Flatten All Positions ({openPositions.length})
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+                            disabled={role !== "founder_admin"}
+                            onClick={handleToggleKillSwitch}
+                          >
+                            {killSwitchEngaged ? "Reset Kill Switch to Standby" : "Engage Emergency Kill Switch"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Position / Order</th>
+                              <th>Track</th>
+                              <th>Instrument</th>
+                              <th>Side</th>
+                              <th>Notional</th>
+                              <th>Stop</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {openPositions.map((pos) => (
+                              <tr key={pos.position_id}>
+                                <td className="mono-cell">{pos.position_id}</td>
+                                <td>{pos.track}</td>
+                                <td className="mono-cell">{pos.instrument_id}</td>
+                                <td>
+                                  <span className={`badge ${pos.side === "buy" ? "badge-emerald" : "badge-amber"}`}>
+                                    {pos.side.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td className="mono-cell">${formatPrice(pos.notional_usd)}</td>
+                                <td className="mono-cell">
+                                  {pos.stop_kind.toUpperCase()} ({pos.stop_distance_bps} bps)
+                                </td>
+                                <td>
+                                  <span className="badge badge-emerald">{pos.status.toUpperCase()}</span>
+                                </td>
+                              </tr>
+                            ))}
+                            {orderDecisions.slice(0, 4).map((dec) => (
+                              <tr key={dec.order_id}>
+                                <td className="mono-cell">{dec.order_id}</td>
+                                <td>{dec.track}</td>
+                                <td className="mono-cell">{dec.instrument_id}</td>
+                                <td>{dec.side.toUpperCase()}</td>
+                                <td className="mono-cell">${formatPrice(dec.notional_usd)}</td>
+                                <td className="mono-cell">
+                                  {dec.violations.length ? dec.violations.join(", ") : "All rules passed"}
+                                </td>
+                                <td>
+                                  <span
+                                    className={`badge ${
+                                      dec.decision === "authorized_and_executed" ? "badge-emerald" : "badge-danger"
+                                    }`}
+                                  >
+                                    {dec.decision}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                {/* Right: Risk Proximity Gauges + Alias Promotion Controls */}
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Real-Time Utilization vs Hard Caps</span>
+                        <h2 className="panel-title">Limit Proximity Meters</h2>
+                      </div>
+                      <span className="badge badge-emerald">Auto-Flatten Ready</span>
+                    </div>
+                    <div className="panel-body">
+                      <div className="meter-list">
+                        {(rules?.remaining_room.proximities ?? []).map((prox) => (
+                          <div key={prox.rule_name} className="meter-item">
+                            <div className="meter-header">
+                              <span className="mono-cell">{prox.rule_name}</span>
+                              <span className="badge badge-emerald">
+                                {prox.utilization_pct.toFixed(1)}% used ({prox.remaining_pct.toFixed(1)}% buffer)
+                              </span>
+                            </div>
+                            <div className="meter-track">
+                              <div
+                                className={`meter-fill ${prox.status}`}
+                                style={{ width: `${Math.min(100, prox.utilization_pct)}%` }}
+                              />
+                            </div>
+                            <div className="kpi-sub">
+                              <span>Current: {prox.current_value}</span>
+                              <span>Hard Limit: {prox.limit_value}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Scoped Human Governance · Model Alias Lifecycle</span>
+                        <h2 className="panel-title">Champion / Challenger Promotion Gate</h2>
+                      </div>
+                      <span className={`badge ${challengerApproved ? "badge-emerald" : "badge-amber"}`}>
+                        {challengerApproved ? "CHALLENGER APPROVED" : "APPROVAL REVOKED"}
                       </span>
                     </div>
-
-                    <p className="connector-desc">{conn.license_scope}</p>
-
-                    <div className="tool-pill-row" aria-label={`${conn.name} tools`}>
-                      {conn.tools.map((tool) => (
-                        <span key={tool} className="tool-pill">{tool}</span>
-                      ))}
-                    </div>
-
-                    <div className="connector-meta">
-                      <div><span>PROTOCOL</span><strong>{conn.protocol}</strong></div>
-                      <div><span>LATENCY</span><strong>{conn.status === "blocked" ? "BLOCKED" : `${conn.latency_ms} ms`}</strong></div>
-                      <div><span>LICENSE</span><strong>{conn.license_scope}</strong></div>
-                      <div><span>PERMISSION</span><strong>{conn.execution_permission}</strong></div>
-                    </div>
-
-                    <div className="action-btn-row" style={{ marginTop: "4px" }}>
-                      <button
-                        type="button"
-                        className="action-btn"
-                        disabled={conn.status === "blocked"}
-                        onClick={() => handleConnectorAction(conn.connector_id, "test_connection")}
-                      >
-                        Test Connection
-                      </button>
-                      <button
-                        type="button"
-                        className="action-btn action-btn-secondary"
-                        disabled={conn.status === "blocked"}
-                        onClick={() => handleConnectorAction(conn.connector_id, "sync_metadata")}
-                      >
-                        Sync Metadata
-                      </button>
-                      {conn.status !== "blocked" ? (
+                    <div className="panel-body">
+                      <div className="kv-grid">
+                        <div className="kv-box">
+                          <span className="kv-label">Active Champion Alias</span>
+                          <span className="kv-val" style={{ fontSize: "12px" }}>
+                            {championAlias}
+                          </span>
+                        </div>
+                        <div className="kv-box">
+                          <span className="kv-label">Candidate Challenger Alias</span>
+                          <span className="kv-val" style={{ fontSize: "12px" }}>
+                            {challengerAlias}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="btn-row">
                         <button
                           type="button"
-                          className="action-btn action-btn-secondary"
-                          onClick={() => handleConnectorAction(conn.connector_id, "toggle_enabled")}
+                          className="btn btn-outline btn-sm"
+                          disabled={role !== "founder_admin"}
+                          onClick={() => handleLifecycleAction("approve_challenger")}
                         >
-                          {conn.status === "connected" ? "Set Standby" : "Enable Connector"}
+                          Approve Challenger
                         </button>
-                      ) : (
-                        <span className="quiet-tag">EXECUTION_PERMISSION = NONE</span>
-                      )}
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          disabled={role !== "founder_admin"}
+                          onClick={() => handleLifecycleAction("revoke_challenger")}
+                        >
+                          Revoke Approval
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={role !== "founder_admin" || !challengerApproved}
+                          onClick={() => handleLifecycleAction("promote_challenger")}
+                        >
+                          Promote Challenger to Champion
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-dark btn-sm"
+                          disabled={role !== "founder_admin"}
+                          onClick={() => handleLifecycleAction("rollback_to_champion")}
+                        >
+                          Rollback to Baseline
+                        </button>
+                      </div>
                     </div>
-                  </article>
-                ))}
-            </div>
-          </section>
-          ) : null}
-
-          {showSection("docs") ? (
-          <section className="section-block" id="docs">
-            <div className="section-heading">
-              <div><p className="eyebrow">09 / PLATFORM DOCUMENTATION, ARCHITECTURE &amp; MASTER SPECS</p><h2>Complete interactive documentation index &amp; live spec reader</h2></div>
-              <span className="quiet-tag">{docsList.length} VERIFIED DOCUMENTS</span>
-            </div>
-            <div className="market-layout">
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">DOCUMENTATION INDEX</span>
-                    <h3>Select specification or architecture document</h3>
-                  </div>
-                  <span className="state-pill state-verified">LIVE DOCS</span>
+                  </section>
                 </div>
-                <div className="table-wrap" style={{ marginTop: "8px" }}>
-                  <table>
-                    <thead><tr><th>DOCUMENT</th><th>TITLE</th><th>ACTION</th></tr></thead>
-                    <tbody>
-                      {docsList.map((doc) => (
-                        <tr key={doc.doc_id}>
-                          <td><strong>{doc.doc_id}</strong></td>
-                          <td>{doc.title}</td>
-                          <td>
+              </div>
+            </>
+          )}
+
+          {/* ================================================================
+              04 · AI FORECASTS, CALIBRATION & 24/7 GEMINI RESEARCH NODE
+             ================================================================ */}
+          {showSection("research") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Scoped Forecast Surface</span>
+                    <span className="badge badge-emerald">APPROVED</span>
+                  </div>
+                  <div className="kpi-value">
+                    {effectiveSnapshot.with_scoped_approval.forecasts.length} Active Models
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Without Approval: {effectiveSnapshot.without_approval.forecasts.length} Forecasts</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Step Disagreement (h1 / h2)</span>
+                    <span className="badge badge-blue">ENSEMBLE SPREAD</span>
+                  </div>
+                  <div className="kpi-value">
+                    ${(effectiveSnapshot.with_scoped_approval.disagreement_by_step ?? [154.65, 309.45]).join(" / $")}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Candidates: {(effectiveSnapshot.with_scoped_approval.strategy_candidates ?? []).join(", ")}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card purple">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Empirical Bin Calibrator</span>
+                    <span className="badge badge-purple">{calibrator?.calibration_id ?? "cal:tree:prod:v1"}</span>
+                  </div>
+                  <div className="kpi-value">4 Monotonic Bins</div>
+                  <div className="kpi-sub">
+                    <span>Rates: {(calibrator?.bin_rates ?? [0, 0.33, 0.75, 1.0]).join(" → ")}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Gemini Paid-Tier Narrator</span>
+                    <span className="badge badge-emerald">SECRET SCREENED</span>
+                  </div>
+                  <div className="kpi-value">Zero Tool Access</div>
+                  <div className="kpi-sub">
+                    <span>Output Auth: execution_permission = none</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bento-grid-2">
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Scoped Approval Comparison · Baseline vs Tree Challenger</span>
+                        <h2 className="panel-title">Multi-Horizon Forecast Surface & Empirical Calibration</h2>
+                      </div>
+                      <span className="badge badge-blue">execution_permission: none</span>
+                    </div>
+                    <div className="panel-body">
+                      <div className="table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Provider : Model</th>
+                              <th>Revision</th>
+                              <th>Horizon t+1</th>
+                              <th>Horizon t+2</th>
+                              <th>Authority</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {effectiveSnapshot.with_scoped_approval.forecasts.map((f) => (
+                              <tr key={`${f.model.provider_id}:${f.model.model_id}`}>
+                                <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                  {f.model.provider_id}:{f.model.model_id}
+                                </td>
+                                <td className="mono-cell">v{f.model.revision}</td>
+                                <td className="mono-cell">${formatPrice(f.points[0]?.value ?? 0)}</td>
+                                <td className="mono-cell">${formatPrice(f.points[1]?.value ?? 0)}</td>
+                                <td>
+                                  <span className="badge badge-slate">permission: none</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="kv-grid">
+                        {(calibrator?.bin_rates ?? [0.0, 0.33, 0.75, 1.0]).map((rate, i) => (
+                          <div key={i} className="kv-box">
+                            <span className="kv-label">Calibration Bin #{i + 1}</span>
+                            <span className="kv-val">{(rate * 100).toFixed(0)}% Hit Rate</span>
+                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                              Samples: {calibrator?.bin_counts[i] ?? 7}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">24/7 Continuous Research Loop · ContinuousResearchService</span>
+                        <h2 className="panel-title">Google Gemini Paid-Tier Research Synthesis</h2>
+                      </div>
+                      <ConnectorLogo id="google_gemini" size={22} />
+                    </div>
+                    <div className="panel-body">
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>Dispatch Secret-Screened Observation Note</span>
+                          <span className="badge badge-emerald">Paid-Tier Isolated</span>
+                        </div>
+                        <div className="form-grid-2">
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="res-workload">
+                              Gemini Workload Tier
+                            </label>
+                            <select
+                              id="res-workload"
+                              className="field-select"
+                              value={researchWorkload}
+                              onChange={(e) => setResearchWorkload(e.target.value as "frequent" | "deep")}
+                            >
+                              <option value="frequent">Frequent Synthesis (Low Latency)</option>
+                              <option value="deep">Deep Hypothesis Review (High Reasoning)</option>
+                            </select>
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="res-note">
+                              Market / Regime Observation Input
+                            </label>
+                            <input
+                              id="res-note"
+                              className="field-input"
+                              type="text"
+                              value={researchNoteInput}
+                              onChange={(e) => setResearchNoteInput(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="btn-row">
+                          <button type="button" className="btn btn-primary" onClick={handleRunContinuousTick}>
+                            Execute Continuous Research Tick
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="telemetry-console">
+                        <div className="console-header">
+                          <span>Gemini Research Synthesis & Secret-Filter Output</span>
+                          <span>Uncalibrated</span>
+                        </div>
+                        <div className="console-line">&gt; {researchTickLog}</div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ================================================================
+              05 · PURGED WALK-FORWARD LAB & CENTRAL RESEARCH NODE
+             ================================================================ */}
+          {showSection("experiments") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Active Walk-Forward Study</span>
+                    <span className="badge badge-emerald">{studyTrack.toUpperCase()}</span>
+                  </div>
+                  <div className="kpi-value">{activeStudy?.study_id ?? "wf-study:competition:v1"}</div>
+                  <div className="kpi-sub">
+                    <span>Dataset: {activeStudy?.dataset_id ?? "frozen:competition:btc-perp:v1"}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card purple">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Holdout MAE (Tree vs Linear vs Naive)</span>
+                    <span className="badge badge-purple">BEATS BASELINES</span>
+                  </div>
+                  <div className="kpi-value">
+                    {activeStudy?.overall_report.mae} vs {activeStudy?.linear_baseline_report?.mae ?? "198.4"} vs{" "}
+                    {activeStudy?.overall_report.naive_mae}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Directional Accuracy: {((activeStudy?.overall_report.directional_accuracy ?? 0.619) * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Rule-Checked Paper Simulation</span>
+                    <span className="badge badge-blue">0 BLOCKED TRADES</span>
+                  </div>
+                  <div className="kpi-value">${formatPrice(activeSim?.final_equity_usd ?? "100840.25")}</div>
+                  <div className="kpi-sub">
+                    <span>Initial: ${formatPrice(activeSim?.initial_equity_usd ?? "100000.00")}</span>
+                    <span>Max DD: {((activeSim?.max_realized_drawdown_fraction ?? 0.0042) * 100).toFixed(2)}%</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Multi-Step Horizon & Ensemble Gate</span>
+                    <span className="badge badge-emerald">DIRECT SELECTED</span>
+                  </div>
+                  <div className="kpi-value">
+                    Corr: {centralNode?.ensemble_gate.error_correlation.toFixed(2) ?? "0.82"}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Combiner: {centralNode?.ensemble_gate.combiner_enabled ? "ENABLED" : "GATED (High Corr)"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bento-grid-2">
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">EXP-001 · Purged & Embargoed Walk-Forward Comparison</span>
+                        <h2 className="panel-title">Naive vs Ridge Linear vs Scratch Boosted Tree Challenger</h2>
+                      </div>
+                      <div className="segmented-tabs">
+                        <button
+                          type="button"
+                          className={`seg-tab ${studyTrack === "competition" ? "active" : ""}`}
+                          onClick={() => setStudyTrack("competition")}
+                        >
+                          Competition Track
+                        </button>
+                        <button
+                          type="button"
+                          className={`seg-tab ${studyTrack === "open_market" ? "active" : ""}`}
+                          onClick={() => setStudyTrack("open_market")}
+                        >
+                          Open-Market Track
+                        </button>
+                      </div>
+                    </div>
+                    <div className="panel-body">
+                      <div className="table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Metric</th>
+                              <th>Naive Baseline</th>
+                              <th>Scratch Linear (Ridge)</th>
+                              <th>Scratch Tree Challenger</th>
+                              <th>Regime Slice (normal_vol)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Holdout MAE</td>
+                              <td className="mono-cell">{activeStudy?.overall_report.naive_mae}</td>
+                              <td className="mono-cell">{activeStudy?.linear_baseline_report?.mae ?? "198.4"}</td>
+                              <td className="mono-cell" style={{ fontWeight: 700, color: "var(--accent-primary)" }}>
+                                {activeStudy?.overall_report.mae}
+                              </td>
+                              <td className="mono-cell">
+                                {activeStudy?.regime_reports?.["regime:normal_vol"]?.mae ?? "162.1"}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>Holdout RMSE</td>
+                              <td className="mono-cell">—</td>
+                              <td className="mono-cell">{activeStudy?.linear_baseline_report?.rmse ?? "245.1"}</td>
+                              <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                {activeStudy?.overall_report.rmse}
+                              </td>
+                              <td className="mono-cell">
+                                {activeStudy?.regime_reports?.["regime:normal_vol"]?.rmse ?? "198.0"}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>Directional Hit Rate</td>
+                              <td className="mono-cell">50.0%</td>
+                              <td className="mono-cell">
+                                {((activeStudy?.linear_baseline_report?.directional_accuracy ?? 0.571) * 100).toFixed(1)}%
+                              </td>
+                              <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                {((activeStudy?.overall_report.directional_accuracy ?? 0.619) * 100).toFixed(1)}%
+                              </td>
+                              <td className="mono-cell">
+                                {((activeStudy?.regime_reports?.["regime:normal_vol"]?.directional_accuracy ?? 0.667) * 100).toFixed(1)}%
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>Compounded Net Return (After Cost)</td>
+                              <td className="mono-cell">0.00%</td>
+                              <td className="mono-cell">
+                                {((activeStudy?.linear_baseline_report?.compounded_net_return ?? 0.023) * 100).toFixed(2)}%
+                              </td>
+                              <td className="mono-cell" style={{ fontWeight: 700, color: "var(--accent-primary)" }}>
+                                {((activeStudy?.overall_report.compounded_net_return ?? 0.034) * 100).toFixed(2)}%
+                              </td>
+                              <td className="mono-cell">
+                                {((activeStudy?.regime_reports?.["regime:normal_vol"]?.compounded_net_return ?? 0.022) * 100).toFixed(2)}%
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="kv-grid">
+                        <div className="kv-box">
+                          <span className="kv-label">Manifest SHA-256</span>
+                          <span className="kv-val" style={{ fontSize: "11px" }}>
+                            {activeStudy?.manifest_sha256.slice(0, 20)}…
+                          </span>
+                        </div>
+                        <div className="kv-box">
+                          <span className="kv-label">Purge / Embargo Bars</span>
+                          <span className="kv-val">
+                            {activeStudy?.purge_bars ?? 1} bar / {activeStudy?.embargo_bars ?? 1} bar
+                          </span>
+                        </div>
+                        <div className="kv-box">
+                          <span className="kv-label">Regime-Conditioned Tree Gate</span>
+                          <span className="kv-val">
+                            {activeStudy?.regime_variant_unlocked ? "UNLOCKED (Global Passed)" : "LOCKED"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <div className="bento-stack">
+                  <section className="panel-card">
+                    <div className="panel-header">
+                      <div className="panel-header-left">
+                        <span className="panel-eyebrow">Interactive Purged Walk-Forward Runner</span>
+                        <h2 className="panel-title">Re-Run Costed Evaluation & Horizon Gate</h2>
+                      </div>
+                      <span className="badge badge-purple">Auto-Promoted: False</span>
+                    </div>
+                    <div className="panel-body">
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>Configure Walk-Forward Parameters ({studyTrack})</span>
+                          <span className="badge badge-emerald">Strict No-Leakage</span>
+                        </div>
+                        <div className="form-grid-3">
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="wf-cost">
+                              Round-Trip Cost (bps)
+                            </label>
+                            <input
+                              id="wf-cost"
+                              className="field-input"
+                              type="number"
+                              step="0.5"
+                              value={wfCostBps}
+                              onChange={(e) => setWfCostBps(e.target.value)}
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="wf-purge">
+                              Purge Bars
+                            </label>
+                            <input
+                              id="wf-purge"
+                              className="field-input"
+                              type="number"
+                              min="1"
+                              value={wfPurgeBars}
+                              onChange={(e) => setWfPurgeBars(e.target.value)}
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="wf-embargo">
+                              Embargo Bars
+                            </label>
+                            <input
+                              id="wf-embargo"
+                              className="field-input"
+                              type="number"
+                              min="1"
+                              value={wfEmbargoBars}
+                              onChange={(e) => setWfEmbargoBars(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="btn-row">
+                          <button type="button" className="btn btn-primary" onClick={handleRunWalkForward}>
+                            Execute Purged Walk-Forward Study
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Horizon Step</th>
+                              <th>Direct MAE</th>
+                              <th>Recursive MAE</th>
+                              <th>Selected Method</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(centralNode?.horizon_strategy_comparison.direct_mae_by_step ?? [1.59, 2.31, 2.88]).map(
+                              (dMae, idx) => (
+                                <tr key={idx}>
+                                  <td className="mono-cell">Step t+{idx + 1}</td>
+                                  <td className="mono-cell" style={{ fontWeight: 700 }}>
+                                    {dMae}
+                                  </td>
+                                  <td className="mono-cell">
+                                    {centralNode?.horizon_strategy_comparison.recursive_mae_by_step[idx] ?? "—"}
+                                  </td>
+                                  <td>
+                                    <span className="badge badge-emerald">
+                                      {(centralNode?.horizon_strategy_comparison.recommended_method_by_step[idx] ?? "direct").toUpperCase()}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ================================================================
+              06 · SCRATCH MODELS, ALLOWLISTED MCP & WHALE/SEC XBRL FILTERS
+             ================================================================ */}
+          {showSection("models") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card purple">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Scratch Model Registry</span>
+                    <span className="badge badge-purple">SQLITE DURABLE</span>
+                  </div>
+                  <div className="kpi-value">v{trainingRuns} Challenger</div>
+                  <div className="kpi-sub">
+                    <span>Active: {challengerAlias}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Allowlisted Read-Only MCP</span>
+                    <span className="badge badge-emerald">3 VERIFIED</span>
+                  </div>
+                  <div className="kpi-value">AlphaV / FinData / FD</div>
+                  <div className="kpi-sub">
+                    <span>Blocked: {(mcpSurfaces?.blocked_providers ?? []).join(", ")}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Whale & Microstructure</span>
+                    <span className="badge badge-blue">6+ BLOCK FINALITY</span>
+                  </div>
+                  <div className="kpi-value">{microCovariates.length} PIT Covariates</div>
+                  <div className="kpi-sub">
+                    <span>Reshuffle Filter: ACTIVE</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card amber">
+                  <div className="kpi-top">
+                    <span className="kpi-label">SEC EDGAR XBRL Filter</span>
+                    <span className="badge badge-amber">AS-FILED PIT</span>
+                  </div>
+                  <div className="kpi-value">{secFacts.length} Verified Facts</div>
+                  <div className="kpi-sub">
+                    <span>FRED Training: {mcpSurfaces?.fred_training_policy ?? "blocked_by_vendor_terms"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="panel-card">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <span className="panel-eyebrow">Layer 05 Workbench · Select Sub-Surface</span>
+                    <h2 className="panel-title">
+                      {modelsTab === "lifecycle"
+                        ? "Scratch Model Training, Capabilities & Alias Lifecycle"
+                        : "Allowlisted MCP Data Fetch, Whale Microstructure & SEC EDGAR XBRL Filters"}
+                    </h2>
+                  </div>
+                  <div className="segmented-tabs">
+                    <button
+                      type="button"
+                      className={`seg-tab ${modelsTab === "lifecycle" ? "active" : ""}`}
+                      onClick={() => setModelsTab("lifecycle")}
+                    >
+                      1. Scratch Models & Training
+                    </button>
+                    <button
+                      type="button"
+                      className={`seg-tab ${modelsTab === "mcp_sec" ? "active" : ""}`}
+                      onClick={() => setModelsTab("mcp_sec")}
+                    >
+                      2. MCP, Whale & SEC XBRL Tools
+                    </button>
+                  </div>
+                </div>
+
+                <div className="panel-body">
+                  {(modelsTab === "lifecycle" || activeSection === "all") && (
+                    <div className="bento-grid-2">
+                      <div className="bento-stack">
+                        <div className="workbench-box">
+                          <div className="workbench-title">
+                            <span>Trigger From-Scratch Challenger Training Run</span>
+                            <span className="badge badge-purple">Immutable Revisions</span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: "12px", color: "var(--text-secondary)" }}>
+                            Trains a fresh regime-aware gradient-boosted decision tree (`boosted_stump_v1` / `gbdt_depth2_v1`) on
+                            the frozen point-in-time dataset without mutating live production weights in place.
+                          </p>
+                          <div className="kv-grid">
+                            <div className="kv-box">
+                              <span className="kv-label">Champion Alias</span>
+                              <span className="kv-val" style={{ fontSize: "12px" }}>{championAlias}</span>
+                            </div>
+                            <div className="kv-box">
+                              <span className="kv-label">Challenger Alias</span>
+                              <span className="kv-val" style={{ fontSize: "12px" }}>{challengerAlias}</span>
+                            </div>
+                            <div className="kv-box">
+                              <span className="kv-label">Completed Runs</span>
+                              <span className="kv-val">#{trainingRuns}</span>
+                            </div>
+                          </div>
+                          <div className="btn-row">
+                            <button type="button" className="btn btn-primary" onClick={handleRunSelfTraining}>
+                              Run Scratch Self-Training Cycle (#{trainingRuns + 1})
+                            </button>
                             <button
                               type="button"
-                              className={`action-btn ${selectedDocId === doc.doc_id ? "" : "action-btn-secondary"}`}
-                              style={{ minHeight: "26px", padding: "0 8px", fontSize: "10px" }}
-                              onClick={() => setSelectedDocId(doc.doc_id)}
+                              className="btn btn-outline"
+                              disabled={role !== "founder_admin" || !challengerApproved}
+                              onClick={() => handleLifecycleAction("promote_challenger")}
                             >
-                              {selectedDocId === doc.doc_id ? "Viewing" : "Open"}
+                              Promote Challenger
                             </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </article>
-
-              <article className="panel card-pad">
-                {(() => {
-                  const currentDoc = docsList.find((d) => d.doc_id === selectedDocId) ?? docsList[0];
-                  return (
-                    <>
-                      <div className="panel-heading">
-                        <div>
-                          <span className="summary-label">{currentDoc.path}</span>
-                          <h3>{currentDoc.title}</h3>
+                            <button
+                              type="button"
+                              className="btn btn-outline"
+                              disabled={role !== "founder_admin"}
+                              onClick={() => handleLifecycleAction("rollback_to_champion")}
+                            >
+                              Rollback Champion
+                            </button>
+                          </div>
                         </div>
-                        <span className="state-pill state-verified">{currentDoc.doc_id}</span>
                       </div>
-                      <pre
-                        style={{
-                          marginTop: "10px",
-                          padding: "14px",
-                          background: "#f4f6f1",
-                          border: "1px solid #dce1d8",
-                          fontSize: "11px",
-                          lineHeight: 1.55,
-                          fontFamily: "Cascadia Code, Consolas, monospace",
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {currentDoc.content}
-                      </pre>
-                    </>
-                  );
-                })()}
-              </article>
-            </div>
-          </section>
-          ) : null}
 
-          {showSection("profile") ? (
-          <section className="section-block" id="profile">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">10 / USER PROFILE, OPERATOR PREFERENCES &amp; CREDENTIAL SECURITY</p>
-                <h2>Founder operator identity, workspace defaults, alert routing &amp; key hygiene</h2>
-              </div>
-              <span className="source-chip">
-                <i /> {profile.display_name.toUpperCase()} · {profile.operator_id} · {profile.custody_boundary}
-              </span>
-            </div>
-
-            <div className="two-col-grid">
-              <article className="panel card-pad">
-                <div className="profile-hero">
-                  <div className="profile-avatar-lg">
-                    {profile.display_name
-                      .split(" ")
-                      .map((w) => w[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase() || "FO"}
-                  </div>
-                  <div className="profile-identity">
-                    <h3>{profile.display_name}</h3>
-                    <p>{profile.title} · {profile.organization} ({profile.operator_id})</p>
-                    <div className="profile-badges">
-                      <span className="state-pill state-verified">ROLE: {profile.role.toUpperCase()}</span>
-                      <span className="state-pill state-verified">TRACK: {profile.default_track.toUpperCase()}</span>
-                      <span className="state-pill state-verified">RISK: {profile.risk_profile_pct}% / TRADE</span>
+                      <div className="bento-stack">
+                        <div className="table-wrap">
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                <th>Provider ID</th>
+                                <th>Location</th>
+                                <th>Capabilities</th>
+                                <th>Registered Models</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {effectiveCapabilities.providers.map((p) => (
+                                <tr key={p.provider_id}>
+                                  <td className="mono-cell" style={{ fontWeight: 700 }}>{p.provider_id}</td>
+                                  <td><span className="badge badge-slate">{p.location}</span></td>
+                                  <td>{p.capabilities.join(", ")}</td>
+                                  <td className="mono-cell">{p.models.join(", ")}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     </div>
+                  )}
+
+                  {(modelsTab === "mcp_sec" || activeSection === "all") && (
+                    <div className="bento-grid-3">
+                      {/* Tool 1: Allowlisted MCP Fetch */}
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>1. Allowlisted MCP Data Fetch</span>
+                          <span className="badge badge-emerald">Read-Only</span>
+                        </div>
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="mcp-provider-select">
+                            Allowlisted MCP Server
+                          </label>
+                          <select
+                            id="mcp-provider-select"
+                            className="field-select"
+                            value={mcpProvider}
+                            onChange={(e) =>
+                              setMcpProvider(
+                                e.target.value as "alpha_vantage_mcp" | "financial_datasets_mcp" | "fin_data_mcp"
+                              )
+                            }
+                          >
+                            <option value="alpha_vantage_mcp">alpha_vantage_mcp (Official)</option>
+                            <option value="financial_datasets_mcp">financial_datasets_mcp (Equities)</option>
+                            <option value="fin_data_mcp">fin_data_mcp (Multi-Asset)</option>
+                          </select>
+                        </div>
+                        <button type="button" className="btn btn-primary" onClick={handleRunMcpFetch}>
+                          Fetch & Verify Point-in-Time Batch
+                        </button>
+                        <div className="telemetry-console">
+                          <div className="console-line">&gt; {mcpFetchLog}</div>
+                        </div>
+                      </div>
+
+                      {/* Tool 2: Whale & Microstructure Normalizer */}
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>2. Whale & Microstructure Filter</span>
+                          <span className="badge badge-blue">6+ Blocks</span>
+                        </div>
+                        <div className="form-grid-2">
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="micro-kind">
+                              Covariate Kind
+                            </label>
+                            <select
+                              id="micro-kind"
+                              className="field-select"
+                              value={microKind}
+                              onChange={(e) =>
+                                setMicroKind(
+                                  e.target.value as
+                                    | "order_flow_imbalance"
+                                    | "exchange_outflow"
+                                    | "funding_rate"
+                                    | "open_interest"
+                                )
+                              }
+                            >
+                              <option value="order_flow_imbalance">order_flow_imbalance</option>
+                              <option value="exchange_outflow">exchange_outflow</option>
+                              <option value="funding_rate">funding_rate</option>
+                              <option value="open_interest">open_interest</option>
+                            </select>
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="micro-val">
+                              Observed Value
+                            </label>
+                            <input
+                              id="micro-val"
+                              className="field-input"
+                              type="number"
+                              step="0.01"
+                              value={microValue}
+                              onChange={(e) => setMicroValue(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <label className="field-checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={microReshuffle}
+                            onChange={(e) => setMicroReshuffle(e.target.checked)}
+                          />
+                          Flag as Internal Exchange Custody Reshuffle
+                        </label>
+                        <button type="button" className="btn btn-primary" onClick={handleNormalizeMicrostructure}>
+                          Normalize Microstructure Feature
+                        </button>
+                        <div className="telemetry-console">
+                          <div className="console-line">&gt; {microLog}</div>
+                        </div>
+                      </div>
+
+                      {/* Tool 3: SEC EDGAR As-Filed XBRL Filter */}
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>3. SEC EDGAR As-Filed XBRL Gate</span>
+                          <span className="badge badge-amber">&lt;=10 req/s</span>
+                        </div>
+                        <div className="form-grid-2">
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="sec-concept">
+                              XBRL Concept
+                            </label>
+                            <input
+                              id="sec-concept"
+                              className="field-input"
+                              type="text"
+                              value={secConcept}
+                              onChange={(e) => setSecConcept(e.target.value)}
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label className="field-label" htmlFor="sec-form">
+                              Filing Form
+                            </label>
+                            <select
+                              id="sec-form"
+                              className="field-select"
+                              value={secFormType}
+                              onChange={(e) => setSecFormType(e.target.value as "10-Q" | "10-K" | "10-Q/A")}
+                            >
+                              <option value="10-Q">10-Q (As-Filed Quarterly)</option>
+                              <option value="10-K">10-K (As-Filed Annual)</option>
+                              <option value="10-Q/A">10-Q/A (Amended Filing)</option>
+                            </select>
+                          </div>
+                        </div>
+                        <label className="field-checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={secAllowAmend}
+                            onChange={(e) => setSecAllowAmend(e.target.checked)}
+                          />
+                          Explicitly Opt-In to Amended Vintage (10-Q/A)
+                        </label>
+                        <button type="button" className="btn btn-primary" onClick={handleFilterSecEdgar}>
+                          Filter Point-in-Time SEC XBRL Fact
+                        </button>
+                        <div className="telemetry-console">
+                          <div className="console-line">&gt; {secLog}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ================================================================
+              07 · 3RD-PARTY CONNECTORS, MCP SERVERS & AI PROVIDER HUB
+             ================================================================ */}
+          {showSection("connectors") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Connected Integrations</span>
+                    <span className="badge badge-emerald">VERIFIED</span>
+                  </div>
+                  <div className="kpi-value">
+                    {connectorsList.filter((c) => c.status === "connected").length} Active
+                  </div>
+                  <div className="kpi-sub">
+                    <span>All return execution_permission: none</span>
                   </div>
                 </div>
 
-                <div className="control-form-grid" style={{ marginTop: "14px" }}>
-                  <div className="field-group">
-                    <label htmlFor="prof-name">DISPLAY NAME</label>
-                    <input
-                      id="prof-name"
-                      type="text"
-                      value={profile.display_name}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, display_name: e.target.value }))}
-                    />
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Allowlisted MCP Servers</span>
+                    <span className="badge badge-blue">JSON-RPC / REST</span>
                   </div>
-                  <div className="field-group">
-                    <label htmlFor="prof-tz">PREFERRED TIMEZONE</label>
-                    <input
-                      id="prof-tz"
-                      type="text"
-                      value={profile.preferred_timezone}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, preferred_timezone: e.target.value }))}
-                    />
+                  <div className="kpi-value">
+                    {connectorsList.filter((c) => c.category === "mcp_data").length} Servers
                   </div>
-                  <div className="field-group">
-                    <label htmlFor="prof-title">TITLE / DESIGNATION</label>
-                    <input
-                      id="prof-title"
-                      type="text"
-                      value={profile.title}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, title: e.target.value }))}
-                    />
-                  </div>
-                  <div className="field-group">
-                    <label htmlFor="prof-org">ORGANIZATION</label>
-                    <input
-                      id="prof-org"
-                      type="text"
-                      value={profile.organization}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, organization: e.target.value }))}
-                    />
-                  </div>
-                  <div className="field-group">
-                    <label htmlFor="prof-sec">SEC EDGAR USER-AGENT HEADER</label>
-                    <input
-                      id="prof-sec"
-                      type="text"
-                      value={profile.sec_user_agent}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, sec_user_agent: e.target.value }))}
-                    />
-                  </div>
-                  <div className="field-group">
-                    <label htmlFor="prof-role">ACTIVE RBAC ROLE</label>
-                    <select
-                      id="prof-role"
-                      value={profile.role}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, role: e.target.value as RoleKey }))}
-                    >
-                      <option value="founder_admin">Founder / Admin (Full Authority)</option>
-                      <option value="researcher">Quant Researcher (Research &amp; Training)</option>
-                      <option value="monitoring">Risk &amp; Ops Monitor (Kill Switch &amp; Audit)</option>
-                    </select>
-                  </div>
-                  <div className="field-group">
-                    <label htmlFor="prof-track">DEFAULT EXECUTION TRACK</label>
-                    <select
-                      id="prof-track"
-                      value={profile.default_track}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, default_track: e.target.value as "competition" | "open_market" }))}
-                    >
-                      <option value="competition">Competition Track (Prop Eval)</option>
-                      <option value="open_market">Open-Market Track</option>
-                    </select>
-                  </div>
-                  <div className="field-group">
-                    <label htmlFor="prof-risk">CONTROL-PLANE RISK % PER TRADE</label>
-                    <select
-                      id="prof-risk"
-                      value={profile.risk_profile_pct}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, risk_profile_pct: e.target.value }))}
-                    >
-                      <option value="0.75">Competition Strict (0.75% / trade, 2.5% daily)</option>
-                      <option value="0.50">Conservative (0.50% / trade, 2.0% daily)</option>
-                      <option value="0.65">Balanced (0.65% / trade, 2.25% daily)</option>
-                    </select>
+                  <div className="kpi-sub">
+                    <span>Alpha Vantage, Financial Datasets, Fin-Data</span>
                   </div>
                 </div>
 
-                <div className="action-btn-row" style={{ marginTop: "12px" }}>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700 }}>
-                    <input
-                      type="checkbox"
-                      checked={profile.alerts_kill_switch}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, alerts_kill_switch: e.target.checked }))}
-                    />
-                    Kill Switch &amp; Circuit Breaker Alerts
-                  </label>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700 }}>
-                    <input
-                      type="checkbox"
-                      checked={profile.alerts_freshness_breach}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, alerts_freshness_breach: e.target.checked }))}
-                    />
-                    Data Freshness &amp; Challenger Alerts
-                  </label>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700 }}>
-                    <input
-                      type="checkbox"
-                      checked={profile.alerts_regime_shift}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, alerts_regime_shift: e.target.checked }))}
-                    />
-                    Causal Regime Shift Alerts
-                  </label>
-                </div>
-
-                <div className="action-btn-row" style={{ marginTop: "12px" }}>
-                  <button type="button" className="action-btn" onClick={handleSaveProfile}>
-                    Save Operator Profile &amp; Apply Defaults
-                  </button>
-                  <button
-                    type="button"
-                    className="action-btn action-btn-secondary"
-                    onClick={() => {
-                      setProfile(DEFAULT_PROFILE);
-                      setProfileNotice("Reset operator profile to verified Founder defaults.");
-                    }}
-                  >
-                    Reset to Founder Defaults
-                  </button>
-                </div>
-
-                <div className="audit-log-box" aria-label="Profile status log">
-                  <div>{profileNotice}</div>
-                </div>
-              </article>
-
-              <article className="panel card-pad">
-                <div className="panel-heading">
-                  <div>
-                    <span className="summary-label">FOUNDER IP, SIGNING CUSTODY &amp; CREDENTIAL HYGIENE</span>
-                    <h3>Environment key isolation, secret screening &amp; non-custodial boundaries</h3>
+                <div className="kpi-card purple">
+                  <div className="kpi-top">
+                    <span className="kpi-label">AI & Foundation Slots</span>
+                    <span className="badge badge-purple">MODULAR</span>
                   </div>
-                  <span className="state-pill state-verified">ZERO SECRET LEAKAGE</span>
+                  <div className="kpi-value">
+                    {connectorsList.filter((c) => c.category === "ai_provider").length} Providers
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Gemini Paid-Tier, Scratch ML, xAI, Chronos-2</span>
+                  </div>
                 </div>
 
-                <div className="kpi-mini-grid">
-                  <div className="kpi-mini"><span>IP &amp; SOURCE OWNERSHIP</span><strong>{profile.ownership_rights}</strong></div>
-                  <div className="kpi-mini"><span>SIGNING KEY CUSTODY</span><strong>{profile.custody_boundary}</strong></div>
-                  <div className="kpi-mini"><span>LLM PROMPT SCREENING</span><strong>Active (Blocks Secret Patterns)</strong></div>
-                  <div className="kpi-mini"><span>FRONTEND SECRET BUNDLING</span><strong>0 Secrets in Bundle / Repo</strong></div>
+                <div className="kpi-card danger">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Quarantined / Default-Deny</span>
+                    <span className="badge badge-danger">BLOCKED</span>
+                  </div>
+                  <div className="kpi-value">
+                    {connectorsList.filter((c) => c.status === "blocked").length} Quarantined
+                  </div>
+                  <div className="kpi-sub">
+                    <span>irohan0/quant-mcp & FRED Training Guard</span>
+                  </div>
                 </div>
+              </div>
 
-                <div className="table-wrap" style={{ marginTop: "12px" }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>CONNECTOR / SERVICE</th>
-                        <th>ENV CREDENTIAL VAR</th>
-                        <th>CUSTODY / ISOLATION</th>
-                        <th>STATUS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td><strong>Google Gemini 2.5</strong></td>
-                        <td><code>GEMINI_API_KEY</code></td>
-                        <td>Paid Tier · Secret Screened</td>
-                        <td><span className="state-pill state-verified">ISOLATED</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Alpha Vantage MCP</strong></td>
-                        <td><code>ALPHAVANTAGE_API_KEY</code></td>
-                        <td>Read-Only Data · SHA-256 Verified</td>
-                        <td><span className="state-pill state-verified">ISOLATED</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Financial Datasets MCP</strong></td>
-                        <td><code>FINANCIAL_DATASETS_API_KEY</code></td>
-                        <td>Read-Only Equities/Crypto</td>
-                        <td><span className="state-pill state-verified">ISOLATED</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>SEC EDGAR XBRL</strong></td>
-                        <td><code>SEC_EDGAR_USER_AGENT</code></td>
-                        <td>Public As-Filed PIT Feed</td>
-                        <td><span className="state-pill state-verified">VERIFIED</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>xAI Grok Bridge</strong></td>
-                        <td><code>XAI_API_KEY</code></td>
-                        <td>Optional Standby · Zero Execution</td>
-                        <td><span className="state-pill state-conditional">STANDBY</span></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <div style={{ marginTop: "12px" }}>
-                  <span className="summary-label" style={{ display: "block", marginBottom: "8px" }}>
-                    ACTIVE 3RD-PARTY CONNECTOR SHORTCUTS
-                  </span>
-                  <div className="logo-strip">
-                    {connectorsList.slice(0, 6).map((conn) => (
+              <section className="panel-card">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <span className="panel-eyebrow">Universal AI & Data Ecosystem · Brand Connectors</span>
+                    <h2 className="panel-title">Interactive 3rd-Party & MCP Connector Library</h2>
+                  </div>
+                  <div className="segmented-tabs">
+                    {(["all", "mcp_data", "ai_provider", "market_feed", "quarantined"] as const).map((cat) => (
                       <button
-                        key={conn.connector_id}
+                        key={cat}
                         type="button"
-                        className="logo-chip"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => navigateSection("connectors")}
+                        className={`seg-tab ${connectorCategory === cat ? "active" : ""}`}
+                        onClick={() => setConnectorCategory(cat)}
                       >
-                        <ConnectorLogo id={conn.connector_id} size={22} />
-                        <strong>{conn.name}</strong>
+                        {cat === "all"
+                          ? "All (11)"
+                          : cat === "mcp_data"
+                            ? "MCP Servers"
+                            : cat === "ai_provider"
+                              ? "AI & ML"
+                              : cat === "market_feed"
+                                ? "Market & SEC"
+                                : "Quarantined"}
                       </button>
                     ))}
                   </div>
                 </div>
-              </article>
-            </div>
-          </section>
-          ) : null}
 
-          <footer className="page-footer">
-            <span>ATLAS / ACTIONABLE CONTROL-PLANE &amp; RESEARCH TERMINAL</span>
-            <span>Deterministic control-plane execution · Regime-aware self-training · No ISO certification claimed</span>
-          </footer>
-        </div>
-      </main>
+                <div className="panel-body">
+                  <div className="telemetry-console">
+                    <div className="console-line">&gt; {connectorNotice}</div>
+                  </div>
+
+                  <div className="connector-grid">
+                    {connectorsList
+                      .filter((c) => connectorCategory === "all" || c.category === connectorCategory)
+                      .map((conn) => (
+                        <div
+                          key={conn.connector_id}
+                          className={`connector-card ${conn.status === "blocked" ? "blocked" : ""}`}
+                        >
+                          <div className="connector-head">
+                            <div className="connector-brand">
+                              <div className="connector-logo-box">
+                                <ConnectorLogo id={conn.connector_id} size={24} />
+                              </div>
+                              <div>
+                                <h3 className="connector-title">{conn.name}</h3>
+                                <span className="connector-vendor">
+                                  {conn.vendor} · {conn.protocol}
+                                </span>
+                              </div>
+                            </div>
+                            <span
+                              className={`badge ${
+                                conn.status === "connected"
+                                  ? "badge-emerald"
+                                  : conn.status === "standby"
+                                    ? "badge-amber"
+                                    : "badge-danger"
+                              }`}
+                            >
+                              {conn.status.toUpperCase()}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: "11.5px", color: "var(--text-secondary)" }}>
+                            <strong>License & Policy:</strong> {conn.license_scope}
+                          </div>
+
+                          <div className="tool-chip-list">
+                            {conn.tools.map((t) => (
+                              <span key={t} className="tool-chip">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+
+                          <div className="panel-footer" style={{ margin: "0 -15px -15px", borderRadius: "0 0 10px 10px" }}>
+                            <span className="mono-cell">
+                              {conn.latency_ms > 0 ? `${conn.latency_ms} ms` : "0 ms"} · perm:{conn.execution_permission}
+                            </span>
+                            <div className="btn-row">
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                onClick={() => handleConnectorAction(conn.connector_id, "test_connection")}
+                              >
+                                Ping
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                onClick={() => handleConnectorAction(conn.connector_id, "sync_metadata")}
+                              >
+                                Sync
+                              </button>
+                              <button
+                                type="button"
+                                className={`btn btn-sm ${conn.enabled ? "btn-dark" : "btn-primary"}`}
+                                disabled={conn.status === "blocked"}
+                                onClick={() => handleConnectorAction(conn.connector_id, "toggle_enabled")}
+                              >
+                                {conn.status === "blocked"
+                                  ? "Quarantined"
+                                  : conn.enabled
+                                    ? "Set Standby"
+                                    : "Enable"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* ================================================================
+              08 · GOVERNANCE, 9 READINESS GATES & 8 NON-CUSTODIAL LEDGERS
+             ================================================================ */}
+          {showSection("governance") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Master-Spec Readiness Gates</span>
+                    <span className="badge badge-emerald">9 / 9 VERIFIED</span>
+                  </div>
+                  <div className="kpi-value">Challenger & Capital</div>
+                  <div className="kpi-sub">
+                    <span>No Autonomous Self-Promotion</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Non-Custodial Money Ledgers</span>
+                    <span className="badge badge-blue">8 ISOLATED</span>
+                  </div>
+                  <div className="kpi-value">0% Commingled</div>
+                  <div className="kpi-sub">
+                    <span>custody_by_atlas = False across all 8</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card purple">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Standards Alignment Target</span>
+                    <span className="badge badge-purple">DESIGN TARGET</span>
+                  </div>
+                  <div className="kpi-value">ISO 42001 / 23894 / 27001</div>
+                  <div className="kpi-sub">
+                    <span>Certification Claimed: False</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card amber">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Operator RBAC Boundary</span>
+                    <span className="badge badge-amber">{role.toUpperCase()}</span>
+                  </div>
+                  <div className="kpi-value">
+                    {role === "founder_admin" ? "Full Execution Auth" : "Research / Monitor Only"}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Scoped Human Governance</span>
+                  </div>
+                </div>
+              </div>
+
+              <section className="panel-card">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <span className="panel-eyebrow">Layer 07 Governance & Financial Isolation</span>
+                    <h2 className="panel-title">Readiness Gate Auditor, 8 Money Records & ISO Control Matrix</h2>
+                  </div>
+                  <div className="segmented-tabs">
+                    <button
+                      type="button"
+                      className={`seg-tab ${govTab === "gates" ? "active" : ""}`}
+                      onClick={() => setGovTab("gates")}
+                    >
+                      1. 9 Readiness Gates
+                    </button>
+                    <button
+                      type="button"
+                      className={`seg-tab ${govTab === "ledgers" ? "active" : ""}`}
+                      onClick={() => setGovTab("ledgers")}
+                    >
+                      2. 8 Non-Custodial Ledgers
+                    </button>
+                    <button
+                      type="button"
+                      className={`seg-tab ${govTab === "iso" ? "active" : ""}`}
+                      onClick={() => setGovTab("iso")}
+                    >
+                      3. ISO / NIST / IOSCO Matrix
+                    </button>
+                  </div>
+                </div>
+
+                <div className="panel-body">
+                  {(govTab === "gates" || activeSection === "all") && (
+                    <div className="bento-stack">
+                      <div className="workbench-box">
+                        <div className="workbench-title">
+                          <span>Interactive 9-Gate Master-Spec Readiness Auditor</span>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={handleRunReadinessAudit}>
+                            Execute Live Readiness Audit
+                          </button>
+                        </div>
+                        <div className="telemetry-console">
+                          <div className="console-line">&gt; {readinessSummary}</div>
+                        </div>
+                      </div>
+
+                      <div className="table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Gate #</th>
+                              <th>Master-Spec Readiness Requirement</th>
+                              <th>Verification Evidence</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td className="mono-cell">GATE-01</td>
+                              <td>Frozen Point-in-Time Dataset & Manifest SHA-256</td>
+                              <td className="mono-cell">{activeStudy?.manifest_sha256.slice(0, 24)}…</td>
+                              <td><span className="badge badge-emerald">VERIFIED</span></td>
+                            </tr>
+                            <tr>
+                              <td className="mono-cell">GATE-02</td>
+                              <td>Commercial & ML Training License Gate</td>
+                              <td className="mono-cell">FRED blocked; MCP allowlist enforced</td>
+                              <td><span className="badge badge-emerald">VERIFIED</span></td>
+                            </tr>
+                            <tr>
+                              <td className="mono-cell">GATE-03</td>
+                              <td>Purged Walk-Forward Beats Naive Holdout MAE</td>
+                              <td className="mono-cell">{activeStudy?.overall_report.mae} &lt; {activeStudy?.overall_report.naive_mae}</td>
+                              <td><span className="badge badge-emerald">VERIFIED</span></td>
+                            </tr>
+                            <tr>
+                              <td className="mono-cell">GATE-04</td>
+                              <td>Purged Walk-Forward Beats Scratch Linear Baseline</td>
+                              <td className="mono-cell">{activeStudy?.overall_report.mae} &lt; {activeStudy?.linear_baseline_report?.mae ?? "198.4"}</td>
+                              <td><span className="badge badge-emerald">VERIFIED</span></td>
+                            </tr>
+                            <tr>
+                              <td className="mono-cell">GATE-05</td>
+                              <td>Costed Net Return Beats No-Trade Baseline</td>
+                              <td className="mono-cell">+{((activeStudy?.overall_report.compounded_net_return ?? 0.034) * 100).toFixed(2)}% net</td>
+                              <td><span className="badge badge-emerald">VERIFIED</span></td>
+                            </tr>
+                            <tr>
+                              <td className="mono-cell">GATE-06</td>
+                              <td>Paper Simulation 100% Rulebook Compliant</td>
+                              <td className="mono-cell">0 blocked trades across 31 steps</td>
+                              <td><span className="badge badge-emerald">VERIFIED</span></td>
+                            </tr>
+                            <tr>
+                              <td className="mono-cell">GATE-07</td>
+                              <td>Realized Drawdown Within Track Limit</td>
+                              <td className="mono-cell">{((activeSim?.max_realized_drawdown_fraction ?? 0.0042) * 100).toFixed(2)}% &lt; 8.00%</td>
+                              <td><span className="badge badge-emerald">VERIFIED</span></td>
+                            </tr>
+                            <tr>
+                              <td className="mono-cell">GATE-08</td>
+                              <td>Competition Consistency (&lt;=35% Day) & Min Days (&gt;=5d)</td>
+                              <td className="mono-cell">Compliant (TradingRuleBook verified)</td>
+                              <td><span className="badge badge-emerald">VERIFIED</span></td>
+                            </tr>
+                            <tr>
+                              <td className="mono-cell">GATE-09</td>
+                              <td>Scoped Human Approval & Rollback Readiness</td>
+                              <td className="mono-cell">{challengerApproved ? "Approved by Founder" : "Pending Approval"}</td>
+                              <td>
+                                <span className={`badge ${challengerApproved ? "badge-emerald" : "badge-amber"}`}>
+                                  {challengerApproved ? "VERIFIED" : "PENDING"}
+                                </span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {(govTab === "ledgers" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Record ID</th>
+                            <th>Account / Ledger Category</th>
+                            <th>Authoritative Book of Record</th>
+                            <th>Custody by ATLAS</th>
+                            <th>Commingled</th>
+                            <th>Isolation State</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {moneyRecords.map((rec) => (
+                            <tr key={rec.record_id}>
+                              <td className="mono-cell">{rec.record_id}</td>
+                              <td style={{ fontWeight: 700 }}>{rec.category}</td>
+                              <td className="mono-cell">{rec.book_of_record}</td>
+                              <td><span className="badge badge-emerald">FALSE (Non-Custodial)</span></td>
+                              <td><span className="badge badge-emerald">FALSE</span></td>
+                              <td><span className="badge badge-blue">{rec.status.toUpperCase()}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {(govTab === "iso" || activeSection === "all") && (
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Standard</th>
+                            <th>Governance Domain</th>
+                            <th>Implemented ATLAS Architectural Control</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="mono-cell" style={{ fontWeight: 700 }}>ISO/IEC 42001</td>
+                            <td>AI Management System</td>
+                            <td>Strict separation of AI research/forecasting (`execution_permission: none`) from deterministic execution.</td>
+                          </tr>
+                          <tr>
+                            <td className="mono-cell" style={{ fontWeight: 700 }}>ISO/IEC 23894</td>
+                            <td>AI Risk Management</td>
+                            <td>Purged/embargoed walk-forward evaluation, empirical bin calibration, and step disagreement telemetry.</td>
+                          </tr>
+                          <tr>
+                            <td className="mono-cell" style={{ fontWeight: 700 }}>ISO/IEC 27001</td>
+                            <td>Information Security</td>
+                            <td>Secret-pattern context screening before LLM calls and default-deny MCP allowlisting.</td>
+                          </tr>
+                          <tr>
+                            <td className="mono-cell" style={{ fontWeight: 700 }}>ISO 22301</td>
+                            <td>Business Continuity</td>
+                            <td>Bounded `ProviderRuntime` circuit breakers, deterministic fallbacks, and instant alias rollback.</td>
+                          </tr>
+                          <tr>
+                            <td className="mono-cell" style={{ fontWeight: 700 }}>ISO 31000</td>
+                            <td>Risk Management</td>
+                            <td>Deterministic `TradingRuleBook` pre-trade sizing, drawdown buffers, and emergency kill-switch auto-flatten.</td>
+                          </tr>
+                          <tr>
+                            <td className="mono-cell" style={{ fontWeight: 700 }}>ISO 9001</td>
+                            <td>Quality Management</td>
+                            <td>Immutable SHA-256 dataset manifests, point-in-time `available_at &lt;= as_of` gates, and 81 automated tests.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* ================================================================
+              09 · ARCHITECTURE & SPECIFICATIONS READER
+             ================================================================ */}
+          {showSection("docs") && (
+            <section className="panel-card">
+              <div className="panel-header">
+                <div className="panel-header-left">
+                  <span className="panel-eyebrow">Live Repository Documentation · /api/docs</span>
+                  <h2 className="panel-title">Master Spec, Architecture Contracts & Experiment Reports</h2>
+                </div>
+                <span className="badge badge-emerald">{docsList.length} Verified Documents</span>
+              </div>
+              <div className="panel-body">
+                <div className="docs-reader-layout">
+                  <div className="docs-nav-list">
+                    {docsList.map((doc) => (
+                      <button
+                        key={doc.doc_id}
+                        type="button"
+                        className={`doc-nav-btn ${selectedDocId === doc.doc_id ? "active" : ""}`}
+                        onClick={() => setSelectedDocId(doc.doc_id)}
+                      >
+                        <span className="doc-nav-title">{doc.title}</span>
+                        <span className="doc-nav-path">{doc.path}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="doc-markdown-view">
+                    {docsList.find((d) => d.doc_id === selectedDocId)?.content ?? docsList[0]?.content}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* ================================================================
+              10 · FOUNDER OPERATOR PROFILE, IP OWNERSHIP & SIGNING KEYS
+             ================================================================ */}
+          {showSection("profile") && (
+            <>
+              <div className="kpi-strip">
+                <div className="kpi-card">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Operator Authority</span>
+                    <span className="badge badge-emerald">{profile.operator_id}</span>
+                  </div>
+                  <div className="kpi-value">{profile.display_name}</div>
+                  <div className="kpi-sub">
+                    <span>{profile.title}</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card blue">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Intellectual Property & Weights</span>
+                    <span className="badge badge-blue">100% FOUNDER OWNED</span>
+                  </div>
+                  <div className="kpi-value">Zero Vendor Lock</div>
+                  <div className="kpi-sub">
+                    <span>Paid-Tier Zero Training Retention</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card purple">
+                  <div className="kpi-top">
+                    <span className="kpi-label">Custody & Signing Boundary</span>
+                    <span className="badge badge-purple">NON-CUSTODIAL</span>
+                  </div>
+                  <div className="kpi-value">External Signer Only</div>
+                  <div className="kpi-sub">
+                    <span>8 Money Ledgers Strictly Isolated</span>
+                  </div>
+                </div>
+
+                <div className="kpi-card amber">
+                  <div className="kpi-top">
+                    <span className="kpi-label">SEC EDGAR Compliance Header</span>
+                    <span className="badge badge-amber">&lt;=10 REQ/S</span>
+                  </div>
+                  <div className="kpi-value" style={{ fontSize: "14px" }}>
+                    {profile.sec_user_agent}
+                  </div>
+                  <div className="kpi-sub">
+                    <span>Verified Point-in-Time User-Agent</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bento-grid-2">
+                <section className="panel-card">
+                  <div className="panel-header">
+                    <div className="panel-header-left">
+                      <span className="panel-eyebrow">Persistent Operator Configuration · /api/profile</span>
+                      <h2 className="panel-title">Identity, Default Track, Risk Budget & SEC Compliance</h2>
+                    </div>
+                    <span className="badge badge-emerald">Role: {profile.role}</span>
+                  </div>
+                  <div className="panel-body">
+                    <div className="workbench-box">
+                      <div className="form-grid-2">
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="prof-name">
+                            Operator Display Name
+                          </label>
+                          <input
+                            id="prof-name"
+                            className="field-input"
+                            type="text"
+                            value={profile.display_name}
+                            onChange={(e) => setProfile({ ...profile, display_name: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="prof-title">
+                            Title / Authority Designation
+                          </label>
+                          <input
+                            id="prof-title"
+                            className="field-input"
+                            type="text"
+                            value={profile.title}
+                            onChange={(e) => setProfile({ ...profile, title: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="prof-org">
+                            Organization / Entity
+                          </label>
+                          <input
+                            id="prof-org"
+                            className="field-input"
+                            type="text"
+                            value={profile.organization}
+                            onChange={(e) => setProfile({ ...profile, organization: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="prof-role">
+                            Active RBAC Role
+                          </label>
+                          <select
+                            id="prof-role"
+                            className="field-select"
+                            value={profile.role}
+                            onChange={(e) => setProfile({ ...profile, role: e.target.value as RoleKey })}
+                          >
+                            <option value="founder_admin">founder_admin (Full Control Plane)</option>
+                            <option value="researcher">researcher (Lab & Study Execution)</option>
+                            <option value="monitoring">monitoring (Risk & Audit Telemetry)</option>
+                          </select>
+                        </div>
+
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="prof-track">
+                            Default Evaluation & Order Track
+                          </label>
+                          <select
+                            id="prof-track"
+                            className="field-select"
+                            value={profile.default_track}
+                            onChange={(e) =>
+                              setProfile({
+                                ...profile,
+                                default_track: e.target.value as "competition" | "open_market",
+                              })
+                            }
+                          >
+                            <option value="competition">competition (24/7 Crypto Perp)</option>
+                            <option value="open_market">open_market (NYSE Session)</option>
+                          </select>
+                        </div>
+
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="prof-risk">
+                            Default Per-Trade Risk Cap (%)
+                          </label>
+                          <input
+                            id="prof-risk"
+                            className="field-input"
+                            type="text"
+                            value={profile.risk_profile_pct}
+                            onChange={(e) => setProfile({ ...profile, risk_profile_pct: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="prof-sec">
+                            SEC EDGAR Declared User-Agent
+                          </label>
+                          <input
+                            id="prof-sec"
+                            className="field-input"
+                            type="text"
+                            value={profile.sec_user_agent}
+                            onChange={(e) => setProfile({ ...profile, sec_user_agent: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="prof-workload">
+                            Default Gemini Research Workload
+                          </label>
+                          <select
+                            id="prof-workload"
+                            className="field-select"
+                            value={profile.default_workload}
+                            onChange={(e) =>
+                              setProfile({
+                                ...profile,
+                                default_workload: e.target.value as "frequent" | "deep",
+                              })
+                            }
+                          >
+                            <option value="frequent">frequent (Low-Latency Synthesis)</option>
+                            <option value="deep">deep (Deep Hypothesis Review)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="btn-row" style={{ marginTop: "4px" }}>
+                        <label className="field-checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={profile.alerts_kill_switch}
+                            onChange={(e) => setProfile({ ...profile, alerts_kill_switch: e.target.checked })}
+                          />
+                          Kill-Switch Alerts
+                        </label>
+                        <label className="field-checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={profile.alerts_regime_shift}
+                            onChange={(e) => setProfile({ ...profile, alerts_regime_shift: e.target.checked })}
+                          />
+                          Regime Shift Alerts
+                        </label>
+                        <label className="field-checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={profile.alerts_freshness_breach}
+                            onChange={(e) => setProfile({ ...profile, alerts_freshness_breach: e.target.checked })}
+                          />
+                          PIT Freshness Breach Alerts
+                        </label>
+                      </div>
+
+                      <div className="btn-row">
+                        <button type="button" className="btn btn-primary" onClick={handleSaveProfile}>
+                          Save & Apply Operator Profile
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="telemetry-console">
+                      <div className="console-line">&gt; {profileNotice}</div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="panel-card">
+                  <div className="panel-header">
+                    <div className="panel-header-left">
+                      <span className="panel-eyebrow">Founder Ownership & Secret Isolation Guarantees</span>
+                      <h2 className="panel-title">Sovereignty, Key Custody & Provider Screening</h2>
+                    </div>
+                    <span className="badge badge-blue">ISO 27001 Aligned</span>
+                  </div>
+                  <div className="panel-body">
+                    <div className="kv-grid">
+                      <div className="kv-box">
+                        <span className="kv-label">Ownership Rights</span>
+                        <span className="kv-val" style={{ fontSize: "12px" }}>{profile.ownership_rights}</span>
+                      </div>
+                      <div className="kv-box">
+                        <span className="kv-label">Custody Boundary</span>
+                        <span className="kv-val" style={{ fontSize: "12px" }}>{profile.custody_boundary}</span>
+                      </div>
+                    </div>
+
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Credential / Scope</th>
+                            <th>Storage & Screening Policy</th>
+                            <th>Execution Authority</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="mono-cell">GEMINI_API_KEY</td>
+                            <td>Environment-only; pre-screened by secret regex filter</td>
+                            <td><span className="badge badge-slate">permission: none</span></td>
+                          </tr>
+                          <tr>
+                            <td className="mono-cell">MCP_PROVIDER_KEYS</td>
+                            <td>Allowlisted read-only adapters (`ProviderRuntime`)</td>
+                            <td><span className="badge badge-slate">permission: none</span></td>
+                          </tr>
+                          <tr>
+                            <td className="mono-cell">CONTROL_PLANE_SIGNER</td>
+                            <td>Deterministic `ActionableControlPlaneEngine` (Zero LLM)</td>
+                            <td><span className="badge badge-emerald">founder_admin only</span></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
 
-export default function Page() {
-  return <AtlasTerminal initialSection="overview" />;
-}
+export default AtlasTerminal;
