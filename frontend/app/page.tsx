@@ -146,6 +146,44 @@ type DemoResult = {
     competition: StudyPayload;
     open_market: StudyPayload;
   };
+  central_node?: {
+    node_run_id: string;
+    auto_promoted: boolean;
+    in_place_weight_mutation: boolean;
+    execution_permission: string;
+    competition_paper_simulation: {
+      simulation_id: string;
+      initial_equity_usd: string;
+      final_equity_usd: string;
+      max_realized_drawdown_fraction: number;
+      total_steps: number;
+      permitted_paper_trades: number;
+      blocked_paper_trades: number;
+      simulation_only: boolean;
+    };
+    open_market_paper_simulation: {
+      simulation_id: string;
+      initial_equity_usd: string;
+      final_equity_usd: string;
+      max_realized_drawdown_fraction: number;
+      total_steps: number;
+      permitted_paper_trades: number;
+      blocked_paper_trades: number;
+      simulation_only: boolean;
+    };
+    horizon_strategy_comparison: {
+      steps: number;
+      direct_mae_by_step: number[];
+      recursive_mae_by_step: number[];
+      recommended_method_by_step: string[];
+    };
+    ensemble_gate: {
+      ensemble_mae: number;
+      best_member_mae: number;
+      error_correlation: number;
+      combiner_enabled: boolean;
+    };
+  };
   mcp_data_surfaces?: {
     allowlisted_providers: Record<string, string[]>;
     blocked_providers: string[];
@@ -701,6 +739,34 @@ export default function Page() {
                   <div className="permission-note">
                     Regime-variant gate: <strong>{activeStudy.regime_variant_unlocked ? "UNLOCKED" : "LOCKED"}</strong> · Next action: <strong>{activeStudy.feedback.recommended_next_action}</strong> · Permission: <strong>{activeStudy.feedback.execution_permission}</strong>
                   </div>
+                  {demo?.central_node ? (
+                    <div className="kpi-mini-grid" style={{ marginTop: "12px" }}>
+                      <div className="kpi-mini">
+                        <span>PAPER SIM EQUITY ({studyTrack.toUpperCase()})</span>
+                        <strong>
+                          ${formatPrice(
+                            studyTrack === "competition"
+                              ? demo.central_node.competition_paper_simulation.final_equity_usd
+                              : demo.central_node.open_market_paper_simulation.final_equity_usd
+                          )}
+                        </strong>
+                      </div>
+                      <div className="kpi-mini">
+                        <span>PAPER TRADES (PERMITTED / BLOCKED)</span>
+                        <strong>
+                          {studyTrack === "competition"
+                            ? `${demo.central_node.competition_paper_simulation.permitted_paper_trades} / ${demo.central_node.competition_paper_simulation.blocked_paper_trades}`
+                            : `${demo.central_node.open_market_paper_simulation.permitted_paper_trades} / ${demo.central_node.open_market_paper_simulation.blocked_paper_trades}`}
+                        </strong>
+                      </div>
+                      <div className="kpi-mini">
+                        <span>HORIZON (H1–H3) / ENSEMBLE GATE</span>
+                        <strong>
+                          {demo.central_node.horizon_strategy_comparison.recommended_method_by_step.join("→")} · Combiner: {demo.central_node.ensemble_gate.combiner_enabled ? "ON" : "OFF"}
+                        </strong>
+                      </div>
+                    </div>
+                  ) : null}
                 </article>
               </div>
             ) : null}

@@ -29,7 +29,7 @@ operator receives no order discretion or ownership transfer.
 | Causal regime detection | Point-in-time `classify_regime` (`src/atlas/models/regimes.py`) across volatility, trend, liquidity, session, and macro-event dimensions with explicit `unknown` fallback |
 | Control-plane rules | Versioned `TradingRuleBook` & `evaluate_trading_rules` (`src/atlas/control/rules.py`) for per-trade risk, daily loss breaker, static/trailing drawdown, exposure caps, quality/freshness/license gates, session/time exits, kill switch, and competition consistency rules (default-deny, zero LLM imports) |
 | Read-only MCP & SEC EDGAR data | `MCPDataSourceAdapter` (`src/atlas/marketdata/mcp_adapters.py`) with allowlisted tools (`alpha_vantage_mcp`, `financial_datasets_mcp`, `fin_data_mcp`), write/execution rejection, `irohan0/quant-mcp` block, FRED training block, `DataQualityReport`, whale/microstructure covariate normalization (`src/atlas/marketdata/microstructure.py`), and point-in-time SEC EDGAR as-filed fact selection (`src/atlas/marketdata/sec_edgar.py`) |
-| Walk-forward & scratch challengers | Deterministic `LocalTreeChallengerProvider`, `FittedLinearBaseline`, gated `FittedRegimeConditionedTree`, direct-vs-recursive horizon evaluator, ensemble gate (`src/atlas/models/challengers.py`), and purged walk-forward comparison against naive/no-trade baselines with non-promoting `OutcomeFeedbackRecord` |
+| Walk-forward, scratch challengers & central node | Deterministic `LocalTreeChallengerProvider`, `FittedLinearBaseline`, gated `FittedRegimeConditionedTree`, direct-vs-recursive horizon evaluator, ensemble gate (`src/atlas/models/challengers.py`), rule-governed paper simulation (`run_track_paper_simulation`) & `CentralResearchNode` (`src/atlas/models/continuous.py`), and purged walk-forward comparison against naive/no-trade baselines with non-promoting `OutcomeFeedbackRecord` |
 | Evaluation & lifecycle | Predictive, return, calibration, cost, drawdown and tail metrics; block bootstrap; immutable model metadata, SQLite research-alias rollback, and SQLite experiment history |
 
 ## Authority and data boundaries
@@ -109,6 +109,6 @@ atlas-research "plain observations with no secrets" --workload frequent
 ## Verification
 
 Universal foundation, regime classification, deterministic control rules, MCP
-contracts, walk-forward baseline-vs-tree study, and expanded research terminal:
-**79 tests passed** on 2026-10-19; the frontend type check and production build
+contracts, walk-forward baseline-vs-tree study, central node paper simulation, and expanded research terminal:
+**80 tests passed** on 2026-10-19; the frontend type check and production build
 also passed, and the offline demo ran successfully.

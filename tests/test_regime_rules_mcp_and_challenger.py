@@ -53,7 +53,7 @@ from atlas.models.challengers import (
     run_feature_ablation_study,
     run_scratch_training_lifecycle,
 )
-from atlas.models.continuous import ContinuousResearchRunner
+from atlas.models.continuous import CentralResearchNode, ContinuousResearchRunner, run_track_paper_simulation
 from atlas.models.evaluation import (
     HierarchyAggregationMap,
     ProbabilityCalibrator,
@@ -813,5 +813,86 @@ def test_regime_conditioned_tree_gate_direct_vs_recursive_and_ensemble_gate() ->
     ens_report = evaluate_ensemble_gate(bundle, weights=(0.4, 0.6))
     assert ens_report.combiner_enabled is False
     assert ens_report.execution_permission == "none"
+
+
+def test_central_research_node_and_track_paper_simulation(tmp_path) -> None:
+    comp_bundle = build_frozen_benchmark_dataset(track="competition", anchor=NOW)
+    open_bundle = build_frozen_benchmark_dataset(track="open_market", anchor=NOW)
+
+    comp_rulebook = TradingRuleBook(
+        rulebook_id="prop-comp:v1",
+        revision="1.0.0",
+        track="competition",
+        evidence_ref="docs/architecture/RESEARCH_OPERATING_CONTRACT.md",
+        max_per_trade_risk_fraction=Decimal("0.0075"),
+        required_stop_kind="atr",
+        min_stop_distance_bps=Decimal("25"),
+        max_daily_loss_fraction=Decimal("0.04"),
+        drawdown_mode="trailing",
+        max_drawdown_fraction=Decimal("0.08"),
+        max_position_notional_usd=Decimal("50000"),
+        max_gross_leverage=Decimal("3.0"),
+        max_correlated_exposure_fraction=Decimal("0.60"),
+        max_sector_exposure_fraction=Decimal("0.75"),
+        require_verified_quality=True,
+        require_commercial_license=True,
+        max_data_age_seconds=3600.0,
+        allowed_sessions=frozenset({"regular_open", "continuous_24_7"}),
+        max_holding_seconds=86400,
+        forbid_funding_window_entry=True,
+        min_trading_days=5,
+        max_single_day_profit_share=0.35,
+    )
+    open_rulebook = TradingRuleBook(
+        rulebook_id="open-market:v1",
+        revision="1.0.0",
+        track="open_market",
+        evidence_ref="docs/architecture/RESEARCH_OPERATING_CONTRACT.md",
+        max_per_trade_risk_fraction=Decimal("0.005"),
+        required_stop_kind="atr",
+        min_stop_distance_bps=Decimal("30"),
+        max_daily_loss_fraction=Decimal("0.03"),
+        drawdown_mode="static",
+        max_drawdown_fraction=Decimal("0.10"),
+        max_position_notional_usd=Decimal("40000"),
+        max_gross_leverage=Decimal("2.0"),
+        max_correlated_exposure_fraction=Decimal("0.50"),
+        max_sector_exposure_fraction=Decimal("0.60"),
+        require_verified_quality=True,
+        require_commercial_license=True,
+        max_data_age_seconds=3600.0,
+        allowed_sessions=frozenset({"regular_open", "continuous_24_7"}),
+        max_holding_seconds=86400,
+        forbid_funding_window_entry=False,
+    )
+
+    # Track mismatch must fail closed
+    with pytest.raises(ValueError, match="must match rulebook track"):
+        run_track_paper_simulation(comp_bundle, open_rulebook)
+
+    node = CentralResearchNode(
+        competition_bundle=comp_bundle,
+        open_market_bundle=open_bundle,
+        competition_rulebook=comp_rulebook,
+        open_market_rulebook=open_rulebook,
+    )
+    report = asyncio.run(
+        node.run_self_improvement_loop(
+            node_run_id="node:test:v1",
+            evaluated_at=NOW,
+            sqlite_dir=tmp_path,
+        )
+    )
+    assert report.execution_permission == "none"
+    assert report.auto_promoted is False
+    assert report.in_place_weight_mutation is False
+    assert report.competition_paper_simulation.simulation_only is True
+    assert report.competition_paper_simulation.execution_permission == "none"
+    assert report.competition_paper_simulation.total_steps > 20
+    assert report.open_market_paper_simulation.simulation_only is True
+    assert report.open_market_paper_simulation.execution_permission == "none"
+    assert report.scratch_lifecycle is not None
+    assert report.scratch_lifecycle.training_job.state == "succeeded"
+
 
 

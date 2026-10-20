@@ -17,6 +17,7 @@ from atlas.marketdata.mcp_adapters import ALLOWED_MCP_TOOLS, FORBIDDEN_MCP_SERVE
 from atlas.marketdata.quality import validate_market_data_batch
 from atlas.models.adapters import NaiveForecastProvider
 from atlas.models.challengers import LocalTreeChallengerProvider, fit_boosted_regression_tree, run_baseline_vs_tree_study
+from atlas.models.continuous import CentralResearchNode
 from atlas.models.evaluation import ProbabilityCalibrator
 from atlas.models.orchestrator import ModelOrchestrator
 from atlas.models.regimes import ScheduledMacroEvent, classify_regime
@@ -218,9 +219,41 @@ async def demo() -> dict:
     )
     rule_report = evaluate_trading_rules(comp_rulebook, account_snapshot, trade_candidate, evaluated_at=now)
 
-    # 4. Walk-Forward Baseline vs Tree Studies (Separate Competition & Open-Market Tracks)
-    comp_study = run_baseline_vs_tree_study(frozen_comp, purge_bars=1, embargo_bars=1, cost_bps=4.0)
-    open_study = run_baseline_vs_tree_study(frozen_open, purge_bars=1, embargo_bars=1, cost_bps=2.5)
+    # 4. Walk-Forward Baseline vs Tree Studies & Central Node Self-Improvement Loop
+    open_rulebook = TradingRuleBook(
+        rulebook_id="open-market-swing-2026-q4:v1",
+        revision="1.0.0",
+        track="open_market",
+        evidence_ref="docs/architecture/RESEARCH_OPERATING_CONTRACT.md#open-market-track",
+        max_per_trade_risk_fraction=Decimal("0.005"),
+        required_stop_kind="atr",
+        min_stop_distance_bps=Decimal("30"),
+        max_daily_loss_fraction=Decimal("0.03"),
+        drawdown_mode="static",
+        max_drawdown_fraction=Decimal("0.10"),
+        max_position_notional_usd=Decimal("40000"),
+        max_gross_leverage=Decimal("2.0"),
+        max_correlated_exposure_fraction=Decimal("0.50"),
+        max_sector_exposure_fraction=Decimal("0.60"),
+        require_verified_quality=True,
+        require_commercial_license=True,
+        max_data_age_seconds=3600.0,
+        allowed_sessions=frozenset({"regular_open", "continuous_24_7"}),
+        max_holding_seconds=86400,
+        forbid_funding_window_entry=False,
+    )
+    central_node = CentralResearchNode(
+        competition_bundle=frozen_comp,
+        open_market_bundle=frozen_open,
+        competition_rulebook=comp_rulebook,
+        open_market_rulebook=open_rulebook,
+    )
+    node_report = await central_node.run_self_improvement_loop(
+        node_run_id="node:demo:v1",
+        evaluated_at=now,
+    )
+    comp_study = node_report.competition_walk_forward
+    open_study = node_report.open_market_walk_forward
 
     return {
         "source": "invented_fixture",
@@ -234,6 +267,16 @@ async def demo() -> dict:
         "studies": {
             "competition": comp_study.model_dump(mode="json"),
             "open_market": open_study.model_dump(mode="json"),
+        },
+        "central_node": {
+            "node_run_id": node_report.node_run_id,
+            "auto_promoted": node_report.auto_promoted,
+            "in_place_weight_mutation": node_report.in_place_weight_mutation,
+            "execution_permission": node_report.execution_permission,
+            "competition_paper_simulation": node_report.competition_paper_simulation.model_dump(mode="json"),
+            "open_market_paper_simulation": node_report.open_market_paper_simulation.model_dump(mode="json"),
+            "horizon_strategy_comparison": node_report.horizon_strategy_comparison.model_dump(mode="json"),
+            "ensemble_gate": node_report.ensemble_gate.model_dump(mode="json"),
         },
         "mcp_data_surfaces": {
             "allowlisted_providers": {
