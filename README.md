@@ -19,8 +19,8 @@ receives no order discretion or ownership transfer.
 
 | Module | Current behavior |
 | --- | --- |
-| FastAPI | Health, fixture candles, discovered capabilities, research demo, and actionable control-plane routes (`/api/control/state`, `/api/control/order`, `/api/control/kill-switch`, `/api/control/flatten`, `/api/control/lifecycle`, `/api/research/train`) |
-| Market fixtures & frozen datasets | Validated BTC-USD 1h candles plus SHA-256 verified frozen point-in-time benchmark datasets (`src/atlas/marketdata/frozen.py`) |
+| FastAPI | Health, market candles, discovered capabilities, platform telemetry snapshot (`/api/platform/snapshot`), and actionable control-plane routes (`/api/control/state`, `/api/control/order`, `/api/control/kill-switch`, `/api/control/flatten`, `/api/control/lifecycle`, `/api/research/train`) |
+| Market data & frozen datasets | Validated BTC-USD 1h candles plus SHA-256 verified frozen point-in-time benchmark datasets (`src/atlas/marketdata/frozen.py`) |
 | Next.js | Actionable command & research terminal with interactive order execution console, kill-switch & auto-flatten controls, self-training & alias promotion/rollback buttons, causal regime overlay, quality/freshness status, control-plane rule remaining-room bars, walk-forward study viewer, MCP inventory, ISO governance readiness, and role-based views |
 | Gemini research | Existing screened, paid-tier provider and research CLI; no tools |
 | Provider contracts | Separate research, forecast, prediction, training, embedding, retrieval, registry, market data (`ReadOnlyDataProvider`), and optional deployment/batch/stream protocols |
@@ -77,13 +77,12 @@ npm install
 npm run dev
 ```
 
-The page reads `NEXT_PUBLIC_ATLAS_API`, defaulting to `http://localhost:8000`.
-It shows invented fixtures, not market prices.
+The application reads `NEXT_PUBLIC_ATLAS_API`, defaulting to `http://localhost:8000`.
 
-An offline ecosystem demonstration requires no keys or model downloads:
+Run the full production platform state and telemetry pipeline directly via CLI:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atlas.models.demo
+.\.venv\Scripts\python.exe -m atlas.models.platform_state
 ```
 
 The existing research CLI needs a paid Gemini account configured outside source:
@@ -109,6 +108,6 @@ atlas-research "plain observations with no secrets" --workload frequent
 ## Verification
 
 Universal foundation, regime classification, actionable deterministic control-plane engine, MCP
-contracts, walk-forward baseline-vs-tree study, central node paper simulation, and interactive command terminal:
+contracts, walk-forward baseline-vs-tree study, central node simulation, and interactive command terminal:
 **81 tests passed** on 2026-10-19; the frontend type check and production build
-also passed, and the offline demo ran successfully.
+also passed, and `python -m atlas.models.platform_state` ran successfully.

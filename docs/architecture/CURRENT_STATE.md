@@ -8,9 +8,9 @@ and baseline-versus-tree walk-forward evaluation.
 
 ## Running source
 
-- FastAPI: health, fixture candle, research capability, research demo, and actionable control-plane routes (`/api/control/state`, `/api/control/order`, `/api/control/kill-switch`, `/api/control/flatten`, `/api/control/lifecycle`, `/api/research/train`).
+- FastAPI: health, market candle, research capability, platform telemetry snapshot (`/api/platform/snapshot`), and actionable control-plane routes (`/api/control/state`, `/api/control/order`, `/api/control/kill-switch`, `/api/control/flatten`, `/api/control/lifecycle`, `/api/research/train`).
 - Candle validation: finite nonnegative decimals, OHLC ranges, aware timestamps.
-- Next.js: responsive actionable command & research terminal with interactive order execution console, kill-switch & auto-flatten controls, on-demand self-training & alias promotion/rollback controls, fixture plot/table, causal regime overlay strip, data quality/freshness gate table, deterministic control-plane rule remaining-room bars and KPIs, baseline-versus-tree disagreement & calibration panel, purged walk-forward study viewer (separate Competition vs Open-Market tabs), MCP surface inventory, ISO governance alignment panel, and role-based view switcher (`Founder / Admin`, `Quant Researcher`, `Risk & Ops Monitor`).
+- Next.js: responsive actionable command & research terminal with interactive order execution console, kill-switch & auto-flatten controls, on-demand self-training & alias promotion/rollback controls, market plot/table, causal regime overlay strip, data quality/freshness gate table, deterministic control-plane rule remaining-room bars and KPIs, baseline-versus-tree disagreement & calibration panel, purged walk-forward study viewer (separate Competition vs Open-Market tabs), MCP surface inventory, ISO governance alignment panel, and role-based view switcher (`Founder / Admin`, `Quant Researcher`, `Risk & Ops Monitor`).
 - Gemini: existing paid-tier, secret-screened research provider and CLI. Mocked tests.
 - `src/atlas/models/schemas.py`: frozen typed instrument, horizon, data provenance (`DataProvenance`, `MarketDataRequest`, `MarketDataBatch`), forecast, training, model, usage and eligibility contracts.
 - `providers.py` / `registry.py`: capability-specific protocols (including `ReadOnlyDataProvider` under `Capability.DATA_SOURCE`), discovery, immutable metadata/model revisions and in-memory and durable SQLite research-alias rollback.
@@ -21,7 +21,7 @@ and baseline-versus-tree walk-forward evaluation.
 - `regimes.py`: deterministic, causal, point-in-time regime detector (`classify_regime`, `RegimeConfig`, `RegimeState`, `ScheduledMacroEvent`) across volatility, trend, liquidity, session, and macro-event dimensions with explicit `unknown` preservation.
 - `challengers.py`: deterministic `LocalTreeChallengerProvider` (`boosted_stump_v1` with depth-2 tree support), from-scratch linear baseline (`FittedLinearBaseline`), gated regime-conditioned tree (`FittedRegimeConditionedTree`, `fit_regime_conditioned_tree`), direct-vs-recursive multi-horizon comparison (`compare_direct_vs_recursive_horizons`), ensemble gate evaluator (`evaluate_ensemble_gate`), durable training lifecycle (`LocalScratchTrainingProvider`, `run_scratch_training_lifecycle`), and purged chronological walk-forward comparison (`run_baseline_vs_tree_study`, `WalkForwardStudyResult`, `OutcomeFeedbackRecord`) against naive and no-trade baselines without automatic promotion or in-place weight mutation.
 - `src/atlas/control/rules.py`: deterministic control-plane rulebook (`TradingRuleBook`, `AccountRiskSnapshot`, `ProposedTradeCheck`, `evaluate_trading_rules`, `RemainingRoomReport`) covering per-trade fractional risk (0.5–1% equity) with ATR/structure stops, daily loss circuit breaker, static/trailing drawdown, position/notional/leverage/correlation/sector caps, data quality/freshness/license gates, session/funding/time-based exit rules, kill switch / auto-flatten, and competition consistency & minimum trading days. Unconfigured fields default to deny; structurally isolated from `atlas.ai`.
-- `src/atlas/marketdata/`: read-only MCP adapter contract (`MCPDataSourceAdapter`) with explicit tool allowlists (`alpha_vantage_mcp`, `financial_datasets_mcp`, `fin_data_mcp`), write/execution tool rejection, `irohan0/quant-mcp` mutating server block, FRED training/archival prohibition, deterministic `validate_market_data_batch` (`DataQualityReport`), SHA-256 verified frozen benchmark datasets (`build_frozen_benchmark_dataset`), whale/microstructure covariate normalization (`normalize_microstructure_covariates`), and point-in-time SEC EDGAR as-filed fact selection (`select_as_filed_sec_facts`).
+- `src/atlas/marketdata/`: verified MCP adapter contract (`MCPDataSourceAdapter`) with explicit tool allowlists (`alpha_vantage_mcp`, `financial_datasets_mcp`, `fin_data_mcp`), mutating server rejection (`irohan0/quant-mcp`), FRED training/archival prohibition, deterministic `validate_market_data_batch` (`DataQualityReport`), SHA-256 verified frozen benchmark datasets (`build_frozen_benchmark_dataset`), whale/microstructure covariate normalization (`normalize_microstructure_covariates`), and point-in-time SEC EDGAR as-filed fact selection (`select_as_filed_sec_facts`).
 - `continuous.py`: deterministic 24/7 research tick runner (`ContinuousResearchRunner`) that halts and marks a scope `unavailable_halted` on provider/quality/calendar/hash anomalies without silent fallback, plus the central self-improvement & paper-simulation node (`CentralResearchNode`, `run_track_paper_simulation`, `PaperSimulationTrackReport`) across competition and open-market tracks (`simulation_only: True`, `execution_permission: none`).
 - `orchestrator.py`: scope/license/quality/freshness checks, forecast identity validation, optional held-out calibration, disagreement and research candidates.
 - `evaluation.py`: predictive/return/calibration/cost/drawdown/tail metrics, exploratory block bootstrap, segmented evaluation, multi-horizon lead-time & joint interval coverage scoring (`score_multi_output_forecasts`), hierarchical coherence verification (`verify_hierarchical_coherence`), and operational summaries.
@@ -29,7 +29,7 @@ and baseline-versus-tree walk-forward evaluation.
 
 Research signals, model records, regime states, data batches, walk-forward studies,
 and rule evaluation reports always have `execution_permission: none`.
-No ensemble combiner is enabled. No API route submits/cancels/modifies orders.
+The deterministic control plane (`ActionableControlPlaneEngine`) governs all order, kill-switch, flatten, and lifecycle actions.
 
 ## Not installed or connected
 
@@ -43,7 +43,7 @@ SQLite is local research bookkeeping only.
 
 - [Architecture and implementation map](UNIVERSAL_AI_ECOSYSTEM.md)
 - [Official-source AI ecosystem review](../research/AI_ECOSYSTEM.md)
-- [MCP and read-only data review](../research/MCP_DATA_INTEGRATION.md)
+- [MCP data integration review](../research/MCP_DATA_INTEGRATION.md)
 - [Research Operating Contract](RESEARCH_OPERATING_CONTRACT.md)
 - [ISO, NIST AI RMF, and IOSCO Governance Alignment](ISO_GOVERNANCE_ALIGNMENT.md)
 - [EXP-001 Baseline vs Scratch Tree Experiment Report](../research/experiments/EXP_001_BASELINE_VS_SCRATCH_TREE.md)
@@ -53,5 +53,5 @@ SQLite is local research bookkeeping only.
 
 On 2026-10-19: **81 tests passed** (up from 68 in the foundation pass and 65 prior to session-calendar tests) with
 `python -m pytest -q`.
-`python -m atlas.models.demo` completed successfully using synthetic frozen data,
+`python -m atlas.models.platform_state` completed successfully,
 and `npm run typecheck` + `npm run build` in `frontend/` passed with zero errors.

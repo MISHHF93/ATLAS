@@ -972,6 +972,14 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert ks_off.status_code == 200
     assert ks_off.json()["kill_switch_engaged"] is False
 
+    # 6. Verify production platform snapshot endpoint (/api/platform/snapshot)
+    snap_res = client.get("/api/platform/snapshot")
+    assert snap_res.status_code == 200
+    snap_body = snap_res.json()
+    assert snap_body["source"] == "atlas_production_engine"
+    assert "with_scoped_approval" in snap_body
+    assert "control_plane_state" in snap_body
+
 
 
 

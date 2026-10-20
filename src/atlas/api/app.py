@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from atlas.control.engine import ActionableControlPlaneEngine, ActionableOrderRequest
 from atlas.models.adapters import NaiveForecastProvider
 from atlas.models.demo import demo as build_research_demo
+from atlas.models.platform_state import build_platform_snapshot
 from atlas.models.registry import ProviderRegistry
 from atlas.models.schemas import Capability
 from fastapi import FastAPI
@@ -78,6 +79,13 @@ def research_capabilities() -> dict[str, object]:
 @app.get("/api/research/demo")
 async def research_demo() -> dict[str, object]:
     payload = await build_research_demo()
+    payload["control_plane_state"] = control_engine.get_state().model_dump(mode="json")
+    return payload
+
+
+@app.get("/api/platform/snapshot", include_in_schema=False)
+async def platform_snapshot() -> dict[str, object]:
+    payload = await build_platform_snapshot()
     payload["control_plane_state"] = control_engine.get_state().model_dump(mode="json")
     return payload
 

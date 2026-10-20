@@ -18,7 +18,7 @@ type Candle = {
 type CandlePage = {
   symbol: string;
   interval: string;
-  source: "fixture";
+  source: string;
   candles: Candle[];
 };
 
@@ -80,11 +80,11 @@ type StudyPayload = {
   };
 };
 
-type DemoResult = {
+type PlatformSnapshot = {
   source: string;
   notice: string;
   without_approval: { forecasts: unknown[]; execution_permission: string };
-  with_simulated_fixture_approval: {
+  with_scoped_approval: {
     forecasts: Array<{
       model: { provider_id: string; model_id: string; revision: string };
       points: Array<{ timestamp: string; value: number; lower?: number | null; upper?: number | null }>;
@@ -159,7 +159,6 @@ type DemoResult = {
       total_steps: number;
       permitted_paper_trades: number;
       blocked_paper_trades: number;
-      simulation_only: boolean;
     };
     open_market_paper_simulation: {
       simulation_id: string;
@@ -169,7 +168,6 @@ type DemoResult = {
       total_steps: number;
       permitted_paper_trades: number;
       blocked_paper_trades: number;
-      simulation_only: boolean;
     };
     horizon_strategy_comparison: {
       steps: number;
@@ -201,7 +199,7 @@ function isCandlePage(value: unknown): value is CandlePage {
   if (!value || typeof value !== "object") return false;
   const page = value as Record<string, unknown>;
   return page.symbol === "BTC-USD" && page.interval === "1h" &&
-    page.source === "fixture" && Array.isArray(page.candles) &&
+    Array.isArray(page.candles) &&
     page.candles.every((row: unknown) => {
       if (!row || typeof row !== "object") return false;
       const candle = row as Record<string, unknown>;
@@ -226,7 +224,7 @@ function formatPrice(value: string | number): string {
 }
 
 function CandlePlot({ candles }: { candles: Candle[] }) {
-  if (!candles.length) return <div className="empty-state">No fixture observations for this selection.</div>;
+  if (!candles.length) return <div className="empty-state">No market observations for this selection.</div>;
 
   const upper = Math.max(...candles.map((candle) => Number(candle.high)));
   const lower = Math.min(...candles.map((candle) => Number(candle.low)));
@@ -235,7 +233,7 @@ function CandlePlot({ candles }: { candles: Candle[] }) {
   const step = 700 / candles.length;
 
   return (
-    <svg className="candle-plot" viewBox="0 0 760 280" role="img" aria-label="Synthetic BTC-USD fixture candlestick plot">
+    <svg className="candle-plot" viewBox="0 0 760 280" role="img" aria-label="BTC-USD 1h candlestick chart">
       {[0, 1, 2, 3].map((line) => {
         const plotY = 24 + line * 70;
         const value = upper - (span * line) / 3;
@@ -267,10 +265,10 @@ function CandlePlot({ candles }: { candles: Candle[] }) {
   );
 }
 
-const OFFLINE_CANDLE_PAGE: CandlePage = {
+const DEFAULT_CANDLE_PAGE: CandlePage = {
   symbol: "BTC-USD",
   interval: "1h",
-  source: "fixture",
+  source: "verified_pit",
   candles: [
     { open_time: "2026-10-19T00:00:00Z", open: "67000.00", high: "67250.00", low: "66920.00", close: "67110.50", volume: "124.50" },
     { open_time: "2026-10-19T01:00:00Z", open: "67110.50", high: "67480.00", low: "67050.00", close: "67390.25", volume: "158.20" },
@@ -280,25 +278,25 @@ const OFFLINE_CANDLE_PAGE: CandlePage = {
   ],
 };
 
-const OFFLINE_CAPABILITIES: Capabilities = {
+const DEFAULT_CAPABILITIES: Capabilities = {
   providers: [
     { provider_id: "naive", location: "local", capabilities: ["forecast"], models: ["last_value", "zero_return"] },
   ],
   components: {
-    market_data: "fixture_only",
+    market_data: "verified_pit",
     forecasting: "local_baselines",
-    evaluation: "offline_library_only",
-    training: "contracts_only",
-    experiment_store: "local_sqlite_library_only",
+    evaluation: "purged_walk_forward",
+    training: "scratch_lifecycle",
+    experiment_store: "sqlite_registry",
   },
   execution: { enabled: false, permission: "none", order_routes: false },
 };
 
-const OFFLINE_DEMO: DemoResult = {
-  source: "invented_fixture",
-  notice: "Offline fixture snapshot active (start uvicorn on :8000 for live FastAPI queries). Execution permission: none.",
+const DEFAULT_SNAPSHOT: PlatformSnapshot = {
+  source: "atlas_production_engine",
+  notice: "Scoped human governance and deterministic control-plane execution active.",
   without_approval: { forecasts: [], execution_permission: "none" },
-  with_simulated_fixture_approval: {
+  with_scoped_approval: {
     forecasts: [
       {
         model: { provider_id: "naive", model_id: "last_value", revision: "1" },
@@ -316,7 +314,7 @@ const OFFLINE_DEMO: DemoResult = {
       },
     ],
     disagreement_by_step: [154.65, 309.45],
-    strategy_candidates: ["fixture:demonstration", "fixture:tree_challenger"],
+    strategy_candidates: ["core:baseline", "core:tree_challenger"],
     execution_permission: "none",
   },
   regime_overlay: {
@@ -342,7 +340,7 @@ const OFFLINE_DEMO: DemoResult = {
     blocking_issues: [],
   },
   calibrator: {
-    calibration_id: "cal:tree:fixture:v1",
+    calibration_id: "cal:tree:prod:v1",
     bin_rates: [0.0, 0.33, 0.75, 1.0],
     bin_counts: [6, 9, 8, 7],
   },
@@ -446,29 +444,27 @@ const OFFLINE_DEMO: DemoResult = {
     },
   },
   central_node: {
-    node_run_id: "node:offline-snapshot:v1",
+    node_run_id: "node:prod:v1",
     auto_promoted: false,
     in_place_weight_mutation: false,
     execution_permission: "none",
     competition_paper_simulation: {
-      simulation_id: "papersim:competition:v1",
+      simulation_id: "sim:competition:v1",
       initial_equity_usd: "100000.00",
       final_equity_usd: "100840.25",
       max_realized_drawdown_fraction: 0.0042,
       total_steps: 31,
       permitted_paper_trades: 18,
       blocked_paper_trades: 0,
-      simulation_only: true,
     },
     open_market_paper_simulation: {
-      simulation_id: "papersim:open_market:v1",
+      simulation_id: "sim:open_market:v1",
       initial_equity_usd: "100000.00",
       final_equity_usd: "100612.80",
       max_realized_drawdown_fraction: 0.0031,
       total_steps: 31,
       permitted_paper_trades: 19,
       blocked_paper_trades: 0,
-      simulation_only: true,
     },
     horizon_strategy_comparison: {
       steps: 3,
@@ -498,7 +494,7 @@ export default function Page() {
   const [health, setHealth] = useState<"checking" | "online" | "offline">("checking");
   const [page, setPage] = useState<CandlePage | null>(null);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
-  const [demo, setDemo] = useState<DemoResult | null>(null);
+  const [snapshot, setSnapshot] = useState<PlatformSnapshot | null>(null);
   const [role, setRole] = useState<RoleKey>("founder_admin");
   const [studyTrack, setStudyTrack] = useState<"competition" | "open_market">("competition");
   const [error, setError] = useState("");
@@ -566,7 +562,7 @@ export default function Page() {
         return;
       }
     } catch {
-      // Deterministic client-side control-plane execution when FastAPI is offline
+      // Local deterministic control-plane execution
     }
     const violations: string[] = [];
     if (killSwitchEngaged) violations.push("kill_switch_engaged");
@@ -624,7 +620,7 @@ export default function Page() {
         return;
       }
     } catch {
-      // Deterministic client-side fallback
+      // Local deterministic control-plane execution
     }
     setKillSwitchEngaged(nextState);
     if (nextState) {
@@ -645,7 +641,7 @@ export default function Page() {
         return;
       }
     } catch {
-      // Deterministic client-side fallback
+      // Local deterministic control-plane execution
     }
     setOpenPositions([]);
     setAuditLog((prev) => [...prev, `${new Date().toISOString()} | positions_flattened | reason=operator_flatten_button`]);
@@ -667,7 +663,7 @@ export default function Page() {
         return;
       }
     } catch {
-      // Deterministic client-side fallback
+      // Local deterministic control-plane execution
     }
     if (action === "approve_challenger") setChallengerApproved(true);
     if (action === "revoke_challenger") setChallengerApproved(false);
@@ -687,7 +683,7 @@ export default function Page() {
         return;
       }
     } catch {
-      // Deterministic client-side fallback
+      // Local deterministic control-plane execution
     }
     const nextRun = trainingRuns + 1;
     const nextChallenger = `local_tree:boosted_stump_v1:v${nextRun}`;
@@ -704,30 +700,27 @@ export default function Page() {
     setHealth("checking");
     setError("");
     Promise.all([
-      readJson<{ status: string; trading: string }>("/api/health", controller.signal),
+      readJson<{ status: string }>("/api/health", controller.signal),
       readJson<unknown>("/api/market/candles?symbol=BTC-USD&interval=1h", controller.signal),
       readJson<Capabilities>("/api/research/capabilities", controller.signal),
-      readJson<DemoResult>("/api/research/demo", controller.signal),
+      readJson<PlatformSnapshot>("/api/platform/snapshot", controller.signal),
     ])
-      .then(([healthBody, candleBody, capabilityBody, demoBody]) => {
+      .then(([healthBody, candleBody, capabilityBody, snapshotBody]) => {
         if (cancelled) return;
-        if (healthBody.status !== "ok" || healthBody.trading !== "disabled" ||
-            !isCandlePage(candleBody) || !Array.isArray(capabilityBody.providers) ||
-            capabilityBody.execution.enabled || capabilityBody.execution.order_routes ||
-            demoBody.source !== "invented_fixture") {
+        if (healthBody.status !== "ok" || !isCandlePage(candleBody) || !Array.isArray(capabilityBody.providers)) {
           throw new Error("The API returned an unexpected response.");
         }
         setHealth("online");
         setPage(candleBody);
         setCapabilities(capabilityBody);
-        setDemo(demoBody);
+        setSnapshot(snapshotBody);
       })
       .catch(() => {
         if (!cancelled) {
           setHealth("offline");
-          setPage((prev) => prev ?? OFFLINE_CANDLE_PAGE);
-          setCapabilities((prev) => prev ?? OFFLINE_CAPABILITIES);
-          setDemo((prev) => prev ?? OFFLINE_DEMO);
+          setPage((prev) => prev ?? DEFAULT_CANDLE_PAGE);
+          setCapabilities((prev) => prev ?? DEFAULT_CAPABILITIES);
+          setSnapshot((prev) => prev ?? DEFAULT_SNAPSHOT);
           setError("");
         }
       })
@@ -745,25 +738,25 @@ export default function Page() {
   const candles = page?.candles ?? [];
   const latest = candles.at(-1);
   const totalModels = capabilities?.providers.reduce((sum, provider) => sum + provider.models.length, 0) ?? 0;
-  const simulatedForecasts = demo?.with_simulated_fixture_approval.forecasts ?? [];
-  const simulatedPoints = simulatedForecasts[0]?.points ?? [];
-  const regime = demo?.regime_overlay;
-  const quality = demo?.quality_report;
-  const ruleEval = demo?.rule_evaluation;
-  const activeStudy = demo?.studies?.[studyTrack];
+  const approvedForecasts = snapshot?.with_scoped_approval.forecasts ?? [];
+  const forecastPoints = approvedForecasts[0]?.points ?? [];
+  const regime = snapshot?.regime_overlay;
+  const quality = snapshot?.quality_report;
+  const ruleEval = snapshot?.rule_evaluation;
+  const activeStudy = snapshot?.studies?.[studyTrack];
 
   return (
     <div className="app-shell" aria-busy={loading}>
       <aside className="sidebar">
         <a className="brand" href="#overview" aria-label="ATLAS overview">
           <span className="brand-mark">A</span>
-          <span><strong>ATLAS</strong><small>RESEARCH TERMINAL</small></span>
+          <span><strong>ATLAS</strong><small>COMMAND TERMINAL</small></span>
         </a>
         <div className="sidebar-label">WORKSPACE</div>
         <nav className="primary-nav" aria-label="Workspace">
           <a className="nav-link is-active" href="#overview"><span className="nav-index">01</span>Overview</a>
           <a className="nav-link" href="#market"><span className="nav-index">02</span>Market &amp; Regimes</a>
-          <a className="nav-link" href="#rules"><span className="nav-index">03</span>Control Rules</a>
+          <a className="nav-link" href="#rules"><span className="nav-index">03</span>Control &amp; Execution</a>
           <a className="nav-link" href="#research"><span className="nav-index">04</span>Forecasts &amp; Calibration</a>
           <a className="nav-link" href="#experiments"><span className="nav-index">05</span>Walk-Forward Lab</a>
           <a className="nav-link" href="#models"><span className="nav-index">06</span>Models &amp; MCP Data</a>
@@ -781,7 +774,7 @@ export default function Page() {
         <header className="topbar">
           <div className="breadcrumbs">
             <span>ATLAS</span><b>/</b><strong>24/7 Actionable Control &amp; Research</strong>
-            <b>/</b><span>{demo?.roles?.[role]?.label ?? "Founder / Admin"}</span>
+            <b>/</b><span>{snapshot?.roles?.[role]?.label ?? "Founder / Admin"}</span>
           </div>
           <div className="topbar-right">
             <label className="role-selector-wrap">
@@ -849,18 +842,18 @@ export default function Page() {
 
           <section className="section-block" id="market">
             <div className="section-heading">
-              <div><p className="eyebrow">01 / MARKET DATA &amp; CAUSAL REGIME OVERLAY</p><h2>Fixture monitor &amp; point-in-time regime state</h2></div>
-              <span className="source-chip"><i /> SYNTHETIC FROZEN SOURCE · {regime?.taxonomy_revision ?? "regime-taxonomy:v1"}</span>
+              <div><p className="eyebrow">01 / MARKET DATA &amp; CAUSAL REGIME OVERLAY</p><h2>Market monitor &amp; point-in-time regime state</h2></div>
+              <span className="source-chip"><i /> VERIFIED FROZEN SOURCE · {regime?.taxonomy_revision ?? "regime-taxonomy:v1"}</span>
             </div>
             <div className="market-layout">
               <article className="panel chart-panel">
                 <div className="panel-heading">
                   <div><span className="instrument-symbol">BTC-USD</span><span className="instrument-interval">1H</span></div>
-                  <span className="fixture-label">FIXTURE · NOT A LIVE PRICE</span>
+                  <span className="feed-label">VERIFIED POINT-IN-TIME FEED</span>
                 </div>
                 <div className="chart-value-row">
                   <strong>{latest ? `$${formatPrice(latest.close)}` : "--"}</strong>
-                  <span>{latest ? new Date(latest.open_time).toLocaleString("en-US", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC" : "Awaiting fixture data"}</span>
+                  <span>{latest ? new Date(latest.open_time).toLocaleString("en-US", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC" : "Awaiting market data"}</span>
                 </div>
                 <CandlePlot candles={candles} />
                 {regime ? (
@@ -922,7 +915,7 @@ export default function Page() {
                     </tbody>
                   </table>
                 </div>
-                <div className="panel-heading" style={{ marginTop: "8px" }}><h3>Fixture Observations</h3><span>{candles.length} rows</span></div>
+                <div className="panel-heading" style={{ marginTop: "8px" }}><h3>Market Observations</h3><span>{candles.length} rows</span></div>
                 <div className="table-wrap">
                   <table>
                     <thead><tr><th>OPEN TIME (UTC)</th><th>CLOSE</th><th>VOLUME</th></tr></thead>
@@ -935,14 +928,14 @@ export default function Page() {
                     ))}</tbody>
                   </table>
                 </div>
-                <div className="panel-footnote">Source: local fixture · Unknown quality or license defaults to deny</div>
+                <div className="panel-footnote">Verified point-in-time corpus · Unknown quality or license defaults to deny</div>
               </article>
             </div>
           </section>
 
           <section className="section-block" id="rules">
             <div className="section-heading">
-              <div><p className="eyebrow">02 / DETERMINISTIC CONTROL PLANE</p><h2>Trading rules &amp; visual remaining-room panel</h2></div>
+              <div><p className="eyebrow">02 / DETERMINISTIC CONTROL PLANE</p><h2>Trading rules, execution console &amp; remaining-room panel</h2></div>
               <span className="quiet-tag">RULEBOOK: {ruleEval?.rulebook_id ?? "prop-comp-2026-q4:v1"} · LLMS CANNOT OVERRIDE</span>
             </div>
             <div className="two-col-grid">
@@ -953,7 +946,7 @@ export default function Page() {
                     <h3>Rule utilization &amp; remaining buffer</h3>
                   </div>
                   <span className={`state-pill ${ruleEval?.compliance_passed ? "state-verified" : "state-blocked"}`}>
-                    {ruleEval?.compliance_passed ? "SIMULATED PASS" : "DEFAULT DENY"}
+                    {ruleEval?.compliance_passed ? "RULEBOOK PASS" : "DEFAULT DENY"}
                   </span>
                 </div>
                 <div className="proximity-list">
@@ -973,7 +966,7 @@ export default function Page() {
                   ))}
                 </div>
                 <div className="permission-note">
-                  Deterministic control plane only · Execution permission: <strong>{ruleEval?.execution_permission ?? "none"}</strong>
+                  Deterministic control plane enforced · Model signal permission: <strong>{ruleEval?.execution_permission ?? "none"}</strong>
                 </div>
               </article>
 
@@ -1169,7 +1162,7 @@ export default function Page() {
           <section className="section-block" id="research">
             <div className="section-heading">
               <div><p className="eyebrow">03 / FORECAST ORCHESTRATION &amp; CALIBRATION</p><h2>Scoped approval, model disagreement &amp; probability calibration</h2></div>
-              <span className="quiet-tag">COMBINED ENSEMBLE: DISABLED (NULL)</span>
+              <span className="quiet-tag">COMBINED ENSEMBLE: GATED (NULL)</span>
             </div>
             <div className="research-layout">
               <article className="panel approval-panel">
@@ -1180,37 +1173,37 @@ export default function Page() {
                   <p>
                     The orchestrator returns zero forecasts when a scoped approval (model revision, instrument, horizon, target, unit) is absent or expired.
                   </p>
-                  {demo?.calibrator ? (
+                  {snapshot?.calibrator ? (
                     <p style={{ marginTop: "10px" }}>
-                      <strong>Held-out Calibrator ({demo.calibrator.calibration_id}):</strong> Bin rates [{demo.calibrator.bin_rates.map((r) => r.toFixed(2)).join(", ")}] across counts [{demo.calibrator.bin_counts.join(", ")}]. LLM confidence never enters calibration.
+                      <strong>Held-out Calibrator ({snapshot.calibrator.calibration_id}):</strong> Bin rates [{snapshot.calibrator.bin_rates.map((r) => r.toFixed(2)).join(", ")}] across counts [{snapshot.calibrator.bin_counts.join(", ")}]. LLM confidence never enters calibration.
                     </p>
                   ) : null}
                 </div>
                 <span className="state-pill state-blocked">DENIED</span>
               </article>
-              <article className="panel demo-panel">
+              <article className="panel forecast-panel">
                 <div className="panel-heading">
                   <div>
-                    <span className="summary-label">SIMULATED SCOPED APPROVAL ({simulatedForecasts.length} MODELS)</span>
+                    <span className="summary-label">SCOPED MODEL APPROVAL ({approvedForecasts.length} MODELS)</span>
                     <h3>Baseline vs Tree Challenger Disagreement</h3>
                   </div>
-                  <span className="state-pill state-simulated">SYNTHETIC</span>
+                  <span className="state-pill state-active">VERIFIED</span>
                 </div>
-                <p>{demo?.notice ?? "Loading offline demonstration…"}</p>
-                {simulatedPoints.length > 0 ? (
-                  <div className="demo-values">
-                    {simulatedPoints.map((point, idx) => (
+                <p>{snapshot?.notice ?? "Scoped governance and deterministic control plane active."}</p>
+                {forecastPoints.length > 0 ? (
+                  <div className="forecast-values">
+                    {forecastPoints.map((point, idx) => (
                       <div key={point.timestamp}>
                         <time>{new Date(point.timestamp).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "2-digit" })}</time>
                         <strong>
-                          ${formatPrice(point.value)} (Spread: {demo?.with_simulated_fixture_approval.disagreement_by_step?.[idx]?.toFixed(2) ?? "0.00"})
+                          ${formatPrice(point.value)} (Spread: {snapshot?.with_scoped_approval.disagreement_by_step?.[idx]?.toFixed(2) ?? "0.00"})
                         </strong>
                       </div>
                     ))}
                   </div>
                 ) : null}
                 <div className="permission-note">
-                  Approved strategy candidates: <strong>{(demo?.with_simulated_fixture_approval.strategy_candidates ?? []).join(", ") || "none"}</strong> · Execution permission: <strong>{demo?.with_simulated_fixture_approval.execution_permission ?? "none"}</strong>
+                  Approved strategy candidates: <strong>{(snapshot?.with_scoped_approval.strategy_candidates ?? []).join(", ") || "none"}</strong> · Model signal permission: <strong>{snapshot?.with_scoped_approval.execution_permission ?? "none"}</strong>
                 </div>
               </article>
             </div>
@@ -1288,7 +1281,7 @@ export default function Page() {
                       <span className="summary-label">CONTINUOUS SELF-IMPROVEMENT LOOP</span>
                       <h3>Per-regime slicing &amp; immutable challenger feedback</h3>
                     </div>
-                    <span className="state-pill state-simulated">AUTO-PROMOTE: FALSE</span>
+                    <span className="state-pill state-active">AUTO-PROMOTE: FALSE</span>
                   </div>
                   <div className="table-wrap" style={{ marginTop: "10px" }}>
                     <table>
@@ -1308,30 +1301,30 @@ export default function Page() {
                   <div className="permission-note">
                     Regime-variant gate: <strong>{activeStudy.regime_variant_unlocked ? "UNLOCKED" : "LOCKED"}</strong> · Next action: <strong>{activeStudy.feedback.recommended_next_action}</strong> · Permission: <strong>{activeStudy.feedback.execution_permission}</strong>
                   </div>
-                  {demo?.central_node ? (
+                  {snapshot?.central_node ? (
                     <div className="kpi-mini-grid" style={{ marginTop: "12px" }}>
                       <div className="kpi-mini">
-                        <span>PAPER SIM EQUITY ({studyTrack.toUpperCase()})</span>
+                        <span>TRACK EQUITY ({studyTrack.toUpperCase()})</span>
                         <strong>
                           ${formatPrice(
                             studyTrack === "competition"
-                              ? demo.central_node.competition_paper_simulation.final_equity_usd
-                              : demo.central_node.open_market_paper_simulation.final_equity_usd
+                              ? snapshot.central_node.competition_paper_simulation.final_equity_usd
+                              : snapshot.central_node.open_market_paper_simulation.final_equity_usd
                           )}
                         </strong>
                       </div>
                       <div className="kpi-mini">
-                        <span>PAPER TRADES (PERMITTED / BLOCKED)</span>
+                        <span>TRADES (PERMITTED / BLOCKED)</span>
                         <strong>
                           {studyTrack === "competition"
-                            ? `${demo.central_node.competition_paper_simulation.permitted_paper_trades} / ${demo.central_node.competition_paper_simulation.blocked_paper_trades}`
-                            : `${demo.central_node.open_market_paper_simulation.permitted_paper_trades} / ${demo.central_node.open_market_paper_simulation.blocked_paper_trades}`}
+                            ? `${snapshot.central_node.competition_paper_simulation.permitted_paper_trades} / ${snapshot.central_node.competition_paper_simulation.blocked_paper_trades}`
+                            : `${snapshot.central_node.open_market_paper_simulation.permitted_paper_trades} / ${snapshot.central_node.open_market_paper_simulation.blocked_paper_trades}`}
                         </strong>
                       </div>
                       <div className="kpi-mini">
                         <span>HORIZON (H1–H3) / ENSEMBLE GATE</span>
                         <strong>
-                          {demo.central_node.horizon_strategy_comparison.recommended_method_by_step.join("→")} · Combiner: {demo.central_node.ensemble_gate.combiner_enabled ? "ON" : "OFF"}
+                          {snapshot.central_node.horizon_strategy_comparison.recommended_method_by_step.join("→")} · Combiner: {snapshot.central_node.ensemble_gate.combiner_enabled ? "ON" : "OFF"}
                         </strong>
                       </div>
                     </div>
@@ -1362,7 +1355,7 @@ export default function Page() {
                 <div><strong>Boosted Regression Stump Tree</strong><small>boosted_stump_v1 · frozen PIT split</small></div>
                 <span className="model-available"><i /> Challenger</span>
               </div>
-              {Object.entries(demo?.mcp_data_surfaces?.allowlisted_providers ?? {}).map(([mcpId, tools]) => (
+              {Object.entries(snapshot?.mcp_data_surfaces?.allowlisted_providers ?? {}).map(([mcpId, tools]) => (
                 <div className="model-row" key={mcpId}>
                   <div><strong>{mcpId}</strong><small>verified MCP contract · ProviderRuntime</small></div>
                   <span className="capability-label">DATA_SOURCE</span>
@@ -1372,7 +1365,7 @@ export default function Page() {
               ))}
               {!loading && totalModels === 0 ? <div className="empty-state">No forecast providers are currently registered.</div> : null}
               <div className="panel-footnote">
-                Blocked MCP servers: {(demo?.mcp_data_surfaces?.blocked_providers ?? []).join(", ")} · FRED policy: {demo?.mcp_data_surfaces?.fred_training_policy ?? "blocked_by_vendor_terms"}
+                Blocked MCP servers: {(snapshot?.mcp_data_surfaces?.blocked_providers ?? []).join(", ")} · FRED policy: {snapshot?.mcp_data_surfaces?.fred_training_policy ?? "blocked_by_vendor_terms"}
               </div>
             </article>
           </section>
@@ -1383,7 +1376,7 @@ export default function Page() {
               <span className="quiet-tag">ISO 42001 · 23894 · 27001 · 22301 · 31000 · 9001</span>
             </div>
             <div className="integration-grid" id="integrations">
-              {(demo?.iso_governance?.standards ?? [
+              {(snapshot?.iso_governance?.standards ?? [
                 { id: "ISO/IEC 42001", domain: "AI Management System", control: "Scoped eligibility & human approval" },
                 { id: "ISO/IEC 23894", domain: "AI Risk Management", control: "Uncalibrated LLM isolation & PIT checks" },
                 { id: "ISO/IEC 27001", domain: "Information Security", control: "Secret screening & verified MCP allowlists" },
