@@ -1,4 +1,4 @@
-"""Read-only candle schema. Prices stay decimal strings."""
+"""Validated market candle schema. Prices stay decimal strings."""
 
 from datetime import datetime
 from decimal import Decimal, InvalidOperation

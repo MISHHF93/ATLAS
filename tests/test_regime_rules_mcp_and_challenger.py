@@ -900,4 +900,78 @@ def test_central_research_node_and_track_paper_simulation(tmp_path) -> None:
     assert report.scratch_lifecycle.training_job.state == "succeeded"
 
 
+def test_actionable_control_plane_engine_and_api_endpoints() -> None:
+    from fastapi.testclient import TestClient
+    from atlas.api.app import app
+
+    client = TestClient(app)
+
+    # 1. Inspect initial actionable state
+    state_res = client.get("/api/control/state")
+    assert state_res.status_code == 200
+    state_body = state_res.json()
+    assert state_body["kill_switch_engaged"] is False
+    assert len(state_body["open_positions"]) >= 1
+
+    # 2. Submit a valid rule-compliant order via POST /api/control/order
+    order_res = client.post(
+        "/api/control/order",
+        json={
+            "track": "competition",
+            "instrument_id": "comp:btc-perp:v1",
+            "side": "buy",
+            "notional_usd": "15000",
+            "stop_kind": "atr",
+            "stop_distance_bps": "150",
+            "holding_horizon_seconds": 7200,
+        },
+    )
+    assert order_res.status_code == 200
+    order_body = order_res.json()
+    assert order_body["decision"]["control_plane_decision"] == "authorized_and_executed"
+    assert order_body["decision"]["position_id"] is not None
+
+    # 3. Submit an oversized order that violates max_position_notional_usd -> rejected deterministically
+    bad_order_res = client.post(
+        "/api/control/order",
+        json={
+            "track": "competition",
+            "instrument_id": "comp:btc-perp:v1",
+            "side": "sell",
+            "notional_usd": "95000",
+            "stop_kind": "atr",
+            "stop_distance_bps": "150",
+            "holding_horizon_seconds": 7200,
+        },
+    )
+    assert bad_order_res.status_code == 200
+    bad_body = bad_order_res.json()
+    assert bad_body["decision"]["control_plane_decision"] == "rejected_by_control_plane"
+    assert len(bad_body["decision"]["violations"]) > 0
+
+    # 4. Trigger self-training and lifecycle promotion/rollback via POST endpoints
+    train_res = client.post("/api/research/train")
+    assert train_res.status_code == 200
+    assert train_res.json()["training_runs_completed"] >= 2
+
+    promote_res = client.post("/api/control/lifecycle", json={"action": "promote_challenger"})
+    assert promote_res.status_code == 200
+    assert "local_tree:boosted_stump_v1" in promote_res.json()["active_champion_model"]
+
+    rollback_res = client.post("/api/control/lifecycle", json={"action": "rollback_to_champion"})
+    assert rollback_res.status_code == 200
+    assert rollback_res.json()["active_champion_model"] == "naive:last_value:v1"
+
+    # 5. Engage kill switch -> auto-flattens all open positions & blocks orders; then reset kill switch
+    ks_on = client.post("/api/control/kill-switch", json={"engaged": True, "reason": "test_emergency_halt"})
+    assert ks_on.status_code == 200
+    assert ks_on.json()["kill_switch_engaged"] is True
+    assert len(ks_on.json()["open_positions"]) == 0
+
+    ks_off = client.post("/api/control/kill-switch", json={"engaged": False, "reason": "test_reset"})
+    assert ks_off.status_code == 200
+    assert ks_off.json()["kill_switch_engaged"] is False
+
+
+
 

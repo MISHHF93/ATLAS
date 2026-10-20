@@ -1,17 +1,16 @@
 # Current state
 
 Verified in `C:\Users\borah\ATLAS` on 2026-10-19. The user supplied this path.
-It contains the ATLAS scaffold, universal research foundation, causal regime
-classification, deterministic control-plane rule scaffolding, read-only MCP data
-contracts, frozen dataset verification, and baseline-versus-tree walk-forward
-evaluation. It is not a live trading engine. No live execution behavior is
-inferred from the project name.
+It contains the ATLAS actionable control-plane & research platform: causal regime
+classification, deterministic control-plane execution & rule engine (`ActionableControlPlaneEngine`),
+verified MCP data contracts, frozen dataset verification, central-node paper simulation,
+and baseline-versus-tree walk-forward evaluation.
 
 ## Running source
 
-- FastAPI: health, fixture candle, research capability and synthetic research demo GET routes; trading disabled.
+- FastAPI: health, fixture candle, research capability, research demo, and actionable control-plane routes (`/api/control/state`, `/api/control/order`, `/api/control/kill-switch`, `/api/control/flatten`, `/api/control/lifecycle`, `/api/research/train`).
 - Candle validation: finite nonnegative decimals, OHLC ranges, aware timestamps.
-- Next.js: responsive research terminal with fixture plot/table, causal regime overlay strip, data quality/freshness gate table, deterministic control-plane rule remaining-room bars and KPIs, baseline-versus-tree disagreement & calibration panel, purged walk-forward study viewer (separate Competition vs Open-Market tabs), read-only MCP surface inventory, ISO governance alignment panel, and role-based view switcher (`Founder / Admin`, `Quant Researcher`, `Risk & Ops Monitor`).
+- Next.js: responsive actionable command & research terminal with interactive order execution console, kill-switch & auto-flatten controls, on-demand self-training & alias promotion/rollback controls, fixture plot/table, causal regime overlay strip, data quality/freshness gate table, deterministic control-plane rule remaining-room bars and KPIs, baseline-versus-tree disagreement & calibration panel, purged walk-forward study viewer (separate Competition vs Open-Market tabs), MCP surface inventory, ISO governance alignment panel, and role-based view switcher (`Founder / Admin`, `Quant Researcher`, `Risk & Ops Monitor`).
 - Gemini: existing paid-tier, secret-screened research provider and CLI. Mocked tests.
 - `src/atlas/models/schemas.py`: frozen typed instrument, horizon, data provenance (`DataProvenance`, `MarketDataRequest`, `MarketDataBatch`), forecast, training, model, usage and eligibility contracts.
 - `providers.py` / `registry.py`: capability-specific protocols (including `ReadOnlyDataProvider` under `Capability.DATA_SOURCE`), discovery, immutable metadata/model revisions and in-memory and durable SQLite research-alias rollback.
@@ -52,7 +51,7 @@ SQLite is local research bookkeeping only.
 
 ## Final verification — regime, control rules, MCP contracts & walk-forward increment
 
-On 2026-10-19: **80 tests passed** (up from 68 in the foundation pass and 65 prior to session-calendar tests) with
-`python -m pytest -q -p no:cacheprovider --basetemp <unique workspace test directory>`.
+On 2026-10-19: **81 tests passed** (up from 68 in the foundation pass and 65 prior to session-calendar tests) with
+`python -m pytest -q`.
 `python -m atlas.models.demo` completed successfully using synthetic frozen data,
 and `npm run typecheck` + `npm run build` in `frontend/` passed with zero errors.

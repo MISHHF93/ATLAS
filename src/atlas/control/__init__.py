@@ -1,8 +1,15 @@
-"""Deterministic control-plane rule definitions and evaluation scaffolding.
+"""Deterministic control-plane rule definitions, execution engine, and readiness gates.
 
-This package never imports `atlas.ai` or any LLM provider. All outputs in this
-repository retain `execution_permission: none` until master-spec gates are met.
+This package never imports `atlas.ai` or any LLM provider. All order, position,
+kill-switch, and lifecycle actions are governed deterministically by the control plane.
 """
+from atlas.control.engine import (
+    ActionableControlPlaneEngine,
+    ActionableControlState,
+    ActionableOrderDecision,
+    ActionableOrderRequest,
+    ActionablePositionRecord,
+)
 from atlas.control.rules import (
     AccountRiskSnapshot,
     LimitProximity,
@@ -18,6 +25,11 @@ from atlas.control.rules import (
 
 __all__ = [
     "AccountRiskSnapshot",
+    "ActionableControlPlaneEngine",
+    "ActionableControlState",
+    "ActionableOrderDecision",
+    "ActionableOrderRequest",
+    "ActionablePositionRecord",
     "LimitProximity",
     "MasterSpecGateInput",
     "MasterSpecGateReport",

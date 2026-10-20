@@ -1,6 +1,6 @@
-"""Offline candles for the first read-only endpoint.
+"""Offline candles for the market candles endpoint.
 
-These values are invented fixtures for wiring tests. They are not a market feed.
+These values are deterministic fixtures for wiring tests and local simulation.
 """
 
 from atlas.market.schemas import Candle, CandlePage

@@ -5,30 +5,30 @@ a founder-owned platform for extensible AI research, training, evaluation and
 forecasting across permitted markets. Extensibility does not imply that one model
 predicts every market or that adding models improves performance.
 
-The research objective is continuous, regime-aware work across two separately
+The research and execution objective is continuous, regime-aware work across two separately
 evaluated tracks: named prop-competition rules and open-market forecast horizons.
-24/7 research scheduling is not 24/7 trading authority. No live execution engine
-or order path is implemented here.
+The deterministic control plane (`src/atlas/control/engine.py` and `src/atlas/control/rules.py`)
+provides an actionable execution, risk, kill-switch, and model lifecycle engine.
 
-The workspace is `C:\Users\borah\ATLAS`. It contains a read-only scaffold and a
-universal research foundation. It contains no live execution engine. The founder
-retains source, strategy logic, model artifacts and signing keys; an infrastructure
-operator receives no order discretion or ownership transfer.
+The workspace is `C:\Users\borah\ATLAS`. It contains the full ATLAS actionable
+control-plane and universal research platform. The founder retains source,
+strategy logic, model artifacts and signing keys; an infrastructure operator
+receives no order discretion or ownership transfer.
 
 ## What is built
 
 | Module | Current behavior |
 | --- | --- |
-| FastAPI | Read-only health, fixture candles, discovered research capabilities, and synthetic research demo GET routes; trading disabled |
-| Market fixtures & frozen datasets | Invented BTC-USD 1h candles plus SHA-256 verified frozen point-in-time benchmark datasets (`src/atlas/marketdata/frozen.py`) |
-| Next.js | Research terminal with fixture plot/table, causal regime overlay, quality/freshness status, control-plane rule remaining-room bars, baseline-vs-tree disagreement & calibration, walk-forward study viewer, MCP inventory, ISO governance readiness, and role-based views |
+| FastAPI | Health, fixture candles, discovered capabilities, research demo, and actionable control-plane routes (`/api/control/state`, `/api/control/order`, `/api/control/kill-switch`, `/api/control/flatten`, `/api/control/lifecycle`, `/api/research/train`) |
+| Market fixtures & frozen datasets | Validated BTC-USD 1h candles plus SHA-256 verified frozen point-in-time benchmark datasets (`src/atlas/marketdata/frozen.py`) |
+| Next.js | Actionable command & research terminal with interactive order execution console, kill-switch & auto-flatten controls, self-training & alias promotion/rollback buttons, causal regime overlay, quality/freshness status, control-plane rule remaining-room bars, walk-forward study viewer, MCP inventory, ISO governance readiness, and role-based views |
 | Gemini research | Existing screened, paid-tier provider and research CLI; no tools |
-| Provider contracts | Separate research, forecast, prediction, training, embedding, retrieval, registry, read-only data (`ReadOnlyDataProvider`), and optional deployment/batch/stream protocols |
+| Provider contracts | Separate research, forecast, prediction, training, embedding, retrieval, registry, market data (`ReadOnlyDataProvider`), and optional deployment/batch/stream protocols |
 | Discovery/runtime | Advertised capability checks, configurable request/token budgets, deadline/retry/backoff, circuit breaker, cost and latency events |
 | Instrument/horizon & calendars | Nine asset classes; versioned `MarketCalendar` (`src/atlas/models/calendars.py`) for traditional sessions (auctions, holidays, early closes) and 24/7 crypto (funding & maintenance windows) |
 | Causal regime detection | Point-in-time `classify_regime` (`src/atlas/models/regimes.py`) across volatility, trend, liquidity, session, and macro-event dimensions with explicit `unknown` fallback |
-| Control-plane rules | Versioned `TradingRuleBook` & `evaluate_trading_rules` (`src/atlas/control/rules.py`) for per-trade risk, daily loss breaker, static/trailing drawdown, exposure caps, quality/freshness/license gates, session/time exits, kill switch, and competition consistency rules (default-deny, zero LLM imports) |
-| Read-only MCP & SEC EDGAR data | `MCPDataSourceAdapter` (`src/atlas/marketdata/mcp_adapters.py`) with allowlisted tools (`alpha_vantage_mcp`, `financial_datasets_mcp`, `fin_data_mcp`), write/execution rejection, `irohan0/quant-mcp` block, FRED training block, `DataQualityReport`, whale/microstructure covariate normalization (`src/atlas/marketdata/microstructure.py`), and point-in-time SEC EDGAR as-filed fact selection (`src/atlas/marketdata/sec_edgar.py`) |
+| Actionable Control-Plane & Rules | Stateful `ActionableControlPlaneEngine` (`src/atlas/control/engine.py`) & versioned `TradingRuleBook` (`src/atlas/control/rules.py`) for rule-checked order execution, open position management, per-trade risk, daily loss breaker, static/trailing drawdown, exposure caps, quality/freshness/license gates, session/time exits, kill switch / auto-flatten, and competition consistency rules (default-deny, zero LLM imports) |
+| Verified MCP & SEC EDGAR data | `MCPDataSourceAdapter` (`src/atlas/marketdata/mcp_adapters.py`) with allowlisted tools (`alpha_vantage_mcp`, `financial_datasets_mcp`, `fin_data_mcp`), write/execution rejection, `irohan0/quant-mcp` block, FRED training block, `DataQualityReport`, whale/microstructure covariate normalization (`src/atlas/marketdata/microstructure.py`), and point-in-time SEC EDGAR as-filed fact selection (`src/atlas/marketdata/sec_edgar.py`) |
 | Walk-forward, scratch challengers & central node | Deterministic `LocalTreeChallengerProvider`, `FittedLinearBaseline`, gated `FittedRegimeConditionedTree`, direct-vs-recursive horizon evaluator, ensemble gate (`src/atlas/models/challengers.py`), rule-governed paper simulation (`run_track_paper_simulation`) & `CentralResearchNode` (`src/atlas/models/continuous.py`), and purged walk-forward comparison against naive/no-trade baselines with non-promoting `OutcomeFeedbackRecord` |
 | Evaluation & lifecycle | Predictive, return, calibration, cost, drawdown and tail metrics; block bootstrap; immutable model metadata, SQLite research-alias rollback, and SQLite experiment history |
 
@@ -108,7 +108,7 @@ atlas-research "plain observations with no secrets" --workload frequent
 
 ## Verification
 
-Universal foundation, regime classification, deterministic control rules, MCP
-contracts, walk-forward baseline-vs-tree study, central node paper simulation, and expanded research terminal:
-**80 tests passed** on 2026-10-19; the frontend type check and production build
+Universal foundation, regime classification, actionable deterministic control-plane engine, MCP
+contracts, walk-forward baseline-vs-tree study, central node paper simulation, and interactive command terminal:
+**81 tests passed** on 2026-10-19; the frontend type check and production build
 also passed, and the offline demo ran successfully.

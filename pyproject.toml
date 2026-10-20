@@ -1,7 +1,7 @@
 [project]
 name = "atlas"
 version = "0.1.0"
-description = "ATLAS research and read-only market scaffold. It cannot place orders."
+description = "ATLAS: Actionable Autonomous Trading, Liquidity, Allocation & Strategy Intelligence platform."
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.6",

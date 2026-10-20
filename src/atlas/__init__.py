@@ -1,6 +1,6 @@
-"""ATLAS increment 001.
+"""ATLAS: Autonomous Trading, Liquidity, Allocation & Strategy Intelligence.
 
-Research and read-only market data. This package has no order route.
+Actionable deterministic control-plane execution, regime-aware research, and self-training platform.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

@@ -1,1 +1,1 @@
-"""Market data package. Read-only fixtures in this increment."""
+"""Market data package for ATLAS candles and fixtures."""
