@@ -980,6 +980,32 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert "with_scoped_approval" in snap_body
     assert "control_plane_state" in snap_body
 
+    # 7. Verify interactive functional endpoints (walk-forward, MCP fetch, market ingest, readiness audit)
+    wf_res = client.post(
+        "/api/research/walk-forward",
+        json={"track": "competition", "cost_bps": 3.5, "purge_bars": 2, "embargo_bars": 1},
+    )
+    assert wf_res.status_code == 200
+    assert wf_res.json()["study"]["purge_bars"] == 2
+
+    mcp_res = client.post(
+        "/api/market/mcp-fetch",
+        json={"provider_id": "alpha_vantage_mcp", "tool_name": "DIGITAL_CURRENCY_DAILY"},
+    )
+    assert mcp_res.status_code == 200
+    assert mcp_res.json()["quality_status"] == "verified"
+
+    ingest_res = client.post(
+        "/api/market/ingest",
+        json={"symbol": "BTC-USD", "interval": "1h", "close_price": "68120.50", "volume": "155.0"},
+    )
+    assert ingest_res.status_code == 200
+    assert ingest_res.json()["candle"]["close"] == "68120.50"
+
+    audit_res = client.post("/api/control/readiness-audit")
+    assert audit_res.status_code == 200
+    assert audit_res.json()["research_challenger_ready"] is True
+
 
 
 

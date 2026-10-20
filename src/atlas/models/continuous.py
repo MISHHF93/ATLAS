@@ -372,7 +372,7 @@ def run_track_paper_simulation(
         candidate = ProposedTradeCheck(
             instrument_id=bundle.instrument.instrument_id,
             notional_usd=proposed_notional,
-            stop_kind=rulebook.required_stop_kind or "atr",
+            stop_kind="atr" if rulebook.required_stop_kind in (None, "either") else rulebook.required_stop_kind,
             stop_distance_bps=atr_stop_bps,
             holding_horizon_seconds=min(3600, rulebook.max_holding_seconds or 3600),
             current_holding_seconds=0,

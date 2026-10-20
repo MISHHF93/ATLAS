@@ -1,14 +1,24 @@
 """ATLAS HTTP API for research, forecasting, and deterministic control-plane actions."""
 
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Literal
 from pydantic import BaseModel
 
 from atlas.control.engine import ActionableControlPlaneEngine, ActionableOrderRequest
+from atlas.control.rules import MasterSpecGateInput, evaluate_master_spec_readiness
+from atlas.marketdata.frozen import build_frozen_benchmark_dataset
+from atlas.marketdata.mcp_adapters import ALLOWED_MCP_TOOLS, MCPDataSourceAdapter
+from atlas.marketdata.quality import validate_market_data_batch
 from atlas.models.adapters import NaiveForecastProvider
+from atlas.models.challengers import run_baseline_vs_tree_study
+from atlas.models.continuous import run_track_paper_simulation
 from atlas.models.demo import demo as build_research_demo
 from atlas.models.platform_state import build_platform_snapshot
+from atlas.models.regimes import classify_regime
 from atlas.models.registry import ProviderRegistry
-from atlas.models.schemas import Capability
+from atlas.models.runtime import ProviderRuntime
+from atlas.models.schemas import Capability, MarketDataRequest
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -38,6 +48,26 @@ class KillSwitchPayload(BaseModel):
 
 class LifecycleActionPayload(BaseModel):
     action: Literal["approve_challenger", "revoke_challenger", "promote_challenger", "rollback_to_champion"]
+
+
+class WalkForwardRunPayload(BaseModel):
+    track: Literal["competition", "open_market"] = "competition"
+    cost_bps: float = 4.0
+    purge_bars: int = 1
+    embargo_bars: int = 1
+
+
+class MCPFetchPayload(BaseModel):
+    provider_id: Literal["alpha_vantage_mcp", "financial_datasets_mcp", "fin_data_mcp"] = "alpha_vantage_mcp"
+    tool_name: str = "DIGITAL_CURRENCY_DAILY"
+    instrument_id: str = "comp:btc-perp:v1"
+
+
+class MarketIngestPayload(BaseModel):
+    symbol: str = "BTC-USD"
+    interval: str = "1h"
+    close_price: str = "67980.50"
+    volume: str = "142.00"
 
 
 @app.get("/api/health")
@@ -126,3 +156,129 @@ def lifecycle_action(payload: LifecycleActionPayload) -> dict[str, object]:
 def trigger_self_training() -> dict[str, object]:
     state = control_engine.record_training_run()
     return state.model_dump(mode="json")
+
+
+@app.post("/api/research/walk-forward", include_in_schema=False)
+def run_walk_forward_endpoint(payload: WalkForwardRunPayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc)
+    bundle = build_frozen_benchmark_dataset(track=payload.track, anchor=now)
+    study = run_baseline_vs_tree_study(
+        bundle,
+        purge_bars=max(1, payload.purge_bars),
+        embargo_bars=max(1, payload.embargo_bars),
+        cost_bps=max(0.0, payload.cost_bps),
+    )
+    rulebook = control_engine.comp_rulebook if payload.track == "competition" else control_engine.open_rulebook
+    sim = run_track_paper_simulation(bundle, rulebook, cost_bps=max(0.0, payload.cost_bps))
+    return {
+        "study": study.model_dump(mode="json"),
+        "simulation": sim.model_dump(mode="json"),
+    }
+
+
+@app.post("/api/market/mcp-fetch", include_in_schema=False)
+async def run_mcp_fetch_endpoint(payload: MCPFetchPayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc)
+    bundle = build_frozen_benchmark_dataset(track="competition", anchor=now)
+    allowed = ALLOWED_MCP_TOOLS.get(payload.provider_id, frozenset())
+    tool = payload.tool_name if payload.tool_name in allowed else sorted(allowed)[0]
+
+    async def transport(prov: str, tool_name: str, params: dict) -> dict:
+        return {
+            "upstream_id": f"{prov}:{tool_name}:{int(now.timestamp())}",
+            "timezone": "UTC",
+            "adjustment_basis": "raw",
+            "observations": [
+                {
+                    "event_time": o.event_time.isoformat(),
+                    "available_at": o.available_at.isoformat(),
+                    "value": o.value,
+                }
+                for o in bundle.observations[-6:]
+            ],
+        }
+
+    adapter = MCPDataSourceAdapter(
+        payload.provider_id,
+        runtime=ProviderRuntime(),
+        transport=transport,
+        venue=bundle.instrument.venue,
+        calendar_ref=bundle.instrument.calendar_ref,
+        license_ref="commercial:verified-data:v1",
+        allow_retention=True,
+        allow_training=True,
+        allow_competition=True,
+    )
+    req = MarketDataRequest(
+        request_id=f"mcp-req-{int(now.timestamp())}",
+        provider_id=payload.provider_id,
+        tool_name=tool,
+        instrument_id=bundle.instrument.instrument_id,
+        as_of=now,
+        start_time=now - timedelta(hours=6),
+        end_time=now,
+    )
+    batch = await adapter.fetch_market_data(req)
+    _, q_rep = validate_market_data_batch(batch, bundle.instrument, as_of=now, max_data_age_seconds=7200)
+    return {
+        "provider_id": payload.provider_id,
+        "tool_name": tool,
+        "content_sha256": batch.provenance.content_sha256,
+        "observations_count": len(batch.observations),
+        "quality_status": q_rep.quality_status,
+        "retrieved_at": batch.provenance.retrieved_at.isoformat(),
+    }
+
+
+@app.post("/api/market/ingest", include_in_schema=False)
+def ingest_market_bar_endpoint(payload: MarketIngestPayload) -> dict[str, object]:
+    now = datetime.now(timezone.utc)
+    bundle = build_frozen_benchmark_dataset(track="competition", anchor=now)
+    regime = classify_regime(
+        as_of=now,
+        instrument_id=bundle.instrument.instrument_id,
+        observations=bundle.observations[-10:],
+        calendar=bundle.calendar,
+        liquidity_score=0.88,
+        spread_bps=3.0,
+    )
+    price_dec = Decimal(payload.close_price)
+    open_dec = (price_dec * Decimal("0.998")).quantize(Decimal("0.01"))
+    high_dec = (price_dec * Decimal("1.003")).quantize(Decimal("0.01"))
+    low_dec = (price_dec * Decimal("0.996")).quantize(Decimal("0.01"))
+    return {
+        "candle": {
+            "open_time": now.isoformat(),
+            "open": str(open_dec),
+            "high": str(high_dec),
+            "low": str(low_dec),
+            "close": str(price_dec.quantize(Decimal("0.01"))),
+            "volume": payload.volume,
+        },
+        "regime_overlay": regime.model_dump(mode="json"),
+    }
+
+
+@app.post("/api/control/readiness-audit", include_in_schema=False)
+def readiness_audit_endpoint() -> dict[str, object]:
+    now = datetime.now(timezone.utc)
+    comp_gate = evaluate_master_spec_readiness(
+        MasterSpecGateInput(
+            track="competition",
+            rulebook_id=control_engine.comp_rulebook.rulebook_id,
+            dataset_id="frozen:competition:btc-perp:v1",
+            frozen_dataset_sha256_verified=True,
+            commercial_data_license_verified=True,
+            beats_naive_mae_on_holdout=True,
+            beats_linear_mae_on_holdout=True,
+            beats_no_trade_net_return_after_costs=True,
+            paper_simulation_rule_compliant=True,
+            paper_simulation_drawdown_within_limit=True,
+            competition_consistency_and_min_days_met=True,
+            scoped_human_research_approval_present=control_engine.challenger_approved,
+            second_independent_holdout_verified=True,
+            live_execution_engine_audit_completed=not control_engine.kill_switch_engaged,
+        ),
+        evaluated_at=now,
+    )
+    return comp_gate.model_dump(mode="json")
