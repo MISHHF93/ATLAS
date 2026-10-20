@@ -412,11 +412,113 @@ export type PlatformConfig = {
 
 const DEFAULT_LISTINGS: LiveListing[] = [
   {
+    instrument_id: "open:spy-etf:v1",
+    symbol: "SPY",
+    name: "SPDR S&P 500 ETF Trust (Benchmark Stock Index)",
+    track: "open_market",
+    venue: "NYSE Arca · Regular Session",
+    asset_class: "us_equity_etf",
+    price: "584.90",
+    change_24h_pct: 0.48,
+    volume_24h_usd: "21450000000.00",
+    spread_bps: 1.2,
+    regime: "low_vol | trending_up",
+    pit_status: "verified",
+    freshness_seconds: 2,
+    model_signal: "LONG (+14.0 bps expected)",
+    enabled: true,
+  },
+  {
+    instrument_id: "open:nvda-eq:v1",
+    symbol: "NVDA",
+    name: "NVIDIA Corp. (Common Stock + SEC XBRL CIK 0001045810)",
+    track: "open_market",
+    venue: "Nasdaq Global Select · XNAS",
+    asset_class: "us_equity_sec",
+    price: "141.80",
+    change_24h_pct: 2.84,
+    volume_24h_usd: "34200000000.00",
+    spread_bps: 1.5,
+    regime: "normal_vol | trending_up",
+    pit_status: "verified",
+    freshness_seconds: 2,
+    model_signal: "LONG (+24.5 bps expected)",
+    enabled: true,
+  },
+  {
+    instrument_id: "open:aapl-eq:v1",
+    symbol: "AAPL",
+    name: "Apple Inc. (Common Stock + SEC XBRL CIK 0000320193)",
+    track: "open_market",
+    venue: "Nasdaq Global Select · XNAS",
+    asset_class: "us_equity_sec",
+    price: "234.15",
+    change_24h_pct: 0.92,
+    volume_24h_usd: "8420000000.00",
+    spread_bps: 1.6,
+    regime: "normal_vol | mean_reverting",
+    pit_status: "verified",
+    freshness_seconds: 3,
+    model_signal: "LONG (+9.4 bps expected)",
+    enabled: true,
+  },
+  {
+    instrument_id: "open:msft-eq:v1",
+    symbol: "MSFT",
+    name: "Microsoft Corp. (Common Stock + SEC XBRL CIK 0000789019)",
+    track: "open_market",
+    venue: "Nasdaq Global Select · XNAS",
+    asset_class: "us_equity_sec",
+    price: "428.50",
+    change_24h_pct: 0.74,
+    volume_24h_usd: "7150000000.00",
+    spread_bps: 1.4,
+    regime: "low_vol | trending_up",
+    pit_status: "verified",
+    freshness_seconds: 3,
+    model_signal: "LONG (+12.8 bps expected)",
+    enabled: true,
+  },
+  {
+    instrument_id: "open:qqq-etf:v1",
+    symbol: "QQQ",
+    name: "Invesco QQQ Trust (Nasdaq-100 Stock Index)",
+    track: "open_market",
+    venue: "Nasdaq · Regular Session",
+    asset_class: "us_equity_etf",
+    price: "496.35",
+    change_24h_pct: 0.67,
+    volume_24h_usd: "12840000000.00",
+    spread_bps: 1.4,
+    regime: "normal_vol | trending_up",
+    pit_status: "verified",
+    freshness_seconds: 3,
+    model_signal: "LONG (+16.5 bps expected)",
+    enabled: true,
+  },
+  {
+    instrument_id: "open:tsla-eq:v1",
+    symbol: "TSLA",
+    name: "Tesla Inc. (Common Stock + SEC XBRL CIK 0001318605)",
+    track: "open_market",
+    venue: "Nasdaq Global Select · XNAS",
+    asset_class: "us_equity_sec",
+    price: "258.40",
+    change_24h_pct: -1.18,
+    volume_24h_usd: "16900000000.00",
+    spread_bps: 2.4,
+    regime: "high_vol | mean_reverting",
+    pit_status: "verified",
+    freshness_seconds: 4,
+    model_signal: "SHORT (-19.2 bps expected)",
+    enabled: true,
+  },
+  {
     instrument_id: "comp:btc-perp:v1",
     symbol: "BTC-USD",
-    name: "Bitcoin Perpetual Swap",
+    name: "Bitcoin Perpetual Swap (Prop Competition Desk)",
     track: "competition",
-    venue: "Crypto Perp 24/7 Venue",
+    venue: "Prop Competition 24/7 Venue",
     asset_class: "crypto_perp",
     price: "67840.75",
     change_24h_pct: 1.42,
@@ -431,9 +533,9 @@ const DEFAULT_LISTINGS: LiveListing[] = [
   {
     instrument_id: "comp:eth-perp:v1",
     symbol: "ETH-USD",
-    name: "Ethereum Perpetual Swap",
+    name: "Ethereum Perpetual Swap (Prop Competition Desk)",
     track: "competition",
-    venue: "Crypto Perp 24/7 Venue",
+    venue: "Prop Competition 24/7 Venue",
     asset_class: "crypto_perp",
     price: "2642.80",
     change_24h_pct: 2.15,
@@ -448,9 +550,9 @@ const DEFAULT_LISTINGS: LiveListing[] = [
   {
     instrument_id: "comp:sol-perp:v1",
     symbol: "SOL-USD",
-    name: "Solana Perpetual Swap",
+    name: "Solana Perpetual Swap (Prop Competition Desk)",
     track: "competition",
-    venue: "Crypto Perp 24/7 Venue",
+    venue: "Prop Competition 24/7 Venue",
     asset_class: "crypto_perp",
     price: "168.45",
     change_24h_pct: 3.64,
@@ -460,57 +562,6 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     pit_status: "verified",
     freshness_seconds: 6,
     model_signal: "LONG (+26.1 bps expected)",
-    enabled: true,
-  },
-  {
-    instrument_id: "open:spy-etf:v1",
-    symbol: "SPY",
-    name: "SPDR S&P 500 ETF Trust",
-    track: "open_market",
-    venue: "NYSE Arca Regular Session",
-    asset_class: "us_equity_etf",
-    price: "584.90",
-    change_24h_pct: 0.48,
-    volume_24h_usd: "21450000000.00",
-    spread_bps: 1.2,
-    regime: "low_vol | trending_up",
-    pit_status: "verified",
-    freshness_seconds: 3,
-    model_signal: "LONG (+14.0 bps expected)",
-    enabled: true,
-  },
-  {
-    instrument_id: "open:qqq-etf:v1",
-    symbol: "QQQ",
-    name: "Invesco QQQ Trust (Nasdaq-100)",
-    track: "open_market",
-    venue: "Nasdaq Regular Session",
-    asset_class: "us_equity_etf",
-    price: "496.35",
-    change_24h_pct: 0.67,
-    volume_24h_usd: "12840000000.00",
-    spread_bps: 1.4,
-    regime: "normal_vol | trending_up",
-    pit_status: "verified",
-    freshness_seconds: 4,
-    model_signal: "LONG (+16.5 bps expected)",
-    enabled: true,
-  },
-  {
-    instrument_id: "open:aapl-eq:v1",
-    symbol: "AAPL",
-    name: "Apple Inc. (Common + SEC XBRL)",
-    track: "open_market",
-    venue: "Nasdaq + SEC EDGAR CIK 0000320193",
-    asset_class: "us_equity_sec",
-    price: "234.15",
-    change_24h_pct: 0.92,
-    volume_24h_usd: "8420000000.00",
-    spread_bps: 1.6,
-    regime: "normal_vol | mean_reverting",
-    pit_status: "verified",
-    freshness_seconds: 5,
-    model_signal: "NEUTRAL (+4.2 bps expected)",
     enabled: true,
   },
 ];
@@ -1198,12 +1249,14 @@ function TradingViewLiveChart({
   onSelectInterval: (i: string) => void;
 }) {
   const symbols = [
-    { label: "BTC-USD (Coinbase)", value: "COINBASE:BTCUSD" },
-    { label: "ETH-USD (Coinbase)", value: "COINBASE:ETHUSD" },
-    { label: "SOL-USD (Coinbase)", value: "COINBASE:SOLUSD" },
     { label: "SPY (S&P 500 ETF)", value: "AMEX:SPY" },
-    { label: "QQQ (Nasdaq 100)", value: "NASDAQ:QQQ" },
+    { label: "NVDA (NVIDIA Corp.)", value: "NASDAQ:NVDA" },
     { label: "AAPL (Apple Inc.)", value: "NASDAQ:AAPL" },
+    { label: "MSFT (Microsoft)", value: "NASDAQ:MSFT" },
+    { label: "QQQ (Nasdaq 100)", value: "NASDAQ:QQQ" },
+    { label: "TSLA (Tesla Inc.)", value: "NASDAQ:TSLA" },
+    { label: "BTC-USD (Prop Perp)", value: "COINBASE:BTCUSD" },
+    { label: "ETH-USD (Prop Perp)", value: "COINBASE:ETHUSD" },
   ];
   const intervals = [
     { label: "1m", value: "1" },
@@ -1685,7 +1738,27 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
     setAuditLog((prev) => [...prev, `${new Date().toISOString()} | warehouse_${action} | node=${nodeId}`]);
   }
 
-  async function handleLiveInternetSync(symbol = "BTC-USD") {
+  async function handleLiveInternetSync(symbol = "SPY") {
+    const tvMap: Record<string, string> = {
+      SPY: "AMEX:SPY",
+      NVDA: "NASDAQ:NVDA",
+      AAPL: "NASDAQ:AAPL",
+      MSFT: "NASDAQ:MSFT",
+      QQQ: "NASDAQ:QQQ",
+      TSLA: "NASDAQ:TSLA",
+      "BTC-USD": "COINBASE:BTCUSD",
+      "ETH-USD": "COINBASE:ETHUSD",
+      "SOL-USD": "COINBASE:SOLUSD",
+    };
+    if (tvMap[symbol]) {
+      setTvSymbol(tvMap[symbol]);
+    }
+    const matchedListing = listingsList.find((item) => item.symbol === symbol);
+    if (matchedListing) {
+      setOrderTrack(matchedListing.track);
+      setStudyTrack(matchedListing.track);
+      setOrderInstrument(matchedListing.instrument_id);
+    }
     try {
       const res = await fetch(`${API}/api/market/live-internet-sync`, {
         method: "POST",
@@ -1696,7 +1769,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
         const data = await res.json();
         if (Array.isArray(data.candles) && data.candles.length > 0) {
           setPage((prev) =>
-            prev ? { ...prev, source: data.source, candles: data.candles } : prev
+            prev
+              ? { ...prev, symbol: data.symbol ?? symbol, source: data.source, candles: data.candles }
+              : prev
           );
         }
         if (data.regime_overlay) {
@@ -1714,6 +1789,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
     } catch {
       // Local deterministic fallback
     }
+    setPage((prev) => (prev ? { ...prev, symbol } : prev));
     setInternetSyncNotice(`Synchronized live ${symbol} candles & recomputed causal regime state.`);
     setAuditLog((prev) => [...prev, `${new Date().toISOString()} | live_internet_sync | symbol=${symbol}`]);
   }
@@ -2566,7 +2642,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           <div className="brand-mark">AT</div>
           <div className="brand-copy">
             <span className="brand-title">ATLAS</span>
-            <span className="brand-subtitle">Autonomous Quant & Control Plane</span>
+            <span className="brand-subtitle">Prop Trading & Stock Quant Platform</span>
           </div>
         </div>
 
@@ -2810,10 +2886,37 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
           </div>
 
           <div className="topbar-telemetry">
+            <div className="segmented-tabs" aria-label="Global Prop Competition vs Open-Market Stock Mode Switcher">
+              <button
+                type="button"
+                className={`seg-tab ${studyTrack === "open_market" ? "active" : ""}`}
+                onClick={() => {
+                  setStudyTrack("open_market");
+                  setOrderTrack("open_market");
+                  setOrderInstrument("open:spy-etf:v1");
+                  handleLiveInternetSync("SPY");
+                }}
+              >
+                🏛️ Open-Market Stocks (NYSE/Nasdaq)
+              </button>
+              <button
+                type="button"
+                className={`seg-tab ${studyTrack === "competition" ? "active" : ""}`}
+                onClick={() => {
+                  setStudyTrack("competition");
+                  setOrderTrack("competition");
+                  setOrderInstrument("comp:btc-perp:v1");
+                  handleLiveInternetSync("BTC-USD");
+                }}
+              >
+                🏆 Prop Competition Challenge
+              </button>
+            </div>
+
             <div className="telemetry-pill">
-              <span className="telemetry-pill-label">BTC-USD</span>
+              <span className="telemetry-pill-label">{effectivePage.symbol}</span>
               <span className="telemetry-pill-value">
-                ${latest ? formatPrice(latest.close) : "67,840.75"}
+                ${latest ? formatPrice(latest.close) : "584.90"}
               </span>
               <span className={`badge ${priceDelta >= 0 ? "badge-emerald" : "badge-danger"}`}>
                 {priceDelta >= 0 ? "+" : ""}
@@ -2822,10 +2925,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
             </div>
 
             <div className="telemetry-pill">
-              <span className="telemetry-pill-label">Regime</span>
-              <span className="telemetry-pill-value">
-                {regime?.volatility ?? "normal_vol"} · {regime?.trend ?? "trending_up"}
-              </span>
+              <span className="telemetry-pill-label">Prop Account</span>
+              <span className="telemetry-pill-value">$101,850.00</span>
+              <span className="badge badge-emerald">+1.85%</span>
             </div>
           </div>
 
@@ -3832,43 +3934,47 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               <div className="kpi-strip">
                 <div className="kpi-card">
                   <div className="kpi-top">
-                    <span className="kpi-label">BTC-USD Spot / Perp (1h)</span>
+                    <span className="kpi-label">
+                      Active Instrument · {effectivePage.symbol} ({studyTrack === "open_market" ? "US Stock / ETF" : "Prop Competition"})
+                    </span>
                     <span className="badge badge-emerald">PIT VERIFIED</span>
                   </div>
-                  <div className="kpi-value">${latest ? formatPrice(latest.close) : "67,840.75"}</div>
+                  <div className="kpi-value">${latest ? formatPrice(latest.close) : "584.90"}</div>
                   <div className="kpi-sub">
                     <span>Range: ${formatPrice(sessionLow)} – ${formatPrice(sessionHigh)}</span>
-                    <span>Vol: {formatPrice(totalVolume)} BTC</span>
+                    <span>Bars: {candles.length} Verified</span>
                   </div>
                 </div>
 
                 <div className="kpi-card blue">
                   <div className="kpi-top">
-                    <span className="kpi-label">Causal Regime State</span>
-                    <span className="badge badge-blue">{regime?.session ?? "continuous_24_7"}</span>
+                    <span className="kpi-label">
+                      {studyTrack === "competition" ? "Prop Competition Challenge" : "Open-Market Stock Desk"}
+                    </span>
+                    <span className="badge badge-blue">
+                      {studyTrack === "competition" ? "PHASE 1 · $100K PROP" : "NYSE / NASDAQ LIVE"}
+                    </span>
                   </div>
-                  <div className="kpi-value">
-                    {regime?.volatility ?? "normal_vol"} · {regime?.trend ?? "trending_up"}
-                  </div>
+                  <div className="kpi-value">$101,850.00 Equity</div>
                   <div className="kpi-sub">
-                    <span>Spread: {regime?.spread_bps ?? 3.5} bps</span>
-                    <span>Liq Score: {regime?.liquidity_score?.toFixed(2) ?? "0.84"}</span>
+                    <span>Daily Room: ${formatPrice(rules?.remaining_room.daily_loss_room_usd ?? "3066.00")}</span>
+                    <span>Trailing DD Room: ${formatPrice(rules?.remaining_room.drawdown_room_usd ?? "6998.00")}</span>
                   </div>
                 </div>
 
                 <div className={`kpi-card ${killSwitchEngaged ? "danger" : ""}`}>
                   <div className="kpi-top">
-                    <span className="kpi-label">Deterministic Control Plane</span>
+                    <span className="kpi-label">Deterministic Prop Risk Gate</span>
                     <span className={`badge ${killSwitchEngaged ? "badge-danger" : "badge-emerald"}`}>
-                      {killSwitchEngaged ? "KILL SWITCH HALT" : "AUTHORIZED"}
+                      {killSwitchEngaged ? "KILL SWITCH HALT" : "COMPLIANT"}
                     </span>
                   </div>
                   <div className="kpi-value">
                     ${formatPrice(rules?.remaining_room.max_safe_trade_notional_usd ?? "42437.50")}
                   </div>
                   <div className="kpi-sub">
-                    <span>Max Safe Trade Notional</span>
-                    <span>{openPositions.length} Open Position(s)</span>
+                    <span>Max Safe Order Size</span>
+                    <span>Consistency: 28.1% (&lt;=35% Cap)</span>
                   </div>
                 </div>
 
@@ -3884,6 +3990,94 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                   </div>
                 </div>
               </div>
+
+              {/* Dual-Track Prop Trading & Stock Desk Banner */}
+              <section className="panel-card">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <span className="panel-eyebrow">
+                      Dual-Track Proprietary Trading & Stock Platform · Switch Mode or Click Any Stock / Prop Contract
+                    </span>
+                    <h2 className="panel-title">
+                      {studyTrack === "open_market"
+                        ? "🏛️ Open-Market Stock Trading Desk (NYSE / Nasdaq Equities + SEC EDGAR XBRL)"
+                        : "🏆 Prop Trading Competition & Funded Challenge Desk (Strict Drawdown, Daily Loss & Consistency Rules)"}
+                    </h2>
+                  </div>
+                  <div className="btn-row">
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${studyTrack === "open_market" ? "btn-primary" : "btn-outline"}`}
+                      onClick={() => {
+                        setStudyTrack("open_market");
+                        setOrderTrack("open_market");
+                        setOrderInstrument("open:spy-etf:v1");
+                        handleLiveInternetSync("SPY");
+                      }}
+                    >
+                      Switch to Open-Market Stock Desk
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${studyTrack === "competition" ? "btn-primary" : "btn-outline"}`}
+                      onClick={() => {
+                        setStudyTrack("competition");
+                        setOrderTrack("competition");
+                        setOrderInstrument("comp:btc-perp:v1");
+                        handleLiveInternetSync("BTC-USD");
+                      }}
+                    >
+                      Switch to Prop Competition Mode
+                    </button>
+                  </div>
+                </div>
+                <div className="panel-body">
+                  <div className="btn-row" style={{ flexWrap: "wrap", gap: "8px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>
+                      1-Click Stock &amp; Prop Ticker Selector:
+                    </span>
+                    {listingsList.map((item) => (
+                      <button
+                        key={item.instrument_id}
+                        type="button"
+                        className={`btn btn-sm ${effectivePage.symbol === item.symbol ? "btn-primary" : "btn-dark"}`}
+                        onClick={() => handleLiveInternetSync(item.symbol)}
+                      >
+                        <span>{item.symbol}</span>
+                        <span style={{ opacity: 0.85, fontFamily: "var(--font-mono)" }}>${formatPrice(item.price)}</span>
+                        <span
+                          className={`badge ${item.change_24h_pct >= 0 ? "badge-emerald" : "badge-danger"}`}
+                          style={{ padding: "1px 5px", fontSize: "9px" }}
+                        >
+                          {item.change_24h_pct >= 0 ? "+" : ""}
+                          {item.change_24h_pct}%
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="kv-grid">
+                    <div className="kv-box">
+                      <span className="kv-label">Prop Account Balance / Target</span>
+                      <span className="kv-val" style={{ fontSize: "12px", color: "var(--accent-emerald)" }}>
+                        $101,850.00 / $108,000.00 Target (+1.85%)
+                      </span>
+                    </div>
+                    <div className="kv-box">
+                      <span className="kv-label">Daily Loss &amp; Trailing Drawdown Buffer</span>
+                      <span className="kv-val" style={{ fontSize: "12px" }}>
+                        $3,066 Daily Room (4% Cap) · $6,998 DD Room (8% Cap)
+                      </span>
+                    </div>
+                    <div className="kv-box">
+                      <span className="kv-label">Prop Consistency &amp; Min Days Gate</span>
+                      <span className="kv-val" style={{ fontSize: "12px" }}>
+                        Best Day: 28.1% (&lt;=35% Max) · 5/5 Trading Days (PASS)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
               <div className="bento-grid-2">
                 {/* Left: Market Chart + 6-Layer Architecture Navigator */}
@@ -3916,9 +4110,9 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
-                          onClick={() => handleLiveInternetSync("BTC-USD")}
+                          onClick={() => handleLiveInternetSync(effectivePage.symbol)}
                         >
-                          ⚡ Pull Live Internet Candles
+                          ⚡ Sync Live {effectivePage.symbol} Candles
                         </button>
                       </div>
                     </div>
