@@ -1764,21 +1764,6 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
         </header>
 
         <div className="page-content">
-          <section className="page-heading">
-            <div>
-              <p className="eyebrow">COMMAND / {activeSection.toUpperCase()} · ROLE: {role.toUpperCase()}</p>
-              <h1>Autonomous trading intelligence, <em>regime-aware &amp; actionable.</em></h1>
-              <p className="heading-copy">
-                Continuous research, causal regime detection, deterministic control-plane order execution, kill-switch governance, and self-training across competition and open-market tracks.
-              </p>
-            </div>
-            <div className="actionable-stamp">
-              <span>CONTROL PLANE</span>
-              <strong>ACTIONABLE ENGINE</strong>
-              <small>Open positions: {openPositions.length} · Kill switch: {killSwitchEngaged ? "ENGAGED" : "STANDBY"}</small>
-            </div>
-          </section>
-
           {error ? <div className="error-banner" role="alert">API connection notice: {error}. Refresh to retry.</div> : null}
 
           <section className="summary-grid" aria-label="Workspace status">
@@ -2565,6 +2550,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               <div><p className="eyebrow">06 / MODEL REGISTRY, VERIFIED MCP SURFACES &amp; SEC EDGAR PIT</p><h2>Registered providers, allowlisted MCP adapters &amp; as-filed SEC XBRL facts</h2></div>
               <span className="quiet-tag">CAPABILITY DISCOVERY</span>
             </div>
+            <div className="two-col-grid">
             <article className="panel model-panel">
               <div className="model-table-heading"><span>PROVIDER / REVISION</span><span>CAPABILITY</span><span>MODEL / ALLOWLIST</span><span>AVAILABILITY</span></div>
               {(capabilities?.providers ?? []).flatMap((provider) => provider.models.map((model) => (
@@ -2613,7 +2599,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
               </div>
             </article>
 
-            <article className="panel card-pad" style={{ marginTop: "12px" }}>
+            <article className="panel card-pad">
               <div className="panel-heading">
                 <div>
                   <span className="summary-label">POINT-IN-TIME SEC EDGAR AS-FILED XBRL INSPECTOR</span>
@@ -2655,6 +2641,7 @@ export function AtlasTerminal({ initialSection = "overview" }: { initialSection?
                 {secLog}
               </div>
             </article>
+            </div>
           </section>
           ) : null}
 
