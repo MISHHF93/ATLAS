@@ -1112,9 +1112,77 @@ def auto_optimize_platform_configurations(symbol: str = "BTC-USD") -> dict[str, 
 
 from atlas.lifecycle import UserLifecycleEngine
 from atlas.models.perfect_trader_whale import PerfectTraderWhaleEngine
+from atlas.models.whale_policy import WhalePolicyModel, WhalePolicyTrainer
 
 _USER_LIFECYCLE_ENGINE = UserLifecycleEngine()
 _PERFECT_TRADER_WHALE_ENGINE = PerfectTraderWhaleEngine()
+_WHALE_POLICY_TRAINER = WhalePolicyTrainer()
+_WHALE_POLICY_MODEL = WhalePolicyModel()
+
+
+@app.post("/api/ml/whale-policy/train", include_in_schema=False)
+def train_whale_policy_endpoint(payload: dict[str, object] | None = None) -> dict[str, object]:
+    """Train WhalePolicyModel via Triple-Barrier targets (+1.5 ATR, -1.0 ATR, 60m) and EXP-001
+    purged walk-forward evaluation (5-day embargo; Sharpe > 1.8, MaxDD < 3.2%, Brier < 0.18).
+    """
+    global _WHALE_POLICY_MODEL
+    body = payload or {}
+    symbol = str(body.get("symbol", "BTC-USD")).upper().strip()
+    model, eval_report = _WHALE_POLICY_TRAINER.train_and_evaluate(symbol=symbol)
+    _WHALE_POLICY_MODEL = model
+    sig = _WHALE_POLICY_MODEL.predict(symbol=symbol)
+    return {
+        "status": "ok",
+        "evaluation_report": eval_report.model_dump(mode="json"),
+        "latest_signal": sig.model_dump(mode="json"),
+        "execution_permission": "none",
+    }
+
+
+@app.get("/api/ml/whale-policy/predict", include_in_schema=False)
+def predict_whale_policy_endpoint(symbol: str = "BTC-USD") -> dict[str, object]:
+    """Run inference on WhalePolicyModel.predict() and return the air-gapped StrategySignal."""
+    sym = symbol.upper().strip()
+    live_batch = live_market_gateway.fetch_live_market_candles_and_ingest(
+        symbol=sym,
+        granularity=900,
+        limit=24,
+        allow_network=False,
+    )
+    sig = _WHALE_POLICY_MODEL.predict(symbol=sym, candles=live_batch["candles"])
+    return {
+        "status": "ok",
+        "signal": sig.model_dump(mode="json"),
+        "execution_permission": "none",
+    }
+
+
+@app.post("/api/control/ingest-whale-signal", include_in_schema=False)
+def ingest_whale_signal_endpoint(payload: dict[str, object] | None = None) -> dict[str, object]:
+    """Ingest a WhalePolicyModel StrategySignal into ActionableControlPlaneEngine.ingest_whale_policy_signal(),
+    size strictly within 0.50%-0.75% equity risk, attach ATR brackets, and dispatch to execution connectors.
+    """
+    body = payload or {}
+    symbol = str(body.get("symbol", "BTC-USD")).upper().strip()
+    data_age_ms = float(body.get("data_age_ms", 8.4))
+    live_batch = live_market_gateway.fetch_live_market_candles_and_ingest(
+        symbol=symbol,
+        granularity=900,
+        limit=24,
+        allow_network=False,
+    )
+    sig = _WHALE_POLICY_MODEL.predict(symbol=symbol, candles=live_batch["candles"])
+    conn = CCXTPerpConnector() if symbol.endswith("-USD") else AlpacaEquitiesConnector()
+    intake = control_engine.ingest_whale_policy_signal(
+        sig,
+        data_age_ms=data_age_ms,
+        execution_connector=conn,
+    )
+    return {
+        "status": "ok",
+        "intake_report": intake.model_dump(mode="json"),
+        "execution_permission": "none",
+    }
 
 
 @app.get("/api/ml/perfect-trader/state", include_in_schema=False)

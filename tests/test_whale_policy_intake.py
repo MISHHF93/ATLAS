@@ -201,3 +201,31 @@ def test_control_plane_whale_signal_intake_and_prop_rejections():
     dd_intake = engine_dd.ingest_whale_policy_signal(signal, track="competition", data_age_ms=10.0)
     assert dd_intake.decision.control_plane_decision == "rejected_by_control_plane"
     assert any("max_drawdown_breached" in v for v in dd_intake.decision.violations)
+
+
+def test_whale_policy_api_endpoints():
+    """Verify /api/ml/whale-policy/train, /api/ml/whale-policy/predict, and /api/control/ingest-whale-signal."""
+    from fastapi.testclient import TestClient
+    from atlas.api.app import app
+
+    client = TestClient(app)
+
+    res_train = client.post("/api/ml/whale-policy/train", json={"symbol": "BTC-USD"})
+    assert res_train.status_code == 200
+    train_data = res_train.json()
+    assert train_data["execution_permission"] == "none"
+    assert train_data["evaluation_report"]["promoted"] is True
+    assert train_data["latest_signal"]["execution_permission"] == "none"
+
+    res_pred = client.get("/api/ml/whale-policy/predict?symbol=BTC-USD")
+    assert res_pred.status_code == 200
+    pred_data = res_pred.json()
+    assert pred_data["execution_permission"] == "none"
+    assert pred_data["signal"]["execution_permission"] == "none"
+
+    res_ingest = client.post("/api/control/ingest-whale-signal", json={"symbol": "BTC-USD", "data_age_ms": 8.4})
+    assert res_ingest.status_code == 200
+    ingest_data = res_ingest.json()
+    assert ingest_data["execution_permission"] == "none"
+    assert ingest_data["intake_report"]["execution_permission"] == "none"
+
