@@ -1,7 +1,7 @@
 """ATLAS Live Market Data Ingestion Engine & Ring-Buffered Microstructure Stream (`live_stream.py`).
 
 Implements:
-- `OrderBookRingBuffer`: Bounded 5,000-slot ring buffer (`collections.deque(maxlen=5000)`) with
+- `OrderBookRingBuffer`: Bounded 10,000-slot ring buffer (`collections.deque(maxlen=10000)`) with
   Point-in-Time (PIT) `exchange_timestamp` and `system_receipt_timestamp` tagging (`as_of` discipline).
 - `LiveMarketDataGateway`: Async WebSocket stream manager across Open-Market Equities (`Polygon` /
   `Databento` SIP) and Prop Derivatives / Crypto (`CCXT Pro` / `Coinbase` for `BTC-USD`, `ETH-USD`,
@@ -45,6 +45,7 @@ class LiveTickFrame:
         top5_bids = [round(x, 2) for x in self.bid_depth[:5]]
         top5_asks = [round(x, 2) for x in self.ask_depth[:5]]
         spread_bps = round((self.spread / max(1e-6, self.price)) * 10_000.0, 2) if self.spread < 1.0 else round(self.spread, 2)
+        stale_threshold_ms = 500.0 if self.track == "competition" else 2000.0
         return {
             "track": self.track,
             "symbol": self.symbol,
@@ -59,10 +60,12 @@ class LiveTickFrame:
             "ask_depth": top5_asks,
             "vpin": round(self.vpin, 4),
             "ofi": round(self.ofi, 4),
+            "ofi_z": round(self.ofi * 4.2, 4),
             "kyles_lambda": round(self.kyles_lambda, 6),
             "spread_bps": spread_bps,
             "spread": round(self.spread, 4),
             "latency_ms": round(self.latency_ms, 2),
+            "stale_feed_flagged": bool(self.latency_ms > stale_threshold_ms),
             "regime": self.regime,
             "exchange_timestamp": self.exchange_timestamp.isoformat(),
             "system_receipt_timestamp": self.system_receipt_timestamp.isoformat(),

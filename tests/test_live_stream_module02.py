@@ -158,13 +158,21 @@ def test_module02_ws_packets_rbac_segregation_and_zero_llm_control_imports() -> 
         assert pkt["track"] == "open_market"
         assert pkt["execution_permission"] == "none"
         assert isinstance(pkt["last_price"], float)
+        assert "ofi_z" in pkt
+        assert "stale_feed_flagged" in pkt
         assert len(pkt["bid_depth_top5"]) == 5
         assert len(pkt["ask_depth_top5"]) == 5
         ws.send_text("close")
 
-    # 3. Verify RBAC Client Segment Segregation (prop_firm_admin, quant_researcher, funded_trader)
-    assert set(ROLE_PROFILES.keys()) == {"prop_firm_admin", "quant_researcher", "funded_trader"}
+    # 3. Verify RBAC Client Segment Segregation (prop_firm_admin, quant_researcher, funded_trader, compliance_auditor)
+    assert set(ROLE_PROFILES.keys()) == {
+        "prop_firm_admin",
+        "quant_researcher",
+        "funded_trader",
+        "compliance_auditor",
+    }
     assert ROLE_PROFILES["quant_researcher"].execution_permission == "none"
+    assert ROLE_PROFILES["compliance_auditor"].execution_permission == "none"
 
     admin_kill = verify_role_action("prop_firm_admin", "trigger_kill_switch", route="/control/risk-hud")
     assert admin_kill["authorized"] is True
@@ -177,6 +185,11 @@ def test_module02_ws_packets_rbac_segregation_and_zero_llm_control_imports() -> 
 
     quant_trade = verify_role_action("quant_researcher", "submit_bracket_order", route="/market")
     assert quant_trade["authorized"] is False
+
+    auditor_gov = verify_role_action("compliance_auditor", "view", route="/governance")
+    assert auditor_gov["authorized"] is True
+    auditor_kill = verify_role_action("compliance_auditor", "trigger_kill_switch", route="/governance")
+    assert auditor_kill["authorized"] is False
 
     # 4. Verify zero imports from atlas.ai inside src/atlas/control/
     control_dir = Path(__file__).resolve().parents[1] / "src" / "atlas" / "control"

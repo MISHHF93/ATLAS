@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
-ClientRoleId = Literal["prop_firm_admin", "quant_researcher", "funded_trader"]
+ClientRoleId = Literal["prop_firm_admin", "quant_researcher", "funded_trader", "compliance_auditor"]
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,7 @@ class RoleProfile:
 ROLE_PROFILES: dict[ClientRoleId, RoleProfile] = {
     "prop_firm_admin": RoleProfile(
         role_id="prop_firm_admin",
-        title="B2B Enterprise Prop Operator",
+        title="B2B Enterprise Prop Operator & Risk Lead",
         segment="B2B Prop Firm & Risk Desk",
         focus_summary=(
             "Multi-account surveillance, real-time liquidation engine, Sybil/latency-arbitrage "
@@ -66,6 +66,9 @@ ROLE_PROFILES: dict[ClientRoleId, RoleProfile] = {
             "/control/surveillance",
             "/control/proctoring",
             "/control/dealing-desk",
+            "/rules",
+            "/governance",
+            "/warehouse",
             "/research",
             "/research/central-node",
             "/research/walk-forward",
@@ -86,7 +89,7 @@ ROLE_PROFILES: dict[ClientRoleId, RoleProfile] = {
     ),
     "quant_researcher": RoleProfile(
         role_id="quant_researcher",
-        title="Institutional Quant Researcher",
+        title="Institutional Quant Fund & Model Developer",
         segment="Institutional Quant / Hedge Fund",
         focus_summary=(
             "Purged & embargoed walk-forward evaluation (EXP-001), Kyle's Lambda & VPIN feature "
@@ -120,7 +123,7 @@ ROLE_PROFILES: dict[ClientRoleId, RoleProfile] = {
     ),
     "funded_trader": RoleProfile(
         role_id="funded_trader",
-        title="Challenge & Funded Trader",
+        title="Challenge Trader & Funded Desk Operator",
         segment="Prop Challenge & Open-Market Trader",
         focus_summary=(
             "Live execution cockpit, Depth of Market (DOM) ladder, Dynamic Remaining-Room HUD "
@@ -130,6 +133,7 @@ ROLE_PROFILES: dict[ClientRoleId, RoleProfile] = {
             "/",
             "/listings",
             "/market",
+            "/profile",
             "/trade",
             "/trade/cockpit",
             "/trade/depth-dom",
@@ -142,6 +146,32 @@ ROLE_PROFILES: dict[ClientRoleId, RoleProfile] = {
         can_access_surveillance_and_dealing_desk=False,
         can_run_walk_forward_and_sql=False,
         execution_permission="control_plane_gated",
+    ),
+    "compliance_auditor": RoleProfile(
+        role_id="compliance_auditor",
+        title="External Auditor & Regulatory Officer",
+        segment="Regulatory & ISO/IEC 42001 Audit",
+        focus_summary=(
+            "Cryptographically hashed point-in-time trade audit ledger inspection, licensing "
+            "adherence checks, and ISO/IEC 42001 readiness reports (read-only global access)."
+        ),
+        allowed_routes=(
+            "/",
+            "/listings",
+            "/governance",
+            "/docs",
+            "/sync",
+            "/data",
+            "/data/governance",
+            "/data/pipelines",
+            "/data/features-100",
+        ),
+        can_modify_risk_parameters=False,
+        can_trigger_kill_switch=False,
+        can_execute_trader_orders=False,
+        can_access_surveillance_and_dealing_desk=False,
+        can_run_walk_forward_and_sql=False,
+        execution_permission="none",
     ),
 }
 
@@ -163,6 +193,8 @@ def verify_role_action(
         "query_lakehouse_sql",
         "access_surveillance",
         "view_market_stream",
+        "view_governance_audit",
+        "view",
     ],
     *,
     route: str | None = None,
@@ -186,6 +218,8 @@ def verify_role_action(
         "query_lakehouse_sql": profile.can_run_walk_forward_and_sql,
         "access_surveillance": profile.can_access_surveillance_and_dealing_desk,
         "view_market_stream": True,
+        "view_governance_audit": True,
+        "view": True,
     }
     action_allowed = bool(action_map.get(action, False))
     authorized = bool(route_allowed and action_allowed)

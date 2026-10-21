@@ -321,8 +321,70 @@ function Module02InnerWorkbench() {
     const id = setInterval(() => {
       void pollModule02Stream();
     }, 2500);
-    return () => clearInterval(id);
-  }, [pollModule02Stream, streamPaused]);
+
+    let ws: WebSocket | null = null;
+    try {
+      const wsBase =
+        typeof window !== "undefined" && window.location.port === "3000"
+          ? "ws://localhost:8000"
+          : typeof window !== "undefined"
+          ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
+          : "ws://localhost:8000";
+      ws = new WebSocket(`${wsBase}/ws/market-stream?symbol=${encodeURIComponent(selectedSymbol)}`);
+      ws.onmessage = (evt) => {
+        try {
+          const incoming = JSON.parse(evt.data);
+          if (!incoming || !incoming.symbol) return;
+          setListings((prev) =>
+            prev.map((item) => {
+              if (item.symbol !== String(incoming.symbol).toUpperCase()) return item;
+              const nextPrice = Number(incoming.last_price ?? incoming.price ?? item.price);
+              const flash: "up" | "down" | "none" =
+                nextPrice > item.price ? "up" : nextPrice < item.price ? "down" : item.flash;
+              return {
+                ...item,
+                prevPrice: item.price,
+                price: nextPrice,
+                vpin: Number(incoming.vpin ?? item.vpin),
+                ofi: Number(incoming.ofi ?? item.ofi),
+                kylesLambda: Number(incoming.kyles_lambda ?? item.kylesLambda),
+                spreadBps: Number(incoming.spread_bps ?? item.spreadBps),
+                latencyMs: Number(incoming.latency_ms ?? item.latencyMs),
+                regime: String(incoming.regime ?? item.regime),
+                bidDepthTop5: Array.isArray(incoming.bid_depth_top5)
+                  ? incoming.bid_depth_top5
+                  : item.bidDepthTop5,
+                askDepthTop5: Array.isArray(incoming.ask_depth_top5)
+                  ? incoming.ask_depth_top5
+                  : item.askDepthTop5,
+                flash,
+              };
+            })
+          );
+          if (incoming.remaining_room_hud) {
+            setRemainingRoomHud({
+              currentEquityUsd: Number(incoming.remaining_room_hud.current_equity_usd ?? 101850),
+              dailyLossRoomUsd: Number(incoming.remaining_room_hud.daily_loss_room_usd ?? 3066),
+              dailyLossRoomPct: Number(incoming.remaining_room_hud.daily_loss_room_pct ?? 2.98),
+              trailingDdRoomUsd: Number(incoming.remaining_room_hud.trailing_dd_room_usd ?? 7098),
+              trailingDdRoomPct: Number(incoming.remaining_room_hud.trailing_dd_room_pct ?? 6.88),
+            });
+          }
+        } catch {
+          // Ignore malformed frame
+        }
+      };
+    } catch {
+      // Fallback to HTTP snapshot polling if WebSocket unavailable
+    }
+
+    return () => {
+      clearInterval(id);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [pollModule02Stream, selectedSymbol, streamPaused]);
 
   const filteredListings = useMemo(() => {
     if (trackFilter === "all") return listings;

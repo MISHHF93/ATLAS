@@ -2,7 +2,11 @@
 
 import React, { createContext, useContext, useMemo, useState } from "react";
 
-export type ClientRoleId = "prop_firm_admin" | "quant_researcher" | "funded_trader";
+export type ClientRoleId =
+  | "prop_firm_admin"
+  | "quant_researcher"
+  | "funded_trader"
+  | "compliance_auditor";
 
 export interface RoleMetadata {
   roleId: ClientRoleId;
@@ -35,6 +39,9 @@ export const CLIENT_ROLE_PROFILES: Record<ClientRoleId, RoleMetadata> = {
       "/trade/blotter",
       "/trade/journal",
       "/control",
+      "/rules",
+      "/governance",
+      "/warehouse",
       "/control/risk-hud",
       "/control/rulebook",
       "/control/surveillance",
@@ -105,6 +112,7 @@ export const CLIENT_ROLE_PROFILES: Record<ClientRoleId, RoleMetadata> = {
       "/trade/depth-dom",
       "/trade/blotter",
       "/trade/journal",
+      "/profile",
     ],
     canModifyRiskParameters: false,
     canTriggerKillSwitch: false,
@@ -112,6 +120,27 @@ export const CLIENT_ROLE_PROFILES: Record<ClientRoleId, RoleMetadata> = {
     canAccessSurveillanceAndDealingDesk: false,
     canRunWalkForwardAndSql: false,
     executionPermission: "control_plane_gated",
+  },
+  compliance_auditor: {
+    roleId: "compliance_auditor",
+    title: "Institutional Compliance & Audit Officer",
+    segment: "Institutional Governance & Regulatory Audit",
+    focusSummary:
+      "Read-only cryptographic audit log inspection, SEC EDGAR Point-in-Time (acceptance_time <= as_of) verification, FRED training firewall enforcement, and MCP tool quarantine.",
+    allowedRoutes: [
+      "/",
+      "/governance",
+      "/docs",
+      "/sync",
+      "/data/governance",
+      "/control/rulebook",
+    ],
+    canModifyRiskParameters: false,
+    canTriggerKillSwitch: false,
+    canExecuteTraderOrders: false,
+    canAccessSurveillanceAndDealingDesk: true,
+    canRunWalkForwardAndSql: false,
+    executionPermission: "none",
   },
 };
 
