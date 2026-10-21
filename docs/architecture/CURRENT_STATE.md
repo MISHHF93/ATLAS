@@ -41,15 +41,18 @@ ATLAS is a fully integrated **Dual-Track Proprietary (Prop) Trading, U.S. Stock 
 
 ## 3. Backend Modules & Endpoints (`src/atlas/`)
 
-- **`src/atlas/api/app.py`**: FastAPI application serving `/api/health`, `/api/market/candles`, `/api/research/capabilities`, `/api/research/demo`, `/api/platform/snapshot`, `/api/control/state`, `/api/control/order`, `/api/control/kill-switch`, `/api/control/flatten`, `/api/control/lifecycle`, `/api/control/readiness-audit`, `/api/research/train`, `/api/research/walk-forward`, `/api/research/continuous-tick`, `/api/market/mcp-fetch`, `/api/market/ingest`, `/api/market/live-internet-sync`, `/api/matrix`, `/api/matrix/recompute`, `/api/listings`, `/api/listings/action`, `/api/warehouse`, `/api/warehouse/action`, `/api/sync`, `/api/sync/run`, `/api/connectors`, `/api/connectors/action`, `/api/configurations`, `/api/profile`, and `/api/docs`.
+- **`src/atlas/api/app.py`**: FastAPI application serving 34 REST endpoints including `/api/health`, `/api/market/candles`, `/api/research/capabilities`, `/api/research/demo`, `/api/platform/snapshot`, `/api/control/state`, `/api/control/order`, `/api/control/kill-switch`, `/api/control/flatten`, `/api/control/lifecycle`, `/api/control/readiness-audit`, `/api/research/train`, `/api/research/self-train`, `/api/research/walk-forward`, `/api/research/continuous-tick`, `/api/market/mcp-fetch`, `/api/market/ingest`, `/api/market/live-internet-sync`, `/api/matrix`, `/api/matrix/recompute`, `/api/roadmap/az`, `/api/roadmap/whale-action`, `/api/listings`, `/api/listings/action`, `/api/warehouse`, `/api/warehouse/action`, `/api/sync`, `/api/sync/run`, `/api/connectors`, `/api/connectors/action`, `/api/configurations`, `/api/profile`, and `/api/docs`.
+- **`src/atlas/whale_saas_az.py`**: Implements all 7 sheets of `ATLAS Platform Master Roadmap & Technical Specifications (A-Z).xlsx` — 26 `A–Z` Platform Subsystems, `WF-01..WF-08` Whale Order Flow & Execution ML (`compute_kyles_lambda_impact`, `compute_vpin_toxicity`, `compute_multi_level_ofi_microprice`, `compute_almgren_chriss_trajectory`, `compute_tick_gbdt_meta_label`, `detect_predatory_whale_footprints`, `compute_hawkes_burst_regime`, `compute_ppo_execution_policy`), `WSDM-01..05` Whale Signal Decision Matrix (When & Where to Buy/Sell), `SAAS-01..SAAS-10` Prop Firm B2B SaaS Verticals, and 5 Global Multi-Domain Asset Classes.
+- **`src/atlas/liquidity/impact.py`, `src/atlas/features/toxicity.py`, `src/atlas/microstructure/{orderbook,predatory}.py`, `src/atlas/execution/{rl_agent,tactics/optimal}.py`, `src/atlas/regime/hawkes_detector.py`, `src/atlas/models/{microstructure_gbdt,self_training}.py`**: Dedicated microstructure ML, optimal execution, Hawkes intensity, and closed-loop online/batch self-training pipeline modules.
+- **`src/atlas/marketdata/{equities,futures,crypto,fx,synthetics}.py`**: Dedicated multi-domain market feed & normalization adapters for US Cash Equities, CME Futures, 24/7 Crypto Perps, Global FX & CFDs, and 24/7 Synthetic Indices.
 - **`src/atlas/control/`**: `ActionableControlPlaneEngine` (`engine.py`) and `TradingRuleBook` (`rules.py`).
-- **`src/atlas/models/`**: `schemas.py`, `providers.py`, `registry.py`, `model_store.py`, `runtime.py`, `adapters.py`, `calendars.py`, `regimes.py`, `challengers.py`, `continuous.py`, `orchestrator.py`, `evaluation.py`, `experiments.py`, `training.py`, and `platform_state.py`.
-- **`src/atlas/marketdata/`**: `mcp_adapters.py`, `quality.py`, `frozen.py`, `microstructure.py`, and `sec_edgar.py`.
+- **`src/atlas/models/`**: `schemas.py`, `providers.py`, `registry.py`, `model_store.py`, `runtime.py`, `adapters.py`, `calendars.py`, `regimes.py`, `challengers.py`, `continuous.py`, `orchestrator.py`, `evaluation.py`, `experiments.py`, `training.py`, `self_training.py`, `matrix.py`, and `platform_state.py`.
+- **`src/atlas/marketdata/`**: `mcp_adapters.py`, `quality.py`, `frozen.py`, `microstructure.py`, `sec_edgar.py`, `equities.py`, `futures.py`, `crypto.py`, `fx.py`, and `synthetics.py`.
 
 ---
 
 ## 4. Verification Summary (2026-10-20)
 
-- **Backend (`pytest`)**: **`81 passed`** (`.\.venv\Scripts\python.exe -m pytest -q`).
-- **Frontend (`tsc` & `next build`)**: **`0 errors`** on `npm run typecheck` and **`20/20 static pages generated`** on `npm run build`.
+- **Backend (`pytest`)**: **`90 passed`** (`.\.venv\Scripts\python.exe -m pytest -q`).
+- **Frontend (`tsc` & `next build`)**: **`0 errors`** on `npm run typecheck` and **`22/22 static pages generated`** on `npm run build` (16 domain workbenches across 19 live routes).
 - **Platform State CLI**: `.\.venv\Scripts\python.exe -m atlas.models.platform_state` executes cleanly and outputs verified JSON telemetry.

@@ -64,7 +64,7 @@ The terminal features an **Icon-Driven Domain Sidebar** (zero wizard/step number
 Python 3.11+ (workspace uses Python 3.12) and Node.js 18+:
 
 ```powershell
-# 1. Run backend test suite (89 tests) and start FastAPI server on port 8000
+# 1. Run backend test suite (90 tests) and start FastAPI server on port 8000
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m uvicorn atlas.api.app:app --host 127.0.0.1 --port 8000
 ```
@@ -90,8 +90,8 @@ npm run start -- -p 3000
 - [Universal AI Ecosystem Architecture](docs/architecture/UNIVERSAL_AI_ECOSYSTEM.md): Full implementation map, data warehouse topology, provider protocols, training pipelines, and evaluation.
 - [Research Operating Contract](docs/architecture/RESEARCH_OPERATING_CONTRACT.md): Versioned research gates, causal regime handling, dual tracks, and deterministic control-plane rule fields.
 - [ISO, NIST AI RMF & IOSCO Governance Alignment](docs/architecture/ISO_GOVERNANCE_ALIGNMENT.md): Standards mapping for institutional governance readiness.
-- [Current State](docs/architecture/CURRENT_STATE.md): Verified modules, 17 frontend routes, backend API endpoints, and test verification.
-- [Decisions Log](docs/architecture/DECISIONS.md): Architectural decisions 1–42 binding the repository.
+- [Current State](docs/architecture/CURRENT_STATE.md): Verified modules, 16 domain workbenches across 19 frontend routes, backend API endpoints, and test verification.
+- [Decisions Log](docs/architecture/DECISIONS.md): Architectural decisions 1–43 binding the repository.
 - [Agile Backlog](docs/backlog/AGILE_BACKLOG.md): Completed platform increments and external licensing roadmap.
 - [AI Ecosystem Review](docs/research/AI_ECOSYSTEM.md) & [MCP Data Integration Review](docs/research/MCP_DATA_INTEGRATION.md).
 
@@ -99,5 +99,5 @@ npm run start -- -p 3000
 
 ## Verification Status (2026-10-20)
 
-- **Backend Test Suite**: **`89 passed`** (`.\.venv\Scripts\python.exe -m pytest -q`) covering institutional microstructure (Kyle's Lambda, VPIN, Multi-Level OFI, Hawkes intensity), Almgren-Chriss optimal execution trajectories, Triple-Barrier labeling & prop-aligned objective loss $\mathcal{L}(\theta)$, purged/embargoed walk-forward splits, VPIN-aware deterministic control-plane trading rules, allowlisted MCP & SEC EDGAR XBRL adapters, warehouse nodes, live Internet candle sync, SQLite registry, and all actionable control-plane endpoints.
-- **Frontend Build**: **`0 errors`** on `npm run typecheck` (`tsc --noEmit`) and **`20/20 static pages generated`** on `npm run build` across all 17 application routes.
+- **Backend Test Suite**: **`90 passed`** (`.\.venv\Scripts\python.exe -m pytest -q`) covering all 7 sheets of the Master Roadmap & Technical Specifications (`A–Z` 26 subsystems, `WF-01..WF-08` Whale Order Flow & Execution ML, `WSDM-01..WSDM-05` Whale Signal Decision Matrix, `SAAS-01..SAAS-10` Prop Firm B2B SaaS Verticals, 5 Global Multi-Domain asset classes), closed-loop Self-Training ML pipeline (`src/atlas/models/self_training.py`), institutional microstructure (Kyle's Lambda, VPIN, Multi-Level OFI, Hawkes intensity), Almgren-Chriss optimal execution trajectories, Triple-Barrier labeling & prop-aligned objective loss $\mathcal{L}(\theta)$, purged/embargoed walk-forward splits, VPIN-aware deterministic control-plane trading rules, allowlisted MCP & SEC EDGAR XBRL adapters, warehouse nodes, live Internet candle sync, SQLite registry, and all actionable control-plane endpoints.
+- **Frontend Build**: **`0 errors`** on `npm run typecheck` (`tsc --noEmit`) and **`22/22 static pages generated`** on `npm run build` across all 19 application routes.

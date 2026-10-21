@@ -1048,6 +1048,185 @@ def update_platform_configurations(payload: PlatformConfigPayload) -> dict[str, 
     return dict(_PLATFORM_CONFIG_STATE)
 
 
+@app.get("/api/configurations/auto-optimize", include_in_schema=False)
+@app.post("/api/configurations/auto-optimize", include_in_schema=False)
+def auto_optimize_platform_configurations(symbol: str = "BTC-USD") -> dict[str, object]:
+    """Zero-touch autonomous configuration optimizer.
+
+    Automatically derives track, staleness circuit breaker, VPIN toxicity stop-widening,
+    ATR structural stop distance, execution algorithm, and risk-optimal notional sizing
+    from the live market stream and 12-Factor Whale Opportunity Engine (`execution_permission: 'none'`).
+    """
+    sym = symbol.upper().strip()
+    is_crypto = sym.endswith("-USD") or sym in {"BTC-USD", "ETH-USD", "SOL-USD"}
+    auto_track: Literal["competition", "open_market"] = "competition" if is_crypto else "open_market"
+
+    pred = bot_orchestrator.predict_live_market_data(
+        live_market_gateway,
+        symbol=sym,
+        granularity=900,
+        allow_network=False,
+    )
+    opp = pred.get("locked_whale_opportunity") or {}
+    micro = pred.get("live_microstructure") or {}
+
+    vpin_val = float(micro.get("vpin", 0.29))
+    vpin_widening = vpin_val >= 0.40
+    raw_stop_bps = float(opp.get("stop_distance_bps", 95.0))
+    effective_stop_bps = round(raw_stop_bps * (1.5 if vpin_widening else 1.0), 1)
+
+    # Risk-optimal notional targeting 0.45% equity risk ($450 risk budget) capped by track ceiling
+    max_cap = 45000.0 if auto_track == "competition" else 38000.0
+    risk_budget_usd = float(control_engine.current_equity_usd) * 0.0045
+    optimal_notional = min(max_cap, max(5000.0, round((risk_budget_usd / max(0.0025, effective_stop_bps / 10_000.0)) / 500.0) * 500.0))
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    _PLATFORM_CONFIG_STATE.update(
+        {
+            "daily_loss_limit_pct": "4.00" if auto_track == "competition" else "3.00",
+            "trailing_drawdown_limit_pct": "8.00" if auto_track == "competition" else "10.00",
+            "per_trade_risk_limit_pct": "0.75" if auto_track == "competition" else "0.50",
+            "min_stop_distance_bps": int(max(25, round(effective_stop_bps))),
+            "auto_flatten_on_breach": True,
+            "enforce_consistency_rule": auto_track == "competition",
+            "updated_at": now_iso,
+        }
+    )
+
+    return {
+        "status": "ok",
+        "autopilot_mode": "zero_touch_active",
+        "symbol": sym,
+        "auto_track": auto_track,
+        "auto_side": str(opp.get("action", "BUY")).lower(),
+        "auto_execution_tactic": str(opp.get("execution_tactic", "ALMGREN_CHRISS")),
+        "auto_atr_stop_bps": effective_stop_bps,
+        "auto_optimal_notional_usd": optimal_notional,
+        "auto_staleness_breaker_ms": 500 if auto_track == "competition" else 2000,
+        "auto_vpin_stop_widening": vpin_widening,
+        "locked_opportunity": opp,
+        "configurations": dict(_PLATFORM_CONFIG_STATE),
+        "execution_permission": "none",
+    }
+
+
+from atlas.lifecycle import UserLifecycleEngine
+from atlas.models.perfect_trader_whale import PerfectTraderWhaleEngine
+
+_USER_LIFECYCLE_ENGINE = UserLifecycleEngine()
+_PERFECT_TRADER_WHALE_ENGINE = PerfectTraderWhaleEngine()
+
+
+@app.get("/api/ml/perfect-trader/state", include_in_schema=False)
+def get_perfect_trader_whale_state(symbol: str = "BTC-USD", force_submit: bool = False) -> dict[str, object]:
+    """Evaluates the custom Triple-Barrier + Meta-Labeling Whale ML model and automatically
+    submits BUY/SELL orders through ActionableControlPlaneEngine upon Whaling Moments.
+    """
+    return _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
+        symbol=symbol,
+        gateway=live_market_gateway,
+        control_engine=control_engine,
+        force_submit=force_submit,
+    )
+
+
+@app.post("/api/ml/perfect-trader/train", include_in_schema=False)
+def train_perfect_trader_whale_model(payload: dict[str, object] | None = None) -> dict[str, object]:
+    """Trains/calibrates the custom 'Perfect Trader' Whale ML model (Triple-Barrier + Meta-Labeling
+    + Cont-Kukanov-Stoikov OFI + VPIN + Quarter-Kelly) and immediately evaluates/auto-submits on the active symbol.
+    """
+    body = payload or {}
+    symbol = str(body.get("symbol", "BTC-USD"))
+    report = _PERFECT_TRADER_WHALE_ENGINE.train_custom_perfect_trader(
+        symbol=symbol,
+        gateway=live_market_gateway,
+    )
+    live_state = _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
+        symbol=symbol,
+        gateway=live_market_gateway,
+        control_engine=control_engine,
+        force_submit=True,
+    )
+    return {
+        "status": "ok",
+        "training_report": report.to_dict(),
+        "live_state": live_state,
+        "execution_permission": "none",
+    }
+
+
+@app.post("/api/ml/perfect-trader/auto-submit", include_in_schema=False)
+def trigger_perfect_trader_auto_submit(payload: dict[str, object] | None = None) -> dict[str, object]:
+    """Toggles autonomous Whaling Moment order submission or runs a multi-asset Whaling Moment scan & auto-execution."""
+    body = payload or {}
+    action = str(body.get("action", "auto_submit_symbol"))
+    symbol = str(body.get("symbol", "BTC-USD"))
+
+    if action == "toggle_armed":
+        if "armed" in body:
+            _PERFECT_TRADER_WHALE_ENGINE.auto_submit_armed = bool(body["armed"])
+        else:
+            _PERFECT_TRADER_WHALE_ENGINE.auto_submit_armed = not _PERFECT_TRADER_WHALE_ENGINE.auto_submit_armed
+        return _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
+            symbol=symbol,
+            gateway=live_market_gateway,
+            control_engine=control_engine,
+            force_submit=False,
+        )
+
+    if action == "scan_multi_asset":
+        scan_res = _PERFECT_TRADER_WHALE_ENGINE.scan_and_auto_submit_multi_asset(
+            gateway=live_market_gateway,
+            control_engine=control_engine,
+        )
+        state = _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
+            symbol=symbol,
+            gateway=live_market_gateway,
+            control_engine=control_engine,
+            force_submit=False,
+        )
+        state["multi_asset_scan"] = scan_res
+        return state
+
+    return _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
+        symbol=symbol,
+        gateway=live_market_gateway,
+        control_engine=control_engine,
+        force_submit=True,
+    )
+
+
+@app.get("/api/lifecycle/state", include_in_schema=False)
+def get_user_lifecycle_state(symbol: str = "BTC-USD") -> dict[str, object]:
+    """Returns the unified 4-stage user lifecycle, locked whale opportunity, and challenge progression state."""
+    return _USER_LIFECYCLE_ENGINE.build_state(
+        symbol=symbol,
+        control_engine=control_engine,
+        bot_orchestrator=bot_orchestrator,
+        market_gateway=live_market_gateway,
+    )
+
+
+@app.post("/api/lifecycle/action", include_in_schema=False)
+def trigger_user_lifecycle_action(payload: dict[str, object]) -> dict[str, object]:
+    """Executes a 1-click user lifecycle step (select_realm, lock_whale_signal, authorize_lifecycle_order, advance_evaluation_phase)."""
+    action = str(payload.get("action", "lock_whale_signal"))
+    symbol = str(payload.get("symbol", "BTC-USD"))
+    realm_raw = payload.get("realm")
+    realm: Literal["competition", "open_market"] | None = (
+        realm_raw if realm_raw in ("competition", "open_market") else None  # type: ignore[assignment]
+    )
+    return _USER_LIFECYCLE_ENGINE.execute_lifecycle_action(
+        action=action,  # type: ignore[arg-type]
+        symbol=symbol,
+        realm=realm,
+        control_engine=control_engine,
+        bot_orchestrator=bot_orchestrator,
+        market_gateway=live_market_gateway,
+    )
+
+
+
 _WAREHOUSE_NODES_STATE: list[dict[str, object]] = [
     {
         "node_id": "bigquery_analytics_hub",
@@ -1632,6 +1811,229 @@ def trigger_prop_saas_vertical(payload: dict[str, object]) -> dict[str, object]:
         f"{datetime.now(timezone.utc).isoformat()} | saas_vertical_action | vertical={vid} action={action}"
     )
     return state
+
+
+from dataclasses import asdict
+from atlas.proctoring_and_features100 import WebcamProctoringEngine, build_100_feature_matrix
+
+webcam_proctoring_engine = WebcamProctoringEngine()
+webcam_proctoring_engine.evaluate_frame(
+    trader_id="TRADER-001",
+    biometric_match_score=0.984,
+    eye_blink_detected=True,
+    head_yaw_degrees=12.5,
+    face_count=1,
+    gaze_off_screen_pct=0.08,
+    camera_driver="USB Video Device (Integrated IR Webcam)",
+    concurrent_order_id="ORD-2026-8841",
+    hardware_guid="HW-GUID-9921-LOGI-4K",
+    dual_camera_mobile_active=True,
+)
+
+
+@app.get("/api/features-100", include_in_schema=False)
+def get_hundred_features(category_id: int | None = None, realm: str | None = None) -> dict[str, object]:
+    matrix = build_100_feature_matrix()
+    features = matrix["features"]
+    if category_id is not None:
+        features = [f for f in features if f["category_number"] == int(category_id)]
+    if realm and realm.lower() not in ("all", "both"):
+        rlm = realm.lower()
+        features = [f for f in features if rlm in str(f["realm"]).lower() or "both" in str(f["realm"]).lower()]
+    return {
+        "status": "ok",
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "execution_permission": "none",
+        "total_features": matrix["total_features"],
+        "filtered_count": len(features),
+        "categories": matrix["categories_summary"],
+        "features": features,
+        "proctoring_timeline": webcam_proctoring_engine.get_review_timeline(),
+        "mobile_handoff": webcam_proctoring_engine.create_dual_camera_mobile_handoff("TRADER-001"),
+    }
+
+
+@app.post("/api/proctoring/evaluate-frame", include_in_schema=False)
+def evaluate_proctoring_frame(payload: dict[str, object]) -> dict[str, object]:
+    trader_id = str(payload.get("trader_id", "TRADER-001"))
+    camera_driver = str(payload.get("camera_driver", payload.get("camera_driver_name", "USB Video Device (Integrated IR Webcam)")))
+    hardware_guid = str(payload.get("hardware_guid", "HW-GUID-9921-LOGI-4K"))
+    face_count = int(payload.get("face_count", 1))
+    biometric_match_score = float(payload.get("biometric_match_score", payload.get("biometric_cosine_similarity", 0.984)))
+    eye_blink_detected = bool(payload.get("eye_blink_detected", payload.get("blink_challenge_passed", True)))
+    head_yaw_degrees = float(payload.get("head_yaw_degrees", 12.5))
+    gaze_off_screen_pct = float(payload.get("gaze_off_screen_pct", 0.08))
+    concurrent_order_id = str(payload.get("concurrent_order_id", "ORD-2026-8842"))
+    dual_camera_mobile_active = bool(payload.get("dual_camera_mobile_active", True))
+
+    frame_eval = webcam_proctoring_engine.evaluate_frame(
+        trader_id=trader_id,
+        biometric_match_score=biometric_match_score,
+        eye_blink_detected=eye_blink_detected,
+        head_yaw_degrees=head_yaw_degrees,
+        face_count=face_count,
+        gaze_off_screen_pct=gaze_off_screen_pct,
+        camera_driver=camera_driver,
+        concurrent_order_id=concurrent_order_id,
+        hardware_guid=hardware_guid,
+        dual_camera_mobile_active=dual_camera_mobile_active,
+    )
+    result = asdict(frame_eval)
+    control_engine.audit_log.append(
+        f"{datetime.now(timezone.utc).isoformat()} | webcam_proctoring_frame | trader={trader_id} status={result['proctoring_status']} watermark={result['watermark_sha256'][:12]}"
+    )
+    return {
+        "status": "ok",
+        "execution_permission": "none",
+        "evaluation": result,
+        "timeline": webcam_proctoring_engine.get_review_timeline(),
+        "mobile_handoff": webcam_proctoring_engine.create_dual_camera_mobile_handoff(trader_id),
+    }
+
+
+from atlas.api.rbac import ROLE_PROFILES, verify_role_action
+from atlas.api.ws import register_market_stream_ws
+from atlas.connectors import AlpacaEquitiesConnector, CCXTPerpConnector, DXtradePropConnector
+from atlas.marketdata.live_stream import LiveMarketDataGateway
+from atlas.models.bot_orchestrator import BotOrchestrator
+from atlas.strategies import (
+    ActorCriticPolicyStrategy,
+    BasisArbitrageStrategy,
+    MicrostructureMetrics,
+    OpeningAuctionDriveStrategy,
+    OrderBookDepthSnapshot,
+    VpinAbsorptionStrategy,
+)
+
+live_market_gateway = LiveMarketDataGateway(ring_buffer_maxlen=10000, control_engine=control_engine)
+market_stream_broadcaster = register_market_stream_ws(app, live_market_gateway)
+bot_orchestrator = BotOrchestrator(control_engine=control_engine)
+
+
+@app.get("/api/rbac/roles", include_in_schema=False)
+def get_rbac_roles() -> dict[str, object]:
+    return {
+        "status": "ok",
+        "roles": {k: v.to_dict() for k, v in ROLE_PROFILES.items()},
+    }
+
+
+@app.post("/api/rbac/verify", include_in_schema=False)
+def verify_rbac_endpoint(payload: dict[str, object]) -> dict[str, object]:
+    role_id = str(payload.get("role_id", "funded_trader"))
+    action = str(payload.get("action", "view_market_stream"))
+    route = payload.get("route")
+    return verify_role_action(
+        role_id,
+        action,  # type: ignore[arg-type]
+        route=str(route) if route is not None else None,
+    )
+
+
+@app.get("/api/strategies/status", include_in_schema=False)
+def get_strategies_status() -> dict[str, object]:
+    now_dt = datetime.now(timezone.utc)
+    depth_btc = OrderBookDepthSnapshot(
+        symbol="BTC-USD",
+        timestamp=now_dt,
+        best_bid=68407.5,
+        best_ask=68412.5,
+        poc_price=68410.0,
+        val_price=67860.0,
+        vah_price=69120.0,
+        spread_bps=1.2,
+    )
+    depth_spy = OrderBookDepthSnapshot(
+        symbol="SPY",
+        timestamp=now_dt,
+        best_bid=584.15,
+        best_ask=584.25,
+        poc_price=584.20,
+        val_price=580.80,
+        vah_price=588.40,
+        spread_bps=0.8,
+    )
+
+    sig_vpin = VpinAbsorptionStrategy().generate_signal(
+        [],
+        depth_btc,
+        MicrostructureMetrics(vpin=0.41, ofi_zscore=2.45, price_consolidation_score=0.76, atr_bps=95.0),
+    )
+    sig_arb = BasisArbitrageStrategy().generate_signal(
+        [],
+        depth_btc,
+        MicrostructureMetrics(spot_price=68300.0, perp_price=68480.0, funding_rate_8h=0.00082, funding_zscore=3.45, atr_bps=110.0),
+    )
+    sig_auction = OpeningAuctionDriveStrategy().generate_signal(
+        [],
+        depth_spy,
+        MicrostructureMetrics(auction_imbalance_shares=72000.0, auction_imbalance_zscore=2.30, auction_timestamp_et="09:28 ET", atr_bps=80.0),
+    )
+    sig_rl = ActorCriticPolicyStrategy().generate_signal(
+        [],
+        depth_btc,
+        MicrostructureMetrics(vpin=0.24, ofi_zscore=2.20, inventory_fraction=-0.10, state_vector=(1.4, 0.22, 0.12, -0.10, 0.75, 0.14), atr_bps=100.0),
+    )
+
+    alpaca = AlpacaEquitiesConnector()
+    ccxt_perp = CCXTPerpConnector()
+    dxtrade = DXtradePropConnector()
+
+    return {
+        "status": "ok",
+        "as_of": now_dt.isoformat(),
+        "execution_permission": "none",
+        "signals": [
+            sig_vpin.model_dump(mode="json"),
+            sig_arb.model_dump(mode="json"),
+            sig_auction.model_dump(mode="json"),
+            sig_rl.model_dump(mode="json"),
+        ],
+        "bot_telemetry": {
+            k: v.model_dump(mode="json") for k, v in bot_orchestrator.telemetry_by_bot.items()
+        },
+        "connectors": [
+            {"connector_id": alpaca.connector_id, "venue_type": alpaca.venue_type, "track": alpaca.track, "protocol": alpaca.protocol},
+            {"connector_id": ccxt_perp.connector_id, "venue_type": ccxt_perp.venue_type, "track": ccxt_perp.track, "protocol": ccxt_perp.protocol},
+            {"connector_id": dxtrade.connector_id, "venue_type": dxtrade.venue_type, "track": dxtrade.track, "protocol": dxtrade.protocol},
+        ],
+    }
+
+
+@app.get("/api/market/live-ai-prediction", include_in_schema=False)
+def get_live_market_ai_prediction(
+    symbol: str = "BTC-USD",
+    granularity: int = 900,
+    allow_network: bool = True,
+) -> dict[str, object]:
+    """Fetch real-time market data, ingest into the 5,000-slot ring buffer, and compute live AI model
+    predictions (P10/P50/P90 cone + 4 strategy bot signals) with strict `execution_permission: 'none'`.
+    """
+    return bot_orchestrator.predict_live_market_data(
+        live_market_gateway,
+        symbol=symbol,
+        granularity=granularity,
+        allow_network=allow_network,
+    )
+
+
+@app.post("/api/research/live-predict", include_in_schema=False)
+def post_live_market_ai_prediction(payload: dict[str, object]) -> dict[str, object]:
+    symbol = str(payload.get("symbol", "BTC-USD")).upper()
+    granularity = int(payload.get("granularity", 900) or 900)
+    allow_network = bool(payload.get("allow_network", True))
+    res = bot_orchestrator.predict_live_market_data(
+        live_market_gateway,
+        symbol=symbol,
+        granularity=granularity,
+        allow_network=allow_network,
+    )
+    control_engine.audit_log.append(
+        f"{datetime.now(timezone.utc).isoformat()} | live_ai_prediction | symbol={symbol} dir={res['direction']} prob={res['calibrated_probability']} permission=none"
+    )
+    return res
+
+
 
 
 

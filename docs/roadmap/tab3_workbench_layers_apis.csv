@@ -1,0 +1,17 @@
+layer,route,description,data_flow
+Command Center,/,"Unified executive trading desk, live chart & prop scorecard","/api/platform/snapshot, /api/control/state"
+"Whale ML, SaaS & A-Z Roadmap",/roadmap,"All 7 Excel tabs executed directly (A-Z, WF-01..08, SAAS-01..10)","/api/master-roadmap, /api/master-roadmap/evaluate-whale"
+Quant & Signal Matrix,/matrix,"9x4 Multi-Horizon Alpha, 9x9 Correlation, 5x5 Regime & L2 DOM","/api/matrix, /api/matrix/recompute"
+Live Listings,/listings,Real-time multi-asset listings & 1-click order desk routing,"/api/listings, /api/listings/action"
+Live Charts & Market PIT,/market,Dual-mode ATLAS PIT + Forecast Fan & TradingView Live Charts,"/api/market/candles, /api/market/live-internet-sync"
+Enterprise API Data Warehouse,/warehouse,"BigQuery Analytics Hub, DuckDB Parquet, Databento, Polygon, ClickHouse","/api/warehouse, /api/warehouse/action"
+Deterministic Control Plane,"/control, /rules","Risk enforcement, VPIN stop-widening & millisecond kill-switch",ActionableControlPlaneEngine (/api/control/*)
+Governance & 8 Ledgers,/governance,8 separated non-custodial ledgers & ISO 42001 / NIST AI RMF,/api/control/readiness-audit
+AI Synthesis & Gemini Node,/research,24/7 continuous research tick & probability calibration,/api/research/continuous-tick (permission=none)
+Walk-Forward Evaluation Lab,/experiments,Purged & embargoed walk-forward (EXP-001) & paper simulation,/api/research/walk-forward
+"Models, MCP & SEC XBRL",/models,"Anti-Gravity self-training loop, GBDT/Ridge, allowlisted MCP & SEC XBRL","/api/research/train, /api/market/mcp-fetch"
+Data Syncing Center,/sync,Cross-asset PIT synchronization & SHA-256 manifests,"/api/sync, /api/sync/run"
+Integrations & MCP Hub,"/integrations, /connectors",Quarantined tools guard (irohan0/quant-mcp) & read-only MCP,"/api/connectors, /api/connectors/action"
+Platform Configurations,"/configurations, /settings",1-click Prop & Stock desk presets & rulebook thresholds,/api/configurations
+User Profile & Keys,/profile,"RBAC boundaries, 100% founder IP ownership & secret scrubbing",/api/profile
+Architecture & Specs,/docs,Live in-app Markdown reader for all 9 specification docs,/api/docs

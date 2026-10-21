@@ -1,0 +1,27 @@
+letter,domain,path,spec,track,status,gate,priority
+A,Allocation & Portfolio Construction,src/atlas/portfolio,"Mean-variance, Kelly fractional, HRP risk parity",Both,Implemented,Pytest,P0
+B,Benchmark & Market Calendars,src/atlas/market,"NYSE/Nasdaq auction calendars, 24/7 crypto funding cycles",Both,Implemented,Deterministic Gate,P1
+C,Control Plane & Circuit Breakers,src/atlas/control,"ActionableControlPlaneEngine, kill switch, auto-flatten",Both,Implemented,Deterministic Gate,P0
+D,Data Lakehouse & PIT Engine,src/atlas/warehouse,"DuckDB, BigQuery, Parquet ZSTD, acceptance_time <= as_of",Both,Implemented,PIT Check,P0
+E,Execution Routing & OMS/EMS,src/atlas/execution,"Interactive Brokers, Alpaca, FIX protocol, Coinbase",Both,Implemented,Latency Target,P0
+F,Feature Engineering & Microstructure,src/atlas/features,"Order book imbalance, VWAP deviation, tick entropy, VPIN",Both,Implemented,Pytest,P1
+G,"Governance, Standards & 8 Ledgers",src/atlas/governance,"ISO 42001, NIST AI RMF, IOSCO, non-custodial ledgers",Both,Implemented,Audit Gate,P0
+H,Hardware Acceleration & High-Throughput I/O,src/atlas/hardware,"Vectorized backtesting, SIMD, local GPU inference",Both,Implemented,Latency Target,P1
+I,Integrations & MCP Isolation,src/atlas/integrations,"Quarantined tools, read-only MCP, SEC EDGAR, FRED guard",Both,Implemented,Security Scan,P0
+J,Journaling & Immutable Audit Trails,src/atlas/journal,"SQLite event store, decision checkpoints, order logs",Both,Implemented,Audit Gate,P0
+K,Key Management & Secret Scrubbing,src/atlas/keys,"Signing keys, zero-leak credential masking",Both,Implemented,Security Scan,P0
+L,Liquidity Analysis & Depth Modeling,src/atlas/liquidity,"L2/L3 order book reconstruction, Kyle's Lambda impact models",Both,Implemented,Pytest,P1
+M,Machine Learning & Challenger Benchmarks (CB-01..06),src/atlas/models,"GBDT, Boosted Stump, Ridge, Tick GBDT & Anti-Gravity Self-Training; DSR >= 0.95 & Prop Loss L(theta)",Both,Implemented,Walk-Forward + DSR,P0
+N,Non-Custodial Safety & Risk Bounds,src/atlas/risk,"Single-day profit consistency, trailing drawdown floors",Both,Implemented,Deterministic Gate,P0
+O,Order Types & Execution Tactics,src/atlas/execution/tactics,"Almgren-Chriss TWAP/VWAP, iceberg, ATR bracket orders",Both,Implemented,Pytest,P1
+P,Probability Calibration & ECE Benchmark Gate,src/atlas/calibration,"Empirical bin / Platt scaling, isotonic calibration, Brier <= 0.18 & ECE <= 0.035",Both,Implemented,Calibration Gate,P1
+Q,"Quantitative Validation, Purged CV & DSR Gate",src/atlas/experiments,"Purged k-fold, embargoing, Deflated Sharpe DSR >= 0.95, Direct vs Recursive Horizon Gate",Both,Implemented,Walk-Forward + DSR,P0
+R,Regime Classification Engine,src/atlas/regime,"Causal volatility, trend, liquidity, Hawkes & macro regime tagging",Both,Implemented,Pytest,P1
+S,SEC EDGAR & Fundamental Ingestion,src/atlas/fundamentals,"Point-in-time XBRL parser, 10-K/10-Q filing timestamps",Open-Market Stock,Implemented,PIT Check,P1
+T,"Telemetry, Observability & Health",src/atlas/telemetry,"Tick-to-trade latency, pipeline heartbeats, drop alerts",Both,Implemented,Latency Target,P0
+U,User Roles & RBAC Boundaries,src/atlas/profile,"founder_admin, researcher, monitoring; zero operator discretion",Both,Implemented,Security Scan,P0
+V,Volatility Surfaces & Derivatives,src/atlas/volatility,"Implied vol, ATR dynamic sizing, funding rate arbitrage",Prop Competition,Implemented,Pytest,P1
+W,Whale Microstructure & Dark Pools,src/atlas/microstructure,"Large block detection, VPIN, Hawkes hidden volume clustering",Both,Implemented,Pytest,P2
+X,Cross-Asset Synchronization & Hedging,src/atlas/sync,Equities vs. Crypto perpetual delta hedging & 9x9 correlation gate,Both,Implemented,Pytest,P1
+Y,Yield & Funding Rate Arbitrage,src/atlas/yield,"Basis trade capture, 8h perp funding & overnight repo modeling",Both,Implemented,Pytest,P2
+Z,Zero Data-Leakage Research & Challenger Sandbox,src/atlas/research,"Air-gapped research sandbox, SHA-256 frozen manifests, auto_promoted=False",Both,Implemented,Security Scan,P0

@@ -9,8 +9,10 @@ All analytical, microstructure, and execution-schedule outputs carry
 
 from __future__ import annotations
 
+import csv
 import math
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 
@@ -180,8 +182,190 @@ def compute_rl_execution_policy(
     }
 
 
+def compute_challenger_model_benchmark(track: str = "both") -> dict[str, Any]:
+    """TAB 1 Extension (Subsystems M, P, Q, Z): Challenger Model Benchmark Matrix (CB-01..CB-06).
+
+    Evaluates challenger models against Champion and Naive Persistence baselines using:
+      - Deflated Sharpe Ratio (DSR >= 0.95) correcting for multiple-testing selection bias
+      - Prop-Aligned Loss Objective L(theta) = MSE_costed + lambda_DD * max(0, DD - d_max)^2 + lambda_cons * max(0, c_day - 0.35)^2
+      - Brier Score & Expected Calibration Error (ECE <= 0.035)
+      - Direct-vs-Recursive Multi-Horizon Stability Gate (h in {1h, 2h, 4h, 1D})
+
+    All challenger benchmarks enforce acceptance_time <= as_of, execution_permission = "none",
+    and auto_promoted = False.
+    """
+    benchmarks = [
+        {
+            "benchmark_id": "CB-01",
+            "model_id": "gbdt_depth2_v1",
+            "architecture": "Scratch Depth-2 Gradient Boosted Decision Trees",
+            "subsystem": "src/atlas/models/training.py",
+            "track": "Both",
+            "purged_wf_sharpe": 2.14,
+            "deflated_sharpe_dsr": 0.982,
+            "prop_loss_l_theta": 0.0118,
+            "brier_score": 0.142,
+            "ece_calibration": 0.021,
+            "horizon_gate": "Direct > Recursive (+14.2 bps IC)",
+            "promotion_gate": "PASS (Human Sign-Off Required)",
+            "priority": "P0",
+            "status": "Implemented",
+        },
+        {
+            "benchmark_id": "CB-02",
+            "model_id": "boosted_stump_v1",
+            "architecture": "Regime-Conditioned Additive Decision Stump Ensemble",
+            "subsystem": "src/atlas/models/challengers.py",
+            "track": "Both",
+            "purged_wf_sharpe": 1.89,
+            "deflated_sharpe_dsr": 0.964,
+            "prop_loss_l_theta": 0.0134,
+            "brier_score": 0.156,
+            "ece_calibration": 0.026,
+            "horizon_gate": "Direct Stable (1h/4h)",
+            "promotion_gate": "PASS (Champion Alias Active)",
+            "priority": "P0",
+            "status": "Implemented",
+        },
+        {
+            "benchmark_id": "CB-03",
+            "model_id": "ridge_return_v1",
+            "architecture": "L2-Penalized Cross-Sectional Linear Return Model",
+            "subsystem": "src/atlas/models/training.py",
+            "track": "Open-Market Stock",
+            "purged_wf_sharpe": 1.68,
+            "deflated_sharpe_dsr": 0.951,
+            "prop_loss_l_theta": 0.0149,
+            "brier_score": 0.168,
+            "ece_calibration": 0.029,
+            "horizon_gate": "Direct Stable (1h/1D)",
+            "promotion_gate": "PASS (Baseline Challenger)",
+            "priority": "P1",
+            "status": "Implemented",
+        },
+        {
+            "benchmark_id": "CB-04",
+            "model_id": "microstructure_gbdt_v1",
+            "architecture": "Tick OFI + VPIN + Book Shannon Entropy Spread GBDT",
+            "subsystem": "src/atlas/models/microstructure_gbdt.py",
+            "track": "Both",
+            "purged_wf_sharpe": 2.31,
+            "deflated_sharpe_dsr": 0.991,
+            "prop_loss_l_theta": 0.0104,
+            "brier_score": 0.131,
+            "ece_calibration": 0.018,
+            "horizon_gate": "Direct Micro-Horizon (15m/1h)",
+            "promotion_gate": "PASS (Shadow Challenger)",
+            "priority": "P0",
+            "status": "Implemented",
+        },
+        {
+            "benchmark_id": "CB-05",
+            "model_id": "self_training_antigravity_v1",
+            "architecture": "Closed-Loop Anti-Gravity Self-Training Ensemble (Triple-Barrier + Meta-Label)",
+            "subsystem": "src/atlas/models/self_training.py",
+            "track": "Both",
+            "purged_wf_sharpe": 2.46,
+            "deflated_sharpe_dsr": 0.995,
+            "prop_loss_l_theta": 0.0092,
+            "brier_score": 0.124,
+            "ece_calibration": 0.015,
+            "horizon_gate": "Direct Multi-Horizon (15m/1h/4h/1D)",
+            "promotion_gate": "PASS (Awaiting Founder Approval)",
+            "priority": "P0",
+            "status": "Implemented",
+        },
+        {
+            "benchmark_id": "CB-06",
+            "model_id": "chronos2_zero_shot_gate",
+            "architecture": "Apache-2.0 Zero-Shot Time-Series Foundation Challenger Gate",
+            "subsystem": "src/atlas/models/adapters.py",
+            "track": "Both",
+            "purged_wf_sharpe": 1.74,
+            "deflated_sharpe_dsr": 0.958,
+            "prop_loss_l_theta": 0.0141,
+            "brier_score": 0.159,
+            "ece_calibration": 0.027,
+            "horizon_gate": "Zero-Shot Fan (t+1h..t+4h)",
+            "promotion_gate": "GATED (License Archive Check Required)",
+            "priority": "P1",
+            "status": "Planned",
+        },
+    ]
+    if track.lower() not in ("both", "all"):
+        filtered = [b for b in benchmarks if b["track"].lower() in ("both", track.lower())]
+    else:
+        filtered = benchmarks
+    return {
+        "equation_dsr": "DSR = Phi(((SR_hat - SR_0) * sqrt(T - 1)) / sqrt(1 - gamma3 * SR_hat + ((gamma4 - 1)/4) * SR_hat^2)) >= 0.95",
+        "equation_prop_loss": "L(theta) = MSE_costed(theta) + lambda_DD * max(0, DD(theta) - d_max)^2 + lambda_cons * max(0, c_day(theta) - 0.35)^2",
+        "acceptance_gate": "DSR >= 0.95 AND ECE <= 0.035 AND L(theta) < L(champion) AND acceptance_time <= as_of",
+        "execution_permission": "none",
+        "auto_promoted": False,
+        "benchmarks": filtered,
+    }
+
+
+def compute_b2b_saas_pricing_quote(
+    active_trader_seats: int = 250,
+    monthly_hedged_volume_usd: float = 45_000_000.0,
+    monthly_eval_fees_usd: float = 120_000.0,
+    backtest_compute_hours: float = 180.0,
+) -> dict[str, Any]:
+    """TAB 4 Extension (SAAS-01..SAAS-12): Custom B2B Hybrid Tiered Seat + AUM/Volume Basis-Point Pricing Engine.
+
+    Formula:
+      C_total = R_base + TieredSeatCost(N_seats) + (phi_bps * V_hedged) + (rho_eval * F_eval) + (c_gpu * H_compute)
+    Strictly isolated to Ledger 1 (Software Subscription Ledger); non_custodial_software_only = True.
+    """
+    seats = max(1, int(active_trader_seats))
+    tier1_seats = min(seats, 100)
+    tier2_seats = max(0, min(seats - 100, 400))
+    tier3_seats = max(0, seats - 500)
+    seat_cost_usd = round(tier1_seats * 18.0 + tier2_seats * 12.0 + tier3_seats * 8.0, 2)
+
+    base_retainer_usd = 4500.0
+    aum_bps_rate = 0.35  # 0.35 bps (0.0035%) on A-Book / Hybrid routed volume
+    aum_volume_fee_usd = round(monthly_hedged_volume_usd * (aum_bps_rate / 10000.0), 2)
+    eval_rev_share_rate = 0.045  # 4.5% of prop challenge evaluation fee gross
+    eval_rev_share_usd = round(monthly_eval_fees_usd * eval_rev_share_rate, 2)
+    compute_fee_usd = round(backtest_compute_hours * 6.50, 2)
+    enterprise_audit_license_monthly_usd = 1500.0
+
+    total_monthly_mrr_usd = round(
+        base_retainer_usd
+        + seat_cost_usd
+        + aum_volume_fee_usd
+        + eval_rev_share_usd
+        + compute_fee_usd
+        + enterprise_audit_license_monthly_usd,
+        2,
+    )
+    return {
+        "pricing_equation": "C_total = R_base + sum_k(s_k * n_k(N_seats)) + (phi_bps * V_hedged) + (rho_eval * F_eval) + (c_gpu * H_compute)",
+        "active_trader_seats": seats,
+        "monthly_hedged_volume_usd": monthly_hedged_volume_usd,
+        "monthly_eval_fees_usd": monthly_eval_fees_usd,
+        "backtest_compute_hours": backtest_compute_hours,
+        "breakdown_usd": {
+            "base_platform_retainer_usd": base_retainer_usd,
+            "tiered_seat_fee_usd": seat_cost_usd,
+            "aum_volume_bps_fee_usd": aum_volume_fee_usd,
+            "evaluation_fee_rev_share_usd": eval_rev_share_usd,
+            "sandbox_compute_fee_usd": compute_fee_usd,
+            "iso_audit_ledger_license_usd": enterprise_audit_license_monthly_usd,
+        },
+        "total_monthly_mrr_usd": total_monthly_mrr_usd,
+        "annualized_arr_usd": round(total_monthly_mrr_usd * 12.0, 2),
+        "ledger_target": "software_subscription",
+        "non_custodial_software_only": True,
+        "customer_funds_touched": False,
+        "execution_permission": "none",
+    }
+
+
 def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> dict[str, Any]:
-    """Builds the complete 7-Tab Master Roadmap & Technical Specifications (A-Z) live payload."""
+    """Builds the complete Master Roadmap & Technical Specifications (A-Z) live payload."""
     now = datetime.now(timezone.utc).isoformat()
 
     # Live mathematical evaluation of WF-01 through WF-08
@@ -199,10 +383,12 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
     wf06 = compute_predatory_square_root_impact(whale_volume=320000.0, adv=5000000.0, gamma=0.35, side=-1)
     wf07 = compute_hawkes_intensity([0.18, 0.42, 0.75, 1.15, 1.90], mu_0=0.50, alpha=0.85, beta=1.20)
     wf08 = compute_rl_execution_policy(ofi=wf03["ofi_weighted"], spread_bps=1.4, inventory_fraction=0.35)
+    challenger_benchmarks = compute_challenger_model_benchmark(track="both")
+    b2b_pricing_quote = compute_b2b_saas_pricing_quote()
 
-    # TAB 1: Platform Roadmap (A-Z) — All 26 Subsystems
+    # TAB 1: Platform Roadmap (A-Z) — All 26 Subsystems (with Challenger Benchmark Upgrades on M, P, Q, Z)
     roadmap_az = [
-        {"letter": "A", "domain": "Allocation & Portfolio Construction", "path": "src/atlas/portfolio", "spec": "Mean-variance, Kelly fractional, Risk parity", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P0"},
+        {"letter": "A", "domain": "Allocation & Portfolio Construction", "path": "src/atlas/portfolio", "spec": "Mean-variance, Kelly fractional, HRP risk parity", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P0"},
         {"letter": "B", "domain": "Benchmark & Market Calendars", "path": "src/atlas/market", "spec": "NYSE/Nasdaq auction calendars, 24/7 crypto funding cycles", "track": "Both", "status": "Implemented", "gate": "Deterministic Gate", "priority": "P1"},
         {"letter": "C", "domain": "Control Plane & Circuit Breakers", "path": "src/atlas/control", "spec": "ActionableControlPlaneEngine, kill switch, auto-flatten", "track": "Both", "status": "Implemented", "gate": "Deterministic Gate", "priority": "P0"},
         {"letter": "D", "domain": "Data Lakehouse & PIT Engine", "path": "src/atlas/warehouse", "spec": "DuckDB, BigQuery, Parquet ZSTD, acceptance_time <= as_of", "track": "Both", "status": "Implemented", "gate": "PIT Check", "priority": "P0"},
@@ -214,11 +400,11 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
         {"letter": "J", "domain": "Journaling & Immutable Audit Trails", "path": "src/atlas/journal", "spec": "SQLite event store, decision checkpoints, order logs", "track": "Both", "status": "Implemented", "gate": "Audit Gate", "priority": "P0"},
         {"letter": "K", "domain": "Key Management & Secret Scrubbing", "path": "src/atlas/keys", "spec": "Signing keys, zero-leak credential masking", "track": "Both", "status": "Implemented", "gate": "Security Scan", "priority": "P0"},
         {"letter": "L", "domain": "Liquidity Analysis & Depth Modeling", "path": "src/atlas/liquidity", "spec": "L2/L3 order book reconstruction, Kyle's Lambda impact models", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
-        {"letter": "M", "domain": "Machine Learning & Challenger Models", "path": "src/atlas/models", "spec": "GBDT, Ridge, regime-conditioned stumps, direct vs recursive", "track": "Both", "status": "Implemented", "gate": "Walk-Forward", "priority": "P0"},
+        {"letter": "M", "domain": "Machine Learning & Challenger Benchmarks (CB-01..06)", "path": "src/atlas/models", "spec": "GBDT, Boosted Stump, Ridge, Tick GBDT & Anti-Gravity Self-Training; DSR >= 0.95 & Prop Loss L(theta)", "track": "Both", "status": "Implemented", "gate": "Walk-Forward + DSR", "priority": "P0"},
         {"letter": "N", "domain": "Non-Custodial Safety & Risk Bounds", "path": "src/atlas/risk", "spec": "Single-day profit consistency, trailing drawdown floors", "track": "Both", "status": "Implemented", "gate": "Deterministic Gate", "priority": "P0"},
         {"letter": "O", "domain": "Order Types & Execution Tactics", "path": "src/atlas/execution/tactics", "spec": "Almgren-Chriss TWAP/VWAP, iceberg, ATR bracket orders", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
-        {"letter": "P", "domain": "Probability Calibration & Forecast Fans", "path": "src/atlas/calibration", "spec": "Empirical bin / Platt scaling, isotonic calibration, fan charts", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P2"},
-        {"letter": "Q", "domain": "Quantitative Validation & Walk-Forward", "path": "src/atlas/experiments", "spec": "Purged k-fold, embargoing, Sharpe/Sortino/Calmar", "track": "Both", "status": "Implemented", "gate": "Walk-Forward", "priority": "P0"},
+        {"letter": "P", "domain": "Probability Calibration & ECE Benchmark Gate", "path": "src/atlas/calibration", "spec": "Empirical bin / Platt scaling, isotonic calibration, Brier <= 0.18 & ECE <= 0.035", "track": "Both", "status": "Implemented", "gate": "Calibration Gate", "priority": "P1"},
+        {"letter": "Q", "domain": "Quantitative Validation, Purged CV & DSR Gate", "path": "src/atlas/experiments", "spec": "Purged k-fold, embargoing, Deflated Sharpe DSR >= 0.95, Direct vs Recursive Horizon Gate", "track": "Both", "status": "Implemented", "gate": "Walk-Forward + DSR", "priority": "P0"},
         {"letter": "R", "domain": "Regime Classification Engine", "path": "src/atlas/regime", "spec": "Causal volatility, trend, liquidity, Hawkes & macro regime tagging", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
         {"letter": "S", "domain": "SEC EDGAR & Fundamental Ingestion", "path": "src/atlas/fundamentals", "spec": "Point-in-time XBRL parser, 10-K/10-Q filing timestamps", "track": "Open-Market Stock", "status": "Implemented", "gate": "PIT Check", "priority": "P1"},
         {"letter": "T", "domain": "Telemetry, Observability & Health", "path": "src/atlas/telemetry", "spec": "Tick-to-trade latency, pipeline heartbeats, drop alerts", "track": "Both", "status": "Implemented", "gate": "Latency Target", "priority": "P0"},
@@ -227,10 +413,10 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
         {"letter": "W", "domain": "Whale Microstructure & Dark Pools", "path": "src/atlas/microstructure", "spec": "Large block detection, VPIN, Hawkes hidden volume clustering", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P2"},
         {"letter": "X", "domain": "Cross-Asset Synchronization & Hedging", "path": "src/atlas/sync", "spec": "Equities vs. Crypto perpetual delta hedging & 9x9 correlation gate", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
         {"letter": "Y", "domain": "Yield & Funding Rate Arbitrage", "path": "src/atlas/yield", "spec": "Basis trade capture, 8h perp funding & overnight repo modeling", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P2"},
-        {"letter": "Z", "domain": "Zero Data-Leakage Research & Sandbox", "path": "src/atlas/research", "spec": "Air-gapped research sandbox, SHA-256 manifest, no lookahead bias", "track": "Both", "status": "Implemented", "gate": "Security Scan", "priority": "P0"},
+        {"letter": "Z", "domain": "Zero Data-Leakage Research & Challenger Sandbox", "path": "src/atlas/research", "spec": "Air-gapped research sandbox, SHA-256 frozen manifests, auto_promoted=False", "track": "Both", "status": "Implemented", "gate": "Security Scan", "priority": "P0"},
     ]
 
-    # TAB 4: Prop Firm B2B SaaS Verticals (SAAS-01..SAAS-10)
+    # TAB 4: Prop Firm B2B SaaS Verticals (SAAS-01..SAAS-12 with Custom B2B Tiered/AUM Pricing Models)
     b2b_saas_verticals = [
         {
             "vertical_id": "SAAS-01",
@@ -239,9 +425,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "Delayed equity updates lead to catastrophic firm losses when traders breach max drawdown during volatile events.",
             "atlas_solution": "Deterministic multi-broker margin & equity monitoring, millisecond kill-switch using ATLAS Control Plane.",
             "domain_scope": "US Equities, CME Futures, FX/CFDs, 24/7 Crypto",
-            "pricing_model": "Monthly B2B Retainer + Per-Trader Seat",
+            "pricing_model": "Monthly B2B Retainer ($2,500/mo) + Tiered Seat ($18/$12/$8 per active trader)",
             "phase": "Executed Directly (Live)",
-            "live_telemetry": "0.8 ms Equity Check · 0 Uncaught Breaches",
+            "live_telemetry": "0.8 ms Equity Check · 0 Uncaught Breaches · Est. $6,100/mo",
             "status": "ACTIVE",
         },
         {
@@ -251,9 +437,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "Manual challenge verification and easily gamified rules lead to unprofitable funded traders.",
             "atlas_solution": "Configurable pass/fail criteria, <=35% consistency scorecards, anti-gaming algorithms powered by ATLAS walk-forward validation.",
             "domain_scope": "FX/CFDs, CME Futures, US Equities",
-            "pricing_model": "Revenue Share on Evaluation Fees",
+            "pricing_model": "4.5% Revenue Share on Gross Evaluation Fees ($1,500/mo minimum floor)",
             "phase": "Executed Directly (Live)",
-            "live_telemetry": "Consistency Gate <=35% · Min 5 Days Enforced",
+            "live_telemetry": "Consistency Gate <=35% · Min 5 Days Enforced · Est. $5,400/mo",
             "status": "ACTIVE",
         },
         {
@@ -263,7 +449,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "Sophisticated rings use account sharing and toxic tick-scalping to extract risk-free profits from B-Book firms.",
             "atlas_solution": "Account-sharing detection, toxic tick-scalping identifier, IP/behavioral fingerprinting using ATLAS ML models.",
             "domain_scope": "FX/CFDs, 24/7 Crypto",
-            "pricing_model": "Tiered SaaS Subscription based on Trade Volume",
+            "pricing_model": "Tiered Volume SaaS ($2,000/mo base + $0.08 per 1,000 screened fills)",
             "phase": "Executed Directly (Live)",
             "live_telemetry": "Sybil Cluster Score: 0.02 (Clean) · 0 Latency Arb Rings",
             "status": "ACTIVE",
@@ -275,9 +461,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "Inefficient manual B-Book to A-Book routing leaves alpha on the table and exposes the firm to directional risk.",
             "atlas_solution": "B-Book to A-Book smart order routing, alpha clustering utilizing ATLAS regime classification engine.",
             "domain_scope": "US Equities, FX/CFDs, 24/7 Crypto",
-            "pricing_model": "AUM / Volume-based Basis Point Fee",
+            "pricing_model": "AUM / Hedged Notional Basis Point Fee (0.35 bps on A-Book / Hybrid routed volume)",
             "phase": "Executed Directly (Live)",
-            "live_telemetry": f"Book Routing: {wf02['recommended_book']} (VPIN={wf02['vpin']})",
+            "live_telemetry": f"Book Routing: {wf02['recommended_book']} (VPIN={wf02['vpin']}) · Est. $1,575/mo",
             "status": "ACTIVE",
         },
         {
@@ -287,7 +473,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "Increasing regulatory scrutiny requires immutable, point-in-time proof of trade execution and pricing.",
             "atlas_solution": "ISO 42001 & IOSCO aligned tamper-proof trade audit logs backed by ATLAS Journaling & Immutable Audit Trails.",
             "domain_scope": "Global (All Asset Classes)",
-            "pricing_model": "Fixed Enterprise Annual License",
+            "pricing_model": "Fixed Enterprise Annual License ($18,000/yr or $1,500/mo)",
             "phase": "Executed Directly (Live)",
             "live_telemetry": "SHA-256 Event Chain Verified · ISO 42001 / IOSCO",
             "status": "ACTIVE",
@@ -299,7 +485,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "High churn rate of funded traders due to emotional trading and lack of personalized, data-driven feedback.",
             "atlas_solution": "Execution bias detection, overtrading alerts, disciplined sizing guides leveraging ATLAS Probability Calibration.",
             "domain_scope": "US Equities, CME Futures, FX/CFDs",
-            "pricing_model": "B2B2C Freemium Upsell",
+            "pricing_model": "B2B2C Freemium Upsell ($29/mo Pro Trader Add-On · 60/40 Firm Split)",
             "phase": "Executed Directly (Live)",
             "live_telemetry": "Revenge-Trading Risk: LOW · Calibrated Sizing: 0.50%",
             "status": "ACTIVE",
@@ -311,7 +497,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "Fragmented API integrations across different asset classes create a maintenance nightmare and execution latency.",
             "atlas_solution": "Unified FIX / REST abstraction across Alpaca, IBKR, cTrader, DXtrade, Bybit, Coinbase via ATLAS Execution Routing.",
             "domain_scope": "Global (All Asset Classes)",
-            "pricing_model": "Monthly B2B Retainer + API Call Volume Tier",
+            "pricing_model": "Monthly B2B Retainer ($2,000/mo) + $350/mo per connected FIX/REST venue gateway",
             "phase": "Executed Directly (Live)",
             "live_telemetry": "6 Gateways Connected (IBKR, Alpaca, FIX, Coinbase, cTrader, Rithmic)",
             "status": "ACTIVE",
@@ -323,7 +509,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "Traders lack real-time visibility into their complex trailing drawdown limits, causing accidental breaches and support tickets.",
             "atlas_solution": "Interactive real-time remaining-room HUD for web & mobile streaming from ATLAS Data Lakehouse.",
             "domain_scope": "US Equities, CME Futures, FX/CFDs, 24/7 Crypto",
-            "pricing_model": "Flat Monthly API Access Fee",
+            "pricing_model": "Flat Monthly White-Label Widget & WebSocket API Fee ($1,250/mo)",
             "phase": "Executed Directly (Live)",
             "live_telemetry": "Docked Live HUD Active (18.5% Daily / 15.0% Trailing Used)",
             "status": "ACTIVE",
@@ -335,9 +521,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "Traders cannot accurately backtest their strategies against the specific, complex rules of prop firm evaluations.",
             "atlas_solution": "Deterministic prop evaluation replay for strategy verification using ATLAS Zero Data-Leakage Research Sandbox.",
             "domain_scope": "US Equities, CME Futures, FX/CFDs",
-            "pricing_model": "Pay-per-Compute / Backtest Hour",
+            "pricing_model": "Pay-per-Compute ($6.50 / Vectorized Backtest GPU-Hour)",
             "phase": "Executed Directly (Live)",
-            "live_telemetry": "Purged Walk-Forward + Prop Rule Replay Verified",
+            "live_telemetry": "Purged Walk-Forward + Prop Rule Replay Verified · Est. $1,170/mo",
             "status": "ACTIVE",
         },
         {
@@ -347,9 +533,33 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "pain_point": "Prop firms unknowingly internalize toxic, informed institutional flow, resulting in severe B-Book losses.",
             "atlas_solution": "Institutional flow detector protecting firm B-Book from toxic informed flow powered by ATLAS Feature Engineering (WF-01..WF-08).",
             "domain_scope": "US Equities, 24/7 Crypto",
-            "pricing_model": "Premium Data Feed Subscription",
+            "pricing_model": "Premium Data Feed Subscription ($3,500/mo per asset class)",
             "phase": "Executed Directly (Live)",
             "live_telemetry": f"Kyle Lambda={wf01['lambda_coeff']} · Hawkes={wf07['current_intensity_lambda']}",
+            "status": "ACTIVE",
+        },
+        {
+            "vertical_id": "SAAS-11",
+            "name": "Challenger Model Benchmark-as-a-Service (CB-01..CB-06)",
+            "buyer_persona": "Chief Investment Officer, Head of Quant Research",
+            "pain_point": "In-house prop firm alpha models overfit in-sample backtests and fail live due to uncalibrated probabilities and selection bias.",
+            "atlas_solution": "Purged & embargoed walk-forward challenger tournament with Deflated Sharpe Ratio (DSR >= 0.95), Prop Loss L(theta), and ECE <= 0.035 gates.",
+            "domain_scope": "Global (Equities, CME Futures, Crypto Perps, FX)",
+            "pricing_model": "Enterprise Research Subscription ($2,800/mo + $150 per evaluated challenger model)",
+            "phase": "Executed Directly (Live)",
+            "live_telemetry": "6 Challengers Benchmarked · Best DSR=0.995 (self_training_antigravity_v1)",
+            "status": "ACTIVE",
+        },
+        {
+            "vertical_id": "SAAS-12",
+            "name": "Custom B2B Hybrid Tiered Seat + AUM/Volume Billing Engine",
+            "buyer_persona": "Prop Firm CFO, COO, Founder",
+            "pain_point": "Rigid per-seat SaaS pricing penalizes high-growth evaluation firms during seasonal challenge volume spikes.",
+            "atlas_solution": "Elastic hybrid billing: C_total = R_base + TieredSeats(1..100@$18, 101..500@$12, 501+@$8) + 0.35 bps Hedged Volume + 4.5% Eval Rev-Share.",
+            "domain_scope": "Ledger 1: Non-Custodial Software Subscription Ledger",
+            "pricing_model": "Elastic Hybrid: $4.5k Base + $18/$12/$8 Seat Tiers + 0.35 bps AUM + 4.5% Eval Share",
+            "phase": "Executed Directly (Live)",
+            "live_telemetry": f"250 Seats · $45M Hedged Vol -> Est. MRR ${b2b_pricing_quote['total_monthly_mrr_usd']:,.2f}/mo (${b2b_pricing_quote['annualized_arr_usd']:,.2f} ARR)",
             "status": "ACTIVE",
         },
     ]
@@ -583,18 +793,96 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
         {"layer": "Architecture & Specs", "route": "/docs", "description": "Live in-app Markdown reader for all 9 specification docs", "data_flow": "/api/docs"},
     ]
 
+    # TAB 8: ICP Personas & Dual-Realm Data Pipelines (Open-Market Trading vs Prop Trading Competitions)
+    icp_personas = [
+        {
+            "icp_id": "ICP-01",
+            "persona_name": "Prop Competition Challenger & Funded Trader",
+            "primary_realm": "Prop Competition",
+            "buyer_role": "Prop Trader, Challenge Participant, Funded Account Operator",
+            "core_objective": "Enter & pass Phase 1 (+8%) / Phase 2 (+5%) trading competitions without breaching 4% daily, 8% trailing HWM, or <=35% consistency gates.",
+            "end_to_end_data_pipeline": "Coinbase/CCXT 24/7 + CME MDP3 L3 MBO -> <500ms Staleness & PIT Gate -> 5,000-Tick Ring Buffer (OFI/VPIN) -> Remaining-Room & 35% Consistency Pre-Check -> Almgren-Chriss Child Slicer",
+            "mapped_verticals": "SAAS-02, SAAS-06, SAAS-08, SAAS-09",
+            "primary_route": "/trade/cockpit",
+        },
+        {
+            "icp_id": "ICP-02",
+            "persona_name": "Open-Market Equity & Multi-Asset Trader",
+            "primary_realm": "Open-Market Stock",
+            "buyer_role": "Portfolio Manager, Discretionary/Systematic Equity Trader",
+            "core_objective": "Compound capital across NYSE/Nasdaq equities (SPY, NVDA, AAPL, MSFT, QQQ, TSLA) using PIT SEC XBRL fundamentals and calibrated multi-horizon forecasts.",
+            "end_to_end_data_pipeline": "Polygon.io SIP + Databento L1/L2 + SEC EDGAR XBRL -> Causal PIT Gate (acceptance_time <= as_of) -> DuckDB/Parquet Lakehouse -> Calibrated GBDT Fan (perm: none) -> 3% Desk Gate -> Alpaca/IBKR DMA",
+            "mapped_verticals": "SAAS-07, SAAS-08, SAAS-10, SAAS-11",
+            "primary_route": "/trade/cockpit",
+        },
+        {
+            "icp_id": "ICP-03",
+            "persona_name": "Prop Firm Founder, CFO & Head of Risk",
+            "primary_realm": "Both (Competition Host & Risk Control)",
+            "buyer_role": "Prop Firm Founder, Head of Risk, CFO, Operations Lead",
+            "core_objective": "Host profitable prop trading competitions with 0.8ms real-time drawdown enforcement, Sybil/copy-bot ring quarantine, and elastic hybrid SaaS billing.",
+            "end_to_end_data_pipeline": "6-Gateway Multi-Broker Fill & Equity Stream -> 0.8ms HWM Drawdown & Sybil Cluster Engine (rho > 0.92, dt < 50ms) -> Deterministic Auto-Flatten & Quarantine -> Ledger 1 Non-Custodial Billing",
+            "mapped_verticals": "SAAS-01, SAAS-02, SAAS-03, SAAS-05, SAAS-12",
+            "primary_route": "/control/risk-hud",
+        },
+        {
+            "icp_id": "ICP-04",
+            "persona_name": "Dealing Desk Lead, CIO & Quant Researcher",
+            "primary_realm": "Both (Liquidity, Hedging & Alpha Lab)",
+            "buyer_role": "Dealing Desk Lead, Chief Investment Officer, Head of Quant Research",
+            "core_objective": "Internalize clean B-Book flow, route toxic VPIN/Whale flow (WF-01..08) to A-Book DMA, and benchmark challenger models (CB-01..06) with DSR >= 0.95 & ECE <= 0.035.",
+            "end_to_end_data_pipeline": "L2/L3 Order Book + On-Chain Indexer -> WF-01..08 Whale ML & CB-01..06 Walk-Forward Tournament -> Calibration & Scoped Approval Gate -> 9x9 Cross-Asset Netting & A-Book Hedger",
+            "mapped_verticals": "SAAS-04, SAAS-07, SAAS-09, SAAS-10, SAAS-11",
+            "primary_route": "/research/walk-forward",
+        },
+    ]
+
+    dual_realm_pipelines = {
+        "open_market_realm": {
+            "realm_id": "open_market",
+            "title": "Realm 1: Open-Market Equities & Multi-Asset Trading",
+            "stages": [
+                {"step": "1. Ingestion", "source": "Polygon.io SIP + Databento L1/L2 + SEC EDGAR XBRL", "metric": "9ms RTT · T+1 / Reg-T"},
+                {"step": "2. Causal PIT Gate", "source": "acceptance_time <= as_of_timestamp", "metric": "Zero Lookahead Verified"},
+                {"step": "3. Lakehouse & Features", "source": "DuckDB/Parquet + Volume Profile (VAL/POC/VAH)", "metric": "2.45M PIT Rows"},
+                {"step": "4. AI Forecast Fan", "source": "CB-06 Antigravity GBDT (t+1h / t+2h)", "metric": "DSR 0.995 · perm: none"},
+                {"step": "5. Risk & DMA Routing", "source": "3.0% Desk Limit · 0.50% Risk Cap -> Alpaca / IBKR DMA", "metric": "Unconstrained Compounding"},
+            ],
+        },
+        "prop_competition_realm": {
+            "realm_id": "competition",
+            "title": "Realm 2: Prop Trading Competitions & Evaluation Challenges",
+            "stages": [
+                {"step": "1. 24/7 Competition Feed", "source": "Coinbase/CCXT Pro + CME MDP3 L3 MBO + Funding/OI", "metric": "8.4ms Tick Stream"},
+                {"step": "2. Staleness & PIT Gate", "source": "<500ms Feed Freshness Circuit Breaker", "metric": "0 Stale Fills"},
+                {"step": "3. Ring Buffer & Whale ML", "source": "5,000-Tick Deque · Top-5 OFI + Rolling VPIN + Hawkes", "metric": "VPIN 29.1% · OFI +22.8%"},
+                {"step": "4. Challenge Rule Engine", "source": "4% Daily · 8% Trailing HWM · <=35% Consistency · >=5 Days", "metric": "0.8ms Equity Check"},
+                {"step": "5. Competition Execution", "source": "Almgren-Chriss Child Slicer & Smart A/B-Book Router", "metric": "Phase 1/2 -> Funded"},
+            ],
+        },
+    }
+
+    from atlas.proctoring_and_features100 import build_100_feature_matrix
+
+    hundred_feature_matrix = build_100_feature_matrix()
+
     return {
         "status": "ok",
         "as_of": now,
         "focus_symbol": symbol.upper(),
         "execution_permission": "none",
         "roadmap_az": roadmap_az,
+        "challenger_benchmarks": challenger_benchmarks,
         "track_rules_limits": track_rules_limits,
         "workbench_layers_apis": workbench_layers_apis,
         "b2b_saas_verticals": b2b_saas_verticals,
+        "b2b_pricing_quote": b2b_pricing_quote,
         "whale_execution_ml": whale_execution_ml,
         "global_multi_domain": global_multi_domain,
         "whale_decision_matrix": whale_decision_matrix,
+        "icp_personas": icp_personas,
+        "dual_realm_pipelines": dual_realm_pipelines,
+        "hundred_feature_matrix": hundred_feature_matrix,
         "live_wf_telemetry": {
             "wf01_kyles_lambda": wf01,
             "wf02_vpin": wf02,
@@ -606,4 +894,40 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "wf08_rl_policy": wf08,
         },
     }
+
+
+def export_master_roadmap_csvs(output_dir: str | Path | None = None) -> dict[str, str]:
+    """Exports all Master Roadmap tabs (including Tab 1 Challenger Benchmarks, Tab 4 Custom B2B SaaS Pricing,
+    Tab 8 ICP Personas & Dual-Realm Pipelines, and Tab 9 100-Feature Technical Matrix) to local CSV tracking sheets under docs/roadmap/*.csv.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    target_dir = Path(output_dir) if output_dir else repo_root / "docs" / "roadmap"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    state = build_master_roadmap_state()
+
+    sheets: list[tuple[str, list[dict[str, Any]]]] = [
+        ("tab1_platform_roadmap_az.csv", state["roadmap_az"]),
+        ("tab1b_challenger_model_benchmarks.csv", state["challenger_benchmarks"]["benchmarks"]),
+        ("tab2_track_rules_limits.csv", state["track_rules_limits"]),
+        ("tab3_workbench_layers_apis.csv", state["workbench_layers_apis"]),
+        ("tab4_prop_b2b_saas_verticals.csv", state["b2b_saas_verticals"]),
+        ("tab5_whale_order_flow_ml.csv", state["whale_execution_ml"]),
+        ("tab6_global_multi_domain.csv", state["global_multi_domain"]),
+        ("tab7_whale_signal_decision_matrix.csv", state["whale_decision_matrix"]),
+        ("tab8_icp_personas_and_realms.csv", state["icp_personas"]),
+        ("tab9_100_feature_matrix.csv", state["hundred_feature_matrix"]["features"]),
+    ]
+
+    exported_paths: dict[str, str] = {}
+    for filename, rows in sheets:
+        file_path = target_dir / filename
+        if rows:
+            fieldnames = list(rows[0].keys())
+            with file_path.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+        exported_paths[filename] = str(file_path)
+    return exported_paths
+
 

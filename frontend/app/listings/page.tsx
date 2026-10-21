@@ -1,6 +1,5 @@
-import AtlasTerminal from "../AtlasTerminal";
+import { Module02ListingsView } from "../../src/components/market/Module02ListingsView";
 
 export default function ListingsPage() {
-  return <AtlasTerminal initialSection="listings" />;
+  return <Module02ListingsView />;
 }
-

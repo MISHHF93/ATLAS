@@ -1,6 +1,5 @@
 import { AtlasTerminal } from "../AtlasTerminal";
 
 export default function ConnectorsPage() {
-  return <AtlasTerminal initialSection="connectors" />;
+  return <AtlasTerminal initialSection="connectors" initialWorkspaceRoute="/data/pipelines" />;
 }
-

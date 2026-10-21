@@ -1,0 +1,11 @@
+dimension,open_market_spec,prop_competition_spec,deterministic_enforcement
+Execution Target,"NYSE Arca / Nasdaq (XNYS, XNAS)","BTC-USD, ETH-USD, SOL-USD & Multi-Asset Prop Books",ActionableControlPlaneEngine
+Assets,"SPY, NVDA, AAPL, MSFT, QQQ, TSLA",24/7 Crypto / Derivative & Futures Books,"Kill switch, auto-flatten"
+Trading Hours,09:30-16:00 ET regular session + Auctions,24/7/365 Continuous Session,Time-based calendar session gate
+Max Daily Loss,3.0% Desk Daily Loss Limit,4.0% Daily Loss Circuit Breaker,ActionableControlPlaneEngine
+Max Trailing DD,10.0% Static Drawdown Floor,8.0% Max Trailing Drawdown Floor,ActionableControlPlaneEngine
+Per-Trade Risk Cap,0.50% Equity Risk Cap,0.50%-0.75% Per-Trade Risk Cap,Mandatory ATR/Structure Stop + VPIN Widening
+Consistency Gate,Unconstrained Open-Market Compounding,<= 35% Single-Day Profit Consistency Gate,>= 5 Minimum Trading Days
+Data Feeds,"SEC EDGAR PIT XBRL, Databento / Polygon.io SIP","Databento L1/L2/MBO, Coinbase Public REST",acceptance_time <= as_of (PIT Gate)
+Broker Routing,Alpaca / Interactive Brokers DMA routing,"FIX protocol, Coinbase, cTrader, Rithmic",Zero operator discretion
+Regulatory/Audit Standard,SEC T+1 / Reg-T / XBRL Audit,Prop Challenge Rulebook Verification,"ISO 42001, NIST AI RMF, IOSCO & 8 Ledgers"

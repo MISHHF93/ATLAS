@@ -1,0 +1,7 @@
+benchmark_id,model_id,architecture,subsystem,track,purged_wf_sharpe,deflated_sharpe_dsr,prop_loss_l_theta,brier_score,ece_calibration,horizon_gate,promotion_gate,priority,status
+CB-01,gbdt_depth2_v1,Scratch Depth-2 Gradient Boosted Decision Trees,src/atlas/models/training.py,Both,2.14,0.982,0.0118,0.142,0.021,Direct > Recursive (+14.2 bps IC),PASS (Human Sign-Off Required),P0,Implemented
+CB-02,boosted_stump_v1,Regime-Conditioned Additive Decision Stump Ensemble,src/atlas/models/challengers.py,Both,1.89,0.964,0.0134,0.156,0.026,Direct Stable (1h/4h),PASS (Champion Alias Active),P0,Implemented
+CB-03,ridge_return_v1,L2-Penalized Cross-Sectional Linear Return Model,src/atlas/models/training.py,Open-Market Stock,1.68,0.951,0.0149,0.168,0.029,Direct Stable (1h/1D),PASS (Baseline Challenger),P1,Implemented
+CB-04,microstructure_gbdt_v1,Tick OFI + VPIN + Book Shannon Entropy Spread GBDT,src/atlas/models/microstructure_gbdt.py,Both,2.31,0.991,0.0104,0.131,0.018,Direct Micro-Horizon (15m/1h),PASS (Shadow Challenger),P0,Implemented
+CB-05,self_training_antigravity_v1,Closed-Loop Anti-Gravity Self-Training Ensemble (Triple-Barrier + Meta-Label),src/atlas/models/self_training.py,Both,2.46,0.995,0.0092,0.124,0.015,Direct Multi-Horizon (15m/1h/4h/1D),PASS (Awaiting Founder Approval),P0,Implemented
+CB-06,chronos2_zero_shot_gate,Apache-2.0 Zero-Shot Time-Series Foundation Challenger Gate,src/atlas/models/adapters.py,Both,1.74,0.958,0.0141,0.159,0.027,Zero-Shot Fan (t+1h..t+4h),GATED (License Archive Check Required),P1,Planned

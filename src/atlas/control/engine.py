@@ -6,7 +6,7 @@ Zero imports from `atlas.ai` — only the deterministic control plane authorizes
 """
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AwareDatetime
 
@@ -29,6 +29,7 @@ class ActionableOrderRequest(Record):
     stop_distance_bps: Decimal = Decimal("180")
     holding_horizon_seconds: int = 14400
     vpin_toxicity: float = 0.0
+    data_age_ms: float = 8.4
 
 
 class ActionablePositionRecord(Record):
@@ -54,6 +55,27 @@ class ActionableOrderDecision(Record):
     violations: tuple[str, ...] = ()
     position_id: Text | None = None
     rule_evaluation: RuleEvaluationReport
+
+
+class BracketOrderIntakeReport(Record):
+    """Result of the Signal Intake & Bracket Order Bridge inside `ActionableControlPlaneEngine`."""
+
+    order_id: Text
+    symbol: Text
+    track: Literal["competition", "open_market"]
+    direction: Literal["BUY", "SELL", "HOLD"]
+    target_entry_price: float
+    stop_loss_price: float
+    take_profit_price: float
+    stop_distance_bps: Decimal
+    sized_notional_usd: Decimal
+    risk_budget_usd: Decimal
+    risk_fraction_of_equity: float
+    data_age_ms: float
+    remaining_room_hud: dict[str, Any]
+    decision: ActionableOrderDecision
+    connector_receipt: dict[str, Any] | None = None
+    execution_permission: Literal["none"] = "none"
 
 
 class ActionableControlState(Record):
@@ -151,6 +173,8 @@ class ActionableControlPlaneEngine:
         self.active_challenger_model: str = "local_tree:boosted_stump_v1:v1"
         self.challenger_approved: bool = True
         self.training_runs_completed: int = 1
+        self.last_feed_latency_ms: float = 8.4
+        self.data_freshness_breach: bool = False
         self.audit_log: list[str] = [
             f"{now.isoformat()} | control_plane_initialized | track=competition | kill_switch=False"
         ]
@@ -236,6 +260,16 @@ class ActionableControlPlaneEngine:
             vpin_toxicity=request.vpin_toxicity,
         )
         eval_rep = evaluate_trading_rules(rulebook, snap, cand, evaluated_at=ts)
+        extra_violations = list(eval_rep.violations)
+        if request.track == "competition" and float(request.data_age_ms) > 500.0:
+            extra_violations.append("data_stale_competition_500ms: market data staleness exceeds 500ms")
+        if extra_violations != list(eval_rep.violations):
+            eval_rep = eval_rep.model_copy(
+                update={
+                    "compliance_passed": False,
+                    "violations": tuple(extra_violations),
+                }
+            )
         self._order_seq += 1
         order_id = f"ord-{self._order_seq:03d}"
 
@@ -362,4 +396,288 @@ class ActionableControlPlaneEngine:
             f"{ts.isoformat()} | self_training_completed | challenger={self.active_challenger_model} | runs={self.training_runs_completed}"
         )
         return self.get_state(ts)
+
+    def report_feed_latency(
+        self,
+        *,
+        track: Literal["competition", "open_market"] = "competition",
+        latency_ms: float,
+        provider: str = "live_stream",
+        now: datetime | None = None,
+    ) -> dict[str, object]:
+        """Reports live ingestion tick-to-decision latency to the deterministic control plane.
+
+        If data feed staleness exceeds 500ms on prop competition tracks, flags a deterministic
+        data-freshness circuit breach.
+        """
+        ts = now or datetime.now(timezone.utc)
+        self.last_feed_latency_ms = float(latency_ms)
+        threshold_ms = 500.0 if track == "competition" else 2000.0
+        breach = float(latency_ms) > threshold_ms
+        self.data_freshness_breach = breach
+        if breach:
+            self.audit_log.append(
+                f"{ts.isoformat()} | data_freshness_circuit_breach | track={track} | provider={provider} | latency_ms={latency_ms:.2f} > {threshold_ms:.1f}ms"
+            )
+        else:
+            self.audit_log.append(
+                f"{ts.isoformat()} | feed_latency_verified | track={track} | provider={provider} | latency_ms={latency_ms:.2f}ms"
+            )
+        return {
+            "track": track,
+            "provider": provider,
+            "latency_ms": round(float(latency_ms), 2),
+            "threshold_ms": threshold_ms,
+            "data_freshness_breach": breach,
+            "evaluated_at": ts.isoformat(),
+        }
+
+    def get_remaining_room_hud(
+        self,
+        *,
+        track: Literal["competition", "open_market"] | None = None,
+    ) -> dict[str, object]:
+        """Compute exact dollar and percentage buffers remaining before breaching daily or trailing drawdown limits."""
+        active_trk = track or self.active_track
+        rulebook = self._rulebook_for(active_trk)
+        sod = max(Decimal("1"), self.start_of_day_equity_usd)
+        hwm = max(Decimal("1"), self.high_water_mark_usd)
+        curr = self.current_equity_usd
+
+        daily_limit_frac = rulebook.max_daily_loss_fraction  # 0.04 on competition, 0.03 on open_market
+        trailing_limit_frac = rulebook.max_drawdown_fraction  # 0.08 on competition, 0.10 on open_market
+
+        daily_floor_usd = (sod * (Decimal("1") - daily_limit_frac)).quantize(Decimal("0.01"))
+        trailing_floor_usd = (hwm * (Decimal("1") - trailing_limit_frac)).quantize(Decimal("0.01"))
+
+        daily_room_usd = max(Decimal("0.00"), (curr - daily_floor_usd).quantize(Decimal("0.01")))
+        trailing_room_usd = max(Decimal("0.00"), (curr - trailing_floor_usd).quantize(Decimal("0.01")))
+
+        daily_dd_frac = max(Decimal("0"), (sod - curr) / sod)
+        trailing_dd_frac = max(Decimal("0"), (hwm - curr) / hwm)
+
+        daily_room_pct = float(max(Decimal("0"), (daily_limit_frac - daily_dd_frac) * Decimal("100")))
+        trailing_room_pct = float(max(Decimal("0"), (trailing_limit_frac - trailing_dd_frac) * Decimal("100")))
+
+        return {
+            "track": active_trk,
+            "current_equity_usd": float(curr),
+            "start_of_day_equity_usd": float(sod),
+            "high_water_mark_usd": float(hwm),
+            "daily_floor_usd": float(daily_floor_usd),
+            "trailing_floor_usd": float(trailing_floor_usd),
+            "daily_loss_room_usd": float(daily_room_usd),
+            "daily_loss_room_pct": round(daily_room_pct, 3),
+            "trailing_dd_room_usd": float(trailing_room_usd),
+            "trailing_dd_room_pct": round(trailing_room_pct, 3),
+            "daily_drawdown_fraction": round(float(daily_dd_frac), 6),
+            "trailing_drawdown_fraction": round(float(trailing_dd_frac), 6),
+        }
+
+    def evaluate_market_tick(
+        self,
+        *,
+        symbol: str,
+        price: float,
+        track: Literal["competition", "open_market"] = "competition",
+        latency_ms: float = 8.4,
+        provider: str = "live_stream",
+        mark_to_market_equity_usd: Decimal | float | None = None,
+        now: datetime | None = None,
+    ) -> dict[str, object]:
+        """Real-time control-plane hook invoked on incoming market ticks.
+
+        1. Checks market data staleness (> 500ms on `competition` track triggers data-freshness circuit alert).
+        2. Evaluates real-time mark-to-market open equity against the 4.0% daily loss limit and 8.0% trailing
+           high-water-mark drawdown floor; if either threshold is touched/breached, immediately triggers
+           deterministic auto-flattening of all open positions.
+        """
+        ts = now or datetime.now(timezone.utc)
+        freshness = self.report_feed_latency(
+            track=track,
+            latency_ms=latency_ms,
+            provider=provider,
+            now=ts,
+        )
+
+        if mark_to_market_equity_usd is not None:
+            new_eq = Decimal(str(round(float(mark_to_market_equity_usd), 2)))
+            self.current_equity_usd = new_eq
+            if new_eq > self.high_water_mark_usd:
+                self.high_water_mark_usd = new_eq
+
+        rulebook = self._rulebook_for(track)
+        sod = max(Decimal("1"), self.start_of_day_equity_usd)
+        hwm = max(Decimal("1"), self.high_water_mark_usd)
+        curr = self.current_equity_usd
+
+        daily_dd_frac = max(Decimal("0"), (sod - curr) / sod)
+        trailing_dd_frac = max(Decimal("0"), (hwm - curr) / hwm)
+
+        daily_breached = daily_dd_frac >= rulebook.max_daily_loss_fraction
+        trailing_breached = trailing_dd_frac >= rulebook.max_drawdown_fraction
+
+        auto_flattened = False
+        breach_reasons: list[str] = []
+        if daily_breached:
+            breach_reasons.append(
+                f"daily_loss_circuit_breaker:{float(daily_dd_frac * 100):.2f}%>={float(rulebook.max_daily_loss_fraction * 100):.2f}%"
+            )
+        if trailing_breached:
+            breach_reasons.append(
+                f"trailing_hwm_drawdown_floor:{float(trailing_dd_frac * 100):.2f}%>={float(rulebook.max_drawdown_fraction * 100):.2f}%"
+            )
+
+        if daily_breached or trailing_breached:
+            auto_flattened = True
+            self.kill_switch_engaged = True
+            reason_str = "|".join(breach_reasons)
+            self.flatten_all_positions(reason=f"tick_mtm_liquidation:{symbol}@{price}:{reason_str}", now=ts)
+
+        hud = self.get_remaining_room_hud(track=track)
+        status: Literal["AUTO_FLATTENED", "STALE_DATA_ALERT", "NOMINAL"] = (
+            "AUTO_FLATTENED"
+            if auto_flattened
+            else ("STALE_DATA_ALERT" if bool(freshness["data_freshness_breach"]) else "NOMINAL")
+        )
+
+        return {
+            "status": status,
+            "symbol": symbol.upper(),
+            "price": round(float(price), 4),
+            "track": track,
+            "latency_ms": round(float(latency_ms), 2),
+            "data_freshness_breach": bool(freshness["data_freshness_breach"]),
+            "auto_flattened": auto_flattened,
+            "kill_switch_engaged": self.kill_switch_engaged,
+            "breach_reasons": tuple(breach_reasons),
+            "open_positions_count": sum(1 for p in self.open_positions if p.status == "open"),
+            "remaining_room_hud": hud,
+            "evaluated_at": ts.isoformat(),
+        }
+
+    def ingest_whale_policy_signal(
+        self,
+        signal: Any,
+        *,
+        track: Literal["competition", "open_market"] | None = None,
+        risk_fraction_target: Decimal = Decimal("0.0060"),
+        desired_notional_usd: Decimal | None = None,
+        data_age_ms: float = 8.4,
+        execution_connector: Any | None = None,
+        now: datetime | None = None,
+    ) -> BracketOrderIntakeReport:
+        """Signal Intake & Bracket Order Bridge inside `ActionableControlPlaneEngine`.
+
+        1. Verifies strict AI Air-Gap (`signal.execution_permission == "none"`).
+        2. Checks `get_remaining_room_hud()` and sizes position strictly within the 0.50%-0.75%
+           per-trade equity risk envelope (unless an explicit `desired_notional_usd` is supplied).
+        3. Attaches mandatory structural ATR stop-loss and take-profit brackets.
+        4. Rejects orders deterministically if:
+           - Floating daily drawdown breaches the 4.0% daily circuit breaker
+           - Account equity breaches the 8.0% max trailing drawdown floor
+           - Single-day profit consistency gate (> 35%) is violated
+           - Per-trade risk exceeds 0.75% of account balance
+           - Mandatory ATR stop-loss bracket is missing (`stop_distance_bps <= 0`)
+           - Market data staleness exceeds 500ms on the `competition` track
+        5. Dispatches authorized bracket orders to `execution_connector` when provided.
+        """
+        ts = now or datetime.now(timezone.utc)
+        sig_dict = signal.model_dump() if hasattr(signal, "model_dump") else dict(signal)
+
+        if sig_dict.get("execution_permission") != "none":
+            raise ValueError("AI Air-Gap Violation: incoming StrategySignal must have execution_permission == 'none'")
+
+        sym = str(sig_dict.get("symbol", "BTC-USD")).upper().strip()
+        resolved_track: Literal["competition", "open_market"] = (
+            track
+            if track in ("competition", "open_market")
+            else ("competition" if sym.endswith("-USD") or sym.endswith("USDT") else "open_market")
+        )
+        direction: Literal["BUY", "SELL", "HOLD"] = str(sig_dict.get("direction", "BUY")).upper()  # type: ignore[assignment]
+        entry_px = float(sig_dict.get("target_entry_price") or sig_dict.get("reference_price") or 100.0)
+        stop_px = float(sig_dict.get("suggested_stop_loss", 0.0))
+        tp_px = float(sig_dict.get("suggested_take_profit", entry_px * 1.015))
+        telemetry = sig_dict.get("telemetry") or {}
+        vpin_val = float(telemetry.get("vpin", 0.28))
+
+        if entry_px > 0 and stop_px > 0 and abs(entry_px - stop_px) > 1e-9:
+            raw_stop_bps = abs(entry_px - stop_px) / entry_px * 10_000.0
+            stop_bps = Decimal(str(round(raw_stop_bps, 2)))
+        else:
+            stop_bps = Decimal("0")
+
+        hud = self.get_remaining_room_hud(track=resolved_track)
+        equity = self.current_equity_usd
+
+        # Enforce 0.50%-0.75% equity risk sizing when desired_notional_usd is not explicitly overridden
+        clamped_risk_frac = min(Decimal("0.0075"), max(Decimal("0.0050"), Decimal(str(risk_fraction_target))))
+        risk_budget_usd = (equity * clamped_risk_frac).quantize(Decimal("0.01"))
+
+        if desired_notional_usd is not None:
+            sized_notional = Decimal(str(desired_notional_usd)).quantize(Decimal("0.01"))
+        elif stop_bps > Decimal("0"):
+            stop_frac = stop_bps / Decimal("10000")
+            raw_notional = risk_budget_usd / stop_frac
+            rulebook = self._rulebook_for(resolved_track)
+            max_cap = rulebook.max_position_notional_usd or (
+                Decimal("50000") if resolved_track == "competition" else Decimal("40000")
+            )
+            sized_notional = min(max_cap, max(Decimal("1000"), raw_notional.quantize(Decimal("0.01"))))
+        else:
+            sized_notional = Decimal("25000")
+
+        actual_risk_usd = (sized_notional * (stop_bps / Decimal("10000"))).quantize(Decimal("0.01"))
+        actual_risk_frac = float(actual_risk_usd / max(Decimal("1"), equity))
+
+        prefix = "comp" if resolved_track == "competition" else "open"
+        inst_id = f"{prefix}:{sym.lower().replace('-usd', '')}-perp:v1" if resolved_track == "competition" else f"{prefix}:{sym.lower()}-eq:v1"
+        side: Literal["buy", "sell"] = "sell" if direction == "SELL" else "buy"
+
+        req = ActionableOrderRequest(
+            track=resolved_track,
+            instrument_id=inst_id,
+            side=side,
+            notional_usd=sized_notional,
+            stop_kind="atr",
+            stop_distance_bps=stop_bps,
+            holding_horizon_seconds=3600,
+            vpin_toxicity=min(1.0, max(0.0, vpin_val)),
+            data_age_ms=float(data_age_ms),
+        )
+        decision = self.submit_order(req, now=ts)
+
+        connector_receipt: dict[str, Any] | None = None
+        if decision.control_plane_decision == "authorized_and_executed" and execution_connector is not None:
+            if hasattr(execution_connector, "route_approved_order"):
+                raw_rec = execution_connector.route_approved_order(
+                    decision,
+                    tactic=str(sig_dict.get("execution_tactic", "ALMGREN_CHRISS")),
+                    reference_price=entry_px,
+                    executed_at=ts,
+                )
+                connector_receipt = raw_rec.model_dump(mode="json") if hasattr(raw_rec, "model_dump") else dict(raw_rec)
+
+        return BracketOrderIntakeReport(
+            order_id=decision.order_id,
+            symbol=sym,
+            track=resolved_track,
+            direction=direction,
+            target_entry_price=entry_px,
+            stop_loss_price=stop_px,
+            take_profit_price=tp_px,
+            stop_distance_bps=stop_bps,
+            sized_notional_usd=sized_notional,
+            risk_budget_usd=actual_risk_usd,
+            risk_fraction_of_equity=round(actual_risk_frac, 6),
+            data_age_ms=round(float(data_age_ms), 2),
+            remaining_room_hud=hud,
+            decision=decision,
+            connector_receipt=connector_receipt,
+            execution_permission="none",
+        )
+
+    evaluate_and_bracket_signal = ingest_whale_policy_signal
+
+
 

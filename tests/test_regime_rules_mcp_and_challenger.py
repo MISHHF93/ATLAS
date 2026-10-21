@@ -1183,7 +1183,7 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     rm_body = rm_get.json()
     assert len(rm_body["roadmap_az"]) == 26
     assert all(r["status"] == "Implemented" for r in rm_body["roadmap_az"])
-    assert len(rm_body["b2b_saas_verticals"]) == 10
+    assert len(rm_body["b2b_saas_verticals"]) == 12
     assert len(rm_body["whale_execution_ml"]) == 8
     assert len(rm_body["global_multi_domain"]) == 5
     assert len(rm_body["whale_decision_matrix"]) == 5
