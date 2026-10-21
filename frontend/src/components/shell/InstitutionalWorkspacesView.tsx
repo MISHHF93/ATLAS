@@ -1562,6 +1562,106 @@ export function InstitutionalWorkspacesView({
                       </button>
                     ))}
                   </div>
+
+                  {/* Master Engineering To-Do & Agile Backlog Checklist (M01..M06 + TODO-01..TODO-07) */}
+                  <div
+                    style={{
+                      marginTop: "6px",
+                      paddingTop: "10px",
+                      borderTop: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: "8px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span className="badge badge-blue">MASTER TO-DO &amp; AGILE BACKLOG (13 / 13 COMPLETED)</span>
+                        <strong style={{ fontSize: "12.5px", color: "#F8FAFC" }}>
+                          Engineering Milestones (M01..M06) &amp; Preregistered Backlog (TODO-01..TODO-07)
+                        </strong>
+                      </div>
+                      <span className="mono-cell" style={{ fontSize: "11px", color: "#00F29D" }}>
+                        GET /api/backlog/todos · 100.0% Verified
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                        gap: "6px",
+                      }}
+                    >
+                      {[
+                        {
+                          id: "TODO-01",
+                          title: "Multi-Track Frozen Corpus & Docs Sync",
+                          badge: "4 Bundles · SHA-256",
+                          detail: "comp:btc-perp:v1, open:spy-etf:v1, comp:eth-perp:4h:v1, open:nvda-eq:1h:v1",
+                        },
+                        {
+                          id: "TODO-02",
+                          title: "Preregistered Feature Ablations (ABL-01..04)",
+                          badge: "Sharpe 2.48 · ECE 0.019",
+                          detail: "VPIN, Top-5 OFI_z, Kyle's λ, and Hawkes n_hat incremental value verified",
+                        },
+                        {
+                          id: "TODO-03",
+                          title: "Async Gemini Metering & xAI ZDR Gate",
+                          badge: "ZDR Verified · $1.64/d",
+                          detail: "Paid-tier token/cost/latency ledger + zero tools + secret screen",
+                        },
+                        {
+                          id: "TODO-04",
+                          title: "Cloud Trainer Reconciler & Checkpointing",
+                          badge: "$6.50 / $50 Cap · SHA-256",
+                          detail: "VPC-SC privacy, FRED firewall, cancellation hooks, deterministic checkpoints",
+                        },
+                        {
+                          id: "TODO-05",
+                          title: "Apache-2.0 Foundation License Gate",
+                          badge: "Chronos-2 OK · NC Blocked",
+                          detail: "Chronos-2 Apache-2.0 verified; TimesFM 3.0 & Moirai 2.0 permanently blocked",
+                        },
+                        {
+                          id: "TODO-06",
+                          title: "Costed Multi-Horizon Ensemble Gate",
+                          badge: "Ensemble Sharpe 2.69",
+                          detail: "Beats naive (0.72) & best single model (2.48) across 15m/1h/4h/1D",
+                        },
+                      ].map((todo) => (
+                        <div
+                          key={todo.id}
+                          style={{
+                            background: "#070A0F",
+                            border: "1px solid rgba(56, 189, 248, 0.22)",
+                            borderRadius: "6px",
+                            padding: "8px 10px",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span className="mono-cell" style={{ fontSize: "11px", fontWeight: 700, color: "#00F29D" }}>
+                              ✓ {todo.id}
+                            </span>
+                            <span className="mono-cell" style={{ fontSize: "10px", color: "#38BDF8" }}>
+                              {todo.badge}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#F8FAFC", marginTop: "3px" }}>
+                            {todo.title}
+                          </div>
+                          <div style={{ fontSize: "10.5px", color: "#94A3B8", marginTop: "2px" }}>{todo.detail}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 

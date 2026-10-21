@@ -286,5 +286,27 @@ def test_perfect_trader_whale_ml_and_auto_submit():
     assert len(scan_body["multi_asset_scan"]["dispatched_orders"]) >= 4
 
 
+def test_master_todo_backlog_and_ablation_endpoints():
+    """Verify the Master To-Do & Agile Backlog Execution Engine (M01..M06 & TODO-01..TODO-07)."""
+    client = TestClient(app)
+
+    res_get = client.get("/api/backlog/todos")
+    assert res_get.status_code == 200
+    body = res_get.json()
+    assert body["execution_permission"] == "none"
+    assert body["total_items"] == 13
+    assert body["completed_items"] == 13
+    assert body["completion_pct"] == 100.0
+    assert len(body["completed_milestones"]) == 6
+    assert len(body["backlog_todos"]) == 7
+    assert len(body["ablation_study"]["ablations"]) == 4
+    assert body["cloud_and_ensemble"]["costed_ensemble_gate"]["beats_best_single_member"] is True
+
+    res_post = client.post("/api/backlog/todos/verify", json={})
+    assert res_post.status_code == 200
+    assert res_post.json()["execution_permission"] == "none"
+
+
+
 
 

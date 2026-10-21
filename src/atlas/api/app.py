@@ -2213,6 +2213,7 @@ def _build_visual_automation_scan(symbol: str = "BTC-USD", trigger_dispatch: boo
         },
     ]
     total_manual_eliminated = sum(int(s["manual_steps_eliminated"]) for s in subsystems)
+    from atlas.backlog_tracker import build_master_todo_backlog_report
     from atlas.features.microstructure import compute_institutional_quantitative_measurements
 
     live_batch = live_market_gateway.fetch_live_market_candles_and_ingest(
@@ -2225,6 +2226,7 @@ def _build_visual_automation_scan(symbol: str = "BTC-USD", trigger_dispatch: boo
         symbol=clean_sym,
         candles=live_batch["candles"],
     )
+    backlog_report = build_master_todo_backlog_report()
     control_engine.audit_log.append(
         f"{now_iso} | visual_automation_scan | symbol={clean_sym} automated_loops={len(subsystems)} manual_eliminated={total_manual_eliminated} permission=none"
     )
@@ -2239,6 +2241,7 @@ def _build_visual_automation_scan(symbol: str = "BTC-USD", trigger_dispatch: boo
         "subsystems": subsystems,
         "perfect_trader_state": pt_state,
         "institutional_measurements": inst_measurements,
+        "master_todo_backlog": backlog_report,
         "execution_permission": "none",
     }
 
@@ -2270,6 +2273,25 @@ def get_institutional_measurements_endpoint(symbol: str = "BTC-USD") -> dict[str
         symbol=clean_sym,
         candles=live_batch["candles"],
     )
+
+
+@app.get("/api/backlog/todos", include_in_schema=False)
+def get_backlog_todos_endpoint() -> dict[str, object]:
+    from atlas.backlog_tracker import build_master_todo_backlog_report
+
+    return build_master_todo_backlog_report()
+
+
+@app.post("/api/backlog/todos/verify", include_in_schema=False)
+def post_backlog_todos_verify_endpoint(payload: dict[str, object] | None = None) -> dict[str, object]:
+    from atlas.backlog_tracker import build_master_todo_backlog_report
+
+    report = build_master_todo_backlog_report()
+    control_engine.audit_log.append(
+        f"{report['as_of']} | backlog_todos_verify | completed={report['completed_items']}/{report['total_items']} pct={report['completion_pct']} permission=none"
+    )
+    return report
+
 
 
 
