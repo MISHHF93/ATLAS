@@ -706,6 +706,33 @@ function Module02InnerWorkbench() {
                     </div>
                   </div>
                 </div>
+
+                {/* Autonomous Whale Policy Signal & Control Plane Bracket Strip */}
+                <div
+                  style={{
+                    marginTop: "8px",
+                    paddingTop: "8px",
+                    borderTop: "1px solid rgba(255,255,255,0.06)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: "11px",
+                  }}
+                >
+                  <span
+                    className="mono-cell"
+                    style={{
+                      fontWeight: 700,
+                      color: item.ofi >= 0 ? "#00F29D" : "#FF3B69",
+                    }}
+                  >
+                    🐋 {item.ofi >= 0 ? "AUTO-BUY" : "AUTO-SELL"} ·{" "}
+                    {Math.min(91, Math.round(64 + Math.abs(item.ofi) * 55))}% Win Prob
+                  </span>
+                  <span className="mono-cell" style={{ color: "#94A3B8" }}>
+                    ATR Stop {item.vpin > 0.35 ? "1.5× Widened" : "Armed"} · perm: none
+                  </span>
+                </div>
               </div>
             );
           })}

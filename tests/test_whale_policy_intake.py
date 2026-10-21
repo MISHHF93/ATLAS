@@ -279,3 +279,29 @@ def test_audit_deduplication_and_control_gateway():
     assert spy_rep.connector_receipt["connector_id"] == "alpaca_equities_dma"
 
 
+def test_visual_automation_scan_endpoint() -> None:
+    from fastapi.testclient import TestClient
+    from atlas.api.app import app
+
+    client = TestClient(app)
+    res_get = client.get("/api/automation/visual-scan?symbol=NVDA")
+    assert res_get.status_code == 200
+    data_get = res_get.json()
+    assert data_get["status"] == "ok"
+    assert data_get["execution_permission"] == "none"
+    assert data_get["automation_coverage_pct"] == 100.0
+    assert data_get["automated_subsystems_count"] == 10
+    assert data_get["manual_steps_eliminated"] == 28
+
+    res_post = client.post(
+        "/api/automation/visual-scan",
+        json={"symbol": "BTC-USD", "trigger_dispatch": True},
+    )
+    assert res_post.status_code == 200
+    data_post = res_post.json()
+    assert data_post["status"] == "ok"
+    assert data_post["execution_permission"] == "none"
+    assert len(data_post["subsystems"]) == 10
+
+
+
