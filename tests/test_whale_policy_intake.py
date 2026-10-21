@@ -229,3 +229,53 @@ def test_whale_policy_api_endpoints():
     assert ingest_data["execution_permission"] == "none"
     assert ingest_data["intake_report"]["execution_permission"] == "none"
 
+
+def test_audit_deduplication_and_control_gateway():
+    """Verify zero AI imports in src/atlas/control/, canonical microstructure delegation,
+    and ControlPlaneExecutionGateway routing across competition and open_market tracks.
+    """
+    from pathlib import Path
+    from atlas.control.gateway import ControlPlaneExecutionGateway
+    from atlas.whale_saas_az import (
+        compute_almgren_chriss_schedule,
+        compute_hawkes_intensity,
+        compute_kyles_lambda,
+    )
+
+    # 1. Verify zero LLM/AI imports inside src/atlas/control/
+    for fname in ("engine.py", "rules.py", "gateway.py"):
+        src_text = Path(f"src/atlas/control/{fname}").read_text(encoding="utf-8")
+        assert "from atlas.ai" not in src_text
+        assert "import atlas.ai" not in src_text
+
+    # 2. Verify deduplicated microstructure & Almgren-Chriss delegation
+    kyle_res = compute_kyles_lambda([1.2, 2.4, -0.8, 3.1], [100.0, 180.0, -60.0, 220.0])
+    assert kyle_res["execution_permission"] == "none"
+    assert kyle_res["lambda_coeff"] > 0
+
+    ac_res = compute_almgren_chriss_schedule(total_shares=5000.0, horizon_steps=5, kappa=0.45)
+    assert ac_res["execution_permission"] == "none"
+    assert len(ac_res["child_order_slices"]) == 5
+
+    hawkes_res = compute_hawkes_intensity([0.1, 0.2, 0.4, 0.8])
+    assert hawkes_res["execution_permission"] == "none"
+    assert hawkes_res["current_intensity_lambda"] > 0.50
+
+    # 3. Verify ControlPlaneExecutionGateway across competition & open_market tracks
+    gw = ControlPlaneExecutionGateway()
+    gw.control_engine.flatten_all_positions(reason="gateway_test_clean")
+
+    model = WhalePolicyModel()
+    btc_sig = model.predict(symbol="BTC-USD", spot_price=68450.0, atr_14=1025.0)
+    btc_rep = gw.evaluate_and_dispatch_signal(btc_sig, track="competition", data_age_ms=8.0)
+    assert btc_rep.decision.control_plane_decision == "authorized_and_executed"
+    assert btc_rep.connector_receipt is not None
+    assert "ccxt_perp" in btc_rep.connector_receipt["connector_id"]
+
+    spy_sig = model.predict(symbol="SPY", spot_price=584.20, atr_14=6.50)
+    spy_rep = gw.evaluate_and_dispatch_signal(spy_sig, track="open_market", data_age_ms=12.0)
+    assert spy_rep.decision.control_plane_decision == "authorized_and_executed"
+    assert spy_rep.connector_receipt is not None
+    assert spy_rep.connector_receipt["connector_id"] == "alpaca_equities_dma"
+
+

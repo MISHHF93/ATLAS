@@ -15,26 +15,25 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from atlas.execution.tactics.optimal import compute_almgren_chriss_trajectory
+from atlas.features.microstructure import (
+    compute_hawkes_child_order_intensity,
+    compute_rolling_kyles_lambda,
+)
+
 
 def compute_kyles_lambda(price_changes: list[float], signed_flows: list[float]) -> dict[str, Any]:
-    """WF-01: Kyle's Lambda (Price Impact of Informed Trading): Delta P = lambda * Q + eta via OLS."""
+    """WF-01: Kyle's Lambda (Price Impact of Informed Trading) delegating to canonical `atlas.features.microstructure`."""
     n = min(len(price_changes), len(signed_flows))
-    if n < 2:
-        return {"lambda_coeff": 0.0012, "r_squared": 0.42, "noise_eta": 0.05, "spike_alert": False}
-    q_mean = sum(signed_flows[:n]) / n
-    dp_mean = sum(price_changes[:n]) / n
-    cov = sum((signed_flows[i] - q_mean) * (price_changes[i] - dp_mean) for i in range(n))
-    var_q = sum((signed_flows[i] - q_mean) ** 2 for i in range(n))
-    lam = cov / var_q if var_q > 1e-12 else 0.0012
-    residuals = [price_changes[i] - (dp_mean + lam * (signed_flows[i] - q_mean)) for i in range(n)]
-    eta = math.sqrt(sum(r * r for r in residuals) / n)
-    tot_var = sum((price_changes[i] - dp_mean) ** 2 for i in range(n))
-    r2 = max(0.0, min(1.0, 1.0 - (sum(r * r for r in residuals) / tot_var))) if tot_var > 1e-12 else 0.45
+    if n < 2 or len(set(signed_flows[:n])) < 2:
+        return {"lambda_coeff": 0.0012, "r_squared": 0.42, "noise_eta": 0.05, "spike_alert": False, "execution_permission": "none"}
+    res = compute_rolling_kyles_lambda(price_changes[:n], signed_flows[:n], spike_threshold=0.0025)
     return {
-        "lambda_coeff": round(abs(lam), 6),
-        "r_squared": round(r2, 4),
-        "noise_eta": round(eta, 4),
-        "spike_alert": abs(lam) > 0.0025,
+        "lambda_coeff": round(abs(float(res.lambda_impact)), 6),
+        "r_squared": round(float(res.r_squared), 4),
+        "noise_eta": round(float(res.residual_volatility_eta), 4),
+        "spike_alert": bool(abs(float(res.lambda_impact)) > 0.0025),
+        "execution_permission": "none",
     }
 
 
@@ -42,7 +41,7 @@ def compute_vpin(buy_volumes: list[float], sell_volumes: list[float]) -> dict[st
     """WF-02: VPIN (Volume-Synchronized Probability of Informed Trading): sum(|V_B - V_S|) / (N * V)."""
     n = min(len(buy_volumes), len(sell_volumes))
     if n == 0:
-        return {"vpin": 0.312, "toxic_flow_95th": False, "recommended_book": "B-Book Internal"}
+        return {"vpin": 0.312, "toxic_flow_95th": False, "recommended_book": "B-Book Internal", "execution_permission": "none"}
     imbalance_sum = sum(abs(buy_volumes[i] - sell_volumes[i]) for i in range(n))
     total_vol = sum(buy_volumes[i] + sell_volumes[i] for i in range(n))
     vpin_val = imbalance_sum / total_vol if total_vol > 1e-9 else 0.312
@@ -51,6 +50,7 @@ def compute_vpin(buy_volumes: list[float], sell_volumes: list[float]) -> dict[st
         "vpin": round(vpin_val, 4),
         "toxic_flow_95th": toxic,
         "recommended_book": "A-Book Exhaust / Auto-Hedge" if toxic else "Hybrid B-Book / Internal Netting",
+        "execution_permission": "none",
     }
 
 
@@ -58,7 +58,7 @@ def compute_multilevel_ofi(bid_deltas: list[float], ask_deltas: list[float], dec
     """WF-03: Multi-Level Order Flow Imbalance: OFI_t = sum_i (Delta L_{i,t} * w_i)."""
     levels = min(len(bid_deltas), len(ask_deltas))
     if levels == 0:
-        return {"ofi_weighted": 0.24, "extreme_skew": False, "direction": "neutral"}
+        return {"ofi_weighted": 0.24, "extreme_skew": False, "direction": "neutral", "execution_permission": "none"}
     weights = [decay**i for i in range(levels)]
     raw_ofi = sum((bid_deltas[i] - ask_deltas[i]) * weights[i] for i in range(levels))
     abs_cap = sum((abs(bid_deltas[i]) + abs(ask_deltas[i])) * weights[i] for i in range(levels))
@@ -67,6 +67,7 @@ def compute_multilevel_ofi(bid_deltas: list[float], ask_deltas: list[float], dec
         "ofi_weighted": round(norm_ofi, 4),
         "extreme_skew": abs(norm_ofi) >= 0.80,
         "direction": "buy_pressure" if norm_ofi > 0.15 else "sell_pressure" if norm_ofi < -0.15 else "balanced",
+        "execution_permission": "none",
     }
 
 
@@ -75,25 +76,26 @@ def compute_almgren_chriss_schedule(
     horizon_steps: int = 6,
     kappa: float = 0.45,
 ) -> dict[str, Any]:
-    """WF-04: Almgren-Chriss Optimal Execution Trajectory: x_j = X * sinh(kappa*(T - t_j)) / sinh(kappa*T)."""
-    T = float(max(1, horizon_steps))
-    denom = math.sinh(kappa * T) if abs(kappa * T) > 1e-6 else T
-    remaining_inventory: list[float] = []
-    child_slices: list[float] = []
-    prev_x = total_shares
-    for j in range(1, horizon_steps + 1):
-        t_j = float(j)
-        x_j = total_shares * (math.sinh(kappa * (T - t_j)) / denom) if abs(kappa * T) > 1e-6 else total_shares * (1.0 - t_j / T)
-        slice_qty = max(0.0, prev_x - x_j)
-        remaining_inventory.append(round(x_j, 2))
-        child_slices.append(round(slice_qty, 2))
-        prev_x = x_j
+    """WF-04: Almgren-Chriss Optimal Execution Trajectory delegating to canonical `atlas.execution.tactics.optimal`."""
+    steps = max(1, int(horizon_steps))
+    eta = 2.5e-6
+    sigma = 0.02
+    lam_risk = max(0.0, (float(kappa) ** 2) * eta / (sigma**2))
+    sched = compute_almgren_chriss_trajectory(
+        initial_inventory=max(1.0, float(total_shares)),
+        num_steps=steps,
+        total_time_T=float(steps),
+        risk_aversion_lambda=lam_risk,
+        volatility_sigma=sigma,
+        temporary_impact_eta=eta,
+    )
     return {
         "total_shares": total_shares,
         "urgency_kappa": kappa,
-        "horizon_steps": horizon_steps,
-        "child_order_slices": child_slices,
-        "remaining_inventory_curve": remaining_inventory,
+        "horizon_steps": steps,
+        "child_order_slices": [round(float(s), 2) for s in sched.child_order_slices],
+        "remaining_inventory_curve": [round(float(r), 2) for r in sched.remaining_inventory_trajectory],
+        "execution_permission": "none",
     }
 
 
@@ -146,15 +148,23 @@ def compute_hawkes_intensity(
     alpha: float = 0.85,
     beta: float = 1.20,
 ) -> dict[str, Any]:
-    """WF-07: Regime-Conditioned Hidden Liquidity Detector (Hawkes Process): lambda(t) = mu_0 + sum alpha * exp(-beta * dt)."""
-    excitation = sum(alpha * math.exp(-beta * max(0.0, dt)) for dt in event_deltas_sec)
-    intensity = mu_0 + excitation
-    branching_ratio = round(alpha / max(1e-6, beta), 3)
+    """WF-07: Regime-Conditioned Hidden Liquidity Detector delegating to canonical `atlas.features.microstructure`."""
+    eval_t = 100.0
+    event_times = [eval_t - max(0.001, float(dt)) for dt in event_deltas_sec]
+    rep = compute_hawkes_child_order_intensity(
+        event_times,
+        eval_time_sec=eval_t,
+        mu_0=mu_0,
+        alpha=alpha,
+        beta=beta,
+        clustering_threshold=1.85,
+    )
     return {
         "baseline_mu0": mu_0,
-        "current_intensity_lambda": round(intensity, 4),
-        "branching_ratio": branching_ratio,
-        "iceberg_clustering_detected": intensity >= 1.85,
+        "current_intensity_lambda": round(float(rep.intensity_lambda_t), 4),
+        "branching_ratio": round(float(rep.branching_ratio), 3),
+        "iceberg_clustering_detected": bool(float(rep.intensity_lambda_t) >= 1.85),
+        "execution_permission": "none",
     }
 
 

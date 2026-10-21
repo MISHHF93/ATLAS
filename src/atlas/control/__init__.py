@@ -9,7 +9,9 @@ from atlas.control.engine import (
     ActionableOrderDecision,
     ActionableOrderRequest,
     ActionablePositionRecord,
+    BracketOrderIntakeReport,
 )
+from atlas.control.gateway import ControlPlaneExecutionGateway
 from atlas.control.rules import (
     AccountRiskSnapshot,
     LimitProximity,
@@ -30,6 +32,8 @@ __all__ = [
     "ActionableOrderDecision",
     "ActionableOrderRequest",
     "ActionablePositionRecord",
+    "BracketOrderIntakeReport",
+    "ControlPlaneExecutionGateway",
     "LimitProximity",
     "MasterSpecGateInput",
     "MasterSpecGateReport",
@@ -40,4 +44,3 @@ __all__ = [
     "evaluate_master_spec_readiness",
     "evaluate_trading_rules",
 ]
-

@@ -17,6 +17,9 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "paths": {
+      "lightweight-charts": ["./src/vendor/lightweight-charts.ts"]
+    },
     "plugins": [
       {
         "name": "next"
