@@ -2213,6 +2213,18 @@ def _build_visual_automation_scan(symbol: str = "BTC-USD", trigger_dispatch: boo
         },
     ]
     total_manual_eliminated = sum(int(s["manual_steps_eliminated"]) for s in subsystems)
+    from atlas.features.microstructure import compute_institutional_quantitative_measurements
+
+    live_batch = live_market_gateway.fetch_live_market_candles_and_ingest(
+        symbol=clean_sym,
+        granularity=900,
+        limit=24,
+        allow_network=False,
+    )
+    inst_measurements = compute_institutional_quantitative_measurements(
+        symbol=clean_sym,
+        candles=live_batch["candles"],
+    )
     control_engine.audit_log.append(
         f"{now_iso} | visual_automation_scan | symbol={clean_sym} automated_loops={len(subsystems)} manual_eliminated={total_manual_eliminated} permission=none"
     )
@@ -2226,6 +2238,7 @@ def _build_visual_automation_scan(symbol: str = "BTC-USD", trigger_dispatch: boo
         "manual_steps_eliminated": total_manual_eliminated,
         "subsystems": subsystems,
         "perfect_trader_state": pt_state,
+        "institutional_measurements": inst_measurements,
         "execution_permission": "none",
     }
 
@@ -2240,6 +2253,24 @@ def post_visual_automation_scan(payload: dict[str, object]) -> dict[str, object]
     symbol = str(payload.get("symbol", "BTC-USD"))
     trigger_dispatch = bool(payload.get("trigger_dispatch", True))
     return _build_visual_automation_scan(symbol=symbol, trigger_dispatch=trigger_dispatch)
+
+
+@app.get("/api/measurements/institutional", include_in_schema=False)
+def get_institutional_measurements_endpoint(symbol: str = "BTC-USD") -> dict[str, object]:
+    from atlas.features.microstructure import compute_institutional_quantitative_measurements
+
+    clean_sym = symbol.upper().strip()
+    live_batch = live_market_gateway.fetch_live_market_candles_and_ingest(
+        symbol=clean_sym,
+        granularity=900,
+        limit=24,
+        allow_network=False,
+    )
+    return compute_institutional_quantitative_measurements(
+        symbol=clean_sym,
+        candles=live_batch["candles"],
+    )
+
 
 
 

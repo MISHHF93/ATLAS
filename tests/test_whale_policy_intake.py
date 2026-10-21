@@ -302,6 +302,16 @@ def test_visual_automation_scan_endpoint() -> None:
     assert data_post["status"] == "ok"
     assert data_post["execution_permission"] == "none"
     assert len(data_post["subsystems"]) == 10
+    assert len(data_post["institutional_measurements"]["measurements"]) == 8
+
+    res_qm = client.get("/api/measurements/institutional?symbol=BTC-USD")
+    assert res_qm.status_code == 200
+    data_qm = res_qm.json()
+    assert data_qm["status"] == "ok"
+    assert data_qm["execution_permission"] == "none"
+    assert len(data_qm["measurements"]) == 8
+    assert 0.25 <= data_qm["hurst_exponent"] <= 0.85
+
 
 
 
