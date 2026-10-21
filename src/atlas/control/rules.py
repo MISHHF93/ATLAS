@@ -262,6 +262,15 @@ def evaluate_trading_rules(
             violations.append(f"max_drawdown_breached:{rulebook.drawdown_mode}")
             auto_flatten = True
 
+    if daily_loss_room is not None and trade_risk_usd > daily_loss_room:
+        violations.append("projected_daily_loss_exceeded")
+    if drawdown_room is not None and trade_risk_usd > drawdown_room:
+        violations.append("projected_drawdown_exceeded")
+    if max_safe_notional is not None and stop_fraction > 0:
+        for room in (daily_loss_room, drawdown_room):
+            if room is not None:
+                max_safe_notional = min(max_safe_notional, room / stop_fraction)
+
     # 4. Position / notional / leverage / correlation / sector caps
     if rulebook.max_position_notional_usd is not None and candidate.notional_usd > rulebook.max_position_notional_usd:
         violations.append("position_notional_cap_exceeded")

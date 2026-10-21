@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LiveChartEngine } from "../src/components/market/LiveChartEngine";
 import { InstitutionalWorkspacesView, type SubPageRouteId } from "../src/components/shell/InstitutionalWorkspacesView";
 
-const API = process.env.NEXT_PUBLIC_ATLAS_API ?? "http://localhost:8000";
+const API = "";
 
 type RoleKey = "founder_admin" | "researcher" | "monitoring";
 
@@ -1577,7 +1577,7 @@ const DEFAULT_DOCS: PlatformDoc[] = [
     doc_id: "README.md",
     title: "Platform Overview & Run Guide",
     path: "README.md",
-    content: "# ATLAS — Autonomous Trading, Liquidity, Allocation & Strategy Intelligence\n\nFounder-owned platform for continuous, regime-aware research, training, evaluation, forecasting, and deterministic control-plane execution across competition and open-market tracks.\n\n- FastAPI backend on port 8000 (/api/platform/snapshot, /api/control/*, /api/research/*, /api/market/*, /api/docs)\n- Next.js interactive multi-page command terminal on port 3000\n- Deterministic Control Plane (ActionableControlPlaneEngine & TradingRuleBook) governs all order execution, risk limits, kill-switch & model alias lifecycle.",
+    content: "# ATLAS — Autonomous Trading, Liquidity, Allocation & Strategy Intelligence\n\nFounder-owned platform for continuous, regime-aware research, training, evaluation, forecasting, and deterministic control-plane execution across competition and open-market tracks.\n\n- FastAPI backend over stdio via port 3000 (/api/platform/snapshot, /api/control/*, /api/research/*, /api/market/*, /api/docs)\n- Next.js interactive multi-page command terminal on port 3000\n- Deterministic Control Plane (ActionableControlPlaneEngine & TradingRuleBook) governs all order execution, risk limits, kill-switch & model alias lifecycle.",
   },
   {
     doc_id: "ATLAS_MASTER_SPEC.md",
@@ -2166,6 +2166,7 @@ export function AtlasTerminal({
   const [activeSection, setActiveSection] = useState<SectionId>(initialSection);
   const [health, setHealth] = useState<"checking" | "online" | "offline">("checking");
   const [page, setPage] = useState<CandlePage | null>(null);
+  const catalogSelectionRef = useRef<string | null>(null);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [snapshot, setSnapshot] = useState<PlatformSnapshot | null>(null);
   const [role, setRole] = useState<RoleKey>("founder_admin");
@@ -2532,7 +2533,7 @@ export function AtlasTerminal({
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data.candles) && data.candles.length > 0) {
+        if (!catalogSelectionRef.current && Array.isArray(data.candles) && data.candles.length > 0) {
           setPage((prev) =>
             prev
               ? { ...prev, symbol: data.symbol ?? symbol, source: data.source, candles: data.candles }
@@ -3254,7 +3255,7 @@ export function AtlasTerminal({
             throw new Error("Unexpected API payload.");
           }
           setHealth("online");
-          setPage(candleBody);
+          if (!catalogSelectionRef.current) setPage(candleBody);
           setCapabilities(capabilityBody);
           setSnapshot(snapshotBody);
           if (Array.isArray(docsBody.documents) && docsBody.documents.length > 0) {
@@ -3696,7 +3697,7 @@ export function AtlasTerminal({
             <span>Engine Telemetry</span>
             <span className="status-dot-wrap">
               <span className={`status-dot ${health === "online" ? "" : "amber"}`} />
-              {health === "online" ? "ONLINE (8000)" : "SYNCING"}
+              {health === "online" ? "ONLINE (3000)" : "SYNCING"}
             </span>
           </div>
           <div className="sidebar-status-row">
@@ -3906,6 +3907,8 @@ export function AtlasTerminal({
           <InstitutionalWorkspacesView
             initialRoute={initialWorkspaceRoute}
             activeTrack={studyTrack}
+            activeDataSource={effectivePage.source}
+            orderInstrument={orderInstrument}
             onTrackChange={(track) => {
               setStudyTrack(track);
               setOrderTrack(track);
@@ -3914,6 +3917,13 @@ export function AtlasTerminal({
             activeSymbol={effectivePage.symbol}
             onSymbolChange={(sym) => {
               void handleLiveInternetSync(sym);
+            }}
+            onSelectCatalogAsset={(asset) => {
+              catalogSelectionRef.current = asset.symbol;
+              setStudyTrack(asset.track);
+              setPage((current) => current
+                ? { ...current, symbol: asset.symbol, source: "synthetic_catalog_no_market_data", candles: [] }
+                : { ...DEFAULT_CANDLE_PAGE, symbol: asset.symbol, source: "synthetic_catalog_no_market_data", candles: [] });
             }}
             candles={candles}
             killSwitchEngaged={killSwitchEngaged}

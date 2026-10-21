@@ -85,6 +85,9 @@ class UnifiedExecutionCallback(Record):
     violations: tuple[str, ...] = ()
     timestamp_utc: AwareDatetime
     execution_permission: Literal["none"] = "none"
+    execution_mode: Literal["paper"] = "paper"
+    stop_loss_price: float | None = None
+    take_profit_price: float | None = None
 
 
 class BaseExecutionConnector(ABC):
@@ -240,6 +243,8 @@ class BaseExecutionConnector(ABC):
             control_plane_order_id=decision.order_id,
             violations=(),
             timestamp_utc=ts,
+            stop_loss_price=decision.stop_loss_price,
+            take_profit_price=decision.take_profit_price,
         )
         self._callbacks.append(cb)
         return cb

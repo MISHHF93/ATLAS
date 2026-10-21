@@ -239,8 +239,13 @@ def compute_volume_synchronized_vpin(
     """Compute VPIN = sum_{tau=1}^N |V_tau^B - V_tau^S| / (N * V) using volume-synchronized buckets."""
     if len(price_deltas) != len(trade_volumes) or len(trade_volumes) == 0:
         raise ValueError("price_deltas and trade_volumes must be non-empty and of equal length")
-    if bucket_volume <= 0:
+    if not math.isfinite(bucket_volume) or bucket_volume <= 0:
         raise ValueError("bucket_volume V must be strictly positive")
+
+    if max_buckets < 1 or not all(math.isfinite(x) for x in (*price_deltas, *trade_volumes)):
+        raise ValueError("Finite inputs and a positive bucket window are required")
+    if any(v < 0 for v in trade_volumes):
+        raise ValueError("Volume cannot be negative")
 
     # Estimate sigma_dp for Bulk Volume Classification (BVC) or direct tick sign partitioning
     n_trades = len(price_deltas)
@@ -374,10 +379,7 @@ def compute_multilevel_ofi(
         else:
             delta_q_a = -prev_lvl.ask_size
 
-        ind_b = 1.0 if curr_lvl.bid_price >= prev_lvl.bid_price else 0.0
-        ind_a = 1.0 if curr_lvl.ask_price <= prev_lvl.ask_price else 0.0
-
-        ofi_k = w_k * (ind_b * delta_q_b - ind_a * delta_q_a)
+        ofi_k = w_k * (delta_q_b - delta_q_a)
         contributions.append(round(ofi_k, 6))
         abs_capacity += w_k * (abs(delta_q_b) + abs(delta_q_a) + prev_lvl.bid_size + prev_lvl.ask_size)
 

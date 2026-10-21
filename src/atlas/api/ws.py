@@ -10,6 +10,8 @@ All broadcast frames carry `execution_permission = "none"`.
 from __future__ import annotations
 
 import asyncio
+import json
+from uuid import uuid4
 from datetime import datetime, timezone
 from typing import Any
 
@@ -69,12 +71,13 @@ def register_market_stream_ws(
     broadcaster: MarketStreamBroadcaster | None = None,
 ) -> MarketStreamBroadcaster:
     stream_broadcaster = broadcaster or MarketStreamBroadcaster(max_client_queue_size=32)
+    gateway.add_listener(stream_broadcaster.broadcast_non_blocking)
 
     @app.get("/api/market/live-stream", include_in_schema=False)
     def get_live_stream_status(symbol: str = "BTC-USD") -> dict[str, Any]:
         sym = symbol.upper()
         latest = gateway.ring_buffer.latest(sym)
-        if latest is None:
+        if latest is None and gateway.demo_mode:
             default_price = 67840.75 if sym == "BTC-USD" else 584.20 if sym == "SPY" else 138.60
             latest = gateway.ingest_tick(
                 symbol=sym,
@@ -86,7 +89,7 @@ def register_market_stream_ws(
         return {
             "status": "ok",
             "as_of": datetime.now(timezone.utc).isoformat(),
-            "tick": latest.to_payload(),
+            "tick": latest.to_payload() if latest else None,
             "gateway": gateway.status_snapshot(),
             "broadcaster": {
                 "active_clients": len(stream_broadcaster._client_queues),
@@ -135,44 +138,68 @@ def register_market_stream_ws(
     @app.websocket("/ws/market-stream")
     async def websocket_market_stream(websocket: WebSocket, symbol: str = "BTC-USD") -> None:
         await websocket.accept()
-        client_queue = stream_broadcaster.register_client_queue()
-        sym = symbol.upper()
-        base_map = {
-            "BTC-USD": 68410.0,
-            "ETH-USD": 2645.5,
-            "SOL-USD": 176.8,
-            "SPY": 584.2,
-            "NVDA": 142.1,
-            "AAPL": 231.45,
-            "MSFT": 428.9,
-            "QQQ": 498.6,
-            "TSLA": 254.3,
-        }
-        base_price = base_map.get(sym, 142.50)
-        try:
-            frame = gateway.ingest_tick(symbol=sym, price=base_price, size=1.5, side="buy", spread=1.2)
-            stream_broadcaster.broadcast_non_blocking(frame)
-            initial_payload = await client_queue.get()
-            await websocket.send_json(initial_payload)
+        client_id = uuid4().hex
+        subscribed = {symbol.upper()}
+        gateway.subscribe(list(subscribed), client_id)
+        if gateway.demo_mode and gateway.ring_buffer.latest(symbol) is None:
+            gateway.ingest_dual_track_universe_snapshot()
+        queue = stream_broadcaster.register_client_queue()
+        latest = gateway.ring_buffer.latest(symbol)
+        await websocket.send_json(latest.to_payload() if latest else {
+            "event": "awaiting_data", "symbol": symbol.upper(), "execution_permission": "none"
+        })
+
+        async def send_frames() -> None:
             while True:
-                msg = await websocket.receive_text()
-                if msg.strip().lower() == "ping":
-                    tick = gateway.ingest_tick(
-                        symbol=sym,
-                        price=round(base_price + 0.25, 2),
-                        size=2.1,
-                        side="buy",
-                        spread=1.2,
-                    )
-                    stream_broadcaster.broadcast_non_blocking(tick)
-                    next_payload = await client_queue.get()
-                    await websocket.send_json(next_payload)
-                elif msg.strip().lower() == "close":
-                    break
-        except WebSocketDisconnect:
-            pass
+                payload = await queue.get()
+                if payload.get("symbol") in subscribed:
+                    await asyncio.wait_for(websocket.send_json(payload), timeout=5)
+
+        async def receive_commands() -> None:
+            while True:
+                raw = await websocket.receive_text()
+                if raw.lower() == "close":
+                    return
+                if raw.lower() == "ping":
+                    latest = gateway.ring_buffer.latest(symbol)
+                    await websocket.send_json(latest.to_payload() if latest else {
+                        "event": "heartbeat", "symbol": symbol.upper(), "execution_permission": "none"
+                    })
+                    continue
+                try:
+                    command = json.loads(raw)
+                    if not isinstance(command, dict):
+                        raise ValueError("Expected a command object")
+                    action = command.get("action")
+                    if action == "close":
+                        return
+                    symbols = command.get("symbols", [])
+                    if not isinstance(symbols, list) or len(symbols) > 100 or not all(isinstance(x, str) for x in symbols):
+                        raise ValueError("Expected up to 100 symbol strings")
+                    if action == "subscribe":
+                        result = gateway.subscribe(symbols, client_id)
+                        subscribed.update(result["subscribed_symbols"])
+                    elif action == "unsubscribe":
+                        result = gateway.unsubscribe(symbols, client_id)
+                        subscribed.difference_update(result["unsubscribed_symbols"])
+                    else:
+                        raise ValueError("Unknown action")
+                    await websocket.send_json({"event": "subscription_update", "action": action, **result})
+                except (ValueError, TypeError) as exc:
+                    await websocket.send_json({"event": "error", "detail": str(exc), "execution_permission": "none"})
+
+        tasks = [asyncio.create_task(send_frames()), asyncio.create_task(receive_commands())]
+        try:
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                task.result()
+        except (WebSocketDisconnect, TimeoutError):
+            return
         finally:
-            stream_broadcaster.unregister_client_queue(client_queue)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            stream_broadcaster.unregister_client_queue(queue)
+            gateway.unsubscribe_client_all(client_id)
 
     return stream_broadcaster
-

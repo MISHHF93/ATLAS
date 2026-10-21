@@ -218,6 +218,10 @@ function Module02InnerWorkbench() {
   const [trackFilter, setTrackFilter] = useState<"all" | "open_market" | "competition">("all");
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTC-USD");
   const [listings, setListings] = useState<Module02ListingPacket[]>(INITIAL_MODULE02_LISTINGS);
+  // Live data fetches from backend API on mount; pollModule02Stream refreshes every 2.5s
+  useEffect(() => {
+    void pollModule02Stream();
+  }, []);
   const [streamPaused, setStreamPaused] = useState<boolean>(false);
   const [ringBufferSize, setRingBufferSize] = useState<number>(64);
   const [killSwitchEngaged, setKillSwitchEngaged] = useState<boolean>(false);
@@ -242,7 +246,7 @@ function Module02InnerWorkbench() {
     try {
       const apiBase =
         typeof window !== "undefined" && window.location.port === "3000"
-          ? "http://localhost:8000"
+          ? ""
           : "";
       const res = await fetch(`${apiBase}/api/market/module02-snapshot?track=all`, {
         cache: "no-store",
@@ -326,10 +330,10 @@ function Module02InnerWorkbench() {
     try {
       const wsBase =
         typeof window !== "undefined" && window.location.port === "3000"
-          ? "ws://localhost:8000"
+          ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
           : typeof window !== "undefined"
           ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
-          : "ws://localhost:8000";
+          : "";
       ws = new WebSocket(`${wsBase}/ws/market-stream?symbol=${encodeURIComponent(selectedSymbol)}`);
       ws.onmessage = (evt) => {
         try {

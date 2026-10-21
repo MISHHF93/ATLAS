@@ -18,7 +18,9 @@ from typing import Literal, Sequence
 
 from pydantic import AwareDatetime, Field, FiniteFloat
 
-from atlas.control.engine import ActionableControlPlaneEngine
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from atlas.control.engine import ActionableControlPlaneEngine
 from atlas.models.continuous import ContinuousResearchRunner
 from atlas.models.schemas import Observation, Probability, Record, Text
 from atlas.models.self_training import (
@@ -331,8 +333,6 @@ class BotOrchestrator:
                 f"PROMOTED {challenger_version}: EXP-001 (5d embargo) OOS Sharpe={oos_sharpe:.2f}>1.80 "
                 f"and MaxDD={oos_max_dd * 100:.2f}%<3.20%."
             )
-            if self.control_engine is not None:
-                self.control_engine.record_training_run(now=ts)
         else:
             active_ver = prev_version
             reason = (

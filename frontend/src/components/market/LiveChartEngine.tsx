@@ -73,6 +73,7 @@ export type TradingFactorAttributionPoint = {
 export interface LiveChartEngineProps {
   symbol: string;
   candles: LiveCandlePoint[];
+  marketDataAvailable?: boolean;
   wsUrl?: string;
   forecastT1?: number;
   forecastT2?: number;
@@ -124,7 +125,8 @@ const DEFAULT_FALLBACK_CANDLES: LiveCandlePoint[] = [
 export function LiveChartEngine({
   symbol,
   candles,
-  wsUrl = "ws://127.0.0.1:8000/ws/market-stream",
+  marketDataAvailable = true,
+  wsUrl = typeof window === "undefined" ? "" : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/market-stream`,
   forecastT1,
   forecastT2,
   aiPrediction,
@@ -132,7 +134,14 @@ export function LiveChartEngine({
 }: LiveChartEngineProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lwCanvasRef = useRef<HTMLDivElement | null>(null);
-  const [timeframe, setTimeframe] = useState<"1m" | "5m" | "15m" | "1h" | "1D">("15m");
+  const canvasState = useRef<{
+    chart: import("lightweight-charts").IChartApi;
+    candles: import("lightweight-charts").ISeriesApi<"Candlestick">;
+    fans: import("lightweight-charts").ISeriesApi<"Line">[];
+    levels: import("lightweight-charts").IPriceLine[];
+  } | null>(null);
+  const [canvasReady, setCanvasReady] = useState(false);
+  const [timeframe, setTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("15m");
   const [highlightAiZone] = useState<boolean>(true);
 
   const series = candles.length > 0 ? candles.slice(-18) : DEFAULT_FALLBACK_CANDLES;
@@ -152,12 +161,13 @@ export function LiveChartEngine({
   });
 
   useEffect(() => {
+    if (!marketDataAvailable) return;
     setLiveTick((prev) => ({
       ...prev,
       symbol,
       price: latestCandle?.close ?? prev.price,
     }));
-  }, [symbol, latestCandle?.close]);
+  }, [marketDataAvailable, symbol, latestCandle?.close]);
 
   // Compute dynamic Volume Profile: Point of Control (POC), Value Area Low (VAL), and Value Area High (VAH)
   const { pocPrice, valPrice, vahPrice } = useMemo(() => {
@@ -168,24 +178,23 @@ export function LiveChartEngine({
         vahPrice: Number((liveTick.price * 1.004).toFixed(2)),
       };
     }
-    let maxVol = -1;
-    let bestClose = series[series.length - 1].close;
-    let minLow = series[0].low;
-    let maxHigh = series[0].high;
-    for (const c of series) {
-      if (c.volume > maxVol) {
-        maxVol = c.volume;
-        bestClose = c.close;
-      }
-      if (c.low < minLow) minLow = c.low;
-      if (c.high > maxHigh) maxHigh = c.high;
+    const low = Math.min(...series.map(c => c.low));
+    const high = Math.max(...series.map(c => c.high));
+    const width = Math.max(high - low, low * .000001) / 32;
+    const bins = Array<number>(32).fill(0);
+    for (const candle of series) {
+      const first = Math.max(0, Math.min(31, Math.floor((candle.low - low) / width)));
+      const last = Math.max(first, Math.min(31, Math.floor((candle.high - low) / width)));
+      for (let i = first; i <= last; i++) bins[i] += candle.volume / (last - first + 1);
     }
-    const spanVa = Math.max(0.01, maxHigh - minLow);
-    return {
-      pocPrice: bestClose,
-      valPrice: Number((minLow + spanVa * 0.15).toFixed(2)),
-      vahPrice: Number((maxHigh - spanVa * 0.15).toFixed(2)),
-    };
+    const poc = bins.indexOf(Math.max(...bins));
+    let left = poc, right = poc, volume = bins[poc];
+    const target = bins.reduce((total, value) => total + value, 0) * .7;
+    while (volume < target && (left > 0 || right < 31)) {
+      if (left > 0 && (right === 31 || bins[left - 1] >= bins[right + 1])) volume += bins[--left];
+      else volume += bins[++right];
+    }
+    return { pocPrice: low + (poc + .5) * width, valPrice: low + left * width, vahPrice: low + (right + 1) * width };
   }, [series, liveTick.price]);
 
   const lastClose = latestCandle?.close ?? liveTick.price;
@@ -237,6 +246,7 @@ export function LiveChartEngine({
   const latencyTone = latencyBadgeTone(liveTick.latency_ms);
 
   useEffect(() => {
+    if (!marketDataAvailable) return;
     let ws: WebSocket | null = null;
     try {
       ws = new WebSocket(`${wsUrl}?symbol=${encodeURIComponent(symbol)}`);
@@ -274,7 +284,7 @@ export function LiveChartEngine({
         ws.close();
       }
     };
-  }, [symbol, wsUrl]);
+  }, [marketDataAvailable, symbol, wsUrl]);
 
   // Construct the 3 future AI predicted candles directly following the last real candle
   const futurePredictedCandles = useMemo(() => {
@@ -300,116 +310,56 @@ export function LiveChartEngine({
     });
   }, [lastClose, predictedHorizons]);
 
-  // Mount 60 FPS lightweight-charts Canvas engine with VAH/POC/VAL Volume Profile & t+1h/t+2h Forecast Fan
+  // Keep one chart instance; batch changing data into the browser's animation frame.
   useEffect(() => {
-    const el = lwCanvasRef.current;
-    if (!el || typeof window === "undefined") return;
+    const element = lwCanvasRef.current;
+    if (!element || !marketDataAvailable) return;
     let disposed = false;
-    let cleanupFn: (() => void) | null = null;
-
-    void import("lightweight-charts")
-      .then((lw) => {
-        if (disposed || !lwCanvasRef.current) return;
-        lwCanvasRef.current.innerHTML = "";
-        const chart = lw.createChart(lwCanvasRef.current, {
-          width: lwCanvasRef.current.clientWidth || 760,
-          height: 150,
-          layout: {
-            background: { color: "#080C14" },
-            textColor: "#94A3B8",
-          },
-          grid: {
-            vertLines: { color: "rgba(255,255,255,0.04)" },
-            horzLines: { color: "rgba(255,255,255,0.04)" },
-          },
-          rightPriceScale: {
-            borderColor: "rgba(255,255,255,0.08)",
-          },
-          timeScale: {
-            borderColor: "rgba(255,255,255,0.08)",
-            timeVisible: true,
-          },
-        });
-
-        const candleSeries = chart.addCandlestickSeries({
-          upColor: "#00F29D",
-          downColor: "#FF3B69",
-          borderVisible: false,
-          wickUpColor: "#00F29D",
-          wickDownColor: "#FF3B69",
-        });
-
-        const baseEpoch = 1792500000;
-        const barData = series.map((c, idx) => ({
-          time: baseEpoch + idx * 3600,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }));
-        candleSeries.setData(barData);
-
-        candleSeries.createPriceLine({
-          price: vahPrice,
-          color: "#38BDF8",
-          lineWidth: 1,
-          lineStyle: 2,
-          axisLabelVisible: true,
-          title: "VAH",
-        });
-        candleSeries.createPriceLine({
-          price: pocPrice,
-          color: "#F59E0B",
-          lineWidth: 2,
-          lineStyle: 2,
-          axisLabelVisible: true,
-          title: "POC",
-        });
-        candleSeries.createPriceLine({
-          price: valPrice,
-          color: "#00F29D",
-          lineWidth: 1,
-          lineStyle: 2,
-          axisLabelVisible: true,
-          title: "VAL",
-        });
-
-        const forecastSeries = chart.addLineSeries({
-          color: "#00C8FF",
-          lineWidth: 2,
-          lineStyle: 2,
-          title: "AI Fan (t+1h, t+2h)",
-        });
-        const lastIdx = series.length - 1;
-        forecastSeries.setData([
-          {
-            time: baseEpoch + lastIdx * 3600,
-            value: lastClose,
-          },
-          {
-            time: baseEpoch + (lastIdx + 1) * 3600,
-            value: futurePredictedCandles[0]?.p50 ?? lastClose,
-          },
-          {
-            time: baseEpoch + (lastIdx + 2) * 3600,
-            value: futurePredictedCandles[1]?.p50 ?? lastClose,
-          },
-        ]);
-
-        chart.timeScale().fitContent();
-        cleanupFn = () => {
-          chart.remove();
-        };
-      })
-      .catch(() => {
-        // Fallback to SVG-only mode if canvas context is unavailable
+    let cleanup: (() => void) | undefined;
+    void import("lightweight-charts").then(lw => {
+      if (disposed) return;
+      const chart = lw.createChart(element, {
+        width: element.clientWidth, height: 220,
+        layout: { background: { type: lw.ColorType.Solid, color: "#080C14" }, textColor: "#94A3B8" },
+        grid: { vertLines: { color: "#15202e" }, horzLines: { color: "#15202e" } },
+        timeScale: { timeVisible: true },
       });
+      const candles = chart.addCandlestickSeries({ upColor: "#00F29D", downColor: "#FF3B69", borderVisible: false });
+      const fans = ["P10", "P50", "P90"].map(title => chart.addLineSeries({ title, color: "#38BDF8", lineWidth: 1, lineStyle: lw.LineStyle.Dashed }));
+      const levels = ["VAH", "POC", "VAL"].map(title => candles.createPriceLine({ price: 1, title, color: "#F59E0B", lineWidth: 1, lineStyle: lw.LineStyle.Dashed }));
+      canvasState.current = { chart, candles, fans, levels };
+      const observer = new ResizeObserver(() => chart.applyOptions({ width: element.clientWidth }));
+      observer.observe(element);
+      setCanvasReady(true);
+      cleanup = () => { observer.disconnect(); canvasState.current = null; chart.remove(); };
+    });
+    return () => { disposed = true; cleanup?.(); };
+  }, [marketDataAvailable]);
 
-    return () => {
-      disposed = true;
-      if (cleanupFn) cleanupFn();
-    };
-  }, [futurePredictedCandles, lastClose, pocPrice, series, vahPrice, valPrice]);
+  useEffect(() => {
+    if (!canvasReady || !canvasState.current) return;
+    const request = requestAnimationFrame(() => {
+      const state = canvasState.current;
+      if (!state) return;
+      const base = Math.floor(Date.now() / 3600000) * 3600 - (series.length - 1) * 3600;
+      const bars = series.map((c, index) => ({
+        time: (Number.isFinite(Date.parse(c.timestamp)) ? Math.floor(Date.parse(c.timestamp) / 1000) : base + index * 3600) as import("lightweight-charts").UTCTimestamp,
+        open: c.open, high: c.high, low: c.low, close: c.close,
+      }));
+      state.candles.setData(bars);
+      [vahPrice, pocPrice, valPrice].forEach((price, index) => state.levels[index].applyOptions({ price }));
+      const end = Number(bars[bars.length - 1]?.time ?? base);
+      const keys = ["p10", "p50", "p90"] as const;
+      keys.forEach((key, index) => state.fans[index].setData(aiPrediction || forecastT1 !== undefined || forecastT2 !== undefined ? [
+        { time: end as import("lightweight-charts").UTCTimestamp, value: lastClose },
+        ...futurePredictedCandles.slice(0, 2).map((point, lead) => ({
+          time: (end + (lead + 1) * 3600) as import("lightweight-charts").UTCTimestamp, value: point[key],
+        })),
+      ] : []));
+      state.chart.timeScale().fitContent();
+    });
+    return () => cancelAnimationFrame(request);
+  }, [canvasReady, series, futurePredictedCandles, lastClose, vahPrice, pocPrice, valPrice, aiPrediction, forecastT1, forecastT2]);
 
   // Suggested AI TP & ATR Stop levels in the post-candle prediction zone
   const lockedOpportunity: LockedWhaleOpportunityData = useMemo(() => {
@@ -612,6 +562,17 @@ export function LiveChartEngine({
     };
   }, [lastClose, liveTick.ofi, liveTick.spread, liveTick.vpin, plotY, series, stepX]);
 
+  if (!marketDataAvailable || candles.length === 0) {
+    return (
+      <div className="live-chart-engine-card live-chart-no-data" role="status">
+        <span className="live-chart-no-data-label">NO VERIFIED BARS</span>
+        <strong>{symbol}</strong>
+        <p>This catalog selection has synthetic metadata only. A source- and license-verified feed is not connected.</p>
+        <span>Forecast and regime overlay withheld · execution_permission: none</span>
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef} className="live-chart-engine-card">
       {/* Compact Header Strip */}
@@ -620,7 +581,7 @@ export function LiveChartEngine({
           <span className="clean-chart-symbol">{symbol}</span>
           <span className="clean-chart-price">${fmtPrice(lastClose)}</span>
           <div className="clean-tf-pills" role="group" aria-label="Chart Timeframe">
-            {(["1m", "5m", "15m", "1h", "1D"] as const).map((tf) => (
+            {(["1s", "1m", "5m", "15m", "1h", "1D"] as const).map((tf) => (
               <button
                 key={tf}
                 type="button"
@@ -1025,10 +986,10 @@ export function LiveChartEngine({
         {/* 60 FPS lightweight-charts Hardware Canvas Layer (OHLC + VAH/POC/VAL + t+1h/t+2h Forecast Fan) */}
         <div
           ref={lwCanvasRef}
-          aria-label="60 FPS lightweight-charts Canvas with Volume Profile VAH/POC/VAL and Forecast Fan"
+          aria-label="Market chart Canvas with Volume Profile VAH/POC/VAL and Forecast Fan"
           style={{
             width: "100%",
-            height: "150px",
+            height: "220px",
             marginTop: "8px",
             borderRadius: "8px",
             overflow: "hidden",

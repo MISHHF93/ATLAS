@@ -4,11 +4,17 @@ Executes rule-checked trade proposals, manages open positions, enforces kill-swi
 and auto-flatten actions, and manages model approval and alias promotion/rollback.
 Zero imports from `atlas.ai` — only the deterministic control plane authorizes actions.
 """
-from datetime import datetime, timezone
-from decimal import Decimal
-from typing import Any, Literal
+from __future__ import annotations
 
-from pydantic import AwareDatetime
+import math
+from datetime import datetime, timezone
+from decimal import Decimal, ROUND_DOWN
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from atlas.strategies.base import StrategySignal
+
+from pydantic import AwareDatetime, Field
 
 from atlas.control.rules import (
     AccountRiskSnapshot,
@@ -28,8 +34,8 @@ class ActionableOrderRequest(Record):
     stop_kind: Literal["atr", "structure"] = "atr"
     stop_distance_bps: Decimal = Decimal("180")
     holding_horizon_seconds: int = 14400
-    vpin_toxicity: float = 0.0
-    data_age_ms: float = 8.4
+    vpin_toxicity: float = Field(default=0.0, ge=0, le=1, allow_inf_nan=False)
+    data_age_ms: float = Field(default=8.4, ge=0, allow_inf_nan=False)
 
 
 class ActionablePositionRecord(Record):
@@ -54,6 +60,11 @@ class ActionableOrderDecision(Record):
     control_plane_decision: Literal["authorized_and_executed", "rejected_by_control_plane"]
     violations: tuple[str, ...] = ()
     position_id: Text | None = None
+    entry_price: float | None = None
+    stop_loss_price: float | None = None
+    take_profit_price: float | None = None
+    quantity: Decimal | None = None
+    execution_mode: Literal["paper"] = "paper"
     rule_evaluation: RuleEvaluationReport
 
 
@@ -178,6 +189,7 @@ class ActionableControlPlaneEngine:
         self.audit_log: list[str] = [
             f"{now.isoformat()} | control_plane_initialized | track=competition | kill_switch=False"
         ]
+        self.execution_connector = None
         self._order_seq = 1
         self._pos_seq = 1
 
@@ -239,6 +251,7 @@ class ActionableControlPlaneEngine:
         request: ActionableOrderRequest,
         *,
         now: datetime | None = None,
+        intake_violations: tuple[str, ...] = (),
     ) -> ActionableOrderDecision:
         ts = now or datetime.now(timezone.utc)
         self.active_track = request.track
@@ -260,7 +273,9 @@ class ActionableControlPlaneEngine:
             vpin_toxicity=request.vpin_toxicity,
         )
         eval_rep = evaluate_trading_rules(rulebook, snap, cand, evaluated_at=ts)
-        extra_violations = list(eval_rep.violations)
+        extra_violations = list(eval_rep.violations) + list(intake_violations)
+        if request.track == "open_market" and request.data_age_ms > 2000.0:
+            extra_violations.append("data_stale_open_market_2000ms")
         if request.track == "competition" and float(request.data_age_ms) > 500.0:
             extra_violations.append("data_stale_competition_500ms: market data staleness exceeds 500ms")
         if extra_violations != list(eval_rep.violations):
@@ -441,7 +456,7 @@ class ActionableControlPlaneEngine:
         active_trk = track or self.active_track
         rulebook = self._rulebook_for(active_trk)
         sod = max(Decimal("1"), self.start_of_day_equity_usd)
-        hwm = max(Decimal("1"), self.high_water_mark_usd)
+        hwm = max(Decimal("1"), self.initial_equity_usd if rulebook.drawdown_mode == "static" else self.high_water_mark_usd)
         curr = self.current_equity_usd
 
         daily_limit_frac = rulebook.max_daily_loss_fraction  # 0.04 on competition, 0.03 on open_market
@@ -508,7 +523,7 @@ class ActionableControlPlaneEngine:
 
         rulebook = self._rulebook_for(track)
         sod = max(Decimal("1"), self.start_of_day_equity_usd)
-        hwm = max(Decimal("1"), self.high_water_mark_usd)
+        hwm = max(Decimal("1"), self.initial_equity_usd if rulebook.drawdown_mode == "static" else self.high_water_mark_usd)
         curr = self.current_equity_usd
 
         daily_dd_frac = max(Decimal("0"), (sod - curr) / sod)
@@ -565,6 +580,7 @@ class ActionableControlPlaneEngine:
         desired_notional_usd: Decimal | None = None,
         data_age_ms: float = 8.4,
         execution_connector: Any | None = None,
+        require_connector: bool = False,
         now: datetime | None = None,
     ) -> BracketOrderIntakeReport:
         """Signal Intake & Bracket Order Bridge inside `ActionableControlPlaneEngine`.
@@ -595,11 +611,31 @@ class ActionableControlPlaneEngine:
             else ("competition" if sym.endswith("-USD") or sym.endswith("USDT") else "open_market")
         )
         direction: Literal["BUY", "SELL", "HOLD"] = str(sig_dict.get("direction", "BUY")).upper()  # type: ignore[assignment]
-        entry_px = float(sig_dict.get("target_entry_price") or sig_dict.get("reference_price") or 100.0)
+        entry_px = float(sig_dict.get("target_entry_price") or sig_dict.get("reference_price") or 0.0)
         stop_px = float(sig_dict.get("suggested_stop_loss", 0.0))
-        tp_px = float(sig_dict.get("suggested_take_profit", entry_px * 1.015))
+        tp_px = float(sig_dict.get("suggested_take_profit", 0.0))
         telemetry = sig_dict.get("telemetry") or {}
-        vpin_val = float(telemetry.get("vpin", 0.28))
+        vpin_val = float(telemetry.get("vpin", 0.0))
+        intake_violations: list[str] = []
+        if require_connector and execution_connector is None:
+            intake_violations.append("execution_connector_unconfigured")
+        if direction not in ("BUY", "SELL"):
+            intake_violations.append("non_actionable_signal")
+            direction = "HOLD"
+        if not all(math.isfinite(x) and x > 0 for x in (entry_px, stop_px, tp_px)):
+            intake_violations.append("invalid_bracket_prices")
+            entry_px, stop_px, tp_px = 0.0, 0.0, 0.0
+        elif not ((direction == "BUY" and stop_px < entry_px < tp_px) or
+                  (direction == "SELL" and tp_px < entry_px < stop_px)):
+            intake_violations.append("invalid_bracket_direction")
+        if not math.isfinite(vpin_val) or not 0 <= vpin_val <= 1:
+            intake_violations.append("invalid_vpin")
+            vpin_val = 1.0
+        if not math.isfinite(data_age_ms) or data_age_ms < 0:
+            intake_violations.append("invalid_data_age")
+            data_age_ms = 1e12
+        rulebook = self._rulebook_for(resolved_track)
+
 
         if entry_px > 0 and stop_px > 0 and abs(entry_px - stop_px) > 1e-9:
             raw_stop_bps = abs(entry_px - stop_px) / entry_px * 10_000.0
@@ -611,7 +647,7 @@ class ActionableControlPlaneEngine:
         equity = self.current_equity_usd
 
         # Enforce 0.50%-0.75% equity risk sizing when desired_notional_usd is not explicitly overridden
-        clamped_risk_frac = min(Decimal("0.0075"), max(Decimal("0.0050"), Decimal(str(risk_fraction_target))))
+        clamped_risk_frac = min(rulebook.max_per_trade_risk_fraction or Decimal("0"), Decimal("0.0075"), max(Decimal("0"), Decimal(str(risk_fraction_target))))
         risk_budget_usd = (equity * clamped_risk_frac).quantize(Decimal("0.01"))
 
         if desired_notional_usd is not None:
@@ -623,9 +659,33 @@ class ActionableControlPlaneEngine:
             max_cap = rulebook.max_position_notional_usd or (
                 Decimal("50000") if resolved_track == "competition" else Decimal("40000")
             )
-            sized_notional = min(max_cap, max(Decimal("1000"), raw_notional.quantize(Decimal("0.01"))))
+            sized_notional = min(max_cap, raw_notional.quantize(Decimal("0.01")))
         else:
             sized_notional = Decimal("25000")
+
+        lot_sizes = {"BTC-USD": Decimal("0.0001"), "ETH-USD": Decimal("0.001"), "SOL-USD": Decimal("0.01"),
+                     **{x: Decimal("1") for x in ("SPY", "QQQ", "NVDA", "AAPL", "MSFT", "TSLA")}}
+        lot = lot_sizes.get(sym)
+        if lot is None:
+            intake_violations.append("instrument_lot_metadata_unavailable")
+        if desired_notional_usd is None and entry_px > 0 and stop_bps > 0:
+            # RemainingRoomReport is the canonical policy result, including floating losses.
+            preview = evaluate_trading_rules(rulebook, self._snapshot(ts), ProposedTradeCheck(
+                instrument_id=sym, notional_usd=max(Decimal("0.01"), sized_notional),
+                stop_kind="atr", stop_distance_bps=stop_bps, holding_horizon_seconds=3600,
+                session_state="continuous_24_7" if resolved_track == "competition" else "regular_open",
+                data_quality="verified", data_age_seconds=data_age_ms / 1000, license_verified=True,
+                vpin_toxicity=vpin_val,
+            ), evaluated_at=ts).remaining_room
+            for room in (preview.max_safe_trade_notional_usd, preview.leverage_room_usd):
+                if room is not None:
+                    sized_notional = min(sized_notional, Decimal(room))
+            if lot is not None:
+                quantity = (sized_notional / Decimal(str(entry_px)) / lot).to_integral_value(rounding=ROUND_DOWN) * lot
+                sized_notional = quantity * Decimal(str(entry_px))
+            if sized_notional <= 0:
+                intake_violations.append("insufficient_remaining_room_for_one_lot")
+                sized_notional = Decimal("0.01")
 
         actual_risk_usd = (sized_notional * (stop_bps / Decimal("10000"))).quantize(Decimal("0.01"))
         actual_risk_frac = float(actual_risk_usd / max(Decimal("1"), equity))
@@ -645,7 +705,13 @@ class ActionableControlPlaneEngine:
             vpin_toxicity=min(1.0, max(0.0, vpin_val)),
             data_age_ms=float(data_age_ms),
         )
-        decision = self.submit_order(req, now=ts)
+        decision = self.submit_order(req, now=ts, intake_violations=tuple(intake_violations))
+        decision = decision.model_copy(update={
+            "entry_price": entry_px, "stop_loss_price": stop_px,
+            "take_profit_price": tp_px,
+            "quantity": sized_notional / Decimal(str(entry_px)) if entry_px > 0 else Decimal("0"),
+        })
+        self.order_history[-1] = decision
 
         connector_receipt: dict[str, Any] | None = None
         if decision.control_plane_decision == "authorized_and_executed" and execution_connector is not None:
@@ -676,6 +742,19 @@ class ActionableControlPlaneEngine:
             connector_receipt=connector_receipt,
             execution_permission="none",
         )
+
+    def process_strategy_signal(self, signal: StrategySignal, current_equity: float) -> BracketOrderIntakeReport:
+        """Deterministic entry point. Equity must include realized and floating P&L.
+
+        Existing connectors are paper simulators; this method does not claim a venue fill.
+        """
+        if signal.execution_permission != "none":
+            raise ValueError("Signal execution_permission must be none")
+        if not math.isfinite(current_equity) or current_equity <= 0:
+            raise ValueError("current_equity must be finite and positive")
+        self.current_equity_usd = Decimal(str(current_equity))
+        self.high_water_mark_usd = max(self.high_water_mark_usd, self.current_equity_usd)
+        return self.ingest_whale_policy_signal(signal, execution_connector=self.execution_connector, require_connector=True)
 
     evaluate_and_bracket_signal = ingest_whale_policy_signal
 

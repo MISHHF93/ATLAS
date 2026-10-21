@@ -6,6 +6,7 @@ import json
 from typing import Literal
 from pydantic import BaseModel
 
+from atlas.api.catalog import catalog_router
 from atlas.ai.gemini_provider import GeminiResearchProvider
 from atlas.ai.policy import PolicyError
 from atlas.control.engine import ActionableControlPlaneEngine, ActionableOrderRequest
@@ -46,6 +47,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+app.include_router(catalog_router)
 
 control_engine = ActionableControlPlaneEngine()
 
@@ -2136,7 +2138,7 @@ def _build_visual_automation_scan(symbol: str = "BTC-USD", trigger_dispatch: boo
             "route": "/trade/cockpit",
             "status": "AUTOMATED",
             "latency_ms": 1.1,
-            "summary": f"Triple-Barrier Meta-Labeling ({pt_state['meta_labeling']['meta_label_probability'] * 100:.1f}% win prob) auto-submits {pt_state['whale_moment_action']} ${pt_state['optimal_notional_usd']:,.0f} via ActionableControlPlaneEngine.",
+                "summary": "Research signal only; deterministic control owns order sizing and submission.",
             "manual_steps_eliminated": 5,
         },
         {
@@ -2300,3 +2302,12 @@ def post_backlog_todos_verify_endpoint(payload: dict[str, object] | None = None)
 
 
 
+
+
+from atlas.strategies.base import StrategySignal
+
+@app.post("/api/control/strategy-signal", include_in_schema=False)
+def process_strategy_signal_endpoint(signal: StrategySignal) -> dict[str, object]:
+    """Manual intent intake; all sizing and authorization remains in the control plane."""
+    report = control_engine.process_strategy_signal(signal, float(control_engine.current_equity_usd))
+    return report.model_dump(mode="json")

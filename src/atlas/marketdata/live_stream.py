@@ -14,7 +14,11 @@ All live stream metrics carry `execution_permission = "none"`.
 from __future__ import annotations
 
 import collections
-from dataclasses import asdict, dataclass
+import math
+import asyncio
+from collections.abc import AsyncIterator, Callable
+from atlas.marketdata.microstructure import estimate_kyles_lambda
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Deque, Literal
 
@@ -37,16 +41,20 @@ class LiveTickFrame:
     latency_ms: float
     exchange_timestamp: datetime
     system_receipt_timestamp: datetime
-    kyles_lambda: float = 0.0014
+    kyles_lambda: float = 0.0
     regime: str = "Compression"
     execution_permission: Literal["none"] = "none"
+    metrics_ready: bool = False
+    data_mode: Literal["observed", "demo"] = "observed"
 
     def to_payload(self) -> dict[str, Any]:
         top5_bids = [round(x, 2) for x in self.bid_depth[:5]]
         top5_asks = [round(x, 2) for x in self.ask_depth[:5]]
-        spread_bps = round((self.spread / max(1e-6, self.price)) * 10_000.0, 2) if self.spread < 1.0 else round(self.spread, 2)
+        spread_bps = round((self.spread / max(1e-6, self.price)) * 10_000.0, 2)
         stale_threshold_ms = 500.0 if self.track == "competition" else 2000.0
         return {
+            "metrics_ready": self.metrics_ready,
+            "data_mode": self.data_mode,
             "track": self.track,
             "symbol": self.symbol,
             "provider": self.provider,
@@ -60,7 +68,7 @@ class LiveTickFrame:
             "ask_depth": top5_asks,
             "vpin": round(self.vpin, 4),
             "ofi": round(self.ofi, 4),
-            "ofi_z": round(self.ofi * 4.2, 4),
+            "ofi_z": None,
             "kyles_lambda": round(self.kyles_lambda, 6),
             "spread_bps": spread_bps,
             "spread": round(self.spread, 4),
@@ -137,11 +145,11 @@ def compute_rolling_vpin(buy_buckets: Deque[float], sell_buckets: Deque[float]) 
     """Calculates rolling Volume-Synchronized Probability of Informed Trading (VPIN) over volume buckets."""
     n = min(len(buy_buckets), len(sell_buckets))
     if n == 0:
-        return 0.285
+        return 0.0
     imbalance = sum(abs(b - s) for b, s in zip(buy_buckets, sell_buckets))
     total_vol = sum(b + s for b, s in zip(buy_buckets, sell_buckets))
     if total_vol <= 1e-9:
-        return 0.285
+        return 0.0
     return round(max(0.0, min(1.0, imbalance / total_vol)), 4)
 
 
@@ -176,9 +184,20 @@ class LiveMarketDataGateway:
         ring_buffer_maxlen: int = 10000,
         vpin_bucket_window: int = 20,
         control_engine: ActionableControlPlaneEngine | None = None,
+        bucket_volume: float = 100.0,
+        demo_mode: bool = False,
     ) -> None:
         self.ring_buffer = OrderBookRingBuffer(maxlen=ring_buffer_maxlen)
+        if vpin_bucket_window < 1 or not math.isfinite(bucket_volume) or bucket_volume <= 0:
+            raise ValueError("Positive VPIN volume and window required")
         self.vpin_bucket_window = vpin_bucket_window
+        self.bucket_volume = bucket_volume
+        self.demo_mode = demo_mode
+        self._subscriptions: dict[str, set[str]] = {}
+        self._listeners: list[Callable[[LiveTickFrame], object]] = []
+        self._partial: dict[str, list[float]] = collections.defaultdict(lambda: [0.0, 0.0])
+        self._flows = collections.defaultdict(lambda: collections.deque(maxlen=100))
+        self._deltas = collections.defaultdict(lambda: collections.deque(maxlen=100))
         self.control_engine = control_engine
         self._buy_buckets: dict[str, Deque[float]] = collections.defaultdict(
             lambda: collections.deque(maxlen=vpin_bucket_window)
@@ -189,14 +208,81 @@ class LiveMarketDataGateway:
         self._prev_bids: dict[str, tuple[float, ...]] = {}
         self._prev_asks: dict[str, tuple[float, ...]] = {}
         self._prev_price: dict[str, float] = {}
-        self._kyles_lambda: dict[str, float] = collections.defaultdict(lambda: 0.0014)
+        self._kyles_lambda: dict[str, float] = collections.defaultdict(float)
         self.provider_status: dict[str, dict[str, Any]] = {
-            "databento": {"status": "OK", "connected": True, "reconnect_attempts": 0, "latency_ms": 6.4},
-            "polygon": {"status": "OK", "connected": True, "reconnect_attempts": 0, "latency_ms": 9.2},
-            "ccxt_pro": {"status": "OK", "connected": True, "reconnect_attempts": 0, "latency_ms": 11.8},
-            "coinbase": {"status": "OK", "connected": True, "reconnect_attempts": 0, "latency_ms": 10.5},
-            "hyperliquid": {"status": "OK", "connected": True, "reconnect_attempts": 0, "latency_ms": 8.9},
+            "databento": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
+            "polygon": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
+            "ccxt_pro": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
+            "coinbase": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
+            "hyperliquid": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
         }
+
+    def add_listener(self, listener: Callable[[LiveTickFrame], object]) -> None:
+        self._listeners.append(listener)
+
+    def subscribe(self, symbols: list[str], subscriber_id: str) -> dict[str, Any]:
+        if not subscriber_id or len(symbols) > 100:
+            raise ValueError("Subscriber and at most 100 symbols required")
+        normalized = sorted({s.strip().upper() for s in symbols if s.strip()})
+        if any(len(s) > 64 for s in normalized):
+            raise ValueError("Invalid symbol length")
+        for symbol in normalized:
+            self._subscriptions.setdefault(symbol, set()).add(subscriber_id)
+        return {"subscribed_symbols": normalized, "active_symbol_count": len(self._subscriptions), "execution_permission": "none"}
+
+    def unsubscribe(self, symbols: list[str], subscriber_id: str) -> dict[str, Any]:
+        normalized = sorted({s.strip().upper() for s in symbols})
+        deactivated = []
+        for symbol in normalized:
+            clients = self._subscriptions.get(symbol)
+            if clients is not None:
+                clients.discard(subscriber_id)
+                if not clients:
+                    del self._subscriptions[symbol]
+                    deactivated.append(symbol)
+        return {"unsubscribed_symbols": normalized, "zero_subscriber_deactivated": deactivated,
+                "active_symbol_count": len(self._subscriptions), "execution_permission": "none"}
+
+    def unsubscribe_client_all(self, subscriber_id: str) -> list[str]:
+        return self.unsubscribe(list(self._subscriptions), subscriber_id)["zero_subscriber_deactivated"]
+
+    def is_symbol_subscribed(self, symbol: str) -> bool:
+        return bool(self._subscriptions.get(symbol.upper()))
+
+    async def run_provider(
+        self, provider: str, source_factory: Callable[[], AsyncIterator[dict[str, Any]]],
+        *, stop: asyncio.Event,
+    ) -> None:
+        """Consume an authenticated provider's normalized async feed on one event loop.
+
+        The factory owns provider authentication and subscription entitlements. No
+        substitute source is selected on failure; retries stay with the same provider.
+        """
+        if provider not in self.provider_status:
+            raise ValueError("Unknown provider")
+        state = self.provider_status[provider]
+        while not stop.is_set():
+            source = source_factory()
+            try:
+                async for tick in source:
+                    if stop.is_set():
+                        return
+                    self.ingest_tick(provider=provider, **tick)
+                    state.update(connected=True, status="OK", reconnect_attempts=0)
+                state.update(connected=False, status="DISCONNECTED")
+            except asyncio.CancelledError:
+                raise
+            except (OSError, ConnectionError, TimeoutError):
+                state.update(connected=False, status="DISCONNECTED")
+            finally:
+                state["connected"] = False
+                if hasattr(source, "aclose"):
+                    await source.aclose()
+            retry = self.attempt_reconnect(provider)
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=retry["last_backoff_seconds"])
+            except TimeoutError:
+                continue
 
     def simulate_disconnect(self, provider: str) -> dict[str, Any]:
         key = provider.lower()
@@ -214,8 +300,8 @@ class LiveMarketDataGateway:
         attempts = int(self.provider_status[key]["reconnect_attempts"]) + 1
         backoff_sec = round(min(30.0, 0.5 * (2 ** (attempts - 1))), 3)
         self.provider_status[key]["reconnect_attempts"] = attempts
-        self.provider_status[key]["connected"] = True
-        self.provider_status[key]["status"] = "OK"
+        self.provider_status[key]["connected"] = False
+        self.provider_status[key]["status"] = "AWAITING_TRANSPORT"
         self.provider_status[key]["last_backoff_seconds"] = backoff_sec
         return dict(self.provider_status[key])
 
@@ -245,8 +331,8 @@ class LiveMarketDataGateway:
         price: float,
         size: float,
         side: Literal["buy", "sell"] = "buy",
-        bid_depth: list[float] | tuple[float, ...] = (120.0, 95.0, 80.0, 65.0, 50.0),
-        ask_depth: list[float] | tuple[float, ...] = (100.0, 85.0, 75.0, 60.0, 48.0),
+        bid_depth: list[float] | tuple[float, ...] = (),
+        ask_depth: list[float] | tuple[float, ...] = (),
         spread: float = 0.05,
         exchange_timestamp: datetime | None = None,
         system_receipt_timestamp: datetime | None = None,
@@ -256,39 +342,52 @@ class LiveMarketDataGateway:
     ) -> LiveTickFrame:
         sym = symbol.upper()
         is_crypto = sym.endswith("-USD") or sym in {"BTC-USD", "ETH-USD", "SOL-USD"}
-        track: Literal["competition", "open_market"] = "competition" if is_crypto else "open_market"
+        track: Literal["competition", "open_market"] = "competition" if is_crypto or sym in {"ES", "NQ", "YM", "RTY", "CL", "GC"} else "open_market"
         resolved_provider: Literal["databento", "polygon", "ccxt_pro", "coinbase", "hyperliquid"] = (
             provider if provider is not None else ("ccxt_pro" if is_crypto else "databento")
         )
 
         now = datetime.now(timezone.utc)
-        ex_ts = exchange_timestamp or (now - timedelta(milliseconds=8.5))
+        ex_ts = exchange_timestamp or now
         rx_ts = system_receipt_timestamp or now
-        latency_ms = max(0.0, (rx_ts - ex_ts).total_seconds() * 1000.0)
+        if ex_ts.tzinfo is None or rx_ts.tzinfo is None or rx_ts < ex_ts:
+            raise ValueError("Causal violation: timezone-aware receipt must follow exchange timestamp")
+        if not sym or side not in ("buy", "sell") or resolved_provider not in self.provider_status:
+            raise ValueError("Invalid symbol, side or provider")
+        if not all(math.isfinite(x) for x in (price, size, spread, *bid_depth, *ask_depth)):
+            raise ValueError("Tick values must be finite")
+        if price <= 0 or size < 0 or spread < 0 or any(x < 0 for x in (*bid_depth, *ask_depth)):
+            raise ValueError("Invalid tick price, size or depth")
+        latency_ms = (rx_ts - ex_ts).total_seconds() * 1000.0
 
         bids_tuple = tuple(float(x) for x in bid_depth[:5])
         asks_tuple = tuple(float(x) for x in ask_depth[:5])
-        prev_b = self._prev_bids.get(sym, tuple(max(1.0, b * 0.92) for b in bids_tuple))
-        prev_a = self._prev_asks.get(sym, tuple(max(1.0, a * 1.05) for a in asks_tuple))
+        prev_b = self._prev_bids.get(sym, bids_tuple)
+        prev_a = self._prev_asks.get(sym, asks_tuple)
         ofi_val = compute_top5_ofi(prev_b, prev_a, bids_tuple, asks_tuple)
         self._prev_bids[sym] = bids_tuple
         self._prev_asks[sym] = asks_tuple
 
-        if side == "buy":
-            self._buy_buckets[sym].append(float(size))
-            self._sell_buckets[sym].append(float(size) * 0.45)
-        else:
-            self._buy_buckets[sym].append(float(size) * 0.45)
-            self._sell_buckets[sym].append(float(size))
+        # Split the actual aggressor volume across equal-size buckets; no invented counterflow.
+        partial = self._partial[sym]
+        remaining = float(size)
+        while remaining > 1e-12:
+            take = min(remaining, self.bucket_volume - sum(partial))
+            partial[0 if side == "buy" else 1] += take
+            remaining -= take
+            if sum(partial) >= self.bucket_volume - 1e-9:
+                self._buy_buckets[sym].append(partial[0])
+                self._sell_buckets[sym].append(partial[1])
+                partial[:] = [0.0, 0.0]
         vpin_val = compute_rolling_vpin(self._buy_buckets[sym], self._sell_buckets[sym])
-
-        signed_vol = float(size) if side == "buy" else -float(size)
-        kyle_val = compute_streaming_kyles_lambda(
-            self._prev_price.get(sym),
-            float(price),
-            signed_vol,
-            self._kyles_lambda[sym],
-        )
+        previous = self._prev_price.get(sym)
+        if previous is not None:
+            self._deltas[sym].append(float(price) - previous)
+            self._flows[sym].append(float(size) if side == "buy" else -float(size))
+        flows = list(self._flows[sym])
+        kyle_val = 0.0
+        if len(flows) >= 2 and max(flows) != min(flows):
+            kyle_val = estimate_kyles_lambda(list(self._deltas[sym]), flows).lambda_impact
         self._prev_price[sym] = float(price)
         self._kyles_lambda[sym] = kyle_val
 
@@ -309,6 +408,8 @@ class LiveMarketDataGateway:
             exchange_timestamp=ex_ts,
             system_receipt_timestamp=rx_ts,
             kyles_lambda=kyle_val,
+            metrics_ready=bool(self._buy_buckets[sym]) and len(flows) >= 2,
+            data_mode="demo" if self.demo_mode else "observed",
             regime=resolved_regime,
             execution_permission="none",
         )
@@ -325,6 +426,8 @@ class LiveMarketDataGateway:
                 mark_to_market_equity_usd=mark_to_market_equity_usd,
                 now=rx_ts,
             )
+        for listener in tuple(self._listeners):
+            listener(frame)
         return frame
 
     def ingest_dual_track_universe_snapshot(self) -> list[dict[str, Any]]:
@@ -332,6 +435,8 @@ class LiveMarketDataGateway:
         (`SPY`, `NVDA`, `AAPL`, `MSFT`, `QQQ`, `TSLA`, `BTC-USD`, `ETH-USD`, `SOL-USD`)
         and returns their normalized payloads.
         """
+        if not self.demo_mode:
+            return [frame.to_payload() for sym in (*self.EQUITIES_SYMBOLS, *self.CRYPTO_SYMBOLS) if (frame := self.ring_buffer.latest(sym)) is not None]
         import math as _math
 
         now = datetime.now(timezone.utc)
@@ -359,7 +464,7 @@ class LiveMarketDataGateway:
                 side=side,
                 bid_depth=(140.0 + idx * 10, 110.0, 88.0, 72.0, 56.0),
                 ask_depth=(120.0 + idx * 6, 96.0, 80.0, 66.0, 50.0),
-                spread=spr_bps,
+                spread=px * spr_bps / 10000.0,
                 provider=prov,
                 regime=reg,
             )
@@ -395,7 +500,7 @@ class LiveMarketDataGateway:
         sym = symbol.upper().strip()
         is_crypto = sym.endswith("-USD") or sym in {"BTC-USD", "ETH-USD", "SOL-USD"}
         candles: list[dict[str, Any]] = []
-        feed_source = "coinbase_exchange_live_api" if is_crypto else "yahoo_sip_equities_live_api"
+        feed_source = "coinbase_exchange_live_api" if is_crypto else "yahoo_equities_chart_api"
 
         if allow_network:
             try:
@@ -453,6 +558,8 @@ class LiveMarketDataGateway:
             except Exception:
                 candles = []
 
+        if not candles and not self.demo_mode:
+            return {"symbol": sym, "feed_source": "unavailable", "candles": [], "latest_tick": None, "execution_permission": "none", "as_of": now.isoformat()}
         if not candles:
             feed_source = "realtime_pit_microstructure_synthesizer"
             anchor_prices: dict[str, tuple[float, float]] = {

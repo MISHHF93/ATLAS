@@ -31,7 +31,9 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Literal, Sequence
 
-from atlas.control.engine import ActionableControlPlaneEngine, ActionableOrderRequest
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from atlas.control.engine import ActionableControlPlaneEngine
 from atlas.marketdata.live_stream import LiveMarketDataGateway
 from atlas.models.schemas import Observation
 from atlas.models.self_training import label_triple_barrier_samples
@@ -103,7 +105,7 @@ class PerfectTraderWhaleEngine:
     def __init__(self) -> None:
         self.training_generation: int = 1
         self.model_id: str = "perfect_trader_whale_meta_gbdt:v1"
-        self.auto_submit_armed: bool = True
+        self.auto_submit_armed: bool = False
         self.min_meta_probability: float = 0.72
         self.min_whale_confluence: float = 0.68
 
@@ -356,75 +358,9 @@ class PerfectTraderWhaleEngine:
         )
 
         # Compute Quarter-Kelly optimal notional bounded by deterministic prop/open-market per-trade risk cap
-        ctrl_state = control_engine.get_state()
-        equity_usd = float(ctrl_state.account.current_equity_usd)
-        risk_cap_usd = equity_usd * (0.0055 if resolved_track == "competition" else 0.0065)
-        stop_frac = max(0.0025, opp.stop_distance_bps / 10_000.0)
-        kelly_scaled_risk_usd = risk_cap_usd * (0.65 + meta["quarter_kelly_fraction"] * 2.5)
-        raw_notional = min(24000.0, max(6000.0, kelly_scaled_risk_usd / stop_frac))
-        optimal_notional_usd = round(raw_notional / 500.0) * 500.0
-
-        signature = f"{sym}:{opp.action}:{opp.scenario_id}:{int(opp.entry_price)}"
-        already_submitted_for_sig = self._last_submitted_signature.get(sym) == signature
-
-        should_auto_submit = bool(
-            (self.auto_submit_armed and meta["is_whaling_moment"] and not already_submitted_for_sig)
-            or force_submit
-            or len(self.auto_submitted_orders) == 0
-        )
-
-        latest_auto_order: AutoSubmittedWhaleOrder | None = None
-        if should_auto_submit:
-            inst_id = (
-                f"comp:{sym.lower().replace('-usd', '')}-perp:v1"
-                if resolved_track == "competition"
-                else f"open:{sym.lower()}-eq:v1"
-            )
-            decision = control_engine.submit_order(
-                ActionableOrderRequest(
-                    track=resolved_track,
-                    instrument_id=inst_id,
-                    side="buy" if opp.action == "BUY" else "sell",
-                    notional_usd=Decimal(str(optimal_notional_usd)),
-                    stop_kind="atr",
-                    stop_distance_bps=Decimal(str(max(45.0, float(opp.stop_distance_bps)))),
-                    holding_horizon_seconds=3600,
-                    vpin_toxicity=min(0.45, vpin_live),
-                ),
-                now=now_dt,
-            )
-            self._last_submitted_signature[sym] = signature
-            latest_auto_order = AutoSubmittedWhaleOrder(
-                order_id=decision.order_id,
-                position_id=decision.position_id,
-                submitted_at=now_dt.isoformat(),
-                symbol=sym,
-                track=resolved_track,
-                side=opp.action,
-                notional_usd=optimal_notional_usd,
-                entry_price=opp.entry_price,
-                stop_loss_price=opp.stop_loss_price,
-                take_profit_price=opp.take_profit_price,
-                stop_distance_bps=opp.stop_distance_bps,
-                risk_reward_ratio=opp.risk_reward_ratio,
-                whale_scenario_id=opp.scenario_id,
-                whale_scenario_name=opp.scenario_name,
-                whale_confluence_score=meta["whale_confluence_score"],
-                meta_label_probability=meta["meta_label_probability"],
-                kelly_fraction_pct=round(meta["quarter_kelly_fraction"] * 100.0, 2),
-                execution_tactic=opp.execution_tactic,
-                control_plane_decision=decision.control_plane_decision,
-                trigger_reason=(
-                    f"Whaling Moment Locked ({opp.scenario_id}): Meta-Label Win Prob "
-                    f"{meta['meta_label_probability'] * 100:.1f}% >= {self.min_meta_probability * 100:.0f}% · "
-                    f"Confluence {meta['whale_confluence_score'] * 100:.1f}% · Auto-dispatched {opp.action} "
-                    f"${optimal_notional_usd:,.0f} via ActionableControlPlaneEngine."
-                ),
-                execution_permission="none",
-            )
-            self.auto_submitted_orders.insert(0, latest_auto_order)
-            self.auto_submitted_orders = self.auto_submitted_orders[:25]
-
+        # Research never sizes or dispatches orders, including force_submit requests.
+        optimal_notional_usd = None
+        latest_auto_order = None
         return {
             "status": "ok",
             "as_of": now_dt.isoformat(),
@@ -432,7 +368,7 @@ class PerfectTraderWhaleEngine:
             "track": resolved_track,
             "model_id": self.model_id,
             "training_generation": self.training_generation,
-            "auto_submit_armed": self.auto_submit_armed,
+            "auto_submit_armed": False,
             "whale_moment_detected": meta["is_whaling_moment"],
             "whale_moment_action": opp.action,
             "whale_scenario_id": opp.scenario_id,

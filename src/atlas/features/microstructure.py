@@ -96,56 +96,12 @@ def compute_exponential_multilevel_ofi(
     """Compute depth-weighted queue variations across Top 5 L2 bid/ask levels:
     $\\mathrm{OFI}_t = \\sum_{k=1}^5 e^{-\\alpha k} [I(P_k^b \\ge P_{k,t-1}^b) \\Delta q_k^b - I(P_k^a \\le P_{k,t-1}^a) \\Delta q_k^a]$.
     """
-    if len(prev_book) != len(curr_book) or len(curr_book) == 0:
-        raise ValueError("prev_book and curr_book must be non-empty and have identical level count")
-    if alpha <= 0:
-        raise ValueError("Exponential decay alpha must be strictly positive")
-
-    k_levels = min(5, len(curr_book))
-    weights = [round(math.exp(-alpha * k), 6) for k in range(1, k_levels + 1)]
-    contributions: list[float] = []
-    abs_capacity = 0.0
-
-    for idx in range(k_levels):
-        prev_lvl = prev_book[idx]
-        curr_lvl = curr_book[idx]
-        w_k = weights[idx]
-
-        # Delta q_k^b under Cont-Kukanov-Stoikov queue transition rules
-        if curr_lvl.bid_price > prev_lvl.bid_price:
-            delta_q_b = curr_lvl.bid_size
-        elif curr_lvl.bid_price == prev_lvl.bid_price:
-            delta_q_b = curr_lvl.bid_size - prev_lvl.bid_size
-        else:
-            delta_q_b = -prev_lvl.bid_size
-
-        # Delta q_k^a under Cont-Kukanov-Stoikov queue transition rules
-        if curr_lvl.ask_price < prev_lvl.ask_price:
-            delta_q_a = curr_lvl.ask_size
-        elif curr_lvl.ask_price == prev_lvl.ask_price:
-            delta_q_a = curr_lvl.ask_size - prev_lvl.ask_size
-        else:
-            delta_q_a = -prev_lvl.ask_size
-
-        ind_b = 1.0 if curr_lvl.bid_price >= prev_lvl.bid_price else 0.0
-        ind_a = 1.0 if curr_lvl.ask_price <= prev_lvl.ask_price else 0.0
-
-        ofi_k = w_k * (ind_b * delta_q_b - ind_a * delta_q_a)
-        contributions.append(round(ofi_k, 6))
-        abs_capacity += w_k * (abs(delta_q_b) + abs(delta_q_a) + prev_lvl.bid_size + prev_lvl.ask_size)
-
-    ofi_raw = sum(contributions)
-    ofi_norm = max(-1.0, min(1.0, ofi_raw / abs_capacity)) if abs_capacity > 1e-12 else 0.0
-    dominant: Literal["buy", "sell", "neutral"] = (
-        "buy" if ofi_norm > 0.05 else ("sell" if ofi_norm < -0.05 else "neutral")
-    )
-
-    return MultiLevelOfiReport(
-        ofi_raw=round(ofi_raw, 6),
-        ofi_normalized=round(ofi_norm, 6),
-        level_contributions=tuple(contributions),
-        weights=tuple(weights),
-        dominant_pressure=dominant,
+    if not math.isfinite(alpha) or alpha <= 0:
+        raise ValueError("Exponential decay alpha must be finite and positive")
+    if len(prev_book) != len(curr_book):
+        raise ValueError("Book depths must match")
+    return compute_multilevel_ofi(
+        list(prev_book[:5]), list(curr_book[:5]), decay_lambda=math.exp(-alpha)
     )
 
 

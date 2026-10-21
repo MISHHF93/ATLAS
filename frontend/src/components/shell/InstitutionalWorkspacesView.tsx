@@ -14,6 +14,8 @@ import {
   type ProctoringScenarioPreset,
 } from "./hundredFeaturesData";
 
+const API = "";
+
 export type CoreWorkspaceId = "trade" | "control" | "research" | "data";
 
 export type SubPageRouteId =
@@ -47,16 +49,30 @@ export type InputCandleLike = {
   volume: string | number;
 };
 
+export type CatalogAsset = {
+  symbol: string;
+  name: string;
+  asset_class: "equities" | "crypto_perps" | "futures";
+  exchange: string;
+  track: "open_market" | "competition";
+  provider: "synthetic_fixture";
+  data_status: "synthetic_fixture";
+  execution_permission: "none";
+};
+
 export interface InstitutionalShellProps {
   initialRoute?: SubPageRouteId;
   activeTrack: "competition" | "open_market";
   activeSymbol: string;
+  activeDataSource: string;
+  orderInstrument: string;
   candles: InputCandleLike[];
   killSwitchEngaged: boolean;
   onSwitchTrack?: (track: "competition" | "open_market") => void;
   onTrackChange?: (track: "competition" | "open_market") => void;
   onSelectSymbol?: (symbol: string) => void;
   onSymbolChange?: (symbol: string) => void;
+  onSelectCatalogAsset?: (asset: CatalogAsset) => void;
   onToggleConfigDrawer?: () => void;
   onOpenQuickConfig?: () => void;
   onToggleKillSwitch: () => void | Promise<void>;
@@ -88,7 +104,7 @@ const WORKSPACE_MAP: Record<
       {
         route: "/trade/cockpit",
         title: "Execution Cockpit",
-        summary: "Watchlist, live candlestick + forecast fan, microstructure pulse, and pre-trade risk order desk.",
+        summary: "Asset directory, chart data provenance, research context, and pre-trade controls.",
       },
       {
         route: "/trade/depth-dom",
@@ -202,27 +218,18 @@ function workspaceForRoute(route: SubPageRouteId): CoreWorkspaceId {
   return "trade";
 }
 
-const WATCHLIST_ITEMS = [
-  { symbol: "SPY", name: "S&P 500 ETF", price: 584.2, changePct: 0.42, regime: "Compression", vpin: 0.24, track: "open_market" as const },
-  { symbol: "NVDA", name: "NVIDIA Corp", price: 142.1, changePct: 2.14, regime: "Expansion", vpin: 0.38, track: "open_market" as const },
-  { symbol: "AAPL", name: "Apple Inc", price: 231.45, changePct: 0.65, regime: "Compression", vpin: 0.21, track: "open_market" as const },
-  { symbol: "MSFT", name: "Microsoft", price: 428.9, changePct: 0.31, regime: "Compression", vpin: 0.22, track: "open_market" as const },
-  { symbol: "QQQ", name: "Nasdaq-100", price: 498.6, changePct: 0.88, regime: "Expansion", vpin: 0.29, track: "open_market" as const },
-  { symbol: "TSLA", name: "Tesla Inc", price: 254.3, changePct: -1.12, regime: "Auction", vpin: 0.44, track: "open_market" as const },
-  { symbol: "BTC-USD", name: "Bitcoin Perp", price: 68410.0, changePct: -0.82, regime: "Expansion", vpin: 0.31, track: "competition" as const },
-  { symbol: "ETH-USD", name: "Ether Perp", price: 2645.5, changePct: 1.45, regime: "Expansion", vpin: 0.27, track: "competition" as const },
-  { symbol: "SOL-USD", name: "Solana Perp", price: 176.8, changePct: 3.18, regime: "Expansion", vpin: 0.35, track: "competition" as const },
-];
-
 export function InstitutionalWorkspacesView({
   initialRoute = "/trade/cockpit",
   activeTrack,
   activeSymbol,
+  activeDataSource,
+  orderInstrument,
   candles,
   killSwitchEngaged,
   onSwitchTrack,
   onTrackChange,
   onSelectSymbol,
+  onSelectCatalogAsset,
   onSymbolChange,
   onToggleConfigDrawer,
   onOpenQuickConfig,
@@ -236,7 +243,7 @@ export function InstitutionalWorkspacesView({
   const handleExternalConfig = onToggleConfigDrawer ?? onOpenQuickConfig ?? (() => {});
 
   const [currentRoute, setCurrentRoute] = useState<SubPageRouteId>(initialRoute);
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [cleanMode, setCleanMode] = useState<boolean>(true);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [persona, setPersona] = useState<PersonaRole>("founder_admin");
@@ -245,6 +252,13 @@ export function InstitutionalWorkspacesView({
   const [autoPilotActive, setAutoPilotActive] = useState<boolean>(true);
   const [challengeTier, setChallengeTier] = useState<"50k_sprint" | "100k_2phase" | "250k_inst">("100k_2phase");
   const [watchlistFilter, setWatchlistFilter] = useState<"all" | "open_market" | "competition">("all");
+  const [watchlistAssetClass, setWatchlistAssetClass] = useState<"all" | CatalogAsset["asset_class"]>("all");
+  const [watchlistQuery, setWatchlistQuery] = useState("");
+  const [watchlistOffset, setWatchlistOffset] = useState(0);
+  const [catalogAssets, setCatalogAssets] = useState<CatalogAsset[]>([]);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
   const [proctoringScenarioId, setProctoringScenarioId] = useState<ProctoringScenarioPreset["id"]>("verified");
   const [proctoringAuditQueue, setProctoringAuditQueue] = useState<ProctoringScenarioPreset[]>(PROCTORING_SCENARIO_PRESETS);
   const [mobileRoomScanDone, setMobileRoomScanDone] = useState<boolean>(true);
@@ -258,6 +272,64 @@ export function InstitutionalWorkspacesView({
   useEffect(() => {
     setCurrentRoute(initialRoute);
   }, [initialRoute]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const params = new URLSearchParams({
+      q: watchlistQuery,
+      track: watchlistFilter,
+      asset_class: watchlistAssetClass,
+      limit: "50",
+      offset: String(watchlistOffset),
+    });
+    setCatalogLoading(true);
+    setCatalogError("");
+
+    fetch(`${API}/api/catalog/search?${params.toString()}`, {
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Catalog request failed (HTTP ${response.status}).`);
+        return response.json();
+      })
+      .then((payload: {
+        results?: CatalogAsset[];
+        total_matching?: number;
+        source?: string;
+        is_live?: boolean;
+        execution_permission?: string;
+      }) => {
+        if (payload.source !== "synthetic_fixture" || payload.is_live !== false || payload.execution_permission !== "none" || !Array.isArray(payload.results)) {
+          throw new Error("Catalog response failed provenance checks.");
+        }
+        setCatalogAssets(payload.results);
+        setCatalogTotal(Number(payload.total_matching ?? payload.results.length));
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setCatalogAssets([]);
+          setCatalogTotal(0);
+          setCatalogError(
+            controller.signal.aborted
+              ? "Catalog request timed out. Retry when the API is available."
+              : error instanceof Error ? error.message : "Catalog unavailable."
+          );
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        if (!cancelled) setCatalogLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [watchlistAssetClass, watchlistFilter, watchlistOffset, watchlistQuery]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -651,7 +723,7 @@ export function InstitutionalWorkspacesView({
   const handleTrainPerfectTraderModel = React.useCallback(async () => {
     try {
       const apiBase =
-        typeof window !== "undefined" && window.location.port === "3000" ? "http://localhost:8000" : "";
+        typeof window !== "undefined" && window.location.port === "3000" ? "" : "";
       const res = await fetch(`${apiBase}/api/ml/perfect-trader/train`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -710,7 +782,7 @@ export function InstitutionalWorkspacesView({
   const handleAutoSubmitWhaleScan = React.useCallback(async () => {
     try {
       const apiBase =
-        typeof window !== "undefined" && window.location.port === "3000" ? "http://localhost:8000" : "";
+        typeof window !== "undefined" && window.location.port === "3000" ? "" : "";
       const res = await fetch(`${apiBase}/api/ml/perfect-trader/auto-submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -738,7 +810,7 @@ export function InstitutionalWorkspacesView({
     setPerfectTraderState((prev) => ({ ...prev, autoSubmitArmed: nextArmed }));
     try {
       const apiBase =
-        typeof window !== "undefined" && window.location.port === "3000" ? "http://localhost:8000" : "";
+        typeof window !== "undefined" && window.location.port === "3000" ? "" : "";
       const res = await fetch(`${apiBase}/api/ml/perfect-trader/auto-submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -763,7 +835,7 @@ export function InstitutionalWorkspacesView({
     try {
       const apiBase =
         typeof window !== "undefined" && window.location.port === "3000"
-          ? "http://localhost:8000"
+          ? ""
           : "";
       const res = await fetch(`${apiBase}/api/market/live-ai-prediction?symbol=${encodeURIComponent(cleanSym)}`, {
         cache: "no-store",
@@ -907,15 +979,14 @@ export function InstitutionalWorkspacesView({
       setLiveCandlesOverride(fetchedCandles);
     }
 
-    const baseItem = WATCHLIST_ITEMS.find((w) => w.symbol === cleanSym) ?? WATCHLIST_ITEMS[0];
-    const latestClose =
-      fetchedCandles.length > 0
-        ? fetchedCandles[fetchedCandles.length - 1].close
-        : Number((baseItem.price * (1 + (Math.sin(Date.now() / 4000) * 0.0012))).toFixed(2));
-    const prevClose =
-      fetchedCandles.length > 1
-        ? fetchedCandles[fetchedCandles.length - 2].close
-        : baseItem.price * 0.9985;
+    if (fetchedCandles.length < 5) {
+      setLiveCandlesOverride(null);
+      setLiveAiPrediction(null);
+      return;
+    }
+
+    const latestClose = fetchedCandles[fetchedCandles.length - 1].close;
+    const prevClose = fetchedCandles[fetchedCandles.length - 2].close;
     const ret15m = (latestClose - prevClose) / Math.max(1e-6, prevClose);
     const drift = Math.abs(ret15m) < 0.0003 ? 0.0016 : ret15m * 1.35;
     const dir: "LONG" | "SHORT" = drift >= 0 ? "LONG" : "SHORT";
@@ -929,7 +1000,7 @@ export function InstitutionalWorkspacesView({
       modelId: "vpin_absorb_gbdt:v2 (Live Causal)",
       direction: dir,
       calibratedProbability: prob,
-      vpin: baseItem.vpin,
+      vpin: 0,
       ofi: dir === "LONG" ? 0.24 : -0.21,
       latencyMs: 8.2,
       updatedAt: new Date().toLocaleTimeString(),
@@ -967,13 +1038,15 @@ export function InstitutionalWorkspacesView({
 
   useEffect(() => {
     setLiveCandlesOverride(null);
+    setLiveAiPrediction(null);
+    if (activeDataSource !== "verified_market_feed") return;
     void runLiveMarketAndAiPrediction(activeSymbol);
     if (!liveStreamActive) return;
     const timer = setInterval(() => {
       void runLiveMarketAndAiPrediction(activeSymbol);
     }, 5000);
     return () => clearInterval(timer);
-  }, [activeSymbol, liveStreamActive, runLiveMarketAndAiPrediction]);
+  }, [activeDataSource, activeSymbol, liveStreamActive, runLiveMarketAndAiPrediction]);
 
   const handleRunVisualAutoScan = React.useCallback(
     async (triggerDispatch = true) => {
@@ -994,7 +1067,7 @@ export function InstitutionalWorkspacesView({
 
       try {
         const apiBase =
-          typeof window !== "undefined" && window.location.port === "3000" ? "http://localhost:8000" : "";
+          typeof window !== "undefined" && window.location.port === "3000" ? "" : "";
         const res = await fetch(`${apiBase}/api/automation/visual-scan`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1184,14 +1257,6 @@ export function InstitutionalWorkspacesView({
     }
   }
 
-  const filteredWatchlist = useMemo(
-    () =>
-      WATCHLIST_ITEMS.filter((item) =>
-        watchlistFilter === "all" ? true : item.track === watchlistFilter
-      ),
-    [watchlistFilter]
-  );
-
   return (
     <div className={`${cleanMode ? "atlas-clean-shell-active" : ""} clean-shell-root`}>
       {/* ====================================================================
@@ -1294,55 +1359,7 @@ export function InstitutionalWorkspacesView({
         </div>
       </header>
 
-      {/* ====================================================================
-          ROW 2: 4 PRIMARY WORKSPACES + QUICK TICKER PILLS
-         ==================================================================== */}
-      <nav className="clean-workspace-nav" aria-label="Primary Operational Workspaces">
-        <div className="clean-ws-tabs">
-          {(Object.keys(WORKSPACE_MAP) as CoreWorkspaceId[]).map((wsKey) => {
-            const ws = WORKSPACE_MAP[wsKey];
-            const isActive = activeWorkspace === wsKey;
-            return (
-              <button
-                key={wsKey}
-                type="button"
-                className={`clean-ws-btn ${isActive ? "active" : ""}`}
-                onClick={() => handleNavigateRoute(ws.subpages[0].route)}
-              >
-                <span className="clean-ws-num">{ws.number}</span>
-                <span>{ws.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="clean-quick-tickers" aria-label="Quick Market Switcher">
-          {WATCHLIST_ITEMS.slice(0, 7).map((item) => (
-            <button
-              key={item.symbol}
-              type="button"
-              className={`clean-ticker-pill ${activeSymbol === item.symbol ? "active" : ""}`}
-              onClick={() => {
-                handleSymbolSelect(item.symbol);
-                if (autoPilotActive) {
-                  handleTrackSwitch(item.track);
-                }
-              }}
-            >
-              <strong>{item.symbol}</strong>
-              <span>${item.price.toLocaleString()}</span>
-              <span style={{ color: item.changePct >= 0 ? "#00F29D" : "#FF3B69" }}>
-                {item.changePct >= 0 ? "+" : ""}
-                {item.changePct.toFixed(1)}%
-              </span>
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      {/* ====================================================================
-          BODY LAYOUT: LEFT QUICK-JUMP SIDEBAR + SCROLLABLE MAIN STAGE
-         ==================================================================== */}
+      {/* One direct navigation rail; the top-level workspace and subpage navs are consolidated here. */}
       <div className={`clean-body-layout ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
         {sidebarOpen && (
           <aside className="clean-left-nav" aria-label="All Workspaces and Sub-Pages Navigation">
@@ -1370,26 +1387,10 @@ export function InstitutionalWorkspacesView({
         )}
 
         <div className="clean-main-scroll">
-          {/* ================================================================
-              ROW 3: CONTEXTUAL SUB-NAVIGATION FOR THE ACTIVE WORKSPACE
-             ================================================================ */}
-          <div className="clean-subnav-bar">
-            <div className="clean-sub-pills" role="tablist" aria-label="Workspace Views">
-              {WORKSPACE_MAP[activeWorkspace].subpages.map((sub) => (
-                <button
-                  key={sub.route}
-                  type="button"
-                  role="tab"
-                  aria-selected={currentRoute === sub.route}
-                  className={`clean-sub-pill ${currentRoute === sub.route ? "active" : ""}`}
-                  onClick={() => handleNavigateRoute(sub.route)}
-                >
-                  {sub.title}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ fontSize: "12px", color: "#94A3B8" }}>{currentSubpageMeta.summary}</div>
+          <div className="clean-page-context">
+            <span className="clean-page-context-title">{currentSubpageMeta.title}</span>
+            <span className="clean-page-context-summary">{currentSubpageMeta.summary}</span>
+            <span className="clean-page-context-source">DATA SOURCE · {activeDataSource || "UNSPECIFIED"}</span>
           </div>
 
           {/* ================================================================
@@ -2013,29 +2014,60 @@ export function InstitutionalWorkspacesView({
 
             {/* 3-Column Execution Cockpit */}
             <div className="cockpit-3-rail-grid">
-              {/* LEFT RAIL: Clean Market Watchlist */}
+              {/* LEFT RAIL: Searchable full catalog directory */}
               <div className="clean-card">
                 <div className="clean-card-header">
                   <div>
-                    <h2 className="clean-card-title">Market Watchlist</h2>
-                    <p className="clean-card-subtitle">Select symbol to sync chart &amp; order desk</p>
+                    <h2 className="clean-card-title">Asset Directory</h2>
+                    <p className="clean-card-subtitle">Search the full catalog · selection does not imply a connected market feed</p>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: "4px" }}>
+                <div className="clean-catalog-search-row">
+                  <input
+                    aria-label="Search asset catalog"
+                    className="field-input clean-catalog-search"
+                    type="search"
+                    placeholder="Search symbol, company, or venue"
+                    value={watchlistQuery}
+                    onChange={(event) => {
+                      setWatchlistQuery(event.target.value);
+                      setWatchlistOffset(0);
+                    }}
+                  />
+                  <select
+                    aria-label="Filter asset class"
+                    className="field-select clean-catalog-class"
+                    value={watchlistAssetClass}
+                    onChange={(event) => {
+                      setWatchlistAssetClass(event.target.value as typeof watchlistAssetClass);
+                      setWatchlistOffset(0);
+                    }}
+                  >
+                    <option value="all">All classes</option>
+                    <option value="equities">Equities / ETFs</option>
+                    <option value="crypto_perps">Crypto perps</option>
+                    <option value="futures">Futures</option>
+                  </select>
+                </div>
+
+                <div className="clean-catalog-track-filter" role="group" aria-label="Filter catalog by track">
                   {(
                     [
                       { id: "all", label: "All" },
-                      { id: "open_market", label: "Stocks" },
-                      { id: "competition", label: "Perps" },
+                      { id: "open_market", label: "Open market" },
+                      { id: "competition", label: "Competition" },
                     ] as const
                   ).map((tab) => (
                     <button
                       key={tab.id}
                       type="button"
                       className={`clean-tf-btn ${watchlistFilter === tab.id ? "active" : ""}`}
-                      style={{ flex: 1, padding: "5px 8px" }}
-                      onClick={() => setWatchlistFilter(tab.id)}
+                      style={{ padding: "5px 8px" }}
+                      onClick={() => {
+                        setWatchlistFilter(tab.id);
+                        setWatchlistOffset(0);
+                      }}
                     >
                       {tab.label}
                     </button>
@@ -2043,39 +2075,47 @@ export function InstitutionalWorkspacesView({
                 </div>
 
                 <div className="clean-watchlist">
-                  {filteredWatchlist.map((item) => (
+                  {catalogAssets.map((item) => (
                     <button
                       key={item.symbol}
                       type="button"
                       className={`clean-watch-item ${activeSymbol === item.symbol ? "active" : ""}`}
-                      onClick={() => handleSymbolSelect(item.symbol)}
+                      onClick={() => {
+                        if (onSelectCatalogAsset) {
+                          onSelectCatalogAsset(item);
+                        } else {
+                          handleTrackSwitch(item.track);
+                          handleSymbolSelect(item.symbol);
+                        }
+                      }}
                     >
                       <div>
                         <div style={{ fontWeight: 700, fontSize: "13.5px", color: "#F8FAFC", fontFamily: "var(--font-mono)" }}>
                           {item.symbol}
                         </div>
                         <div style={{ fontSize: "11px", color: "#64748B" }}>
-                          {item.name} · {item.regime}
+                          {item.name}
                         </div>
                       </div>
-                      <div style={{ textAlign: "right", fontFamily: "var(--font-mono)" }}>
-                        <div style={{ fontWeight: 700, fontSize: "13px", color: "#F1F5F9" }}>
-                          ${item.price.toLocaleString()}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "11.5px",
-                            fontWeight: 600,
-                            color: item.changePct >= 0 ? "#00F29D" : "#FF3B69",
-                          }}
-                        >
-                          {item.changePct >= 0 ? "+" : ""}
-                          {item.changePct.toFixed(2)}%
-                        </div>
+                      <div className="clean-catalog-row-meta">
+                        <span>{item.asset_class.replaceAll("_", " ")}</span>
+                        <span>{item.exchange}</span>
+                        <span>{item.track === "open_market" ? "OPEN" : "COMP"}</span>
                       </div>
                     </button>
                   ))}
+                  {catalogLoading ? <div className="clean-catalog-empty">Loading catalog…</div> : null}
+                  {!catalogLoading && catalogError ? <div className="clean-catalog-empty" role="alert">{catalogError}</div> : null}
+                  {!catalogLoading && !catalogError && catalogAssets.length === 0 ? <div className="clean-catalog-empty">No catalog entries match.</div> : null}
                 </div>
+                <div className="clean-catalog-footer">
+                  <span>{catalogLoading ? "Loading" : `${catalogTotal.toLocaleString()} catalog entries · synthetic metadata`}</span>
+                  <div className="clean-catalog-paging">
+                    <button type="button" className="clean-tf-btn" disabled={watchlistOffset === 0 || catalogLoading} onClick={() => setWatchlistOffset((offset) => Math.max(0, offset - 50))}>Previous</button>
+                    <button type="button" className="clean-tf-btn" disabled={watchlistOffset + catalogAssets.length >= catalogTotal || catalogLoading} onClick={() => setWatchlistOffset((offset) => offset + 50)}>Next</button>
+                  </div>
+                </div>
+                <div className="clean-catalog-notice">Generated fixture directory. No quotes, live listings, or tradeable-universe claims.</div>
               </div>
 
               {/* CENTER STAGE: Chart Canvas + 3 Clean Microstructure Pulse Cards */}
@@ -2084,6 +2124,7 @@ export function InstitutionalWorkspacesView({
                   <LiveChartEngine
                     symbol={activeSymbol}
                     candles={normalizedCandles}
+                    marketDataAvailable={activeDataSource !== "synthetic_catalog_no_market_data"}
                     aiPrediction={liveAiPrediction}
                     onLockOpportunity={(opp) => {
                       setOrderSide(opp.action === "BUY" ? "buy" : "sell");
@@ -2096,7 +2137,7 @@ export function InstitutionalWorkspacesView({
                   />
                 </div>
 
-                <div className="clean-grid-3">
+                {activeDataSource === "verified_market_feed" ? <div className="clean-grid-3">
                   <div className="clean-card" style={{ padding: "14px 16px" }}>
                     <span className="clean-kpi-label">Volume Profile (VAL / POC / VAH)</span>
                     <div
@@ -2142,7 +2183,7 @@ export function InstitutionalWorkspacesView({
                       <div className="clean-mini-fill cyan" style={{ width: "48%" }} />
                     </div>
                   </div>
-                </div>
+                </div> : <div className="clean-catalog-empty" role="status">Verified market and microstructure metrics are unavailable for this selection.</div>}
 
                 {/* REAL-TIME LIVE MARKET DATA & AI MODEL PREDICTION ENGINE */}
                 {liveAiPrediction && (
@@ -2343,7 +2384,7 @@ export function InstitutionalWorkspacesView({
               <div className="clean-card">
                 <div className="clean-card-header">
                   <div>
-                    <h2 className="clean-card-title">Order Desk ({activeSymbol})</h2>
+                    <h2 className="clean-card-title">Order Desk · {orderInstrument}</h2>
                     <p className="clean-card-subtitle">
                       {autoPilotActive && !orderDeskManualOverride
                         ? "⚡ Zero-Touch Auto-Locked from Whale ML & Remaining-Room HUD"

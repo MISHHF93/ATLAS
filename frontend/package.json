@@ -2,14 +2,14 @@
   "name": "atlas-terminal",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node server.mjs",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.mjs --production",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "lightweight-charts": "^4.2.0",
+    "lightweight-charts": "4.2.3",
     "lucide-react": "^0.460.0",
     "next": "^15.5.4",
     "react": "^19.1.0",

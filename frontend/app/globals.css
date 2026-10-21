@@ -1702,6 +1702,39 @@ body {
   gap: 16px;
 }
 
+.clean-page-context {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0E131D;
+}
+
+.clean-page-context-title {
+  color: #F1F5F9;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.clean-page-context-summary {
+  min-width: 0;
+  overflow: hidden;
+  color: #94A3B8;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clean-page-context-source {
+  margin-left: auto;
+  color: #FBBF24;
+  font: 9px var(--font-mono);
+  white-space: nowrap;
+}
+
 .clean-nav-group {
   display: flex;
   flex-direction: column;
@@ -2228,6 +2261,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: min(47vh, 560px);
+  overflow-y: auto;
+  padding-right: 3px;
 }
 
 .clean-watch-item {
@@ -2253,6 +2289,101 @@ body {
 .clean-watch-item.active {
   border-color: #00F29D;
   background: rgba(0, 242, 157, 0.07);
+}
+
+.clean-catalog-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  margin: 10px 0 7px;
+}
+
+.clean-catalog-search,
+.clean-catalog-class {
+  min-width: 0;
+  height: 34px;
+  font-size: 11px;
+}
+
+.clean-catalog-track-filter {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+
+.clean-catalog-row-meta {
+  display: grid;
+  gap: 2px;
+  color: #94A3B8;
+  font: 9px var(--font-mono);
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.clean-catalog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 2px 4px;
+  color: #94A3B8;
+  font-size: 10px;
+}
+
+.clean-catalog-paging {
+  display: flex;
+  gap: 5px;
+}
+
+.clean-catalog-paging button:disabled {
+  cursor: not-allowed;
+  opacity: .4;
+}
+
+.clean-catalog-notice {
+  margin-top: 3px;
+  color: #FBBF24;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.clean-catalog-empty {
+  padding: 18px 10px;
+  color: #94A3B8;
+  font-size: 11px;
+  text-align: center;
+}
+
+.live-chart-no-data {
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 24px;
+  border: 1px dashed rgba(148, 163, 184, .24);
+  background: #0B0E14;
+  color: #94A3B8;
+  text-align: center;
+}
+
+.live-chart-no-data strong {
+  color: #F1F5F9;
+  font: 700 18px var(--font-mono);
+}
+
+.live-chart-no-data p {
+  max-width: 360px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.live-chart-no-data-label {
+  color: #FBBF24;
+  font: 700 9px var(--font-mono);
+  letter-spacing: .08em;
 }
 
 /* Clean Data Table */
@@ -2392,4 +2523,56 @@ body {
   }
 }
 
+@media (max-width: 860px) {
+  .clean-body-layout {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
 
+  .clean-left-nav {
+    max-height: 190px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 12px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .clean-main-scroll {
+    min-width: 0;
+  }
+
+  .clean-page-context {
+    flex-wrap: wrap;
+    gap: 5px 10px;
+    padding: 8px 12px;
+  }
+
+  .clean-catalog-search-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .clean-catalog-row-meta {
+    text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .clean-left-nav {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .clean-catalog-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+
+
+/* Command workbench: desktop proportions with usable tablet/mobile panels. */
+.atlas-command-grid { grid-template-columns: minmax(0, 20fr) minmax(0, 55fr) minmax(0, 25fr); }
+.atlas-command-grid > * { min-width: 0; }
+@media (max-width: 1100px) { .atlas-command-grid { grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr); } .atlas-command-grid > :last-child { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .atlas-command-grid { grid-template-columns: minmax(0, 1fr); } }

@@ -18,8 +18,8 @@ def test_socket_reconnection_backoff_on_simulated_network_drop() -> None:
     assert dropped["status"] == "DISCONNECTED"
 
     rec1 = gateway.attempt_reconnect("databento")
-    assert rec1["connected"] is True
-    assert rec1["status"] == "OK"
+    assert rec1["connected"] is False
+    assert rec1["status"] == "AWAITING_TRANSPORT"
     assert rec1["reconnect_attempts"] == 1
     assert rec1["last_backoff_seconds"] == 0.5
 
