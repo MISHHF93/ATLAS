@@ -1,5 +1,5 @@
-import { AtlasTerminal } from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function RulesPage() {
-  return <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/control/rulebook" />;
+  redirect("/control/rulebook");
 }

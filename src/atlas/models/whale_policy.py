@@ -124,46 +124,75 @@ class WhalePolicyModel:
         symbol: str = "BTC-USD",
         *,
         candles: Sequence[dict[str, Any]] | None = None,
-        spot_price: float = 68450.0,
+        spot_price: float | None = None,
         atr_14: float | None = None,
         vpin: float | None = None,
         ofi_z: float | None = None,
         hawkes_ratio: float | None = None,
-        kyles_lambda: float = 0.0012,
-        spread_bps: float = 1.4,
+        kyles_lambda: float | None = None,
+        spread_bps: float | None = None,
     ) -> StrategySignal:
-        """Evaluate point-in-time microstructure features and return an air-gapped `StrategySignal`."""
+        """Evaluate point-in-time microstructure features and return an air-gapped `StrategySignal`.
+
+        No market state may be fabricated:
+        - With 4+ OHLCV candles: VPIN / Kyle's Lambda / ATR are computed causally from
+          candles; unobservable quantities (OFI depth, Hawkes, spread) are treated as
+          **not observed** unless explicitly supplied, and are excluded from scoring.
+        - Without candles: `spot_price`, `atr_14`, `vpin`, and `ofi_z` MUST be supplied
+          by the caller, otherwise a `ValueError` is raised.
+        """
         sym = symbol.upper().strip()
 
-        if candles is not None and len(candles) >= 3:
-            snap: WhaleMicrostructureFeatureSnapshot = self._extractor.extract_from_candles_and_depth(
+        if candles is not None and len(candles) >= 4:
+            snap: WhaleCandleOnlyFeatureSnapshot = self._extractor.extract_from_candles(
                 sym,
                 candles,
             )
+            data_origin = "candles_only_derived"
             eff_spot = float(candles[-1]["close"])
             eff_atr = float(atr_14) if atr_14 is not None else float(snap.atr_14)
             eff_vpin = float(vpin) if vpin is not None else float(snap.vpin)
-            eff_ofi_z = float(ofi_z) if ofi_z is not None else float(snap.ofi_zscore)
-            eff_hawkes = float(hawkes_ratio) if hawkes_ratio is not None else float(snap.hawkes_branching_ratio)
-            eff_kyle = float(snap.kyles_lambda)
-            eff_spread = float(snap.spread_bps)
-        else:
+            eff_kyle = float(kyles_lambda) if kyles_lambda is not None else float(snap.kyles_lambda)
+            eff_ofi_z = float(ofi_z) if ofi_z is not None else 0.0
+            ofi_observed = ofi_z is not None
+            eff_hawkes = float(hawkes_ratio) if hawkes_ratio is not None else 0.0
+            hawkes_observed = hawkes_ratio is not None
+            eff_spread = float(spread_bps) if spread_bps is not None else 1.4
+            spread_observed = spread_bps is not None
+            momentum_sign = 1.0 if float(snap.close_to_close_change) >= 0.0 else -1.0
+        elif candles is None:
+            if spot_price is None or atr_14 is None or vpin is None or ofi_z is None:
+                raise ValueError(
+                    "Insufficient observed microstructure inputs: candle-free inference requires "
+                    "explicit spot_price, atr_14, vpin, and ofi_z (hawkes_ratio, spread_bps, "
+                    "kyles_lambda optional). Fabricated market state is not permitted."
+                )
+            data_origin = "explicit_scalars"
             eff_spot = float(spot_price)
-            eff_atr = float(atr_14) if atr_14 is not None else round(eff_spot * 0.0080, 2)
-            eff_vpin = float(vpin) if vpin is not None else 0.38
-            eff_ofi_z = float(ofi_z) if ofi_z is not None else 2.40
-            eff_hawkes = float(hawkes_ratio) if hawkes_ratio is not None else 0.92
-            eff_kyle = float(kyles_lambda)
-            eff_spread = float(spread_bps)
+            eff_atr = float(atr_14)
+            eff_vpin = float(vpin)
+            eff_ofi_z = float(ofi_z)
+            ofi_observed = True
+            eff_hawkes = float(hawkes_ratio) if hawkes_ratio is not None else 0.0
+            hawkes_observed = hawkes_ratio is not None
+            eff_kyle = float(kyles_lambda) if kyles_lambda is not None else 0.0
+            eff_spread = float(spread_bps) if spread_bps is not None else 1.4
+            spread_observed = spread_bps is not None
+            momentum_sign = 1.0 if eff_ofi_z >= 0 else -1.0
+        else:
+            raise ValueError("At least 4 OHLCV candles are required for candle-derived inference")
 
-        # Policy directional score combining OFI queue pressure, VPIN informed accumulation, and Hawkes iceberg ratio
+        dir_sign = (1.0 if eff_ofi_z >= 0.0 else -1.0) if ofi_observed else momentum_sign
+
+        # Policy directional score combining OFI queue pressure, VPIN informed accumulation, and Hawkes iceberg ratio.
+        # Unobserved components contribute 0 to score (recorded in telemetry).
         raw_score = (
-            self.weights["ofi_z"] * eff_ofi_z
-            + self.weights["vpin"] * (eff_vpin - 0.25) * 3.2 * (1.0 if eff_ofi_z >= 0 else -1.0)
-            + self.weights["hawkes_ratio"] * eff_hawkes * (1.0 if eff_ofi_z >= 0 else -1.0)
+            self.weights["ofi_z"] * eff_ofi_z * (1.0 if ofi_observed else 0.0)
+            + self.weights["vpin"] * (eff_vpin - 0.25) * 3.2 * dir_sign
+            + self.weights["hawkes_ratio"] * eff_hawkes * dir_sign * (1.0 if hawkes_observed else 0.0)
         )
 
-        if abs(eff_ofi_z) < 0.20 and eff_vpin < 0.22:
+        if (not ofi_observed or abs(eff_ofi_z) < 0.20) and eff_vpin < 0.22:
             direction: Literal["BUY", "SELL", "HOLD"] = "HOLD"
         elif raw_score >= 0:
             direction = "BUY"
@@ -187,9 +216,11 @@ class WhalePolicyModel:
             tp_px = round(eff_spot + tp_dist, 2)
 
         # Select execution tactic based on Hawkes iceberg ratio and spread cost
-        if eff_hawkes >= 0.80 and eff_vpin >= 0.30:
+        if hawkes_observed and eff_hawkes >= 0.80 and eff_vpin >= 0.30:
             tactic: Literal["ALMGREN_CHRISS", "LIMIT_POC", "IOC"] = "ALMGREN_CHRISS"
-        elif eff_spread > 4.0 or abs(eff_ofi_z) < 1.2:
+        elif spread_observed and eff_spread > 4.0:
+            tactic = "LIMIT_POC"
+        elif ofi_observed and abs(eff_ofi_z) < 1.2:
             tactic = "LIMIT_POC"
         else:
             tactic = "IOC"
@@ -216,6 +247,10 @@ class WhalePolicyModel:
                 "kyles_lambda": round(eff_kyle, 6),
                 "atr_14": round(eff_atr, 4),
                 "spread_bps": round(eff_spread, 2),
+                "ofi_observed": ofi_observed,
+                "hawkes_observed": hawkes_observed,
+                "spread_observed": spread_observed,
+                "data_origin": data_origin,
             },
             execution_permission="none",
         )
@@ -288,12 +323,16 @@ class WhalePolicyTrainer:
 
         targets: list[WhaleTripleBarrierTarget] = []
         n = len(observations)
-        for idx in range(n - 1):
+        # Start at idx >= 1: an ATR proxy requires at least one realized, causally-known
+        # price diff (|v_i - v_{i-1}| is only observed once v_i has printed).
+        for idx in range(1, n - 1):
             entry_obs = observations[idx]
             entry_px = float(entry_obs.value)
             win_start = max(0, idx - atr_window)
-            recent_diffs = abs_diffs[win_start:max(1, idx)] or [entry_px * 0.005]
-            atr_14 = max(entry_px * 0.0020, sum(recent_diffs) / len(recent_diffs))
+            recent_diffs = abs_diffs[win_start:idx]
+            if not recent_diffs:
+                continue
+            atr_14 = sum(recent_diffs) / len(recent_diffs)
 
             upper_px = round(entry_px + upper_atr_mult * atr_14, 4)
             lower_px = round(max(0.01, entry_px - lower_atr_mult * atr_14), 4)
@@ -366,6 +405,149 @@ class WhalePolicyTrainer:
             execution_permission="none",
         )
 
+    @staticmethod
+    def _causal_feature_vector(values: Sequence[float], idx: int, *, min_history: int = 8) -> tuple[float, ...] | None:
+        """Causally-computable trailing price features using ONLY observations strictly up to `idx`."""
+        if idx < min_history:
+            return None
+        win = list(values[idx - min_history + 1 : idx + 1])
+        rets = [win[i] / max(1e-9, win[i - 1]) - 1.0 for i in range(1, len(win))]
+        mean_r = sum(rets) / len(rets)
+        var_r = sum((r - mean_r) ** 2 for r in rets) / len(rets)
+        r3 = values[idx] / max(1e-9, values[idx - 3]) - 1.0
+        r7 = values[idx] / max(1e-9, values[idx - 7]) - 1.0
+        consecutive_pos = 0.0
+        for r in reversed(rets):
+            if r > 0.0:
+                consecutive_pos += 1.0
+            else:
+                break
+        pos_fraction = sum(1.0 if r > 0.0 else 0.0 for r in rets) / len(rets)
+        return (rets[-1], r3, r7, math.sqrt(var_r), consecutive_pos, pos_fraction)
+
+    @staticmethod
+    def _fit_policy_weights(
+        feature_rows: Sequence[tuple[float, ...]],
+        outcomes: Sequence[int],
+        *,
+        learning_rate: float = 0.50,
+        iterations: int = 2400,
+        l2_penalty: float = 1e-4,
+    ) -> tuple[tuple[float, ...], float]:
+        """Fit a deterministic logistic policy on triple-barrier outcomes via gradient descent.
+
+        Zero-initialized weights with an empirical-prior intercept — no randomness. A tiny
+        L2 term prevents gradient oscillation without dominating the fit.
+        """
+        if not feature_rows or len(feature_rows) != len(outcomes):
+            raise ValueError("Policy fitting requires paired non-empty (features, outcomes)")
+        d = len(feature_rows[0])
+        p_bar = min(1.0 - 1e-6, max(1e-6, sum(1.0 if y > 0 else 0.0 for y in outcomes) / len(outcomes)))
+        intercept = math.log(p_bar / (1.0 - p_bar))
+        weights = [0.0] * d
+
+        for _ in range(max(1, int(iterations))):
+            grad_intercept = 0.0
+            grad_w = [0.0] * d
+            for feats, y in zip(feature_rows, outcomes):
+                z = intercept + sum(w * x for w, x in zip(weights, feats))
+                p = 1.0 / (1.0 + math.exp(-max(-40.0, min(40.0, z))))
+                err = p - (1.0 if y > 0 else 0.0)
+                grad_intercept += err
+                for j in range(d):
+                    grad_w[j] += err * feats[j]
+            m = len(feature_rows)
+            intercept -= learning_rate * (grad_intercept / m)
+            for j in range(d):
+                weights[j] = weights[j] * (1.0 - learning_rate * l2_penalty) - learning_rate * (grad_w[j] / m)
+        return tuple(weights), intercept  # type: ignore[return-value]
+
+    @staticmethod
+    def _sigmoid(z: float) -> float:
+        clamped = max(-40.0, min(40.0, z))
+        return 1.0 / (1.0 + math.exp(-clamped))
+
+    MIN_HISTORY_BARS: int = 8
+
+    def _derive_exp001_oos_records(
+        self,
+        obs_seq: Sequence[Observation],
+        targets: tuple[WhaleTripleBarrierTarget, ...],
+        folds: tuple[PurgedWalkForwardWindow, ...],
+    ) -> list[tuple[datetime, float, float, int]]:
+        """Derive out-of-sample evaluation records from the purged EXP-001 folds — zero fabrication.
+
+        For each fold:
+        - Training policy: logistic gradient-descent on strictly causally-computable trailing
+          price features of the fold's training targets (labels from realized barrier outcomes).
+        - OOS targets: realized `realized_return_fraction` from actual next-observation prices
+          with outcomes derived from the realized return sign; predicted probabilities come
+          exclusively from the fold-fitted policy applied to causal OOS features.
+        """
+        if not folds:
+            raise ValueError(
+                "EXP-001 produced zero purged walk-forward folds; cannot derive an OOS evaluation series"
+            )
+        values = [float(o.value) for o in obs_seq]
+        time_to_idx = {o.event_time: i for i, o in enumerate(obs_seq)}
+
+        records: list[tuple[datetime, float, float, int]] = []
+        for fold in folds:
+
+            def targets_in_window(start: datetime, end: datetime) -> list[WhaleTripleBarrierTarget]:
+                return [
+                    t
+                    for t in targets
+                    if start <= t.entry_time and t.entry_time <= end
+                ]
+
+            train_targets = [
+                t
+                for t in targets_in_window(fold.train_start, fold.train_end)
+            ]
+            test_targets = [
+                t
+                for t in targets_in_window(fold.test_start, fold.test_end)
+            ]
+
+            train_rows: list[tuple[float, ...]] = []
+            train_outcomes: list[int] = []
+            for t in train_targets:
+                idx = time_to_idx.get(t.entry_time)
+                feats = self._causal_feature_vector(values, idx, min_history=self.MIN_HISTORY_BARS) if idx is not None else None
+                if feats is None:
+                    continue
+                train_rows.append(feats)
+                train_outcomes.append(1 if t.realized_return_fraction > 0 else 0)
+            if not train_rows:
+                continue
+
+            weights, intercept = self._fit_policy_weights(train_rows, train_outcomes)
+
+            for t in test_targets:
+                idx = time_to_idx.get(t.entry_time)
+                feats = self._causal_feature_vector(values, idx, min_history=self.MIN_HISTORY_BARS) if idx is not None else None
+                if feats is None:
+                    continue
+                p = self._sigmoid(intercept + sum(w * x for w, x in zip(weights, feats)))
+                ret = float(t.realized_return_fraction)
+                records.append(
+                    (
+                        t.entry_time,
+                        ret,
+                        p,
+                        1 if ret > 0 else 0,
+                    )
+                )
+
+        records.sort(key=lambda rec: rec[0])
+        if len(records) < 4:
+            raise ValueError(
+                "Insufficient out-of-sample evaluation samples (< 4) derivable from the EXP-001 "
+                "purged walk-forward folds; supply more observations or explicit challenger series"
+            )
+        return records
+
     def train_and_evaluate(
         self,
         *,
@@ -379,10 +561,18 @@ class WhalePolicyTrainer:
     ) -> tuple[WhalePolicyModel, WhalePolicyEvaluationReport]:
         """Train `WhalePolicyModel` on Triple-Barrier targets and run `EXP-001` purged walk-forward
         evaluation (5-day embargo; Sharpe > 1.8, MaxDD < 3.2%, Brier < 0.18).
+
+        OOS evaluation series are never fabricated:
+        - If all three `challenger_*` series are supplied (real out-of-sample records from an
+          external challenger model), they are used verbatim.
+        - Otherwise the OOS returns / outcomes / predicted probabilities are **derived** from the
+          purged & embargoed EXP-001 folds themselves: realized next-observation returns for the
+          OOS targets, and policy probabilities from logistic policies fitted *per fold* on
+          strictly causally-computable trailing price features.
         """
         ts = evaluated_at or datetime.now(timezone.utc)
         obs_seq = list(observations) if observations is not None else self.load_warehouse_observations(symbol=symbol)
-        _ = self.generate_triple_barrier_targets(obs_seq)
+        targets = self.generate_triple_barrier_targets(obs_seq)
 
         orchestrator = BotOrchestrator()
         folds = orchestrator.build_exp001_purged_walk_forward_splits(
@@ -392,21 +582,37 @@ class WhalePolicyTrainer:
         )
         causal_ok = len(folds) > 0 and all(f.causal_split_verified and f.embargo_days >= 5 for f in folds)
 
-        oos_rets = (
-            list(challenger_oos_returns)
-            if challenger_oos_returns is not None
-            else [0.0032, 0.0038, -0.0009, 0.0044, 0.0031, 0.0039, -0.0008, 0.0041, 0.0035, 0.0030]
+        challenger_full = (
+            challenger_oos_returns is not None
+            and challenger_outcomes is not None
+            and challenger_predicted_probs is not None
         )
-        outcomes = (
-            list(challenger_outcomes)
-            if challenger_outcomes is not None
-            else [1 if r > 0 else 0 for r in oos_rets]
-        )
-        probs = (
-            list(challenger_predicted_probs)
-            if challenger_predicted_probs is not None
-            else [0.84 if y == 1 else 0.22 for y in outcomes]
-        )
+        if challenger_oos_returns is not None or challenger_outcomes is not None or challenger_predicted_probs is not None:
+            if not challenger_full:
+                raise ValueError(
+                    "challenger OOS series must be provided in full (challenger_oos_returns + "
+                    "challenger_outcomes + challenger_predicted_probs); partial series cannot "
+                    "be completed with fabricated data"
+                )
+        if challenger_full:
+            oos_records = sorted(
+                (
+                    (datetime.min.replace(tzinfo=timezone.utc), float(r), float(p), int(y))
+                    for r, p, y in zip(challenger_oos_returns, challenger_predicted_probs, challenger_outcomes)
+                ),
+                key=lambda rec: rec[0],
+            )
+        else:
+            oos_records = self._derive_exp001_oos_records(obs_seq, targets, folds)
+
+        oos_rets = [rec[1] for rec in oos_records]
+        probs = [rec[2] for rec in oos_records]
+        outcomes = [rec[3] for rec in oos_records]
+        if not oos_rets:
+            raise ValueError(
+                "No out-of-sample evaluation samples were derivable from the EXP-001 purged "
+                "walk-forward folds; provide more observations or explicit challenger series"
+            )
 
         oos_sharpe, oos_sortino, oos_brier, oos_max_dd = compute_rolling_bot_metrics(
             oos_rets,

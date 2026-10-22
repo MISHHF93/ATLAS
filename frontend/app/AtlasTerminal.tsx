@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LiveChartEngine } from "../src/components/market/LiveChartEngine";
+import { TradingViewChart } from "../src/components/market/TradingViewChart";
+import { AppNav } from "../src/components/shell/AppNav";
+import { ATLAS_TAGLINE, AtlasLogo } from "../src/components/shell/AtlasLogo";
 import { InstitutionalWorkspacesView, type SubPageRouteId } from "../src/components/shell/InstitutionalWorkspacesView";
 
 const API = "";
@@ -1650,6 +1652,15 @@ async function readJson<T>(path: string, signal: AbortSignal): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function instrumentIdForSymbol(symbol: string, track: "competition" | "open_market"): string {
+  const upper = symbol.trim().toUpperCase();
+  if (track === "competition") {
+    const base = upper.split("-")[0].toLowerCase() || "btc";
+    return `comp:${base}-perp:v1`;
+  }
+  return `open:${upper.toLowerCase()}-eq:v1`;
+}
+
 function formatPrice(value: string | number): string {
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
@@ -2274,9 +2285,6 @@ export function AtlasTerminal({
   const [warehouseNotice, setWarehouseNotice] = useState<string>(
     "6 Warehouse & API Feed Nodes Online · Google BigQuery Analytics Hub + DuckDB Parquet + Databento + Polygon + Coinbase Live + ClickHouse"
   );
-  const [chartMode, setChartMode] = useState<"atlas_pit" | "tradingview_live">("atlas_pit");
-  const [tvSymbol, setTvSymbol] = useState<string>("COINBASE:BTCUSD");
-  const [tvInterval, setTvInterval] = useState<string>("60");
   const [internetSyncNotice, setInternetSyncNotice] = useState<string>(
     "Live Internet Market Sync Ready (Coinbase Public REST + TradingView Live Engine)"
   );
@@ -2504,21 +2512,34 @@ export function AtlasTerminal({
     setAuditLog((prev) => [...prev, `${new Date().toISOString()} | warehouse_${action} | node=${nodeId}`]);
   }
 
-  async function handleLiveInternetSync(symbol = "SPY") {
-    const tvMap: Record<string, string> = {
-      SPY: "AMEX:SPY",
-      NVDA: "NASDAQ:NVDA",
-      AAPL: "NASDAQ:AAPL",
-      MSFT: "NASDAQ:MSFT",
-      QQQ: "NASDAQ:QQQ",
-      TSLA: "NASDAQ:TSLA",
-      "BTC-USD": "COINBASE:BTCUSD",
-      "ETH-USD": "COINBASE:ETHUSD",
-      "SOL-USD": "COINBASE:SOLUSD",
-    };
-    if (tvMap[symbol]) {
-      setTvSymbol(tvMap[symbol]);
+  async function loadProjectedBars(symbol: string) {
+    try {
+      const res = await fetch(
+        `${API}/api/market/bars?symbol=${encodeURIComponent(symbol)}&bucket_seconds=60&limit=160`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data.candles) || data.candles.length === 0) return;
+      const nextCandles: Candle[] = data.candles.map((bar: { timestamp?: string; open: number; high: number; low: number; close: number; volume: number }) => ({
+        open_time: String(bar.timestamp ?? new Date().toISOString()),
+        open: String(bar.open),
+        high: String(bar.high),
+        low: String(bar.low),
+        close: String(bar.close),
+        volume: String(bar.volume ?? 0),
+      }));
+      setPage((prev) =>
+        prev
+          ? { ...prev, symbol: data.symbol ?? symbol, interval: "1m", source: String(data.feed_origin ?? "labeled_synthetic_fixture"), candles: nextCandles }
+          : { symbol: data.symbol ?? symbol, interval: "1m", source: String(data.feed_origin ?? "labeled_synthetic_fixture"), candles: nextCandles }
+      );
+    } catch {
+      // The chart workspace loads the same endpoint on its own.
     }
+  }
+
+  async function handleLiveInternetSync(symbol = "SPY") {
     const matchedListing = listingsList.find((item) => item.symbol === symbol);
     if (matchedListing) {
       setOrderTrack(matchedListing.track);
@@ -2533,18 +2554,12 @@ export function AtlasTerminal({
       });
       if (res.ok) {
         const data = await res.json();
-        if (!catalogSelectionRef.current && Array.isArray(data.candles) && data.candles.length > 0) {
-          setPage((prev) =>
-            prev
-              ? { ...prev, symbol: data.symbol ?? symbol, source: data.source, candles: data.candles }
-              : prev
-          );
-        }
         if (data.regime_overlay) {
           setSnapshot((prev) => (prev ? { ...prev, regime_overlay: data.regime_overlay } : prev));
         }
+        await loadProjectedBars(symbol);
         setInternetSyncNotice(
-          data.message ?? `Pulled live ${symbol} candles via ${data.source}`
+          `Loaded labeled ${symbol} bars (${data.source ?? "fixture"}). Venue sessions stay unconfigured.`
         );
         setAuditLog((prev) => [
           ...prev,
@@ -2553,10 +2568,11 @@ export function AtlasTerminal({
         return;
       }
     } catch {
-      // Local deterministic fallback
+      await loadProjectedBars(symbol);
+      return;
     }
-    setPage((prev) => (prev ? { ...prev, symbol } : prev));
-    setInternetSyncNotice(`Synchronized live ${symbol} candles & recomputed causal regime state.`);
+    await loadProjectedBars(symbol);
+    setInternetSyncNotice(`Loaded labeled ${symbol} bars. Venue sessions stay unconfigured.`);
     setAuditLog((prev) => [...prev, `${new Date().toISOString()} | live_internet_sync | symbol=${symbol}`]);
   }
 
@@ -3255,7 +3271,10 @@ export function AtlasTerminal({
             throw new Error("Unexpected API payload.");
           }
           setHealth("online");
-          if (!catalogSelectionRef.current) setPage(candleBody);
+          if (!catalogSelectionRef.current) {
+            setPage(candleBody);
+            void loadProjectedBars(String((candleBody as CandlePage).symbol || "BTC-USD"));
+          }
           setCapabilities(capabilityBody);
           setSnapshot(snapshotBody);
           if (Array.isArray(docsBody.documents) && docsBody.documents.length > 0) {
@@ -3337,7 +3356,7 @@ export function AtlasTerminal({
   const showSection = (id: Exclude<SectionId, "all">) => activeSection === "all" || activeSection === id;
 
   const SECTION_ROUTES: Record<Exclude<SectionId, "all">, string> = {
-    overview: "/",
+    overview: "/trade",
     roadmap: "/roadmap",
     matrix: "/matrix",
     listings: "/listings",
@@ -3388,6 +3407,10 @@ export function AtlasTerminal({
   };
 
   function navigateSection(nextSection: SectionId) {
+    if (nextSection === "listings" && typeof window !== "undefined") {
+      window.location.assign("/listings");
+      return;
+    }
     setActiveSection(nextSection);
     if (typeof window !== "undefined" && nextSection !== "all") {
       const targetPath = SECTION_ROUTES[nextSection];
@@ -3418,21 +3441,45 @@ export function AtlasTerminal({
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const response = await fetch(`${API}/api/control/state`, { cache: "no-store" });
+        if (!response.ok) return;
+        const state = await response.json();
+        if (cancelled || !state || typeof state !== "object") return;
+        setKillSwitchEngaged(Boolean(state.kill_switch_engaged));
+        if (Array.isArray(state.open_positions)) setOpenPositions(state.open_positions);
+        if (Array.isArray(state.audit_log)) setAuditLog(state.audit_log);
+      } catch {
+        // Keep the last confirmed control-plane snapshot.
+      }
+    };
+    void pull();
+    const timer = setInterval(pull, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
   const currentMeta = SECTION_META[activeSection] ?? SECTION_META.overview;
   const connectedCount = connectorsList.filter((c) => c.status === "connected").length;
   const activeDomBook = matrixData.orderbook_dom ?? DEFAULT_MATRIX.orderbook_dom;
 
   return (
     <div className="atlas-app" data-theme={theme}>
+      <AppNav />
       {/* ====================================================================
           LEFT INSTITUTIONAL NAVIGATION RAIL (ICON-DRIVEN DOMAIN WORKBUNDLES)
          ==================================================================== */}
       <aside className="atlas-sidebar" aria-label="ATLAS platform navigation">
         <div className="sidebar-brand">
-          <div className="brand-mark">AT</div>
+          <AtlasLogo size={32} />
           <div className="brand-copy">
             <span className="brand-title">ATLAS</span>
-            <span className="brand-subtitle">Prop Trading & Stock Quant Platform</span>
+            <span className="brand-subtitle">Paper research desk</span>
           </div>
         </div>
 
@@ -3912,18 +3959,22 @@ export function AtlasTerminal({
             onTrackChange={(track) => {
               setStudyTrack(track);
               setOrderTrack(track);
-              setOrderInstrument(track === "competition" ? "comp:btc-perp:v1" : "open:spy:v1");
+              setOrderInstrument(track === "competition" ? "comp:btc-perp:v1" : "open:spy-etf:v1");
             }}
             activeSymbol={effectivePage.symbol}
             onSymbolChange={(sym) => {
-              void handleLiveInternetSync(sym);
+              const track = sym.includes("-") ? "competition" : "open_market";
+              setStudyTrack(track);
+              setOrderTrack(track);
+              setOrderInstrument(instrumentIdForSymbol(sym, track));
+              void loadProjectedBars(sym);
             }}
             onSelectCatalogAsset={(asset) => {
               catalogSelectionRef.current = asset.symbol;
               setStudyTrack(asset.track);
-              setPage((current) => current
-                ? { ...current, symbol: asset.symbol, source: "synthetic_catalog_no_market_data", candles: [] }
-                : { ...DEFAULT_CANDLE_PAGE, symbol: asset.symbol, source: "synthetic_catalog_no_market_data", candles: [] });
+              setOrderTrack(asset.track);
+              setOrderInstrument(instrumentIdForSymbol(asset.symbol, asset.track));
+              void loadProjectedBars(asset.symbol);
             }}
             candles={candles}
             killSwitchEngaged={killSwitchEngaged}
@@ -6005,22 +6056,6 @@ export function AtlasTerminal({
                         <h2 className="panel-title">Market Trajectory, Forecast Fan & TradingView Live Feed</h2>
                       </div>
                       <div className="btn-row">
-                        <div className="segmented-tabs">
-                          <button
-                            type="button"
-                            className={`seg-tab ${chartMode === "atlas_pit" ? "active" : ""}`}
-                            onClick={() => setChartMode("atlas_pit")}
-                          >
-                            ATLAS PIT + Forecast Fan
-                          </button>
-                          <button
-                            type="button"
-                            className={`seg-tab ${chartMode === "tradingview_live" ? "active" : ""}`}
-                            onClick={() => setChartMode("tradingview_live")}
-                          >
-                            TradingView Live Internet
-                          </button>
-                        </div>
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
@@ -6031,30 +6066,7 @@ export function AtlasTerminal({
                       </div>
                     </div>
                     <div className="panel-body">
-                      <LiveChartEngine
-                        symbol={effectivePage.symbol}
-                        candles={candles.map((c) => ({
-                          timestamp: c.open_time,
-                          open: Number(c.open),
-                          high: Number(c.high),
-                          low: Number(c.low),
-                          close: Number(c.close),
-                          volume: Number(c.volume),
-                        }))}
-                      />
-                      {chartMode === "atlas_pit" ? (
-                        <div className="chart-container">
-                          <CandlePlot candles={candles} symbol={effectivePage.symbol} />
-                        </div>
-                      ) : (
-                        <TradingViewLiveChart
-                          symbol={tvSymbol}
-                          interval={tvInterval}
-                          theme={theme}
-                          onSelectSymbol={setTvSymbol}
-                          onSelectInterval={setTvInterval}
-                        />
-                      )}
+                      <TradingViewChart symbol={effectivePage.symbol} timeframe="1h" height={420} />
                       <div className="telemetry-console" style={{ padding: "8px 12px" }}>
                         <div className="console-line">&gt; {internetSyncNotice}</div>
                       </div>
@@ -6541,22 +6553,6 @@ export function AtlasTerminal({
                         <h2 className="panel-title">Candlestick Trajectory, TradingView Live & Observation Ledger</h2>
                       </div>
                       <div className="btn-row">
-                        <div className="segmented-tabs">
-                          <button
-                            type="button"
-                            className={`seg-tab ${chartMode === "atlas_pit" ? "active" : ""}`}
-                            onClick={() => setChartMode("atlas_pit")}
-                          >
-                            ATLAS PIT + Forecast Fan
-                          </button>
-                          <button
-                            type="button"
-                            className={`seg-tab ${chartMode === "tradingview_live" ? "active" : ""}`}
-                            onClick={() => setChartMode("tradingview_live")}
-                          >
-                            TradingView Live Internet
-                          </button>
-                        </div>
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
@@ -6567,30 +6563,7 @@ export function AtlasTerminal({
                       </div>
                     </div>
                     <div className="panel-body">
-                      <LiveChartEngine
-                        symbol={effectivePage.symbol}
-                        candles={candles.map((c) => ({
-                          timestamp: c.open_time,
-                          open: Number(c.open),
-                          high: Number(c.high),
-                          low: Number(c.low),
-                          close: Number(c.close),
-                          volume: Number(c.volume),
-                        }))}
-                      />
-                      {chartMode === "atlas_pit" ? (
-                        <div className="chart-container">
-                          <CandlePlot candles={candles} symbol={effectivePage.symbol} />
-                        </div>
-                      ) : (
-                        <TradingViewLiveChart
-                          symbol={tvSymbol}
-                          interval={tvInterval}
-                          theme={theme}
-                          onSelectSymbol={setTvSymbol}
-                          onSelectInterval={setTvInterval}
-                        />
-                      )}
+                      <TradingViewChart symbol={effectivePage.symbol} timeframe="1h" height={420} />
                       <div className="telemetry-console" style={{ padding: "8px 12px" }}>
                         <div className="console-line">&gt; {internetSyncNotice}</div>
                       </div>
@@ -8554,6 +8527,19 @@ export function AtlasTerminal({
              ================================================================ */}
           {showSection("profile") && (
             <>
+              <section className="panel-card">
+                <div className="panel-body" style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                  <AtlasLogo size={56} />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="panel-eyebrow">Branding profile</div>
+                    <h2 className="panel-title" style={{ marginTop: "4px" }}>ATLAS</h2>
+                    <div style={{ fontSize: "13px", color: "#CBD5E1", marginTop: "4px", maxWidth: "640px" }}>{ATLAS_TAGLINE}</div>
+                    <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "6px" }}>
+                      {profile.organization} · {profile.custody_boundary}
+                    </div>
+                  </div>
+                </div>
+              </section>
               <div className="kpi-strip">
                 <div className="kpi-card">
                   <div className="kpi-top">

@@ -1004,7 +1004,12 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
 
     audit_res = client.post("/api/control/readiness-audit")
     assert audit_res.status_code == 200
-    assert audit_res.json()["research_challenger_ready"] is True
+    audit_body = audit_res.json()
+    assert audit_body["research_challenger_ready"] is False
+    assert audit_body["capital_pathway_prereqs_met"] is False
+    assert audit_body["execution_permission"] == "none"
+    assert "does_not_beat_no_trade_after_costs" in audit_body["unmet_research_gates"]
+    assert "live_execution_engine_audit_pending" in audit_body["unmet_capital_pathway_gates"]
 
     # 8. Verify snapshot telemetry & interactive microstructure, SEC EDGAR, and 24/7 research tick endpoints
     assert len(snap_body["money_records"]) == 8

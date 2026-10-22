@@ -141,10 +141,13 @@ def register_market_stream_ws(
         client_id = uuid4().hex
         subscribed = {symbol.upper()}
         gateway.subscribe(list(subscribed), client_id)
-        if gateway.demo_mode and gateway.ring_buffer.latest(symbol) is None:
+        watched = symbol.upper()
+        if gateway.demo_mode and gateway.ring_buffer.latest(watched) is None:
             gateway.ingest_dual_track_universe_snapshot()
+        if gateway.demo_mode and gateway.ring_buffer.latest(watched) is None:
+            gateway.ingest_watched_catalog_snapshot([watched])
         queue = stream_broadcaster.register_client_queue()
-        latest = gateway.ring_buffer.latest(symbol)
+        latest = gateway.ring_buffer.latest(watched)
         await websocket.send_json(latest.to_payload() if latest else {
             "event": "awaiting_data", "symbol": symbol.upper(), "execution_permission": "none"
         })

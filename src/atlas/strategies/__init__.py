@@ -14,6 +14,7 @@ from atlas.strategies.base import (
     evaluate_signal_against_rulebook,
 )
 from atlas.strategies.microstructure import VpinAbsorptionStrategy
+from atlas.strategies.range_garden import RangeGardenStrategy
 from atlas.strategies.rl_agent import (
      DEFAULT_ACTOR_CRITIC_CHECKPOINT,
     ActorCriticCheckpoint,
@@ -32,6 +33,7 @@ __all__ = [
     "MicrostructureMetrics",
     "OpeningAuctionDriveStrategy",
     "OrderBookDepthSnapshot",
+    "RangeGardenStrategy",
     "SignalDirection",
     "StrategySignal",
     "StrategyTrack",

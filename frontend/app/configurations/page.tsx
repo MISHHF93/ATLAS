@@ -1,6 +1,5 @@
-import AtlasTerminal from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function ConfigurationsPage() {
-  return <AtlasTerminal initialSection="configurations" />;
+  redirect("/control/rulebook");
 }
-

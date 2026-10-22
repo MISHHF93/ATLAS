@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function MatrixPage() {
-  return <AtlasTerminal initialSection="matrix" />;
+  redirect("/research/microstructure");
 }
-

@@ -1,5 +1,5 @@
-import { AtlasTerminal } from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function ExperimentsPage() {
-  return <AtlasTerminal initialSection="experiments" initialWorkspaceRoute="/research/walk-forward" />;
+  redirect("/research/walk-forward");
 }

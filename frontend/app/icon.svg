@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="atlas-mark" x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00F29D"/>
+      <stop offset="1" stop-color="#00C8FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="#070A0F"/>
+  <rect x="1.2" y="1.2" width="29.6" height="29.6" rx="7" fill="none" stroke="url(#atlas-mark)" stroke-width="1.4"/>
+  <path d="M16 6.2 24.6 25.2M16 6.2 7.4 25.2" fill="none" stroke="url(#atlas-mark)" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M10.8 18.2h10.4" fill="none" stroke="url(#atlas-mark)" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

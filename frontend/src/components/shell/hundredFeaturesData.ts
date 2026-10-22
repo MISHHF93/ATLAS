@@ -19,16 +19,16 @@ export interface FeatureCategoryMeta {
 }
 
 export const TEN_CATEGORIES_META: FeatureCategoryMeta[] = [
-  { id: 1, shortLabel: "Cat 1 · Webcam & KYC", title: "Webcam Proctoring, Identity Verification & Trader Integrity", rangeLabel: "F-001..F-010", icpTag: "ICP-01 / ICP-03" },
-  { id: 2, shortLabel: "Cat 2 · Market Data & L2/L3", title: "Live Market Data, Microstructure & Order Book Feeds", rangeLabel: "F-011..F-020", icpTag: "ICP-01 / ICP-02" },
-  { id: 3, shortLabel: "Cat 3 · Deterministic RMS", title: "Deterministic Risk Management System (RMS) & Circuit Breakers", rangeLabel: "F-021..F-030", icpTag: "ICP-01 / ICP-03" },
-  { id: 4, shortLabel: "Cat 4 · OMS & Execution", title: "Order Management System (OMS) & Execution Tactics", rangeLabel: "F-031..F-040", icpTag: "ICP-01 / ICP-02" },
-  { id: 5, shortLabel: "Cat 5 · Charting & UX", title: "Charting, Workbench & Terminal User Experience", rangeLabel: "F-041..F-050", icpTag: "All ICPs" },
-  { id: 6, shortLabel: "Cat 6 · Prop Lifecycle", title: "Prop Firm Evaluation & Lifecycle Engine", rangeLabel: "F-051..F-060", icpTag: "ICP-01 / ICP-03" },
-  { id: 7, shortLabel: "Cat 7 · Sybil & Anti-Cheat", title: "Anti-Cheating, Surveillance & Sybil Guard", rangeLabel: "F-061..F-070", icpTag: "ICP-03 / ICP-04" },
-  { id: 8, shortLabel: "Cat 8 · Quant & Whale ML", title: "Quantitative Research, Machine Learning & Analytics", rangeLabel: "F-071..F-080", icpTag: "ICP-02 / ICP-04" },
-  { id: 9, shortLabel: "Cat 9 · Dealing Desk & A/B", title: "Dealing Desk, B-Book Hedging & Liquidity Routing", rangeLabel: "F-081..F-090", icpTag: "ICP-03 / ICP-04" },
-  { id: 10, shortLabel: "Cat 10 · Lakehouse & Ledgers", title: "Enterprise Architecture, Storage & Compliance", rangeLabel: "F-091..F-100", icpTag: "All ICPs" },
+  { id: 1, shortLabel: "Identity", title: "Identity checklist", rangeLabel: "F-001..F-010", icpTag: "Open the checklist" },
+  { id: 2, shortLabel: "Chart data", title: "Public candles and the chart", rangeLabel: "F-011..F-020", icpTag: "Open the chart" },
+  { id: 3, shortLabel: "Limits", title: "Rulebook and the paper account", rangeLabel: "F-021..F-030", icpTag: "Open the rulebook" },
+  { id: 4, shortLabel: "Orders", title: "Order ticket and positions", rangeLabel: "F-031..F-040", icpTag: "Open the ticket" },
+  { id: 5, shortLabel: "Desk layout", title: "Chart and desk layout", rangeLabel: "F-041..F-050", icpTag: "Open the chart" },
+  { id: 6, shortLabel: "Account", title: "The one paper account", rangeLabel: "F-051..F-060", icpTag: "Open account risk" },
+  { id: 7, shortLabel: "Audit", title: "Orders and the audit log", rangeLabel: "F-061..F-070", icpTag: "Open the audit log" },
+  { id: 8, shortLabel: "Research", title: "Walk-forward and chart read", rangeLabel: "F-071..F-080", icpTag: "Open the study" },
+  { id: 9, shortLabel: "Exposure", title: "Open paper positions", rangeLabel: "F-081..F-090", icpTag: "Open exposure" },
+  { id: 10, shortLabel: "Reserve", title: "Reserve sleeve, bars, and connectors", rangeLabel: "F-091..F-100", icpTag: "Open the reserve plan" },
 ];
 
 const RAW_100_ROWS: Array<[number, number, string, "Open-Market" | "Prop Competition" | "Both", string, string, string]> = [
@@ -193,7 +193,7 @@ export interface ProctoringScenarioPreset {
 export const PROCTORING_SCENARIO_PRESETS: ProctoringScenarioPreset[] = [
   {
     id: "verified",
-    label: "1. Verified Single Trader (Logitech Brio 4K · 96.8% Match)",
+    label: "1. Example: one face, blink on, score 0.97",
     traderId: "TRD-0412 (A. Vance · $100K Phase 2)",
     cameraDriver: "Logitech Brio 4K USB Video Device",
     hardwareGuid: "HW-GUID-9921-BRIO-4K",
@@ -212,7 +212,7 @@ export const PROCTORING_SCENARIO_PRESETS: ProctoringScenarioPreset[] = [
   },
   {
     id: "proxy_coaching",
-    label: "2. Proxy Coaching / Multiple Faces Detected (2 Faces in Frame)",
+    label: "2. Example: two faces",
     traderId: "TRD-0819 (K. Patel · $100K Funded)",
     cameraDriver: "Sony Alpha USB Capture UVC",
     hardwareGuid: "HW-GUID-4410-UVC",
@@ -231,7 +231,7 @@ export const PROCTORING_SCENARIO_PRESETS: ProctoringScenarioPreset[] = [
   },
   {
     id: "obs_virtual",
-    label: "3. Virtual Camera / OBS Video Injection Attempt",
+    label: "3. Example: virtual camera driver",
     traderId: "TRD-1104 (M. Volkov · $250K Eval)",
     cameraDriver: "OBS Virtual Camera (DirectShow Loopback)",
     hardwareGuid: "HW-GUID-0000-VIRTUAL",
@@ -256,7 +256,7 @@ export const PROCTORING_SCENARIO_PRESETS: ProctoringScenarioPreset[] = [
   },
   {
     id: "gaze_deviation",
-    label: "4. Off-Screen Gaze Vector Warning (6.2s External Screen Glance)",
+    label: "4. Example: gaze field set to 6.2 seconds",
     traderId: "TRD-0551 (J. Chen · $50K Sprint)",
     cameraDriver: "Elgato Facecam Pro USB 3.0",
     hardwareGuid: "HW-GUID-6120-ELGATO",

@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function MarketPage() {
-  return <AtlasTerminal initialSection="market" initialWorkspaceRoute="/trade/cockpit" />;
+  redirect("/trade");
 }
-

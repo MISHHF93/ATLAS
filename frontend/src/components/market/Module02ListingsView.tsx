@@ -1,13 +1,19 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CLIENT_ROLE_PROFILES,
   RoleProvider,
   useRoleContext,
   type ClientRoleId,
 } from "../../context/RoleContext";
-import { LiveChartEngine, type LiveCandlePoint } from "./LiveChartEngine";
+import { AtlasLogo } from "../shell/AtlasLogo";
+import { AppNav } from "../shell/AppNav";
+import { AssetMarkLegend, GuideIcon, markColor, markForSymbol } from "../shell/guideIcons";
+import { type LiveCandlePoint } from "./LiveChartEngine";
+import { TradingViewChart, TradingViewStockInfo } from "./TradingViewChart";
+import { TradingViewMarkets } from "./TradingViewMarkets";
+import { loadMarketBars } from "../../lib/marketBars";
 
 export interface Module02ListingPacket {
   symbol: string;
@@ -217,6 +223,10 @@ function Module02InnerWorkbench() {
   const { role, setRole, profile } = useRoleContext();
   const [trackFilter, setTrackFilter] = useState<"all" | "open_market" | "competition">("all");
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTC-USD");
+  const [, setHistoryCandles] = useState<LiveCandlePoint[]>([]);
+  const [barNote, setBarNote] = useState("Loading labeled bars");
+  const [barsLoading, setBarsLoading] = useState(true);
+  const [chartTimeframe, setChartTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("1m");
   const [listings, setListings] = useState<Module02ListingPacket[]>(INITIAL_MODULE02_LISTINGS);
   // Live data fetches from backend API on mount; pollModule02Stream refreshes every 2.5s
   useEffect(() => {
@@ -226,16 +236,33 @@ function Module02InnerWorkbench() {
   const [ringBufferSize, setRingBufferSize] = useState<number>(64);
   const [killSwitchEngaged, setKillSwitchEngaged] = useState<boolean>(false);
   const [rbacBanner, setRbacBanner] = useState<string>(
-    "Module 02 Dual-Track Real-Time Streaming Engine Active · 10,000-Slot Ring Buffer · execution_permission: none"
+    "Fixture stream · 9 symbols · labeled synthetic · venue sessions unconfigured · execution_permission: none"
   );
+  const [, setFixtureTicks] = useState<LiveCandlePoint[]>([]);
+  const fixtureSymbolRef = useRef(selectedSymbol);
+  const [feedNote, setFeedNote] = useState("Fixture stream starting");
   const [remainingRoomHud, setRemainingRoomHud] = useState<{
     currentEquityUsd: number;
+    startOfDayUsd: number;
+    referenceUsd: number;
+    dailyFloorUsd: number;
+    trailingFloorUsd: number;
+    dailyLossLimitPct: number;
+    drawdownLimitPct: number;
+    drawdownMode: string;
     dailyLossRoomUsd: number;
     dailyLossRoomPct: number;
     trailingDdRoomUsd: number;
     trailingDdRoomPct: number;
   }>({
     currentEquityUsd: 101850.0,
+    startOfDayUsd: 102900.0,
+    referenceUsd: 103100.0,
+    dailyFloorUsd: 98784.0,
+    trailingFloorUsd: 94852.0,
+    dailyLossLimitPct: 4,
+    drawdownLimitPct: 8,
+    drawdownMode: "trailing",
     dailyLossRoomUsd: 3066.0,
     dailyLossRoomPct: 2.98,
     trailingDdRoomUsd: 7098.0,
@@ -257,14 +284,26 @@ function Module02InnerWorkbench() {
           setRingBufferSize(data.gateway.ring_buffer_size);
         }
         if (data.remaining_room_hud) {
+          const hud = data.remaining_room_hud;
           setRemainingRoomHud({
-            currentEquityUsd: Number(data.remaining_room_hud.current_equity_usd ?? 101850),
-            dailyLossRoomUsd: Number(data.remaining_room_hud.daily_loss_room_usd ?? 3066),
-            dailyLossRoomPct: Number(data.remaining_room_hud.daily_loss_room_pct ?? 2.98),
-            trailingDdRoomUsd: Number(data.remaining_room_hud.trailing_dd_room_usd ?? 7098),
-            trailingDdRoomPct: Number(data.remaining_room_hud.trailing_dd_room_pct ?? 6.88),
+            currentEquityUsd: Number(hud.current_equity_usd ?? 101850),
+            startOfDayUsd: Number(hud.start_of_day_equity_usd ?? 102900),
+            referenceUsd: Number(hud.high_water_mark_usd ?? 103100),
+            dailyFloorUsd: Number(hud.daily_floor_usd ?? 0),
+            trailingFloorUsd: Number(hud.trailing_floor_usd ?? 0),
+            dailyLossLimitPct: Number(hud.daily_loss_limit_pct ?? 4),
+            drawdownLimitPct: Number(hud.drawdown_limit_pct ?? 8),
+            drawdownMode: String(hud.drawdown_mode ?? "trailing"),
+            dailyLossRoomUsd: Number(hud.daily_loss_room_usd ?? 0),
+            dailyLossRoomPct: Number(hud.daily_loss_room_pct ?? 0),
+            trailingDdRoomUsd: Number(hud.trailing_dd_room_usd ?? 0),
+            trailingDdRoomPct: Number(hud.trailing_dd_room_pct ?? 0),
           });
         }
+        const origin = String(data.gateway?.feed_origin ?? "labeled_synthetic_fixture");
+        setFeedNote(
+          `${origin} · buffer ${data.gateway?.ring_buffer_size ?? "?"} / ${data.gateway?.ring_buffer_maxlen ?? 10000} · venue sessions ${data.gateway?.venue_sessions ?? "unconfigured"} · execution_permission none`
+        );
         if (Array.isArray(data.listings) && data.listings.length > 0) {
           setListings((prev) =>
             prev.map((item) => {
@@ -366,12 +405,20 @@ function Module02InnerWorkbench() {
             })
           );
           if (incoming.remaining_room_hud) {
+            const hud = incoming.remaining_room_hud;
             setRemainingRoomHud({
-              currentEquityUsd: Number(incoming.remaining_room_hud.current_equity_usd ?? 101850),
-              dailyLossRoomUsd: Number(incoming.remaining_room_hud.daily_loss_room_usd ?? 3066),
-              dailyLossRoomPct: Number(incoming.remaining_room_hud.daily_loss_room_pct ?? 2.98),
-              trailingDdRoomUsd: Number(incoming.remaining_room_hud.trailing_dd_room_usd ?? 7098),
-              trailingDdRoomPct: Number(incoming.remaining_room_hud.trailing_dd_room_pct ?? 6.88),
+              currentEquityUsd: Number(hud.current_equity_usd ?? 101850),
+              startOfDayUsd: Number(hud.start_of_day_equity_usd ?? 102900),
+              referenceUsd: Number(hud.high_water_mark_usd ?? 103100),
+              dailyFloorUsd: Number(hud.daily_floor_usd ?? 0),
+              trailingFloorUsd: Number(hud.trailing_floor_usd ?? 0),
+              dailyLossLimitPct: Number(hud.daily_loss_limit_pct ?? 4),
+              drawdownLimitPct: Number(hud.drawdown_limit_pct ?? 8),
+              drawdownMode: String(hud.drawdown_mode ?? "trailing"),
+              dailyLossRoomUsd: Number(hud.daily_loss_room_usd ?? 0),
+              dailyLossRoomPct: Number(hud.daily_loss_room_pct ?? 0),
+              trailingDdRoomUsd: Number(hud.trailing_dd_room_usd ?? 0),
+              trailingDdRoomPct: Number(hud.trailing_dd_room_pct ?? 0),
             });
           }
         } catch {
@@ -400,60 +447,71 @@ function Module02InnerWorkbench() {
     [listings, selectedSymbol]
   );
 
-  const syntheticCandles: LiveCandlePoint[] = useMemo(() => {
-    const base = activeListing.price;
-    const step = base * 0.0018;
-    return Array.from({ length: 14 }, (_, idx) => {
-      const wave = Math.sin(idx * 0.7) * step;
-      const open = Number((base - (13 - idx) * (step * 0.25) + wave).toFixed(2));
-      const close = idx === 13 ? base : Number((open + Math.cos(idx * 0.5) * step * 0.8).toFixed(2));
-      const high = Number((Math.max(open, close) + step * 0.6).toFixed(2));
-      const low = Number((Math.min(open, close) - step * 0.55).toFixed(2));
-      return {
-        timestamp: `${9 + Math.floor(idx / 2)}:${idx % 2 === 0 ? "00" : "30"}`,
+  useEffect(() => {
+    let active = true;
+    const seconds = { "1s": 1, "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1D": 86400 }[chartTimeframe];
+    setBarsLoading(true);
+    void loadMarketBars(selectedSymbol, seconds, 160)
+      .then((body) => {
+        if (!active) return;
+        setHistoryCandles(body.candles);
+        setBarNote(
+          `${body.bar_count} labeled bars · ${body.chart_source} · ${body.feed_origin} · ${selectedSymbol} · execution_permission ${body.execution_permission}`
+        );
+        setBarsLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setBarsLoading(false);
+      });
+    const timer = setInterval(() => {
+      void loadMarketBars(selectedSymbol, seconds, 160)
+        .then((body) => {
+          if (active) setHistoryCandles(body.candles);
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [chartTimeframe, selectedSymbol]);
+
+  useEffect(() => {
+    const price = activeListing.price;
+    const symbol = activeListing.symbol;
+    const changed = fixtureSymbolRef.current !== symbol;
+    fixtureSymbolRef.current = symbol;
+    const stamp = new Date().toISOString();
+    setFixtureTicks((prev) => {
+      const history = changed ? [] : prev;
+      const last = history[history.length - 1];
+      if (last && Math.abs(last.close - price) < 1e-9) return history;
+      const open = last?.close ?? price;
+      return [...history, {
+        timestamp: stamp,
         open,
-        high,
-        low,
-        close,
-        volume: Math.round(1450 + idx * 110),
-      };
+        high: Math.max(open, price),
+        low: Math.min(open, price),
+        close: price,
+        volume: 1,
+      }].slice(-120);
     });
-  }, [activeListing.price]);
+  }, [activeListing.symbol, activeListing.price]);
 
   return (
     <div className="institutional-shell">
+      <AppNav />
       {/* Persistent Top Command Header */}
       <header className="clean-top-bar">
         <div className="clean-brand">
-          <div className="clean-brand-mark">AT</div>
+          <AtlasLogo size={30} />
           <div>
-            <div className="clean-brand-title">ATLAS · MODULE 02 STREAMING ENGINE</div>
+            <div className="clean-brand-title">ATLAS Markets</div>
             <div className="clean-brand-sub">
-              Sub-Millisecond Dual-Track Ingestion · 10,000-Slot Ring Buffer · VPIN / OFI / Kyle&apos;s λ
+              Stocks, crypto, ETFs, and forex · execution_permission none
             </div>
           </div>
-        </div>
-
-        {/* Navigation Links Across All Core Workspaces */}
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <a href="/trade/cockpit" className="clean-tf-btn" style={{ textDecoration: "none", padding: "6px 12px" }}>
-            1. Trading Cockpit
-          </a>
-          <a href="/listings" className="clean-tf-btn active" style={{ textDecoration: "none", padding: "6px 12px" }}>
-            ★ Module 02 Listings (/listings)
-          </a>
-          <a href="/market" className="clean-tf-btn" style={{ textDecoration: "none", padding: "6px 12px" }}>
-            Live Market Viewer (/market)
-          </a>
-          <a href="/control/risk-hud" className="clean-tf-btn" style={{ textDecoration: "none", padding: "6px 12px" }}>
-            2. Risk &amp; Surveillance
-          </a>
-          <a href="/research/walk-forward" className="clean-tf-btn" style={{ textDecoration: "none", padding: "6px 12px" }}>
-            3. Quant &amp; AI Lab
-          </a>
-          <a href="/data/lakehouse" className="clean-tf-btn" style={{ textDecoration: "none", padding: "6px 12px" }}>
-            4. Data &amp; 100 Features
-          </a>
         </div>
 
         {/* Role-Gated Kill Switch */}
@@ -462,19 +520,35 @@ function Module02InnerWorkbench() {
           <button
             type="button"
             className={`btn btn-sm ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+            disabled={!profile.canTriggerKillSwitch}
             onClick={() => {
               if (!profile.canTriggerKillSwitch) {
-                setRbacBanner(
-                  `RBAC Guardrail: Role '${profile.roleId}' (${profile.title}) is forbidden from triggering global kill switches. Switch to 'prop_firm_admin'.`
-                );
+                setRbacBanner("Kill switch stays with prop_firm_admin. This role cannot engage it.");
                 return;
               }
-              setKillSwitchEngaged((k) => !k);
-              setRbacBanner(
-                !killSwitchEngaged
-                  ? "EMERGENCY KILL SWITCH ENGAGED by prop_firm_admin · All open positions flattened."
-                  : "Kill Switch reset by prop_firm_admin · Control Plane nominal."
-              );
+              const next = !killSwitchEngaged;
+              void fetch("/api/control/kill-switch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-Atlas-Role": role },
+                body: JSON.stringify({
+                  engaged: next,
+                  reason: next ? "listings_emergency_kill_switch" : "listings_operator_reset",
+                }),
+              }).then(async (response) => {
+                if (!response.ok) {
+                  setRbacBanner("Kill switch request was refused. The control plane state is unchanged.");
+                  return;
+                }
+                const state = await response.json();
+                setKillSwitchEngaged(Boolean(state.kill_switch_engaged));
+                setRbacBanner(
+                  state.kill_switch_engaged
+                    ? "Kill switch engaged by the control plane. Paper positions flattened."
+                    : "Kill switch reset. Control plane is accepting paper orders again."
+                );
+              }).catch(() => {
+                setRbacBanner("Kill switch request failed. State is unconfirmed.");
+              });
             }}
           >
             {killSwitchEngaged ? "Reset Kill Switch" : "Emergency Kill"}
@@ -542,11 +616,11 @@ function Module02InnerWorkbench() {
             <span className="clean-kpi-label">Mark-to-Market Open Equity</span>
             <span className="clean-kpi-value">${remainingRoomHud.currentEquityUsd.toLocaleString()}</span>
             <span className="clean-kpi-sub" style={{ color: "#00F29D" }}>
-              HWM $103,100.00 · SOD $102,900.00
+              SOD ${remainingRoomHud.startOfDayUsd.toLocaleString()} · reference ${remainingRoomHud.referenceUsd.toLocaleString()}
             </span>
           </div>
           <div className="clean-kpi-card">
-            <span className="clean-kpi-label">Daily Loss Cushion (4.0% Breaker)</span>
+            <span className="clean-kpi-label">Daily Loss Cushion ({remainingRoomHud.dailyLossLimitPct.toFixed(1)}%)</span>
             <span className="clean-kpi-value" style={{ color: "#00F29D" }}>
               ${remainingRoomHud.dailyLossRoomUsd.toLocaleString()}
             </span>
@@ -555,12 +629,14 @@ function Module02InnerWorkbench() {
             </span>
           </div>
           <div className="clean-kpi-card">
-            <span className="clean-kpi-label">Trailing HWM Cushion (8.0% Floor)</span>
+            <span className="clean-kpi-label">
+              {remainingRoomHud.drawdownMode === "static" ? "Static" : "Trailing"} Drawdown Cushion ({remainingRoomHud.drawdownLimitPct.toFixed(1)}%)
+            </span>
             <span className="clean-kpi-value" style={{ color: "#00C8FF" }}>
               ${remainingRoomHud.trailingDdRoomUsd.toLocaleString()}
             </span>
             <span className="clean-kpi-sub">
-              {remainingRoomHud.trailingDdRoomPct.toFixed(2)}% buffer remaining above $94,852 floor
+              {remainingRoomHud.trailingDdRoomPct.toFixed(2)}% buffer remaining above ${remainingRoomHud.trailingFloorUsd.toLocaleString()} floor
             </span>
           </div>
           <div className="clean-kpi-card">
@@ -569,10 +645,14 @@ function Module02InnerWorkbench() {
               {activeListing.latencyMs.toFixed(1)}ms
             </span>
             <span className="clean-kpi-sub">
-              Threshold &lt; 500ms (Competition) · {activeListing.provider.toUpperCase()}
+              Competition freshness gate 500ms · fixture venue label {activeListing.provider}
             </span>
           </div>
         </div>
+
+        <TradingViewStockInfo symbol={activeListing.symbol} timeframe={chartTimeframe} />
+
+        <TradingViewMarkets />
 
         {/* Dual-Track Filter Bar & Stream Controls (Task D.1) */}
         <div
@@ -592,6 +672,7 @@ function Module02InnerWorkbench() {
               style={{ padding: "7px 14px", fontSize: "12.5px" }}
               onClick={() => setTrackFilter("all")}
             >
+              <GuideIcon name="all" />
               All Dual-Track Listings (9)
             </button>
             <button
@@ -603,6 +684,7 @@ function Module02InnerWorkbench() {
                 setSelectedSymbol("NVDA");
               }}
             >
+              <GuideIcon name="equity" color={trackFilter === "open_market" ? "#FFFFFF" : markColor("equity")} />
               Open-Market Equities · NYSE/SIP (6)
             </button>
             <button
@@ -614,9 +696,11 @@ function Module02InnerWorkbench() {
                 setSelectedSymbol("BTC-USD");
               }}
             >
+              <GuideIcon name="crypto" color={trackFilter === "competition" ? "#FFFFFF" : markColor("crypto")} />
               Prop Competition Crypto Perps · 24/7 (3)
             </button>
           </div>
+          <AssetMarkLegend />
 
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <span className="badge badge-emerald">⚡ ZERO-TOUCH STREAMING ACTIVE (2.5s)</span>
@@ -659,6 +743,7 @@ function Module02InnerWorkbench() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <GuideIcon name={markForSymbol(item.symbol)} color={markColor(markForSymbol(item.symbol))} />
                       <strong
                         style={{
                           fontSize: "16px",
@@ -792,8 +877,7 @@ function Module02InnerWorkbench() {
                       color: item.ofi >= 0 ? "#00F29D" : "#FF3B69",
                     }}
                   >
-                    🐋 {item.ofi >= 0 ? "AUTO-BUY" : "AUTO-SELL"} ·{" "}
-                    {Math.min(91, Math.round(64 + Math.abs(item.ofi) * 55))}% Win Prob
+                    {item.ofi >= 0 ? "Buy imbalance" : "Sell imbalance"} · OFI {item.ofi.toFixed(2)} · fixture
                   </span>
                   <span className="mono-cell" style={{ color: "#94A3B8" }}>
                     ATR Stop {item.vpin > 0.35 ? "1.5× Widened" : "Armed"} · perm: none
@@ -806,7 +890,15 @@ function Module02InnerWorkbench() {
 
         {/* Selected Instrument Live Chart + Dynamic Volume Profile (VAH/VAL/POC) + Forecast Fan */}
         <div className="clean-card">
-          <LiveChartEngine symbol={activeListing.symbol} candles={syntheticCandles} />
+          <div style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "8px" }}>{feedNote}</div>
+          <div style={{ fontSize: "12px", color: "#64748B", marginBottom: "8px" }}>{barNote}</div>
+          <TradingViewChart
+            symbol={activeListing.symbol}
+            timeframe={chartTimeframe}
+            height={460}
+            showTape
+            showCompanions={false}
+          />
         </div>
       </div>
     </div>

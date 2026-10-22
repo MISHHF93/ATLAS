@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../AtlasTerminal";
+import { DocsReader } from "../../src/components/shell/DocsReader";
 
 export default function DocsPage() {
-  return <AtlasTerminal initialSection="docs" />;
+  return <DocsReader />;
 }
-

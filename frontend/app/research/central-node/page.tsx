@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function ResearchCentralNodePage() {
-  return <AtlasTerminal initialSection="research" initialWorkspaceRoute="/research/central-node" />;
+  redirect("/research");
 }
-

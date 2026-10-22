@@ -77,6 +77,7 @@ class LiveTickFrame:
             "regime": self.regime,
             "exchange_timestamp": self.exchange_timestamp.isoformat(),
             "system_receipt_timestamp": self.system_receipt_timestamp.isoformat(),
+            "feed_origin": "labeled_synthetic_fixture" if self.data_mode == "demo" else "provider_observed",
             "execution_permission": "none",
         }
 
@@ -141,8 +142,13 @@ def compute_top5_ofi(
     return round(max(-1.0, min(1.0, raw_ofi / denom)), 4)
 
 
-def compute_rolling_vpin(buy_buckets: Deque[float], sell_buckets: Deque[float]) -> float:
-    """Calculates rolling Volume-Synchronized Probability of Informed Trading (VPIN) over volume buckets."""
+def compute_streaming_vpin(buy_buckets: Deque[float], sell_buckets: Deque[float]) -> float:
+    """Calculates rolling Volume-Synchronized Probability of Informed Trading (VPIN) over aggressor volume buckets.
+
+    Renamed from `compute_rolling_vpin` to avoid the module-path name collision with the
+    canonical historical `atlas.features.microstructure.compute_rolling_vpin`. Returns 0.0
+    when no aggressor volume has been observed yet (neutral empty bucket state).
+    """
     n = min(len(buy_buckets), len(sell_buckets))
     if n == 0:
         return 0.0
@@ -193,6 +199,11 @@ class LiveMarketDataGateway:
         self.vpin_bucket_window = vpin_bucket_window
         self.bucket_volume = bucket_volume
         self.demo_mode = demo_mode
+        self._watch_anchors: dict[str, float] = {}
+        self._live_anchors: dict[str, float] = {}
+        self._public_bars: dict[tuple[str, int], dict[str, Any]] = {}
+        self.public_fetch_enabled = False
+        self._recent_chart_symbols: Deque[str] = collections.deque(maxlen=8)
         self._subscriptions: dict[str, set[str]] = {}
         self._listeners: list[Callable[[LiveTickFrame], object]] = []
         self._partial: dict[str, list[float]] = collections.defaultdict(lambda: [0.0, 0.0])
@@ -209,6 +220,7 @@ class LiveMarketDataGateway:
         self._prev_asks: dict[str, tuple[float, ...]] = {}
         self._prev_price: dict[str, float] = {}
         self._kyles_lambda: dict[str, float] = collections.defaultdict(float)
+        self._last_ofi: dict[str, float] = collections.defaultdict(float)
         self.provider_status: dict[str, dict[str, Any]] = {
             "databento": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
             "polygon": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
@@ -219,6 +231,33 @@ class LiveMarketDataGateway:
 
     def add_listener(self, listener: Callable[[LiveTickFrame], object]) -> None:
         self._listeners.append(listener)
+
+    def latest_microstructure_metrics(self, symbol: str) -> dict[str, Any]:
+        """Observed per-symbol microstructure telemetry (no fabrication).
+
+        Returns the raw streaming values held in the order-flow state; `*_observed` flags
+        mark whether the signal has realized samples yet (empty guides report 0.0 with
+        an explicit `not observed` status rather than invented placeholders).
+        """
+        sym = symbol.upper().strip()
+        buckets_ready = bool(self._buy_buckets[sym]) or bool(self._sell_buckets[sym])
+        flows = list(self._flows[sym])
+        deltas = list(self._deltas[sym])
+        kyle_observed = len(flows) >= 2 and max(flows) != min(flows) if flows else False
+        return {
+            "symbol": sym,
+            "vpin": compute_streaming_vpin(self._buy_buckets[sym], self._sell_buckets[sym]),
+            "ofi": self._last_ofi.get(sym, 0.0),
+            "kyles_lambda": self._kyles_lambda.get(sym, 0.0),
+            "spread_bps": None,
+            "flow_sample_count": len(flows),
+            "delta_sample_count": len(deltas),
+            "vpin_observed": buckets_ready,
+            "ofi_observed": sym in self._prev_bids,
+            "kyles_lambda_observed": kyle_observed,
+            "data_origin": "live_stream_observed_state",
+            "execution_permission": "none",
+        }
 
     def subscribe(self, symbols: list[str], subscriber_id: str) -> dict[str, Any]:
         if not subscriber_id or len(symbols) > 100:
@@ -367,6 +406,7 @@ class LiveMarketDataGateway:
         ofi_val = compute_top5_ofi(prev_b, prev_a, bids_tuple, asks_tuple)
         self._prev_bids[sym] = bids_tuple
         self._prev_asks[sym] = asks_tuple
+        self._last_ofi[sym] = ofi_val
 
         # Split the actual aggressor volume across equal-size buckets; no invented counterflow.
         partial = self._partial[sym]
@@ -379,7 +419,7 @@ class LiveMarketDataGateway:
                 self._buy_buckets[sym].append(partial[0])
                 self._sell_buckets[sym].append(partial[1])
                 partial[:] = [0.0, 0.0]
-        vpin_val = compute_rolling_vpin(self._buy_buckets[sym], self._sell_buckets[sym])
+        vpin_val = compute_streaming_vpin(self._buy_buckets[sym], self._sell_buckets[sym])
         previous = self._prev_price.get(sym)
         if previous is not None:
             self._deltas[sym].append(float(price) - previous)
@@ -454,19 +494,138 @@ class LiveMarketDataGateway:
         ]
         results: list[dict[str, Any]] = []
         for idx, (sym, base_px, amp, spr_bps, reg, prov) in enumerate(universe_specs):
+            anchored = self._live_anchors.get(sym)
+            if anchored is not None and anchored > 0:
+                amp = amp * (anchored / base_px)
+                base_px = anchored
             osc = _math.sin(phase + idx * 0.9) * amp
-            px = round(base_px + osc, 2)
+            px = round(base_px + osc, 2 if base_px >= 1 else 6)
             side: Literal["buy", "sell"] = "buy" if osc >= 0 else "sell"
+            # Depth breathes with the same clock as price. Still a labeled fixture:
+            # the venue name on the frame is the shape of the book, not a live session.
+            depth_wave = 1.0 + 0.18 * _math.sin(phase * 1.3 + idx)
+            bid_template = (140.0 + idx * 10, 110.0, 88.0, 72.0, 56.0)
+            ask_template = (120.0 + idx * 6, 96.0, 80.0, 66.0, 50.0)
             frame = self.ingest_tick(
                 symbol=sym,
                 price=px,
                 size=round(15.0 + idx * 8.5 + abs(osc) * 12.0, 2),
                 side=side,
-                bid_depth=(140.0 + idx * 10, 110.0, 88.0, 72.0, 56.0),
-                ask_depth=(120.0 + idx * 6, 96.0, 80.0, 66.0, 50.0),
+                bid_depth=tuple(round(level * depth_wave, 2) for level in bid_template),
+                ask_depth=tuple(round(level * (2.0 - depth_wave), 2) for level in ask_template),
                 spread=px * spr_bps / 10000.0,
                 provider=prov,
                 regime=reg,
+            )
+            results.append(frame.to_payload())
+        return results
+
+    def store_public_bars(self, payload: dict[str, Any]) -> None:
+        symbol = str(payload.get("symbol", "")).upper()
+        bucket = int(payload.get("bucket_seconds") or 0)
+        candles = payload.get("candles") or []
+        if not symbol or bucket <= 0 or len(candles) < 8:
+            return
+        self._public_bars[(symbol, bucket)] = payload
+        last_close = float(candles[-1]["close"])
+        if last_close > 0:
+            self._live_anchors[symbol] = last_close
+            self._watch_anchors[symbol] = last_close
+
+    def public_bars(self, symbol: str, bucket_seconds: int) -> dict[str, Any] | None:
+        from atlas.marketdata.public_quotes import fetch_public_candles, public_bucket
+
+        sym = symbol.strip().upper()
+        snapped = public_bucket(bucket_seconds)
+        if snapped is None:
+            return None
+        cached = self._public_bars.get((sym, snapped))
+        if cached is not None:
+            return cached
+        if not self.public_fetch_enabled:
+            return None
+        fetched = fetch_public_candles(sym, snapped, limit=180)
+        if fetched is None:
+            return None
+        self.store_public_bars(fetched)
+        return fetched
+
+    def refresh_public_universe(self) -> dict[str, Any]:
+        """Refresh public candles for the nine desk names. Misses stay on the fixture."""
+        from atlas.marketdata.public_quotes import fetch_public_candles
+
+        loaded: list[str] = []
+        missed: list[str] = []
+        if not self.public_fetch_enabled:
+            return {"loaded": loaded, "missed": [*self.EQUITIES_SYMBOLS, *self.CRYPTO_SYMBOLS], "execution_permission": "none"}
+        for sym in (*self.CRYPTO_SYMBOLS, *self.EQUITIES_SYMBOLS):
+            payload = fetch_public_candles(sym, 3600, limit=180)
+            if payload is None:
+                missed.append(sym)
+                continue
+            self.store_public_bars(payload)
+            finer = fetch_public_candles(sym, 60, limit=180)
+            if finer is not None:
+                self.store_public_bars(finer)
+            loaded.append(sym)
+        return {"loaded": loaded, "missed": missed, "execution_permission": "none"}
+
+    def note_chart_symbol(self, symbol: str) -> None:
+        """Remember a symbol whose chart was just opened so the demo pump can move its right edge."""
+        sym = symbol.strip().upper()
+        if not sym:
+            return
+        if sym in self._recent_chart_symbols:
+            self._recent_chart_symbols.remove(sym)
+        self._recent_chart_symbols.append(sym)
+
+    def ingest_watched_catalog_snapshot(self, symbols: list[str] | None = None) -> list[dict[str, Any]]:
+        """Tick catalog names the desk is viewing that sit outside the 9-name universe pump.
+
+        Prices orbit the catalog anchor. Frames stay ``data_mode="demo"`` while demo mode is on.
+        This does not open a venue session.
+        """
+        if not self.demo_mode:
+            return []
+        from atlas.marketdata.catalog import GLOBAL_ASSET_CATALOG
+
+        universe = {*self.EQUITIES_SYMBOLS, *self.CRYPTO_SYMBOLS}
+        requested = symbols if symbols is not None else [*self._subscriptions, *self._recent_chart_symbols]
+        targets: list[str] = []
+        for raw in requested:
+            sym = str(raw).strip().upper()
+            if not sym or sym in universe or sym in targets:
+                continue
+            targets.append(sym)
+            if len(targets) >= 24:
+                break
+        if not targets:
+            return []
+
+        now = datetime.now(timezone.utc)
+        phase = (now.minute * 60 + now.second + now.microsecond / 1_000_000.0) * 0.85
+        results: list[dict[str, Any]] = []
+        for idx, sym in enumerate(targets):
+            anchor = self._watch_anchors.get(sym)
+            if anchor is None:
+                asset = GLOBAL_ASSET_CATALOG.get_asset(sym)
+                if asset is None or asset.last_price <= 0:
+                    continue
+                anchor = float(asset.last_price)
+                self._watch_anchors[sym] = anchor
+            amp = max(anchor * 0.0018, 1e-8)
+            osc = math.sin(phase + idx * 0.77) * amp
+            price = anchor + osc
+            if price <= 0:
+                price = anchor
+            is_crypto = sym.endswith("-USD")
+            frame = self.ingest_tick(
+                symbol=sym,
+                price=price,
+                size=round(8.0 + idx * 1.4 + abs(osc) * 20.0, 4),
+                side="buy" if osc >= 0 else "sell",
+                spread=max(price * 0.0004, 1e-8),
+                provider="ccxt_pro" if is_crypto else "databento",
             )
             results.append(frame.to_payload())
         return results
@@ -476,6 +635,9 @@ class LiveMarketDataGateway:
         return {
             "ring_buffer_size": len(self.ring_buffer),
             "ring_buffer_maxlen": self.ring_buffer.maxlen,
+            "demo_mode": self.demo_mode,
+            "feed_origin": "labeled_synthetic_fixture" if self.demo_mode else "provider_observed",
+            "venue_sessions": "unconfigured",
             "providers": self.provider_status,
             "latest_tick": latest.to_payload() if latest else None,
             "execution_permission": "none",
@@ -488,9 +650,14 @@ class LiveMarketDataGateway:
         granularity: int = 900,
         limit: int = 24,
         allow_network: bool = True,
+        demo_fallback: bool | None = None,
     ) -> dict[str, Any]:
         """Fetch real-time market candles from public exchange/SIP feeds (or dynamic PIT stream),
-        ingest every tick into the 5,000-slot `OrderBookRingBuffer`, and return normalized candles + latest tick.
+        ingest every tick into the 10,000-slot `OrderBookRingBuffer`, and return normalized candles
+        + latest tick. When live data is unavailable, the explicitly-labeled
+        `realtime_pit_microstructure_synthesizer` offline fixture path may be used by passing
+        `demo_fallback=True` (responses carry the `feed_source` label so consumers can identify
+        the data origin). No market state is ever silently fabricated.
         """
         import json as _json
         import math as _math
@@ -501,6 +668,7 @@ class LiveMarketDataGateway:
         is_crypto = sym.endswith("-USD") or sym in {"BTC-USD", "ETH-USD", "SOL-USD"}
         candles: list[dict[str, Any]] = []
         feed_source = "coinbase_exchange_live_api" if is_crypto else "yahoo_equities_chart_api"
+        effective_demo = self.demo_mode if demo_fallback is None else (self.demo_mode or bool(demo_fallback))
 
         if allow_network:
             try:
@@ -558,9 +726,9 @@ class LiveMarketDataGateway:
             except Exception:
                 candles = []
 
-        if not candles and not self.demo_mode:
+        if not candles and not effective_demo:
             return {"symbol": sym, "feed_source": "unavailable", "candles": [], "latest_tick": None, "execution_permission": "none", "as_of": now.isoformat()}
-        if not candles:
+        if not candles and effective_demo:
             feed_source = "realtime_pit_microstructure_synthesizer"
             anchor_prices: dict[str, tuple[float, float]] = {
                 "BTC-USD": (68410.0, 65.0),

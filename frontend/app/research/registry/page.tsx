@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function ResearchRegistryPage() {
-  return <AtlasTerminal initialSection="models" initialWorkspaceRoute="/research/registry" />;
+  redirect("/models");
 }
-

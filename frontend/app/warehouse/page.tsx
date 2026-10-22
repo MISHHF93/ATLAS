@@ -1,5 +1,5 @@
-import { AtlasTerminal } from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function WarehousePage() {
-  return <AtlasTerminal initialSection="warehouse" initialWorkspaceRoute="/data/lakehouse" />;
+  redirect("/data");
 }

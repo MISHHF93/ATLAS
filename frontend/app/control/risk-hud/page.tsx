@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function ControlRiskHudPage() {
-  return <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/control/risk-hud" />;
+  redirect("/control");
 }
-

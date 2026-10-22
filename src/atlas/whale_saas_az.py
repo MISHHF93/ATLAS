@@ -23,10 +23,21 @@ from atlas.features.microstructure import (
 
 
 def compute_kyles_lambda(price_changes: list[float], signed_flows: list[float]) -> dict[str, Any]:
-    """WF-01: Kyle's Lambda (Price Impact of Informed Trading) delegating to canonical `atlas.features.microstructure`."""
+    """WF-01: Kyle's Lambda (Price Impact of Informed Trading) delegating to canonical `atlas.features.microstructure`.
+
+    Raises `ValueError` on degenerate input (fewer than 2 paired observations, or zero
+    variance in signed flow) — the canonical OLS estimator cannot be computed, and a
+    fabricated placeholder response is never emitted.
+    """
     n = min(len(price_changes), len(signed_flows))
-    if n < 2 or len(set(signed_flows[:n])) < 2:
-        return {"lambda_coeff": 0.0012, "r_squared": 0.42, "noise_eta": 0.05, "spike_alert": False, "execution_permission": "none"}
+    if n < 2:
+        raise ValueError(
+            "Kyle's Lambda requires at least 2 paired (ΔP, Q) observations"
+        )
+    if len(set(signed_flows[:n])) < 2:
+        raise ValueError(
+            "Kyle's Lambda requires non-constant signed order flow; zero variance cannot produce an OLS slope"
+        )
     res = compute_rolling_kyles_lambda(price_changes[:n], signed_flows[:n], spike_threshold=0.0025)
     return {
         "lambda_coeff": round(abs(float(res.lambda_impact)), 6),
@@ -38,13 +49,21 @@ def compute_kyles_lambda(price_changes: list[float], signed_flows: list[float]) 
 
 
 def compute_vpin(buy_volumes: list[float], sell_volumes: list[float]) -> dict[str, Any]:
-    """WF-02: VPIN (Volume-Synchronized Probability of Informed Trading): sum(|V_B - V_S|) / (N * V)."""
+    """WF-02: VPIN (Volume-Synchronized Probability of Informed Trading): sum(|V_B - V_S|) / (N * V).
+
+    Raises `ValueError` when paired aggressor volumes are absent or entirely zero —
+    VPIN is undefined without volume, and no fabricated default value is emitted.
+    """
     n = min(len(buy_volumes), len(sell_volumes))
     if n == 0:
-        return {"vpin": 0.312, "toxic_flow_95th": False, "recommended_book": "B-Book Internal", "execution_permission": "none"}
+        raise ValueError("VPIN requires at least one paired (buy, sell) aggressor volume bucket")
     imbalance_sum = sum(abs(buy_volumes[i] - sell_volumes[i]) for i in range(n))
     total_vol = sum(buy_volumes[i] + sell_volumes[i] for i in range(n))
-    vpin_val = imbalance_sum / total_vol if total_vol > 1e-9 else 0.312
+    if total_vol <= 1e-9:
+        raise ValueError(
+            "VPIN requires a positive total aggressor volume; zero-volume input is undefined"
+        )
+    vpin_val = imbalance_sum / total_vol
     toxic = vpin_val >= 0.48
     return {
         "vpin": round(vpin_val, 4),
@@ -54,11 +73,18 @@ def compute_vpin(buy_volumes: list[float], sell_volumes: list[float]) -> dict[st
     }
 
 
-def compute_multilevel_ofi(bid_deltas: list[float], ask_deltas: list[float], decay: float = 0.65) -> dict[str, Any]:
-    """WF-03: Multi-Level Order Flow Imbalance: OFI_t = sum_i (Delta L_{i,t} * w_i)."""
+def compute_top5_depth_delta_ofi(bid_deltas: list[float], ask_deltas: list[float], decay: float = 0.65) -> dict[str, Any]:
+    """WF-03: Multi-Level Order Flow Imbalance over decay-weighted depth deltas: OFI_t = sum_i (Delta L_{i,t} * w_i).
+
+    Raises `ValueError` on empty depth inputs (OFI is undefined without observed book
+    deltas). Renamed from `compute_multilevel_ofi` to avoid the name collision with the
+    canonical `atlas.features.microstructure.compute_multilevel_ofi` (BookLevelSnapshot-based).
+    """
     levels = min(len(bid_deltas), len(ask_deltas))
     if levels == 0:
-        return {"ofi_weighted": 0.24, "extreme_skew": False, "direction": "neutral", "execution_permission": "none"}
+        raise ValueError(
+            "Multi-level OFI requires at least one observed bid/ask depth delta per side"
+        )
     weights = [decay**i for i in range(levels)]
     raw_ofi = sum((bid_deltas[i] - ask_deltas[i]) * weights[i] for i in range(levels))
     abs_cap = sum((abs(bid_deltas[i]) + abs(ask_deltas[i])) * weights[i] for i in range(levels))
@@ -381,7 +407,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
     # Live mathematical evaluation of WF-01 through WF-08
     wf01 = compute_kyles_lambda([0.12, -0.05, 0.18, 0.24, -0.08, 0.31], [85.0, -40.0, 120.0, 165.0, -55.0, 210.0])
     wf02 = compute_vpin([640.0, 720.0, 810.0, 590.0, 910.0], [410.0, 380.0, 420.0, 460.0, 350.0])
-    wf03 = compute_multilevel_ofi([240.0, 190.0, 150.0, 110.0, 95.0], [110.0, 125.0, 130.0, 105.0, 90.0])
+    wf03 = compute_top5_depth_delta_ofi([240.0, 190.0, 150.0, 110.0, 95.0], [110.0, 125.0, 130.0, 105.0, 90.0])
     wf04 = compute_almgren_chriss_schedule(total_shares=10000.0, horizon_steps=6, kappa=0.45)
     wf05 = compute_gbdt_microstructure_spread(
         ofi=wf03["ofi_weighted"],

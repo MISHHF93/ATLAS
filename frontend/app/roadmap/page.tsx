@@ -1,6 +1,5 @@
-import AtlasTerminal from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function RoadmapPage() {
-  return <AtlasTerminal initialSection="roadmap" />;
+  redirect("/data/features-100");
 }
-

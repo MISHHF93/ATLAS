@@ -1,6 +1,5 @@
-import AtlasTerminal from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function SyncPage() {
-  return <AtlasTerminal initialSection="sync" />;
+  redirect("/data/pipelines");
 }
-

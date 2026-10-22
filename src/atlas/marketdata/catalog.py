@@ -1,20 +1,12 @@
-"""ATLAS Universal Asset Catalog Service (`src/atlas/marketdata/catalog.py`).
+"""Local asset directory.
 
-Ingests and normalizes the tradeable universe across:
-1. **Polygon.io / Databento US NMS Equities & ETFs**: 10,000+ active US equities and ETFs
-   (`SPY`, `QQQ`, `NVDA`, `AAPL`, `MSFT`, `TSLA`, `AMZN`, `META`, `GOOGL`, `AMD`, `AVGO`, etc.
-   plus the broader NMS equity universe).
-2. **CCXT Pro (Binance / Coinbase / Hyperliquid) Crypto Perpetuals & Spot**: 500+ liquid
-   perpetual swaps and spot pairs (`BTC-USD`, `ETH-USD`, `SOL-USD`, `AVAX-USD`, `DOGE-USD`,
-   `XRP-USD`, `SUI-USD`, `LINK-USD`, `ARB-USD`, `OP-USD`, `INJ-USD`, `TIA-USD`, etc.).
-3. **CME Group Futures**: Active E-mini and Micro futures contracts (`ES`, `NQ`, `YM`, `RTY`,
-   `CL`, `GC`, `MES`, `MNQ`, `MYM`, `M2K`, `MCL`, `MGC`, `ZN`, `ZB`, `6E`, `6J`, `SI`, `NG`).
+Flagship names, a searchable list of well-known listings, and placeholder ids.
+`EQ####` and `PERP###` rows fill the count. They are not missing companies.
+Named rows are a directory, not live quotes. A private company such as SpaceX
+is stored so search can find it, and it is marked unlisted. Nothing here is an
+order, and no vendor universe is downloaded.
 
-Backed by an indexed in-memory SQLite catalog engine providing sub-10ms typeahead search and
-paginated market snapshots with latest 1-minute close, volume, rolling VPIN, multi-level OFI,
-and volatility regime metadata.
-
-All catalog outputs strictly carry `execution_permission = "none"`.
+All catalog outputs carry `execution_permission = "none"`.
 """
 
 from __future__ import annotations
@@ -97,6 +89,160 @@ FLAGSHIP_EQUITIES: tuple[tuple[str, str, str, float, float, float, str], ...] = 
     ("XLK", "Technology Select Sector SPDR Fund", "NYSE_ARCA", 232.10, 1.12, 0.268, "Expansion"),
     ("XLE", "Energy Select Sector SPDR Fund", "NYSE_ARCA", 90.40, -0.64, 0.244, "Mean-Reverting"),
     ("SOXX", "iShares Semiconductor ETF", "NASDAQ", 236.70, 1.78, 0.332, "Expansion"),
+    ("MUB", "iShares National Muni Bond ETF", "NYSE_ARCA", 108.20, 0.04, 0.180, "Compression"),
+    ("VTEB", "Vanguard Tax-Exempt Bond ETF", "NYSE_ARCA", 51.40, 0.03, 0.176, "Compression"),
+    ("TFI", "SPDR Nuveen Bloomberg Municipal Bond ETF", "NYSE_ARCA", 46.10, 0.02, 0.174, "Compression"),
+    ("HYMB", "SPDR Nuveen Bloomberg High Yield Municipal Bond ETF", "NYSE_ARCA", 49.80, 0.06, 0.210, "Mean-Reverting"),
+    ("CMF", "iShares California Muni Bond ETF", "NYSE_ARCA", 57.30, 0.03, 0.178, "Compression"),
+    ("NYF", "iShares New York Muni Bond ETF", "NYSE_ARCA", 52.10, 0.03, 0.177, "Compression"),
+    ("SGOV", "iShares 0-3 Month Treasury Bond ETF", "NYSE", 100.60, 0.01, 0.120, "Compression"),
+    ("BIL", "SPDR Bloomberg 1-3 Month T-Bill ETF", "NYSE_ARCA", 91.50, 0.01, 0.122, "Compression"),
+    ("SHY", "iShares 1-3 Year Treasury Bond ETF", "NASDAQ", 82.40, -0.02, 0.160, "Compression"),
+    ("IEF", "iShares 7-10 Year Treasury Bond ETF", "NASDAQ", 96.20, -0.08, 0.190, "Mean-Reverting"),
+    ("VOO", "Vanguard S&P 500 ETF", "NYSE_ARCA", 548.00, 0.40, 0.230, "Compression"),
+    ("VNQ", "Vanguard Real Estate ETF", "NYSE_ARCA", 92.40, 0.22, 0.240, "Mean-Reverting"),
+    ("CPT", "Camden Property Trust", "NYSE", 118.50, 0.18, 0.220, "Compression"),
+    ("SPG", "Simon Property Group", "NYSE", 172.40, 0.30, 0.236, "Expansion"),
+    ("HST", "Host Hotels & Resorts", "NASDAQ", 18.20, 0.12, 0.250, "Mean-Reverting"),
+    ("VICI", "VICI Properties", "NYSE", 33.10, 0.15, 0.210, "Compression"),
+)
+
+# Searchable company directory. No prices: these rows are names, not quotes.
+NAMED_EQUITY_DIRECTORY: tuple[tuple[str, str, str], ...] = (
+    ("BAC", "Bank of America Corporation", "NYSE"),
+    ("WFC", "Wells Fargo & Company", "NYSE"),
+    ("C", "Citigroup Inc.", "NYSE"),
+    ("MS", "Morgan Stanley", "NYSE"),
+    ("BLK", "BlackRock Inc.", "NYSE"),
+    ("AXP", "American Express Company", "NYSE"),
+    ("SCHW", "The Charles Schwab Corporation", "NYSE"),
+    ("BX", "Blackstone Inc.", "NYSE"),
+    ("SPGI", "S&P Global Inc.", "NYSE"),
+    ("ICE", "Intercontinental Exchange Inc.", "NYSE"),
+    ("CME", "CME Group Inc.", "NASDAQ"),
+    ("MCO", "Moody's Corporation", "NYSE"),
+    ("CB", "Chubb Limited", "NYSE"),
+    ("PGR", "The Progressive Corporation", "NYSE"),
+    ("ORCL", "Oracle Corporation", "NYSE"),
+    ("CRM", "Salesforce Inc.", "NYSE"),
+    ("IBM", "International Business Machines Corporation", "NYSE"),
+    ("NOW", "ServiceNow Inc.", "NYSE"),
+    ("SHOP", "Shopify Inc.", "NYSE"),
+    ("UBER", "Uber Technologies Inc.", "NYSE"),
+    ("RBLX", "Roblox Corporation", "NYSE"),
+    ("DASH", "DoorDash Inc.", "NASDAQ"),
+    ("INTC", "Intel Corporation", "NASDAQ"),
+    ("CSCO", "Cisco Systems Inc.", "NASDAQ"),
+    ("ADBE", "Adobe Inc.", "NASDAQ"),
+    ("QCOM", "QUALCOMM Incorporated", "NASDAQ"),
+    ("TXN", "Texas Instruments Incorporated", "NASDAQ"),
+    ("AMAT", "Applied Materials Inc.", "NASDAQ"),
+    ("MU", "Micron Technology Inc.", "NASDAQ"),
+    ("INTU", "Intuit Inc.", "NASDAQ"),
+    ("ADP", "Automatic Data Processing Inc.", "NASDAQ"),
+    ("GOOG", "Alphabet Inc. Class C", "NASDAQ"),
+    ("PYPL", "PayPal Holdings Inc.", "NASDAQ"),
+    ("ABNB", "Airbnb Inc.", "NASDAQ"),
+    ("HOOD", "Robinhood Markets Inc.", "NASDAQ"),
+    ("SNAP", "Snap Inc.", "NYSE"),
+    ("PINS", "Pinterest Inc.", "NYSE"),
+    ("MARA", "MARA Holdings Inc.", "NASDAQ"),
+    ("RIOT", "Riot Platforms Inc.", "NASDAQ"),
+    ("TMUS", "T-Mobile US Inc.", "NASDAQ"),
+    ("CMCSA", "Comcast Corporation", "NASDAQ"),
+    ("SBUX", "Starbucks Corporation", "NASDAQ"),
+    ("COST", "Costco Wholesale Corporation", "NASDAQ"),
+    ("AMGN", "Amgen Inc.", "NASDAQ"),
+    ("GILD", "Gilead Sciences Inc.", "NASDAQ"),
+    ("ASML", "ASML Holding N.V.", "NASDAQ"),
+    ("WMT", "Walmart Inc.", "NYSE"),
+    ("TGT", "Target Corporation", "NYSE"),
+    ("HD", "The Home Depot Inc.", "NYSE"),
+    ("LOW", "Lowe's Companies Inc.", "NYSE"),
+    ("NKE", "NIKE Inc.", "NYSE"),
+    ("MCD", "McDonald's Corporation", "NYSE"),
+    ("KO", "The Coca-Cola Company", "NYSE"),
+    ("PEP", "PepsiCo Inc.", "NASDAQ"),
+    ("PG", "The Procter & Gamble Company", "NYSE"),
+    ("PM", "Philip Morris International Inc.", "NYSE"),
+    ("MO", "Altria Group Inc.", "NYSE"),
+    ("CL", "Colgate-Palmolive Company", "NYSE"),
+    ("DIS", "The Walt Disney Company", "NYSE"),
+    ("T", "AT&T Inc.", "NYSE"),
+    ("VZ", "Verizon Communications Inc.", "NYSE"),
+    ("F", "Ford Motor Company", "NYSE"),
+    ("GM", "General Motors Company", "NYSE"),
+    ("BA", "The Boeing Company", "NYSE"),
+    ("CAT", "Caterpillar Inc.", "NYSE"),
+    ("DE", "Deere & Company", "NYSE"),
+    ("GE", "GE Aerospace", "NYSE"),
+    ("HON", "Honeywell International Inc.", "NASDAQ"),
+    ("UPS", "United Parcel Service Inc.", "NYSE"),
+    ("UNP", "Union Pacific Corporation", "NYSE"),
+    ("LMT", "Lockheed Martin Corporation", "NYSE"),
+    ("RTX", "RTX Corporation", "NYSE"),
+    ("NOC", "Northrop Grumman Corporation", "NYSE"),
+    ("JNJ", "Johnson & Johnson", "NYSE"),
+    ("PFE", "Pfizer Inc.", "NYSE"),
+    ("MRK", "Merck & Co. Inc.", "NYSE"),
+    ("ABBV", "AbbVie Inc.", "NYSE"),
+    ("TMO", "Thermo Fisher Scientific Inc.", "NYSE"),
+    ("DHR", "Danaher Corporation", "NYSE"),
+    ("ABT", "Abbott Laboratories", "NYSE"),
+    ("BMY", "Bristol-Myers Squibb Company", "NYSE"),
+    ("CVS", "CVS Health Corporation", "NYSE"),
+    ("CVX", "Chevron Corporation", "NYSE"),
+    ("COP", "ConocoPhillips", "NYSE"),
+    ("SLB", "Schlumberger Limited", "NYSE"),
+    ("EOG", "EOG Resources Inc.", "NYSE"),
+    ("PSX", "Phillips 66", "NYSE"),
+    ("BABA", "Alibaba Group Holding Limited", "NYSE"),
+    ("TSM", "Taiwan Semiconductor Manufacturing Company", "NYSE"),
+    ("NVO", "Novo Nordisk A/S", "NYSE"),
+    ("SAP", "SAP SE", "NYSE"),
+    ("TM", "Toyota Motor Corporation", "NYSE"),
+    ("SONY", "Sony Group Corporation", "NYSE"),
+    ("SHEL", "Shell plc", "NYSE"),
+    ("BP", "BP p.l.c.", "NYSE"),
+    ("VTI", "Vanguard Total Stock Market ETF", "NYSE_ARCA"),
+    ("VEA", "Vanguard FTSE Developed Markets ETF", "NYSE_ARCA"),
+    ("VWO", "Vanguard FTSE Emerging Markets ETF", "NYSE_ARCA"),
+    ("EEM", "iShares MSCI Emerging Markets ETF", "NYSE_ARCA"),
+    ("EFA", "iShares MSCI EAFE ETF", "NYSE_ARCA"),
+    ("HYG", "iShares iBoxx $ High Yield Corporate Bond ETF", "NYSE_ARCA"),
+    ("LQD", "iShares iBoxx $ Investment Grade Corporate Bond ETF", "NYSE_ARCA"),
+    ("ARKK", "ARK Innovation ETF", "NYSE_ARCA"),
+    ("SMH", "VanEck Semiconductor ETF", "NASDAQ"),
+    ("XBI", "SPDR S&P Biotech ETF", "NYSE_ARCA"),
+    ("KRE", "SPDR S&P Regional Banking ETF", "NYSE_ARCA"),
+    ("XLV", "Health Care Select Sector SPDR Fund", "NYSE_ARCA"),
+    ("XLI", "Industrial Select Sector SPDR Fund", "NYSE_ARCA"),
+    ("XLY", "Consumer Discretionary Select Sector SPDR Fund", "NYSE_ARCA"),
+    ("XLP", "Consumer Staples Select Sector SPDR Fund", "NYSE_ARCA"),
+    ("XLU", "Utilities Select Sector SPDR Fund", "NYSE_ARCA"),
+    ("XLRE", "Real Estate Select Sector SPDR Fund", "NYSE_ARCA"),
+    ("IEMG", "iShares Core MSCI Emerging Markets ETF", "NYSE_ARCA"),
+    ("AGG", "iShares Core U.S. Aggregate Bond ETF", "NYSE_ARCA"),
+    ("BND", "Vanguard Total Bond Market ETF", "NASDAQ"),
+)
+
+NAMED_CRYPTO_DIRECTORY: tuple[tuple[str, str, str], ...] = (
+    ("BCH-USD", "Bitcoin Cash", "COINBASE"),
+    ("XLM-USD", "Stellar", "COINBASE"),
+    ("ALGO-USD", "Algorand", "COINBASE"),
+    ("ETC-USD", "Ethereum Classic", "COINBASE"),
+)
+
+# Search can find these. They are not exchange listings and have no quote.
+UNLISTED_DIRECTORY: tuple[tuple[str, str], ...] = (
+    ("SPACEX", "SpaceX — private company, not an exchange listing"),
+    ("STRIPE", "Stripe — private company, not an exchange listing"),
+    ("OPENAI", "OpenAI — private company, not an exchange listing"),
+)
+
+CATALOG_NOTICE = (
+    "Named companies are a directory you can search. EQ#### and PERP### ids are placeholders, not missing companies. "
+    "A private company such as SpaceX is marked not listed. Flagship prices are fixtures. This is not a live tradable universe."
 )
 
 # Flagship CME Group E-Mini & Micro Futures (Databento GLBX.MDP3)
@@ -157,7 +303,7 @@ FLAGSHIP_CRYPTO_PERPS: tuple[tuple[str, str, str, float, float, float, str], ...
 
 
 class UniversalAssetCatalog:
-    """High-speed SQLite-backed catalog of 10,000+ US Equities/ETFs, 500+ Crypto Perps, and CME Futures."""
+    """Local directory: flagship fixtures, named companies, and EQ/PERP placeholders."""
 
     def __init__(self, target_equities_count: int = 10000, target_crypto_count: int = 520) -> None:
         self._lock = threading.RLock()
@@ -289,6 +435,59 @@ class UniversalAssetCatalog:
                         1 + idx,
                     )
                 )
+
+            # Named companies sit after the flagships and before the EQ/PERP placeholders.
+            # Prices stay at zero: a name in this directory is not a quote.
+            seeded = {row[0] for row in rows_to_insert}
+
+            def _directory_row(
+                sym: str,
+                name: str,
+                asset_class: str,
+                exch: str,
+                track: str,
+                rank: int,
+            ) -> tuple[Any, ...]:
+                return (
+                    sym,
+                    name,
+                    asset_class,
+                    exch,
+                    0.01,
+                    1.0,
+                    100.0 if asset_class == "equities" else 10.0,
+                    track,
+                    1,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    "Directory",
+                    "synthetic_fixture",
+                    rank,
+                )
+
+            for sym, name, exch in NAMED_EQUITY_DIRECTORY:
+                if sym in seeded:
+                    continue
+                seeded.add(sym)
+                rows_to_insert.append(_directory_row(sym, name, "equities", exch, "open_market", 70))
+
+            for sym, name, exch in NAMED_CRYPTO_DIRECTORY:
+                if sym in seeded:
+                    continue
+                seeded.add(sym)
+                rows_to_insert.append(_directory_row(sym, name, "crypto_perps", exch, "competition", 70))
+
+            for sym, name in UNLISTED_DIRECTORY:
+                if sym in seeded:
+                    continue
+                seeded.add(sym)
+                rows_to_insert.append(_directory_row(sym, name, "equities", "UNLISTED", "open_market", 71))
 
             # 4. Expand US NMS Equities & ETFs Universe to >= 10,000 assets
             remaining_equities = self.target_equities_count - len(FLAGSHIP_EQUITIES)
@@ -520,7 +719,7 @@ class UniversalAssetCatalog:
             "results": rows,
             "source": "synthetic_fixture",
             "is_live": False,
-            "notice": "Catalog rows and market metrics are generated fixtures, not a verified tradable universe or live quotes.",
+            "notice": CATALOG_NOTICE,
             "execution_permission": "none",
         }
 
@@ -580,7 +779,7 @@ class UniversalAssetCatalog:
             "listings": listings,
             "source": "synthetic_fixture",
             "is_live": False,
-            "notice": "Catalog rows and market metrics are generated fixtures, not a verified tradable universe or live quotes.",
+            "notice": CATALOG_NOTICE,
             "execution_permission": "none",
         }
 

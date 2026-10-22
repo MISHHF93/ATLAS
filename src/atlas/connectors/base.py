@@ -26,7 +26,7 @@ from atlas.control.engine import (
 from atlas.models.schemas import NonnegativeDecimal, PositiveDecimal, Record, Text
 
 
-ConnectorVenueType = Literal["alpaca_equities", "ccxt_perp", "dxtrade_prop"]
+ConnectorVenueType = Literal["alpaca_equities", "ccxt_perp", "dxtrade_prop", "ibkr_dma", "ctrader_prop"]
 UnifiedOrderSide = Literal["BUY", "SELL"]
 UnifiedOrderType = Literal["LIMIT", "MARKET", "ALMGREN_CHRISS", "TWAP"]
 UnifiedOrderStatus = Literal["ACCEPTED", "PARTIALLY_FILLED", "FILLED", "REJECTED_BY_CONTROL_PLANE", "CANCELED"]

@@ -1,6 +1,5 @@
-import { StreamlinedTradingStudio } from "../../src/components/workbench/StreamlinedTradingStudio";
+import { redirect } from "next/navigation";
 
 export default function WorkbenchPage() {
-  return <StreamlinedTradingStudio />;
+  redirect("/");
 }
-

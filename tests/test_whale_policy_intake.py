@@ -68,15 +68,38 @@ def test_task1_microstructure_whale_feature_extractor():
     assert hawkes_rep.branching_ratio == pytest.approx(0.92)
     assert hawkes_rep.iceberg_clustering_detected is True
 
-    # 5. Unified Extractor
+    # 5. Unified Extractor (strict causal inputs: observed Top-5 depth + tick event times)
     candles = [
         {"open": 68000.0 + i * 50, "high": 68120.0 + i * 50, "low": 67950.0 + i * 50, "close": 68080.0 + i * 50, "volume": 1200.0 + i * 80}
         for i in range(16)
     ]
-    snap = MicrostructureWhaleFeatureExtractor().extract_from_candles_and_depth("BTC-USD", candles)
+    depth_books = [
+        BookLevelSnapshot(level=k, bid_price=68080.0 - 40.0 * k, bid_size=120.0 * k, ask_price=68080.0 + 40.0 * k, ask_size=95.0 * k)
+        for k in range(1, 6)
+    ]
+    event_times = [1.2, 2.8, 4.1, 5.0, 5.6, 5.9, 6.05]
+    snap = MicrostructureWhaleFeatureExtractor().extract_from_candles_and_depth(
+        "BTC-USD",
+        candles,
+        prev_book=depth_books,
+        curr_book=depth_books,
+        event_times_sec=event_times,
+        eval_time_sec=6.5,
+    )
     assert snap.execution_permission == "none"
     assert snap.symbol == "BTC-USD"
     assert snap.atr_14 > 0
+
+    closed_only = MicrostructureWhaleFeatureExtractor().extract_from_candles("BTC-USD", candles)
+    assert closed_only.execution_permission == "none"
+    assert closed_only.data_origin == "candles_only"
+    assert closed_only.atr_14 > 0
+    assert closed_only.ofi_data_status == "not_observed"
+
+    with pytest.raises(ValueError):
+        MicrostructureWhaleFeatureExtractor().extract_from_candles_and_depth(
+            "BTC-USD", candles, prev_book=depth_books, curr_book=depth_books, event_times_sec=[]
+        )
 
 
 def test_task2_whale_policy_trainer_and_predict():
@@ -84,7 +107,7 @@ def test_task2_whale_policy_trainer_and_predict():
     trainer = WhalePolicyTrainer()
     obs = trainer.load_warehouse_observations(symbol="BTC-USD", num_bars=32)
     targets = trainer.generate_triple_barrier_targets(obs, upper_atr_mult=1.5, lower_atr_mult=1.0, vertical_minutes=60)
-    assert len(targets) == 31
+    assert len(targets) == 30
     for t in targets:
         assert t.execution_permission == "none"
         assert t.upper_take_profit_price > t.entry_price > t.lower_stop_loss_price
@@ -203,6 +226,242 @@ def test_control_plane_whale_signal_intake_and_prop_rejections():
     assert any("max_drawdown_breached" in v for v in dd_intake.decision.violations)
 
 
+def test_chart_reader_scores_stream_for_both_tracks():
+    """The model reads ring-buffer bars for an open-market name and still scores the competition book."""
+    from datetime import datetime, timedelta, timezone
+
+    from atlas.marketdata.live_stream import LiveMarketDataGateway
+    from atlas.models.chart_reader import read_market_charts
+
+    gateway = LiveMarketDataGateway(demo_mode=True)
+    now = datetime.now(timezone.utc)
+    for idx in range(8):
+        stamp = now - timedelta(seconds=8 - idx)
+        gateway.ingest_tick(
+            symbol="NVDA",
+            price=142.0 + idx * 0.15,
+            size=20.0 + idx,
+            side="buy" if idx % 2 == 0 else "sell",
+            exchange_timestamp=stamp,
+            system_receipt_timestamp=stamp + timedelta(milliseconds=5),
+        )
+    report = read_market_charts(gateway, WhalePolicyModel(), symbol="NVDA", bucket_seconds=900)
+    assert report["execution_permission"] == "none"
+    active = report["active"]
+    assert active["symbol"] == "NVDA"
+    assert active["track"] == "open_market"
+    assert active["chart_source"] == "stream_ring_buffer"
+    assert active["bars_read"] >= 4
+    assert active["signal"]["execution_permission"] == "none"
+    assert len(active["horizons"]) == 3
+    assert [row["symbol"] for row in report["competition"]] == ["BTC-USD", "ETH-USD", "SOL-USD"]
+    assert "SPY" in [row["symbol"] for row in report["open_market"]]
+    assert all(row["execution_permission"] == "none" for row in report["competition"])
+    assert all(row["track"] == "competition" for row in report["competition"])
+    assert all(row["track"] == "open_market" for row in report["open_market"])
+    moment = active["whale_moment"]
+    assert moment["status"] == "locked"
+    assert moment["action"] in ("BUY", "SELL")
+    assert moment["scenario_id"] in ("WSDM-01", "WSDM-02", "WSDM-03", "WSDM-04", "WSDM-05")
+    assert moment["execution_permission"] == "none"
+    assert moment["inputs"] == "candle_close_versus_open"
+    lock = active["bar_lock"]
+    assert lock["execution_permission"] == "none"
+    assert lock["may_propose_order"] is False
+    assert lock["stance"] == "abstain"
+    assert lock["action"] in ("BUY", "SELL")
+    assert lock["method"] == "causal_swing"
+    assert lock["decision_timestamp"] == active["candles"][-1]["timestamp"]
+    assert lock["window_timestamps"][-1] == lock["decision_timestamp"]
+    assert 1 <= len(lock["window_timestamps"]) <= 24
+    stamps = [row["timestamp"] for row in active["candles"]]
+    assert all(stamp in stamps for stamp in lock["window_timestamps"])
+    assert stamps.index(lock["window_timestamps"][0]) <= stamps.index(lock["decision_timestamp"])
+    if lock["action"] == "BUY":
+        assert lock["invalidation_price"] < active["candles"][-1]["close"]
+        assert lock["objective_price"] > active["candles"][-1]["close"]
+    if lock["action"] == "SELL":
+        assert lock["invalidation_price"] > active["candles"][-1]["close"]
+        assert lock["objective_price"] < active["candles"][-1]["close"]
+    assert "order_id" not in lock
+    assert "conviction" not in moment
+    assert "calibrated_probability" not in moment
+    assert moment["recommendation"]["stance"] == "abstain"
+    assert moment["recommendation"]["may_propose_order"] is False
+    assert moment["recommendation"]["execution_permission"] == "none"
+    assert "almgren_chriss_slices" not in moment
+    others = [row for row in report["competition"] + report["open_market"] if row["symbol"] != "NVDA"]
+    assert others
+    assert all("whale_moment" not in row for row in others)
+
+
+def test_chart_read_abstains_until_evidence_and_a_paper_session_both_exist():
+    """A lined-up label is still not an order. Missing evidence abstains first."""
+    from atlas.models.chart_reader import decide_trade_stance
+
+    lined_up = {
+        "status": "locked",
+        "action": "BUY",
+        "inputs": "observed_book",
+        "execution_permission": "none",
+    }
+    clean = decide_trade_stance(
+        whale_moment=lined_up,
+        direction="BUY",
+        feed_origin="coinbase_exchange_public",
+        ofi_observed=True,
+        hawkes_observed=True,
+        bars_read=48,
+        paper_armed=False,
+    )
+    assert clean["stance"] == "abstain"
+    assert clean["reasons"] == ["paper_session_not_armed"]
+    assert clean["may_propose_order"] is False
+    assert clean["execution_permission"] == "none"
+
+    review = decide_trade_stance(
+        whale_moment=lined_up,
+        direction="BUY",
+        feed_origin="coinbase_exchange_public",
+        ofi_observed=True,
+        hawkes_observed=True,
+        bars_read=48,
+        paper_armed=True,
+    )
+    assert review["stance"] == "paper_review"
+    assert review["may_propose_order"] is False
+    assert review["execution_permission"] == "none"
+
+    weak = decide_trade_stance(
+        whale_moment={"status": "locked", "action": "SELL", "inputs": "candle_close_versus_open"},
+        direction="BUY",
+        feed_origin="labeled_synthetic_fixture",
+        ofi_observed=False,
+        hawkes_observed=False,
+        bars_read=12,
+    )
+    assert weak["stance"] == "abstain"
+    assert weak["may_propose_order"] is False
+    assert "side_reconstructed_from_candle_bodies" in weak["reasons"]
+    assert "policy_direction_disagrees" in weak["reasons"]
+    assert "tape_is_not_a_public_print" in weak["reasons"]
+    assert "hawkes_unobserved" in weak["reasons"]
+    assert "Must not trade." in weak["summary"]
+
+
+def test_causal_lock_stops_at_the_opposing_bar_and_prices_that_swing():
+    """The shaded run ends at the first earlier bar that closes the other way. The line is beyond that swing."""
+    from atlas.models.chart_reader import causal_bar_lock
+
+    bars = []
+    price = 100.0
+    for index, move in enumerate((1, 1, 1, 1, -1, 1, 1, 1)):
+        open_px = price
+        close_px = price + move
+        bars.append(
+            {
+                "timestamp": f"2026-10-22T12:00:{index:02d}+00:00",
+                "open": open_px,
+                "high": max(open_px, close_px) + 0.2,
+                "low": min(open_px, close_px) - 0.2,
+                "close": close_px,
+                "volume": 10,
+            }
+        )
+        price = close_px
+    buy = causal_bar_lock(bars, action="BUY")
+    assert buy["method"] == "causal_swing"
+    assert buy["window_timestamps"] == [bar["timestamp"] for bar in bars[-3:]]
+    assert buy["invalidation_price"] < min(bar["low"] for bar in bars[-3:])
+    assert buy["objective_price"] > bars[-1]["close"]
+    assert buy["may_propose_order"] is False
+    assert buy["execution_permission"] == "none"
+    sell = causal_bar_lock(bars, action="SELL")
+    assert sell["window_timestamps"] == [bars[-1]["timestamp"]]
+    assert sell["invalidation_price"] > bars[-1]["high"]
+    assert sell["objective_price"] < bars[-1]["close"]
+
+
+def test_whale_moment_names_documented_buy_and_sell_and_withholds_a_short_tape():
+    """Rising candles name a buy. Falling candles name a sell. A short tape stays withheld."""
+    from atlas.models.chart_reader import whale_moment_from_candles
+
+    bull = [
+        {"open": 68100 + i * 35, "high": 68160 + i * 35, "low": 68070 + i * 35, "close": 68135 + i * 35, "volume": 150 + i * 25}
+        for i in range(10)
+    ]
+    bear = [
+        {"open": 68400 - i * 40, "high": 68430 - i * 40, "low": 68330 - i * 40, "close": 68355 - i * 40, "volume": 160 + i * 30}
+        for i in range(10)
+    ]
+    buy = whale_moment_from_candles("BTC-USD", bull)
+    sell = whale_moment_from_candles("BTC-USD", bear)
+    assert buy["status"] == "locked"
+    assert buy["action"] == "BUY"
+    assert buy["scenario_id"] == "WSDM-01"
+    assert sell["status"] == "locked"
+    assert sell["action"] == "SELL"
+    assert sell["scenario_id"] == "WSDM-02"
+    assert buy["execution_permission"] == "none"
+    assert sell["execution_permission"] == "none"
+    assert "conviction" not in buy and "calibrated_probability" not in sell
+    assert "live book" in buy["trigger_summary"]
+    assert "liquidation print" in sell["trigger_summary"]
+    short = whale_moment_from_candles("BTC-USD", bull[:3])
+    assert short == {"status": "withheld", "reason": "fewer_than_four_bars", "execution_permission": "none"}
+
+
+def test_chart_read_endpoint_covers_competition_and_open_market():
+    from fastapi.testclient import TestClient
+    from atlas.api.app import app
+
+    client = TestClient(app)
+    response = client.get("/api/ml/chart-read?symbol=BTC-USD&bucket_seconds=60")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["execution_permission"] == "none"
+    assert body["active"]["symbol"] == "BTC-USD"
+    assert body["active"]["track"] == "competition"
+    assert body["active"]["signal"]["execution_permission"] == "none"
+    moment = body["active"]["whale_moment"]
+    assert moment["status"] == "locked"
+    assert moment["action"] in ("BUY", "SELL")
+    assert moment["scenario_id"] in ("WSDM-01", "WSDM-02", "WSDM-03", "WSDM-04", "WSDM-05")
+    assert moment["execution_permission"] == "none"
+    assert "conviction" not in moment
+    assert moment["recommendation"]["may_propose_order"] is False
+    assert moment["recommendation"]["stance"] == "abstain"
+    assert moment["recommendation"]["execution_permission"] == "none"
+    assert {row["symbol"] for row in body["competition"]} == {"BTC-USD", "ETH-USD", "SOL-USD"}
+    assert {row["symbol"] for row in body["open_market"]} >= {"SPY", "NVDA", "AAPL", "MSFT", "QQQ", "TSLA"}
+    link = body["training"]
+    assert link["chart_linked"] is True
+    assert link["cadence_seconds"] == 900
+    assert link["orders_submitted"] == 0
+    assert link["execution_permission"] == "none"
+    assert set(link["tracks"]) == {"competition", "open_market"}
+    lock = body["active"]["bar_lock"]
+    assert lock["execution_permission"] == "none"
+    assert lock["may_propose_order"] is False
+    assert lock["stance"] == "abstain"
+    assert lock["method"] == "causal_swing"
+    assert lock["decision_timestamp"] == body["active"]["candles"][-1]["timestamp"]
+    assert lock["window_timestamps"][-1] == lock["decision_timestamp"]
+    assert lock["window_timestamps"][0] in {row["timestamp"] for row in body["active"]["candles"]}
+    close = body["active"]["candles"][-1]["close"]
+    if lock["action"] == "BUY":
+        assert lock["invalidation_price"] < close
+        assert lock["objective_price"] > close
+    if lock["action"] == "SELL":
+        assert lock["invalidation_price"] > close
+        assert lock["objective_price"] < close
+    assert "order_id" not in lock
+    assert isinstance(link["autonomous"], bool)
+    assert isinstance(link["notice"], str)
+    assert "served_model" not in link
+    assert "submit_order" not in response.text
+
+
 def test_whale_policy_api_endpoints():
     """Verify /api/ml/whale-policy/train, /api/ml/whale-policy/predict, and /api/control/ingest-whale-signal."""
     from fastapi.testclient import TestClient
@@ -266,13 +525,27 @@ def test_audit_deduplication_and_control_gateway():
     gw.control_engine.flatten_all_positions(reason="gateway_test_clean")
 
     model = WhalePolicyModel()
-    btc_sig = model.predict(symbol="BTC-USD", spot_price=68450.0, atr_14=1025.0)
+    btc_sig = model.predict(
+        symbol="BTC-USD",
+        spot_price=68450.0,
+        atr_14=1025.0,
+        vpin=0.38,
+        ofi_z=2.4,
+        hawkes_ratio=0.92,
+    )
     btc_rep = gw.evaluate_and_dispatch_signal(btc_sig, track="competition", data_age_ms=8.0)
     assert btc_rep.decision.control_plane_decision == "authorized_and_executed"
     assert btc_rep.connector_receipt is not None
     assert "ccxt_perp" in btc_rep.connector_receipt["connector_id"]
 
-    spy_sig = model.predict(symbol="SPY", spot_price=584.20, atr_14=6.50)
+    spy_sig = model.predict(
+        symbol="SPY",
+        spot_price=584.20,
+        atr_14=6.50,
+        vpin=0.36,
+        ofi_z=2.2,
+        hawkes_ratio=0.90,
+    )
     spy_rep = gw.evaluate_and_dispatch_signal(spy_sig, track="open_market", data_age_ms=12.0)
     assert spy_rep.decision.control_plane_decision == "authorized_and_executed"
     assert spy_rep.connector_receipt is not None
@@ -311,6 +584,21 @@ def test_visual_automation_scan_endpoint() -> None:
     assert data_qm["execution_permission"] == "none"
     assert len(data_qm["measurements"]) == 8
     assert 0.25 <= data_qm["hurst_exponent"] <= 0.85
+    assert data_qm["latency_percentiles_ms"] is None
+    carry = next(row for row in data_qm["measurements"] if row["id"] == "QM-07")
+    latency = next(row for row in data_qm["measurements"] if row["id"] == "QM-08")
+    assert carry["status"] == "unobserved"
+    assert latency["status"] == "unobserved"
+    assert "APR" not in carry["value"]
+
+    docs = client.get("/api/docs")
+    assert docs.status_code == 200
+    paths = {row["path"] for row in docs.json()["documents"]}
+    assert "docs/architecture/EXECUTION_PLAN.md" in paths
+    assert "docs/roadmap/range_garden.md" in paths
+    assert "docs/roadmap/reserve_yield.md" in paths
+    assert "docs/roadmap/tab7_whale_signal_decision_matrix.csv" in paths
+    assert docs.json()["execution_permission"] == "none"
 
 
 

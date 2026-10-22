@@ -4,7 +4,9 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ATLAS | Autonomous Trading, Liquidity, Allocation & Strategy Intelligence",
-  description: "Actionable regime-aware research, forecasting, self-training, and deterministic control-plane execution platform.",
+  description:
+    "Paper research desk for competition and open-market books. Charts from TradingView. Orders stay with the control plane.",
+  applicationName: "ATLAS",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

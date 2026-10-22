@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function DataGovernancePage() {
-  return <AtlasTerminal initialSection="governance" initialWorkspaceRoute="/data/governance" />;
+  redirect("/governance");
 }
-

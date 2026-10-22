@@ -172,3 +172,55 @@ def test_deterministic_control_plane_order_sizing_and_risk_rejection() -> None:
     )
     assert ord_res.control_plane_decision == "rejected_by_control_plane"
     assert any("kill_switch" in v for v in ord_res.violations)
+
+
+def test_named_directory_is_searchable_and_private_names_are_not_listings() -> None:
+    """Company names are searchable. Private names stay unlisted and unpriced."""
+    from atlas.marketdata.bar_projection import project_symbol_bars
+    from atlas.marketdata.tradingview import describe_chart, tradingview_symbol
+
+    catalog = UniversalAssetCatalog()
+    spacex = catalog.search("SpaceX")
+    assert any(row["symbol"] == "SPACEX" for row in spacex["results"])
+    assert spacex["is_live"] is False
+    assert spacex["source"] == "synthetic_fixture"
+    assert spacex["execution_permission"] == "none"
+    assert "not listed" in spacex["notice"]
+    row = catalog.get_asset("SPACEX")
+    assert row is not None
+    assert row.exchange == "UNLISTED"
+    assert row.last_price == 0
+    assert row.provider == "synthetic_fixture"
+    assert row.execution_permission == "none"
+    assert catalog.get_asset("STRIPE") is not None
+    assert catalog.get_asset("OPENAI") is not None
+
+    disney = catalog.search("Disney")
+    assert any(item["symbol"] == "DIS" and item["last_price"] == 0 for item in disney["results"])
+    walmart = catalog.get_asset("WMT")
+    assert walmart is not None and walmart.exchange == "NYSE" and walmart.last_price == 0
+    bitcoin_cash = catalog.get_asset("BCH-USD")
+    assert bitcoin_cash is not None
+    assert bitcoin_cash.track == "competition"
+    assert bitcoin_cash.last_price == 0
+    cme = catalog.get_asset("CME")
+    assert cme is not None and cme.asset_class == "equities"
+    nvda = catalog.get_asset("NVDA")
+    assert nvda is not None and nvda.last_price > 0
+
+    assert tradingview_symbol("SPACEX") is None
+    assert tradingview_symbol("DIS") == "NYSE:DIS"
+    assert tradingview_symbol("WMT") == "NYSE:WMT"
+    picture = describe_chart("SPACEX")
+    assert picture["available"] is False
+    assert picture["embed_url"] is None
+    assert picture["tradingview_symbol"] is None
+    assert picture["execution_permission"] == "none"
+
+    gateway = LiveMarketDataGateway()
+    bars = project_symbol_bars(gateway, "SPACEX", bucket_seconds=60, limit=20)
+    assert bars["bar_count"] == 0
+    assert bars["chart_source"] == "no_quote"
+    assert bars["candles"] == []
+    assert bars["execution_permission"] == "none"
+    assert bars["last_close"] == 0

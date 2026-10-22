@@ -70,6 +70,12 @@ export type TradingFactorAttributionPoint = {
   interpretation: string;
 };
 
+export type BracketIntent = {
+  stopLossPrice: number;
+  takeProfitPrice: number;
+  riskUsd: number;
+};
+
 export interface LiveChartEngineProps {
   symbol: string;
   candles: LiveCandlePoint[];
@@ -77,6 +83,12 @@ export interface LiveChartEngineProps {
   wsUrl?: string;
   forecastT1?: number;
   forecastT2?: number;
+  variant?: "full" | "tape";
+  chartHeight?: number;
+  bracketStop?: number | null;
+  bracketTarget?: number | null;
+  bracketQuantity?: number;
+  onBracketIntent?: (intent: BracketIntent) => void;
   aiPrediction?: {
     modelId: string;
     direction: "LONG" | "SHORT" | "NEUTRAL";
@@ -87,6 +99,9 @@ export interface LiveChartEngineProps {
     tradingFactors?: TradingFactorAttributionPoint[];
   } | null;
   onLockOpportunity?: (opp: LockedWhaleOpportunityData) => void;
+  timeframe?: "1s" | "1m" | "5m" | "15m" | "1h" | "1D";
+  onTimeframeChange?: (timeframe: "1s" | "1m" | "5m" | "15m" | "1h" | "1D") => void;
+  loading?: boolean;
 }
 
 export function latencyBadgeTone(latencyMs: number): {
@@ -106,10 +121,29 @@ export function latencyBadgeTone(latencyMs: number): {
   return { color: "#00F29D", bg: "rgba(0, 242, 157, 0.12)", label: "NOMINAL (<50ms)" };
 }
 
+function recentTrueRange(points: LiveCandlePoint[], fallback: number): number {
+  if (points.length < 2) return Math.max(Math.abs(fallback) * 0.01, 1e-6);
+  const start = Math.max(1, points.length - 14);
+  let total = 0;
+  let count = 0;
+  for (let index = start; index < points.length; index += 1) {
+    const previous = points[index - 1].close;
+    total += Math.max(
+      points[index].high - points[index].low,
+      Math.abs(points[index].high - previous),
+      Math.abs(points[index].low - previous),
+    );
+    count += 1;
+  }
+  return Math.max(total / Math.max(count, 1), Math.abs(fallback) * 0.002, 1e-6);
+}
+
 function fmtPrice(value: number): string {
+  const abs = Math.abs(value);
+  const digits = abs >= 100 ? 2 : abs >= 1 ? 4 : abs >= 0.01 ? 4 : 6;
   return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: Math.min(2, digits),
+    maximumFractionDigits: digits,
   }).format(value);
 }
 
@@ -131,22 +165,42 @@ export function LiveChartEngine({
   forecastT2,
   aiPrediction,
   onLockOpportunity,
+  timeframe: timeframeProp,
+  onTimeframeChange,
+  loading = false,
+  variant = "full",
+  chartHeight = 220,
+  bracketStop = null,
+  bracketTarget = null,
+  bracketQuantity = 1,
+  onBracketIntent,
 }: LiveChartEngineProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lwCanvasRef = useRef<HTMLDivElement | null>(null);
+  const stopHandleRef = useRef<HTMLDivElement | null>(null);
+  const targetHandleRef = useRef<HTMLDivElement | null>(null);
+  const dragKind = useRef<"stop" | "target" | null>(null);
+  const fittedKey = useRef("");
   const canvasState = useRef<{
     chart: import("lightweight-charts").IChartApi;
     candles: import("lightweight-charts").ISeriesApi<"Candlestick">;
     fans: import("lightweight-charts").ISeriesApi<"Line">[];
     levels: import("lightweight-charts").IPriceLine[];
+    brackets: import("lightweight-charts").IPriceLine[];
   } | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
-  const [timeframe, setTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("15m");
+  const [uncontrolledTimeframe, setUncontrolledTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("1m");
+  const timeframe = timeframeProp ?? uncontrolledTimeframe;
+  const selectTimeframe = (next: "1s" | "1m" | "5m" | "15m" | "1h" | "1D") => {
+    onTimeframeChange?.(next);
+    if (timeframeProp === undefined) setUncontrolledTimeframe(next);
+  };
   const [highlightAiZone] = useState<boolean>(true);
 
-  const series = candles.length > 0 ? candles.slice(-18) : DEFAULT_FALLBACK_CANDLES;
+  const series = candles.length > 0 ? candles.slice(-180) : DEFAULT_FALLBACK_CANDLES;
   const latestCandle = series[series.length - 1];
 
+  const [streamPrice, setStreamPrice] = useState<number | null>(null);
   const [liveTick, setLiveTick] = useState<LiveTickStreamFrame>({
     symbol,
     price: latestCandle?.close ?? 584.9,
@@ -162,6 +216,7 @@ export function LiveChartEngine({
 
   useEffect(() => {
     if (!marketDataAvailable) return;
+    setStreamPrice(null);
     setLiveTick((prev) => ({
       ...prev,
       symbol,
@@ -201,6 +256,19 @@ export function LiveChartEngine({
 
   // Build 3 autonomous future AI predicted candlesticks right after the last real candle
   const predictedHorizons: AiHorizonPredictionPoint[] = useMemo(() => {
+    if (variant === "tape" && !(aiPrediction && aiPrediction.horizons && aiPrediction.horizons.length >= 2)) {
+      const width = recentTrueRange(series, lastClose);
+      const band = (step: number): AiHorizonPredictionPoint => ({
+        horizon: step === 1 ? "t+1h" : "t+2h",
+        expectedReturnBps: 0,
+        p50Price: lastClose,
+        p10Price: Math.max(lastClose * 0.01, lastClose - width * Math.sqrt(step)),
+        p90Price: lastClose + width * Math.sqrt(step),
+      });
+      const first = band(1);
+      const second = band(2);
+      return [first, second, second];
+    }
     if (aiPrediction && aiPrediction.horizons && aiPrediction.horizons.length >= 3) {
       return aiPrediction.horizons.slice(0, 3);
     }
@@ -234,7 +302,7 @@ export function LiveChartEngine({
         p90Price: Number((t3 * (1 + vol * 2.5)).toFixed(2)),
       },
     ];
-  }, [aiPrediction, forecastT1, forecastT2, lastClose, series]);
+  }, [aiPrediction, forecastT1, forecastT2, lastClose, series, variant]);
 
   const aiDirection =
     aiPrediction?.direction ??
@@ -260,6 +328,8 @@ export function LiveChartEngine({
               ? parsed.price
               : null;
           if (parsed && resolvedPrice !== null) {
+            const frameSymbol = typeof parsed.symbol === "string" ? parsed.symbol : symbol;
+            if (frameSymbol === symbol) setStreamPrice(resolvedPrice);
             setLiveTick((prev) => ({
               ...prev,
               ...parsed,
@@ -319,7 +389,7 @@ export function LiveChartEngine({
     void import("lightweight-charts").then(lw => {
       if (disposed) return;
       const chart = lw.createChart(element, {
-        width: element.clientWidth, height: 220,
+        width: element.clientWidth, height: chartHeight,
         layout: { background: { type: lw.ColorType.Solid, color: "#080C14" }, textColor: "#94A3B8" },
         grid: { vertLines: { color: "#15202e" }, horzLines: { color: "#15202e" } },
         timeScale: { timeVisible: true },
@@ -327,14 +397,18 @@ export function LiveChartEngine({
       const candles = chart.addCandlestickSeries({ upColor: "#00F29D", downColor: "#FF3B69", borderVisible: false });
       const fans = ["P10", "P50", "P90"].map(title => chart.addLineSeries({ title, color: "#38BDF8", lineWidth: 1, lineStyle: lw.LineStyle.Dashed }));
       const levels = ["VAH", "POC", "VAL"].map(title => candles.createPriceLine({ price: 1, title, color: "#F59E0B", lineWidth: 1, lineStyle: lw.LineStyle.Dashed }));
-      canvasState.current = { chart, candles, fans, levels };
+      const brackets = [
+        candles.createPriceLine({ price: 1, title: "Stop", color: "#FF3B69", lineWidth: 1, lineStyle: lw.LineStyle.Solid, lineVisible: false, axisLabelVisible: true }),
+        candles.createPriceLine({ price: 1, title: "Target", color: "#00F29D", lineWidth: 1, lineStyle: lw.LineStyle.Solid, lineVisible: false, axisLabelVisible: true }),
+      ];
+      canvasState.current = { chart, candles, fans, levels, brackets };
       const observer = new ResizeObserver(() => chart.applyOptions({ width: element.clientWidth }));
       observer.observe(element);
       setCanvasReady(true);
       cleanup = () => { observer.disconnect(); canvasState.current = null; chart.remove(); };
     });
     return () => { disposed = true; cleanup?.(); };
-  }, [marketDataAvailable]);
+  }, [chartHeight, marketDataAvailable]);
 
   useEffect(() => {
     if (!canvasReady || !canvasState.current) return;
@@ -342,24 +416,60 @@ export function LiveChartEngine({
       const state = canvasState.current;
       if (!state) return;
       const base = Math.floor(Date.now() / 3600000) * 3600 - (series.length - 1) * 3600;
-      const bars = series.map((c, index) => ({
-        time: (Number.isFinite(Date.parse(c.timestamp)) ? Math.floor(Date.parse(c.timestamp) / 1000) : base + index * 3600) as import("lightweight-charts").UTCTimestamp,
-        open: c.open, high: c.high, low: c.low, close: c.close,
-      }));
+      let lastTime = -1;
+      const bars = series.flatMap((c, index) => {
+        let time = Number.isFinite(Date.parse(c.timestamp)) ? Math.floor(Date.parse(c.timestamp) / 1000) : base + index * 3600;
+        if (time <= lastTime) time = lastTime + 1;
+        lastTime = time;
+        return [{
+          time: time as import("lightweight-charts").UTCTimestamp,
+          open: c.open, high: c.high, low: c.low, close: c.close,
+        }];
+      });
+      if (streamPrice != null && bars.length > 0) {
+        const last = bars[bars.length - 1];
+        last.high = Math.max(last.high, streamPrice);
+        last.low = Math.min(last.low, streamPrice);
+        last.close = streamPrice;
+      }
       state.candles.setData(bars);
       [vahPrice, pocPrice, valPrice].forEach((price, index) => state.levels[index].applyOptions({ price }));
+      const marked = streamPrice ?? lastClose;
+      [bracketStop, bracketTarget].forEach((price, index) => {
+        const line = state.brackets[index];
+        const handle = index === 0 ? stopHandleRef.current : targetHandleRef.current;
+        if (price == null || !Number.isFinite(price) || price <= 0) {
+          line.applyOptions({ lineVisible: false });
+          if (handle) handle.style.display = "none";
+          return;
+        }
+        line.applyOptions({ price, lineVisible: true });
+        const y = state.candles.priceToCoordinate(price);
+        if (handle) {
+          if (y == null) handle.style.display = "none";
+          else {
+            handle.style.display = "block";
+            handle.style.top = `${y}px`;
+          }
+        }
+      });
       const end = Number(bars[bars.length - 1]?.time ?? base);
       const keys = ["p10", "p50", "p90"] as const;
-      keys.forEach((key, index) => state.fans[index].setData(aiPrediction || forecastT1 !== undefined || forecastT2 !== undefined ? [
-        { time: end as import("lightweight-charts").UTCTimestamp, value: lastClose },
+      const showFan = variant === "tape" || aiPrediction || forecastT1 !== undefined || forecastT2 !== undefined;
+      keys.forEach((key, index) => state.fans[index].setData(showFan ? [
+        { time: end as import("lightweight-charts").UTCTimestamp, value: marked },
         ...futurePredictedCandles.slice(0, 2).map((point, lead) => ({
           time: (end + (lead + 1) * 3600) as import("lightweight-charts").UTCTimestamp, value: point[key],
         })),
       ] : []));
-      state.chart.timeScale().fitContent();
+      const fitKey = `${bars[0]?.time ?? ""}:${bars.length}`;
+      if (fittedKey.current !== fitKey) {
+        fittedKey.current = fitKey;
+        state.chart.timeScale().fitContent();
+      }
     });
     return () => cancelAnimationFrame(request);
-  }, [canvasReady, series, futurePredictedCandles, lastClose, vahPrice, pocPrice, valPrice, aiPrediction, forecastT1, forecastT2]);
+  }, [aiPrediction, bracketStop, bracketTarget, canvasReady, forecastT1, forecastT2, futurePredictedCandles, lastClose, pocPrice, series, streamPrice, vahPrice, valPrice, variant]);
 
   // Suggested AI TP & ATR Stop levels in the post-candle prediction zone
   const lockedOpportunity: LockedWhaleOpportunityData = useMemo(() => {
@@ -562,13 +672,133 @@ export function LiveChartEngine({
     };
   }, [lastClose, liveTick.ofi, liveTick.spread, liveTick.vpin, plotY, series, stepX]);
 
+  if (loading && candles.length === 0) {
+    return (
+      <div className="live-chart-engine-card live-chart-no-data" role="status">
+        <span className="live-chart-no-data-label">LOADING BARS</span>
+        <strong>{symbol}</strong>
+        <p>Pulling the labeled candle history for this symbol.</p>
+        <span>execution_permission: none</span>
+      </div>
+    );
+  }
+
   if (!marketDataAvailable || candles.length === 0) {
     return (
       <div className="live-chart-engine-card live-chart-no-data" role="status">
-        <span className="live-chart-no-data-label">NO VERIFIED BARS</span>
+        <span className="live-chart-no-data-label">NO BARS LOADED</span>
         <strong>{symbol}</strong>
-        <p>This catalog selection has synthetic metadata only. A source- and license-verified feed is not connected.</p>
-        <span>Forecast and regime overlay withheld · execution_permission: none</span>
+        <p>The labeled candle history for this symbol did not load. Venue sessions are still unconfigured.</p>
+        <span>Forecast overlay withheld · execution_permission: none</span>
+      </div>
+    );
+  }
+
+  if (variant === "tape") {
+    const marked = streamPrice ?? lastClose;
+    const units = bracketQuantity > 0 ? bracketQuantity : 1;
+    const riskUsd = bracketStop != null ? Math.abs(marked - bracketStop) * units : 0;
+    const movePrice = (kind: "stop" | "target", clientY: number) => {
+      const state = canvasState.current;
+      const element = lwCanvasRef.current;
+      if (!state || !element || !onBracketIntent) return;
+      const price = state.candles.coordinateToPrice(clientY - element.getBoundingClientRect().top);
+      if (price == null || !Number.isFinite(price) || price <= 0) return;
+      const stop = kind === "stop" ? price : bracketStop;
+      const target = kind === "target" ? price : bracketTarget;
+      if (stop == null || target == null || stop <= 0 || target <= 0) return;
+      onBracketIntent({
+        stopLossPrice: stop,
+        takeProfitPrice: target,
+        riskUsd: Math.abs(marked - stop) * units,
+      });
+    };
+    const handleStyle: React.CSSProperties = {
+      display: "none",
+      position: "absolute",
+      left: 0,
+      right: 56,
+      height: 14,
+      marginTop: -7,
+      cursor: "ns-resize",
+      zIndex: 2,
+    };
+    return (
+      <div ref={containerRef} data-live-chart="tape">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "baseline", marginBottom: "8px" }}>
+          <strong style={{ color: "#E2E8F0", fontSize: "13px" }}>{symbol}</strong>
+          <span style={{ color: "#F8FAFC", fontSize: "18px" }}>${fmtPrice(marked)}</span>
+          <span style={{ color: "#94A3B8", fontSize: "11px" }}>
+            VAL ${fmtPrice(valPrice)} · POC ${fmtPrice(pocPrice)} · VAH ${fmtPrice(vahPrice)}
+          </span>
+        </div>
+        <div style={{ position: "relative" }}>
+          <div
+            ref={lwCanvasRef}
+            aria-label={`${symbol} candlestick chart with volume profile, forecast fan, and bracket lines`}
+            style={{ width: "100%", height: chartHeight, borderRadius: "8px", overflow: "hidden" }}
+          />
+          <div
+            ref={stopHandleRef}
+            role="slider"
+            aria-label="Stop loss"
+            aria-valuenow={bracketStop ?? undefined}
+            style={handleStyle}
+            onPointerDown={(event) => {
+              dragKind.current = "stop";
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (dragKind.current === "stop") movePrice("stop", event.clientY);
+            }}
+            onPointerUp={() => {
+              dragKind.current = null;
+            }}
+          />
+          <div
+            ref={targetHandleRef}
+            role="slider"
+            aria-label="Take profit"
+            aria-valuenow={bracketTarget ?? undefined}
+            style={handleStyle}
+            onPointerDown={(event) => {
+              dragKind.current = "target";
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (dragKind.current === "target") movePrice("target", event.clientY);
+            }}
+            onPointerUp={() => {
+              dragKind.current = null;
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginTop: "8px", color: "#94A3B8", fontSize: "11px" }}>
+          <span>Stop {bracketStop != null ? `$${fmtPrice(bracketStop)}` : "—"}</span>
+          <span>Target {bracketTarget != null ? `$${fmtPrice(bracketTarget)}` : "—"}</span>
+          <span style={{ color: "#F8FAFC" }}>Risk ${riskUsd.toFixed(2)} on {units.toFixed(2)} units</span>
+          <span>t+1h and t+2h corridors use the recent true range. They are not a fitted forecast.</span>
+          {onBracketIntent && bracketStop != null && bracketTarget != null ? (
+            <button
+              type="button"
+              onClick={() => onBracketIntent({ stopLossPrice: bracketStop, takeProfitPrice: bracketTarget, riskUsd })}
+              style={{
+                padding: "3px 8px",
+                borderRadius: "5px",
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "transparent",
+                color: "#E2E8F0",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              Stage on ticket
+            </button>
+          ) : null}
+        </div>
+        <p style={{ margin: "6px 0 0", color: "#64748B", fontSize: "11px" }}>
+          Dragging a line stages prices on the order ticket. It does not send an order. execution_permission: none
+        </p>
       </div>
     );
   }
@@ -586,7 +816,7 @@ export function LiveChartEngine({
                 key={tf}
                 type="button"
                 className={`clean-tf-btn ${timeframe === tf ? "active" : ""}`}
-                onClick={() => setTimeframe(tf)}
+                onClick={() => selectTimeframe(tf)}
               >
                 {tf}
               </button>
@@ -721,7 +951,7 @@ export function LiveChartEngine({
             const cx = 56 + stepX * idx + stepX / 2;
             const isUp = c.close >= c.open;
             const barH = Math.max(4, (c.volume / maxVol) * 32);
-            const barW = Math.max(7, Math.min(20, stepX * 0.62));
+            const barW = Math.max(1.1, Math.min(16, stepX * 0.7));
             return (
               <rect
                 key={`vol-${idx}`}
@@ -758,7 +988,7 @@ export function LiveChartEngine({
             const topY = plotY(Math.max(c.open, c.close));
             const botY = plotY(Math.min(c.open, c.close));
             const bodyH = Math.max(3, botY - topY);
-            const bodyW = Math.max(7, Math.min(20, stepX * 0.58));
+            const bodyW = Math.max(1.1, Math.min(16, stepX * 0.62));
             const color = isUp ? "#00F29D" : "#FF3B69";
             return (
               <g key={`candle-${idx}`}>
@@ -1161,20 +1391,20 @@ export function LiveChartEngine({
           {
             id: "QM-06",
             label: "Omega Ω(0) & Sortino",
-            val: `Ω=${quantMetrics.omega} · Sortino 3.92`,
+            val: `Ω=${quantMetrics.omega} · Sortino unobserved`,
             color: "#00F29D",
           },
           {
             id: "QM-07",
-            label: symbol.endsWith("-USD") ? "Funding APR & Basis" : "SEC PIT SUE Alpha",
-            val: symbol.endsWith("-USD") ? "+11.8% APR (+4.2bp)" : "SUE +2.41σ (0 Leak)",
+            label: "Funding or filing carry",
+            val: "Unobserved",
             color: "#F59E0B",
           },
           {
             id: "QM-08",
-            label: "Tick-to-Trade Latency",
-            val: "p50 0.4ms · p99 1.1ms",
-            color: "#00F29D",
+            label: "Tick-to-trade latency",
+            val: "Unobserved",
+            color: "#94A3B8",
           },
         ].map((qm) => (
           <div

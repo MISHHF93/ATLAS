@@ -14,8 +14,8 @@ from atlas.api.rbac import ROLE_PROFILES, verify_role_action
 from atlas.control.engine import ActionableControlPlaneEngine
 from atlas.marketdata.live_stream import (
     LiveMarketDataGateway,
-    compute_rolling_vpin,
     compute_streaming_kyles_lambda,
+    compute_streaming_vpin,
     compute_top5_ofi,
 )
 
@@ -65,8 +65,8 @@ def test_vpin_volume_bucket_ofi_and_kyles_lambda_determinism() -> None:
     buy_b: collections.deque[float] = collections.deque([120.0, 140.0, 160.0, 180.0], maxlen=20)
     sell_b: collections.deque[float] = collections.deque([80.0, 60.0, 40.0, 20.0], maxlen=20)
 
-    vpin_1 = compute_rolling_vpin(buy_b, sell_b)
-    vpin_2 = compute_rolling_vpin(buy_b, sell_b)
+    vpin_1 = compute_streaming_vpin(buy_b, sell_b)
+    vpin_2 = compute_streaming_vpin(buy_b, sell_b)
     assert vpin_1 == vpin_2
     assert 0.0 < vpin_1 < 1.0
     # Imbalance = 40 + 80 + 120 + 160 = 400; Total = 200 * 4 = 800 -> VPIN = 0.50
@@ -150,6 +150,11 @@ def test_module02_ws_packets_rbac_segregation_and_zero_llm_control_imports() -> 
         assert "bid_depth_top5" in pkt and "ask_depth_top5" in pkt
         assert "vpin" in pkt and "ofi" in pkt and "kyles_lambda" in pkt
         assert "spread_bps" in pkt and "latency_ms" in pkt and "regime" in pkt
+        assert pkt["data_mode"] == "demo"
+        assert pkt["feed_origin"] == "labeled_synthetic_fixture"
+    assert snap["gateway"]["demo_mode"] is True
+    assert snap["gateway"]["feed_origin"] == "labeled_synthetic_fixture"
+    assert snap["gateway"]["venue_sessions"] == "unconfigured"
 
     # 2. Verify WebSocket /ws/market-stream packet schema & execution_permission: "none"
     with client.websocket_connect("/ws/market-stream?symbol=NVDA") as ws:
@@ -157,6 +162,8 @@ def test_module02_ws_packets_rbac_segregation_and_zero_llm_control_imports() -> 
         assert pkt["symbol"] == "NVDA"
         assert pkt["track"] == "open_market"
         assert pkt["execution_permission"] == "none"
+        assert pkt["data_mode"] == "demo"
+        assert pkt["feed_origin"] == "labeled_synthetic_fixture"
         assert isinstance(pkt["last_price"], float)
         assert "ofi_z" in pkt
         assert "stale_feed_flagged" in pkt
@@ -190,6 +197,55 @@ def test_module02_ws_packets_rbac_segregation_and_zero_llm_control_imports() -> 
     assert auditor_gov["authorized"] is True
     auditor_kill = verify_role_action("compliance_auditor", "trigger_kill_switch", route="/governance")
     assert auditor_kill["authorized"] is False
+
+    # Named roles are enforced on the HTTP control plane. An omitted role stays compatible
+    # with the operator console. Forbidden roles must not engage the kill switch or flatten.
+    before_state = client.get("/api/control/state")
+    assert before_state.status_code == 200
+    before_body = before_state.json()
+    assert before_body["kill_switch_engaged"] is False
+    open_before = len(before_body["open_positions"])
+
+    denied_kill = client.post(
+        "/api/control/kill-switch",
+        headers={"X-Atlas-Role": "funded_trader"},
+        json={"engaged": True, "reason": "rbac_probe"},
+    )
+    assert denied_kill.status_code == 403
+    mid_state = client.get("/api/control/state").json()
+    assert mid_state["kill_switch_engaged"] is False
+    assert len(mid_state["open_positions"]) == open_before
+
+    admin_noop = client.post(
+        "/api/control/kill-switch",
+        headers={"X-Atlas-Role": "prop_firm_admin"},
+        json={"engaged": False, "reason": "rbac_admin_noop_reset"},
+    )
+    assert admin_noop.status_code == 200
+    assert admin_noop.json()["kill_switch_engaged"] is False
+
+    denied_signal = client.post(
+        "/api/control/strategy-signal",
+        headers={"X-Atlas-Role": "quant_researcher"},
+        json={
+            "symbol": "BTC-USD",
+            "direction": "BUY",
+            "suggested_stop_loss": 67000,
+            "suggested_take_profit": 70000,
+            "reference_price": 68410,
+            "execution_permission": "none",
+        },
+    )
+    assert denied_signal.status_code == 403
+
+    denied_flatten = client.post(
+        "/api/control/flatten",
+        headers={"X-Atlas-Role": "compliance_auditor"},
+    )
+    assert denied_flatten.status_code == 403
+    after_state = client.get("/api/control/state").json()
+    assert after_state["kill_switch_engaged"] is False
+    assert len(after_state["open_positions"]) == open_before
 
     # 4. Verify zero imports from atlas.ai inside src/atlas/control/
     control_dir = Path(__file__).resolve().parents[1] / "src" / "atlas" / "control"

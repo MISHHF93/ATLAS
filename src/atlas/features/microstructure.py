@@ -40,7 +40,11 @@ from atlas.models.schemas import Probability, Record, Text
 
 
 class WhaleMicrostructureFeatureSnapshot(Record):
-    """Unified point-in-time feature vector combining VPIN, Multi-Level OFI, Kyle's Lambda, and Hawkes Intensity."""
+    """Unified point-in-time feature vector combining VPIN, Multi-Level OFI, Kyle's Lambda, and Hawkes Intensity.
+
+    Every field is strictly causal and neither fabricated nor defaulted: the L2 depth
+    snapshots and Hawkes event times must be explicitly supplied by the caller.
+    """
 
     symbol: Text
     as_of: AwareDatetime
@@ -56,7 +60,66 @@ class WhaleMicrostructureFeatureSnapshot(Record):
     iceberg_slicing_detected: bool
     atr_14: FiniteFloat = Field(gt=0)
     spread_bps: FiniteFloat = Field(ge=0)
+    data_origin: Literal["candles_and_depth_observed"] = "candles_and_depth_observed"
     execution_permission: Literal["none"] = "none"
+
+
+class WhaleCandleOnlyFeatureSnapshot(Record):
+    """Point-in-time feature snapshot computable from OHLCV candles ONLY.
+
+    Used when no L2 depth snapshots or tick event times have been observed. Unobservable
+    quantities (multi-level OFI, Hawkes intensity, spread) are explicitly marked
+    ``not_observed`` instead of being replaced with fabricated placeholder values.
+    """
+
+    symbol: Text
+    as_of: AwareDatetime
+    vpin: Probability
+    bucket_volume_v: FiniteFloat = Field(gt=0)
+    kyles_lambda: FiniteFloat
+    kyles_r_squared: Probability
+    atr_14: FiniteFloat = Field(gt=0)
+    close_to_close_change: FiniteFloat
+    ofi_data_status: Literal["not_observed"] = "not_observed"
+    hawkes_data_status: Literal["not_observed"] = "not_observed"
+    spread_data_status: Literal["not_observed"] = "not_observed"
+    data_origin: Literal["candles_only"] = "candles_only"
+    execution_permission: Literal["none"] = "none"
+
+
+def compute_atr(
+    highs: Sequence[float],
+    lows: Sequence[float],
+    closes: Sequence[float],
+    *,
+    window: int = 14,
+) -> float:
+    """Canonical Rolling Average True Range (ATR) over a fixed bar ``window``.
+
+    True Range is Wilder's definition — the greatest of:
+    - $high_t - low_t$ (intra-bar range)
+    - $|high_t - close_{t-1}|$ (upward gap against prior close)
+    - $|low_t - close_{t-1}|$ (downward gap against prior close)
+
+    ATR$(t)$ = mean of the latest ``window`` True Range values. Requires at least
+    ``window + 1`` bars so each TR is computed against a realized prior close
+    (zero lookahead: the prior close must already exist at time ``t``).
+    """
+    n = min(len(highs), len(lows), len(closes))
+    if n != len(highs) or n != len(lows) or n != len(closes):
+        raise ValueError("highs, lows, and closes must have identical lengths")
+    if len(closes) < max(2, window + 1):
+        raise ValueError(
+            f"compute_atr requires at least {max(2, window + 1)} bars to compute a "
+            f"{window}-bar true-range average against realized prior closes"
+        )
+    tr_values: list[float] = []
+    for i in range(1, n):
+        h_i = float(highs[i])
+        l_i = float(lows[i])
+        pc = float(closes[i - 1])
+        tr_values.append(max(h_i - l_i, abs(h_i - pc), abs(l_i - pc)))
+    return sum(tr_values[-window:]) / window
 
 
 def compute_rolling_vpin(
@@ -165,15 +228,25 @@ class MicrostructureWhaleFeatureExtractor:
         symbol: str,
         candles: Sequence[dict[str, Any]],
         *,
-        prev_book: Sequence[BookLevelSnapshot] | None = None,
-        curr_book: Sequence[BookLevelSnapshot] | None = None,
-        event_times_sec: Sequence[float] | None = None,
+        prev_book: Sequence[BookLevelSnapshot],
+        curr_book: Sequence[BookLevelSnapshot],
+        event_times_sec: Sequence[float],
         eval_time_sec: float = 10.0,
         as_of: datetime | None = None,
     ) -> WhaleMicrostructureFeatureSnapshot:
-        """Extract a causal `WhaleMicrostructureFeatureSnapshot` from candle/tick bars and L2 depth."""
+        """Extract a causal `WhaleMicrostructureFeatureSnapshot` from candle/tick bars, observed
+        Top-5 L2 depth snapshots, and observed tick event times.
+
+        No inputs are synthesized: missing L2 books or event times raise `ValueError`
+        (order-flow imbalance and Hawkes intensity cannot be causally observed from
+        candles alone). For candle-only inference use `extract_from_candles`.
+        """
         if len(candles) < 3:
             raise ValueError("At least 3 bars/ticks are required for causal microstructure feature extraction")
+        if len(prev_book) != len(curr_book) or not prev_book:
+            raise ValueError("Observed prev_book and curr_book snapshots of equal depth are required")
+        if not event_times_sec:
+            raise ValueError("Observed tick event_times_sec are required for causal Hawkes intensity")
 
         ts = as_of or datetime.now(timezone.utc)
         closes = [float(c["close"]) for c in candles]
@@ -202,43 +275,19 @@ class MicrostructureWhaleFeatureExtractor:
         kyle_rep = compute_rolling_kyles_lambda(price_deltas, signed_flows)
 
         spot = closes[-1]
-        if prev_book is None or curr_book is None:
-            drift_sign = 1.0 if price_deltas[-1] >= 0 else -1.0
-            prev_book = [
-                BookLevelSnapshot(
-                    level=k,
-                    bid_price=round(spot * (1.0 - 0.0002 * k), 4),
-                    bid_size=100.0 * k,
-                    ask_price=round(spot * (1.0 + 0.0002 * k), 4),
-                    ask_size=100.0 * k,
-                )
-                for k in range(1, 6)
-            ]
-            curr_book = [
-                BookLevelSnapshot(
-                    level=k,
-                    bid_price=round(spot * (1.0 - 0.0002 * k), 4),
-                    bid_size=max(10.0, 100.0 * k * (1.0 + 0.35 * drift_sign)),
-                    ask_price=round(spot * (1.0 + 0.0002 * k), 4),
-                    ask_size=max(10.0, 100.0 * k * (1.0 - 0.25 * drift_sign)),
-                )
-                for k in range(1, 6)
-            ]
 
         ofi_rep = compute_exponential_multilevel_ofi(prev_book, curr_book, alpha=self.ofi_alpha)
         ofi_z = round(ofi_rep.ofi_normalized * 4.2, 4)
 
-        ev_times = list(event_times_sec) if event_times_sec is not None else [6.2, 7.4, 8.3, 9.1, 9.6, 9.85]
         hawkes_rep = compute_hawkes_child_order_intensity(
-            ev_times,
+            list(event_times_sec),
             eval_time_sec=eval_time_sec,
             mu_0=self.hawkes_mu_0,
             alpha=self.hawkes_alpha,
             beta=self.hawkes_beta,
         )
 
-        tr_list = [max(1e-6, highs[i] - lows[i]) for i in range(-min(14, len(candles)), 0)]
-        atr_14 = sum(tr_list) / len(tr_list)
+        atr_14 = compute_atr(highs, lows, closes, window=min(14, len(closes) - 1))
         spread_bps = round(((curr_book[0].ask_price - curr_book[0].bid_price) / spot) * 10_000.0, 4)
 
         return WhaleMicrostructureFeatureSnapshot(
@@ -256,6 +305,60 @@ class MicrostructureWhaleFeatureExtractor:
             iceberg_slicing_detected=hawkes_rep.iceberg_clustering_detected,
             atr_14=round(max(0.01, atr_14), 6),
             spread_bps=max(0.1, spread_bps),
+            data_origin="candles_and_depth_observed",
+            execution_permission="none",
+        )
+
+    def extract_from_candles(
+        self,
+        symbol: str,
+        candles: Sequence[dict[str, Any]],
+        *,
+        as_of: datetime | None = None,
+    ) -> WhaleCandleOnlyFeatureSnapshot:
+        """Extract the candle-only causal feature subset (VPIN, Kyle's Lambda, canonical ATR).
+
+        Order-flow imbalance, Hawkes intensity, and effective spread are **not observed**
+        in candle-only mode and are reported as `not_observed` rather than fabricated.
+        """
+        if len(candles) < 4:
+            raise ValueError(
+                "At least 4 bars are required to compute a causal ATR against realized prior closes"
+            )
+        ts = as_of or datetime.now(timezone.utc)
+        closes = [float(c["close"]) for c in candles]
+        highs = [float(c.get("high", c["close"])) for c in candles]
+        lows = [float(c.get("low", c["close"])) for c in candles]
+        opens = [float(c.get("open", c["close"])) for c in candles]
+        volumes = [max(1.0, float(c.get("volume", 1.0))) for c in candles]
+
+        for c in candles:
+            if "high" not in c or "low" not in c or "open" not in c or "volume" not in c:
+                raise ValueError(
+                    "OHLCV candles with explicit high/low/open/volume are required for candle-only extraction"
+                )
+
+        price_deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+        trade_vols = volumes[1:]
+        signed_flows = [
+            volumes[i] * (1.0 if closes[i] >= opens[i] else -1.0)
+            for i in range(1, len(closes))
+        ]
+
+        vpin_rep = compute_rolling_vpin(price_deltas, trade_vols)
+        kyle_rep = compute_rolling_kyles_lambda(price_deltas, signed_flows)
+        atr_14 = compute_atr(highs, lows, closes, window=min(14, len(closes) - 1))
+
+        return WhaleCandleOnlyFeatureSnapshot(
+            symbol=symbol.upper().strip(),
+            as_of=ts,
+            vpin=vpin_rep.vpin,
+            bucket_volume_v=vpin_rep.bucket_volume_v,
+            kyles_lambda=kyle_rep.lambda_impact,
+            kyles_r_squared=kyle_rep.r_squared,
+            atr_14=round(max(0.01, atr_14), 6),
+            close_to_close_change=round(price_deltas[-1], 6),
+            data_origin="candles_only",
             execution_permission="none",
         )
 
@@ -352,14 +455,8 @@ def compute_institutional_quantitative_measurements(
     lob_probs = [0.32, 0.26, 0.19, 0.13, 0.10]
     lob_entropy = round(-sum(p * math.log(p) for p in lob_probs), 3)
 
-    # QM-07: Realm-Specific Carry / Fundamental Alpha Factor
-    realm_alpha_label = "Perp Funding APR & Basis" if is_crypto else "SEC EDGAR PIT SUE & Accrual"
-    realm_alpha_val = "+11.8% APR (+4.2 bps Basis)" if is_crypto else "SUE +2.41σ (0 Lookahead)"
-
-    # QM-08: Sub-Millisecond Tick-to-Trade Latency Percentiles
-    p50_ms = 0.42 if is_crypto else 0.38
-    p95_ms = 0.79 if is_crypto else 0.71
-    p99_ms = 1.18 if is_crypto else 1.04
+    # QM-07 and QM-08 stay unobserved unless a caller supplies a real print or a measured gate time.
+    realm_alpha_label = "Funding or filing carry" if is_crypto else "Filing carry"
 
     measurements = [
         {
@@ -368,7 +465,7 @@ def compute_institutional_quantitative_measurements(
             "value": f"H = {hurst_h:.3f} · VR(2) = {vr_2:.2f}",
             "numeric": hurst_h,
             "formula": "E[R(n)/S(n)] ∝ n^H · VR(q) = Var(r_q)/(q·Var(r_1))",
-            "interpretation": f"{memory_regime} — Auto-routes between Passive Fade and Almgren-Chriss Trend",
+            "interpretation": f"{memory_regime}. Computed from these candles. It does not route an order.",
             "status": "OPTIMAL",
         },
         {
@@ -377,7 +474,7 @@ def compute_institutional_quantitative_measurements(
             "value": f"${microprice_usd:,.2f} ({microprice_skew_bps:+.2f} bps) · H_LOB {lob_entropy:.2f}",
             "numeric": microprice_skew_bps,
             "formula": "P_micro = P_bid·(Q_ask/(Q_bid+Q_ask)) + P_ask·(Q_bid/(Q_bid+Q_ask))",
-            "interpretation": "Queue-imbalance adjusted fair value leading mid-price over 50ms–500ms",
+            "interpretation": "Skew uses the supplied order-flow figure. With no book attached, this is not an exchange queue.",
             "status": "OPTIMAL",
         },
         {
@@ -410,7 +507,7 @@ def compute_institutional_quantitative_measurements(
         {
             "id": "QM-06",
             "name": "Omega Ratio Ω(0) & Gain/Loss Tail",
-            "value": f"Ω = {omega_ratio:.2f} · Sortino 3.92",
+            "value": f"Ω = {omega_ratio:.2f}. Sortino was not computed.",
             "numeric": omega_ratio,
             "formula": "Ω(τ) = ∫_τ^∞ (1 - F(r))dr / ∫_{-∞}^τ F(r)dr",
             "interpretation": "Full return-distribution probability-weighted gain-to-loss ratio",
@@ -419,20 +516,20 @@ def compute_institutional_quantitative_measurements(
         {
             "id": "QM-07",
             "name": realm_alpha_label,
-            "value": realm_alpha_val,
-            "numeric": 2.41,
+            "value": "Unobserved. No funding print and no filing were loaded for this call.",
+            "numeric": None,
             "formula": "Basis_bps = (F_perp - S_spot)/S_spot · PIT acceptance_time <= as_of",
-            "interpretation": f"Causal {track} structural carry and fundamental surprise factor",
-            "status": "PIT VERIFIED",
+            "interpretation": f"No {track} carry input was attached. Missing carry stays unobserved.",
+            "status": "unobserved",
         },
         {
             "id": "QM-08",
             "name": "Tick-to-Trade Latency Distribution",
-            "value": f"p50 {p50_ms}ms · p95 {p95_ms}ms · p99 {p99_ms}ms",
-            "numeric": p99_ms,
+            "value": "Unobserved. This call did not time a ring ingest against a control-plane decision.",
+            "numeric": None,
             "formula": "Δt_gate = t_control_plane_auth - t_ring_buffer_ingest",
-            "interpretation": "Sub-millisecond lock-free ring buffer to deterministic Control Plane gate",
-            "status": "ULTRA-LOW LATENCY",
+            "interpretation": "A latency figure needs both timestamps. Neither was measured here.",
+            "status": "unobserved",
         },
     ]
 
@@ -452,7 +549,7 @@ def compute_institutional_quantitative_measurements(
         "cvar_99_bps": cvar_99_bps,
         "omega_ratio": omega_ratio,
         "lob_shannon_entropy": lob_entropy,
-        "latency_percentiles_ms": {"p50": p50_ms, "p95": p95_ms, "p99": p99_ms},
+        "latency_percentiles_ms": None,
         "measurements": measurements,
         "execution_permission": "none",
     }
@@ -466,7 +563,9 @@ __all__ = [
     "MultiLevelOfiReport",
     "VpinBucketReport",
     "VpinBucketSlice",
+    "WhaleCandleOnlyFeatureSnapshot",
     "WhaleMicrostructureFeatureSnapshot",
+    "compute_atr",
     "compute_exponential_multilevel_ofi",
     "compute_hawkes_child_order_intensity",
     "compute_hawkes_intensity",

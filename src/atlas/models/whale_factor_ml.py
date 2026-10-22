@@ -23,14 +23,15 @@ from typing import Any, Literal, Sequence
 
 from pydantic import Field, FiniteFloat
 
+from atlas.features.microstructure import compute_atr
 from atlas.models.schemas import Probability, Record, Text
 from atlas.whale_saas_az import (
     compute_almgren_chriss_schedule,
     compute_gbdt_microstructure_spread,
     compute_hawkes_intensity,
     compute_kyles_lambda,
-    compute_multilevel_ofi,
     compute_predatory_square_root_impact,
+    compute_top5_depth_delta_ofi,
     compute_vpin,
 )
 
@@ -124,9 +125,9 @@ def extract_12_whale_trading_factors(
     r1 = (closes[-1] - closes[-2]) / max(1e-9, closes[-2])
     r3 = (closes[-1] - closes[-4]) / max(1e-9, closes[-4])
 
-    # Causal ATR fraction over recent bars
-    bar_ranges = [(highs[i] - lows[i]) / max(1e-9, closes[i]) for i in range(max(0, len(candles) - 8), len(candles))]
-    atr_frac = max(0.0018, mean(bar_ranges))
+    # Causal ATR fraction over recent bars (canonical compute_atr: Wilder True Range vs prior close)
+    atr_val = compute_atr(highs, lows, closes, window=min(8, len(candles) - 1))
+    atr_frac = max(0.0018, atr_val / max(1e-9, closes[-1]))
 
     # Volume surge ratio vs trailing average
     avg_vol = mean(volumes[:-1]) if len(volumes) > 1 else volumes[-1]
@@ -159,7 +160,7 @@ def extract_12_whale_trading_factors(
 
     bid_deltas = [volumes[-1] * 0.35 * (1.0 + r1 * 50.0), volumes[-1] * 0.25, volumes[-1] * 0.18, volumes[-1] * 0.12, volumes[-1] * 0.08]
     ask_deltas = [volumes[-1] * 0.28 * (1.0 - r1 * 50.0), volumes[-1] * 0.22, volumes[-1] * 0.17, volumes[-1] * 0.13, volumes[-1] * 0.09]
-    wf03 = compute_multilevel_ofi(bid_deltas, ask_deltas)
+    wf03 = compute_top5_depth_delta_ofi(bid_deltas, ask_deltas)
     ofi_val = float(ofi_override) if ofi_override is not None else float(wf03["ofi_weighted"])
 
     wf05 = compute_gbdt_microstructure_spread(

@@ -1,5 +1,5 @@
-import { AtlasTerminal } from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
 export default function ConnectorsPage() {
-  return <AtlasTerminal initialSection="connectors" initialWorkspaceRoute="/data/pipelines" />;
+  redirect("/data/pipelines");
 }

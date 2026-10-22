@@ -37,11 +37,23 @@ class ControlPlaneExecutionGateway:
         alpaca_connector: AlpacaEquitiesConnector | None = None,
         ccxt_connector: CCXTPerpConnector | None = None,
         dxtrade_connector: DXtradePropConnector | None = None,
+        ibkr_connector: "IBKRDMAConnector | None" = None,
+        ctrader_connector: "CTradePropAPIConnector | None" = None,
     ) -> None:
+        if ibkr_connector is None:
+            from atlas.connectors.ibkr import IBKRDMAConnector
+
+            ibkr_connector = IBKRDMAConnector()
+        if ctrader_connector is None:
+            from atlas.connectors.ctrader import CTradePropAPIConnector
+
+            ctrader_connector = CTradePropAPIConnector()
         self.control_engine = control_engine or ActionableControlPlaneEngine()
         self.alpaca_connector = alpaca_connector or AlpacaEquitiesConnector()
         self.ccxt_connector = ccxt_connector or CCXTPerpConnector()
         self.dxtrade_connector = dxtrade_connector or DXtradePropConnector()
+        self.ibkr_connector = ibkr_connector
+        self.ctrader_connector = ctrader_connector
 
     def select_connector(
         self,
@@ -49,6 +61,8 @@ class ControlPlaneExecutionGateway:
         track: Literal["competition", "open_market"] | None = None,
         *,
         prefer_dxtrade: bool = False,
+        prefer_ibkr: bool = False,
+        prefer_ctrader: bool = False,
     ) -> BaseExecutionConnector:
         """Select the canonical execution connector for a symbol and track."""
         sym = symbol.upper().strip()
@@ -58,8 +72,12 @@ class ControlPlaneExecutionGateway:
             else ("competition" if sym.endswith("-USD") or sym.endswith("USDT") else "open_market")
         )
         if resolved_track == "open_market":
-            return self.alpaca_connector
-        return self.dxtrade_connector if prefer_dxtrade else self.ccxt_connector
+            return self.ibkr_connector if prefer_ibkr else self.alpaca_connector
+        if prefer_dxtrade:
+            return self.dxtrade_connector
+        if prefer_ctrader:
+            return self.ctrader_connector
+        return self.ccxt_connector
 
     def evaluate_and_dispatch_signal(
         self,
@@ -70,6 +88,8 @@ class ControlPlaneExecutionGateway:
         desired_notional_usd: Decimal | None = None,
         data_age_ms: float = 8.4,
         prefer_dxtrade: bool = False,
+        prefer_ibkr: bool = False,
+        prefer_ctrader: bool = False,
         now: datetime | None = None,
     ) -> BracketOrderIntakeReport:
         """Evaluate an air-gapped `StrategySignal` through `ActionableControlPlaneEngine`
@@ -77,7 +97,13 @@ class ControlPlaneExecutionGateway:
         """
         sig_dict = signal.model_dump() if hasattr(signal, "model_dump") else dict(signal)
         sym = str(sig_dict.get("symbol", "BTC-USD")).upper().strip()
-        connector = self.select_connector(sym, track, prefer_dxtrade=prefer_dxtrade)
+        connector = self.select_connector(
+            sym,
+            track,
+            prefer_dxtrade=prefer_dxtrade,
+            prefer_ibkr=prefer_ibkr,
+            prefer_ctrader=prefer_ctrader,
+        )
         return self.control_engine.ingest_whale_policy_signal(
             signal,
             track=track,

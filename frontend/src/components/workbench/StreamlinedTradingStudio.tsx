@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LiveChartEngine, type LiveCandlePoint } from "../market/LiveChartEngine";
+import { type LiveCandlePoint } from "../market/LiveChartEngine";
+import { WhaleOnChart } from "../market/WhaleOnChart";
+import { DeskChart } from "../market/DeskChart";
+import { AppNav } from "../shell/AppNav";
+import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel, type GuideIconName } from "../shell/guideIcons";
+import { CLIENT_ROLE_PROFILES, useRoleContext, type ClientRoleId } from "../../context/RoleContext";
+import { fetchLibraryQuotes, libraryQuoteSymbols } from "../../lib/libraryQuotes";
+import { loadMarketBars, mergeTickIntoBars } from "../../lib/marketBars";
+
+const TIMEFRAME_SECONDS = { "1s": 1, "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1D": 86400 } as const;
 
 export interface CatalogListingItem {
   symbol: string;
@@ -23,6 +32,7 @@ export interface CatalogListingItem {
   spread_bps: number;
   regime: string;
   provider: string;
+  quote_origin?: string;
   execution_permission: "none";
 }
 
@@ -280,35 +290,125 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
   },
 ];
 
+function nyseSessionCountdown(now: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const read = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  const weekday = read("weekday");
+  const minutes = Number(read("hour")) * 60 + Number(read("minute"));
+  const second = Number(read("second"));
+  const open = 9 * 60 + 30;
+  const close = 16 * 60;
+  if (weekday === "Sat" || weekday === "Sun" || minutes < open || minutes >= close) {
+    return "NYSE closed";
+  }
+  const remain = (close - minutes) * 60 - second;
+  const hours = Math.floor(remain / 3600);
+  const mins = Math.floor((remain % 3600) / 60);
+  const secs = remain % 60;
+  return `Cash close ${hours}h ${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s ET`;
+}
+
+function placeholderListing(symbol: string, lastPrice = 0): CatalogListingItem {
+  const crypto = symbol.endsWith("-USD");
+  return {
+    symbol,
+    name: symbol,
+    asset_class: crypto ? "crypto_perps" : "equities",
+    exchange: crypto ? "COINBASE" : "PUBLIC",
+    tick_size: 0.01,
+    lot_size: 1,
+    min_notional: 1,
+    track: crypto ? "competition" : "open_market",
+    is_active: true,
+    last_price: lastPrice,
+    change_pct: 0,
+    volume_1m: 0,
+    volume_24h: 0,
+    vpin: 0,
+    ofi_z: 0,
+    kyles_lambda: 0,
+    spread_bps: 0,
+    regime: "Public listing",
+    provider: "public",
+    execution_permission: "none",
+  };
+}
+
 export function StreamlinedTradingStudio() {
+  const { role, setRole, profile } = useRoleContext();
   const [activeTrack, setActiveTrack] = useState<"all" | "open_market" | "competition">("all");
   const [assetClassFilter, setAssetClassFilter] = useState<"all" | "equities" | "crypto_perps" | "futures">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [searchLatencyMs, setSearchLatencyMs] = useState<number>(1.8);
+  const [searchLatencyMs, setSearchLatencyMs] = useState<number | null>(null);
   const [universeCounts, setUniverseCounts] = useState<{
     total_assets: number;
     equities: number;
     crypto_perps: number;
     futures: number;
-  }>({
-    total_assets: 10538,
-    equities: 10000,
-    crypto_perps: 520,
-    futures: 18,
-  });
+  } | null>(null);
 
   const [catalogListings, setCatalogListings] = useState<CatalogListingItem[]>(DEFAULT_STUDIO_LISTINGS);
+  const [catalogTotal, setCatalogTotal] = useState<number | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogNotice, setCatalogNotice] = useState("Fixture directory. Not a live universe.");
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTC-USD");
+  const [tvQuery, setTvQuery] = useState("");
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const [modelGap, setModelGap] = useState<string | null>(null);
+  const [publicClose, setPublicClose] = useState<number | null>(null);
   const [timeframe, setTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("1m");
-  const [chartCandles, setChartCandles] = useState<LiveCandlePoint[]>([]);
+  const [, setChartCandles] = useState<LiveCandlePoint[]>([]);
+  const [barsLoading, setBarsLoading] = useState(true);
+  const [barNote, setBarNote] = useState("Loading labeled bars");
+  const [gardenNote, setGardenNote] = useState("Range garden has not reported yet");
+  const [reserveNote, setReserveNote] = useState("Reserve sleeve has not reported yet");
+  const [reserveHoldings, setReserveHoldings] = useState<
+    Array<{ symbol: string; in_sweep: boolean; target_usd: string }>
+  >([]);
   const [feedAvailable, setFeedAvailable] = useState(false);
-  const [wsLatencyMs, setWsLatencyMs] = useState<number>(6.8);
+  const [demoFeedActive, setDemoFeedActive] = useState(true);
+  const [feedAudit, setFeedAudit] = useState("Fixture stream starting · venues unconfigured · execution_permission none");
+  const [chartRead, setChartRead] = useState<{
+    active: {
+      symbol: string;
+      track: "competition" | "open_market";
+      chart_source: string;
+      feed_origin: string;
+      bucket_seconds: number;
+      bars_read: number;
+      direction: "BUY" | "SELL" | "HOLD";
+      conviction: number;
+      model_id: string;
+      horizons: Array<{ horizon: string; expected_return_bps: number; p10_price: number; p50_price: number; p90_price: number }>;
+      execution_permission: "none";
+    };
+    competition: Array<{ symbol: string; direction: "BUY" | "SELL" | "HOLD"; conviction: number; chart_source: string }>;
+    open_market: Array<{ symbol: string; direction: "BUY" | "SELL" | "HOLD"; conviction: number; chart_source: string }>;
+    tradingview?: {
+      tradingview_symbol: string | null;
+      interval: string | null;
+      available: boolean;
+      reason_text: string;
+    };
+    execution_permission: "none";
+  } | null>(null);
+  const [wsLatencyMs, setWsLatencyMs] = useState<number | null>(null);
   const [activeSubCount, setActiveSubCount] = useState<number>(1);
-  const [sessionClock, setSessionClock] = useState<string>("11:42:18 UTC");
+  const [sessionClock, setSessionClock] = useState<string>("—");
   const [killSwitchEngaged, setKillSwitchEngaged] = useState<boolean>(false);
 
   // Collapsible Bottom Drawer State
-  const [bottomDrawerOpen, setBottomDrawerOpen] = useState<boolean>(true);
+  const [bottomDrawerOpen, setBottomDrawerOpen] = useState<boolean>(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [symbolsOpen, setSymbolsOpen] = useState(true);
+
   const [bottomTab, setBottomTab] = useState<"positions" | "orders" | "audit">("positions");
 
   // Pre-Trade Bracket Order Ticket State
@@ -331,7 +431,14 @@ export function StreamlinedTradingStudio() {
   const [positions, setPositions] = useState<BlotterPosition[]>([]);
   const [workingOrders, setWorkingOrders] = useState<WorkingOrderItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<string[]>([]);
-  const [account, setAccount] = useState<{ current_equity_usd: string; start_of_day_equity_usd: string; high_water_mark_usd: string; best_day_profit_usd: string; total_cumulative_profit_usd: string } | null>(null);
+  const [account, setAccount] = useState<{
+    initial_equity_usd: string;
+    current_equity_usd: string;
+    start_of_day_equity_usd: string;
+    high_water_mark_usd: string;
+    best_day_profit_usd: string;
+    total_cumulative_profit_usd: string;
+  } | null>(null);
   const [controlAvailable, setControlAvailable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
@@ -350,89 +457,248 @@ export function StreamlinedTradingStudio() {
   }, []);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const catalogListRef = useRef<HTMLDivElement | null>(null);
+  const catalogOffsetRef = useRef(0);
+  const catalogTotalRef = useRef<number | null>(null);
+  const catalogLoadingRef = useRef(false);
+  const catalogGenRef = useRef(0);
+  const catalogAbortRef = useRef<AbortController | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const barsRef = useRef<LiveCandlePoint[]>([]);
+  const barSourceRef = useRef("labeled_fixture_bars");
+  const barsRequestRef = useRef(0);
+  const selectedSymbolRef = useRef(selectedSymbol);
   const prevSymbolRef = useRef<string>("BTC-USD");
+  selectedSymbolRef.current = selectedSymbol;
 
   // Ctrl + K global command palette shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        searchInputRef.current?.focus();
+        setSymbolsOpen(true);
+        window.setTimeout(() => searchInputRef.current?.focus(), 0);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Global Session Clock updater
-  useEffect(() => {
-    const updateClock = () => {
-      const now = new Date();
-      setSessionClock(now.toISOString().slice(11, 19) + " UTC");
-    };
-    updateClock();
-    const timer = setInterval(updateClock, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Query Universal Asset Catalog (/api/catalog/search)
-  const fetchCatalog = useCallback(async () => {
-    try {
-      const apiBase =
-        typeof window !== "undefined" && window.location.port === "3000"
-          ? ""
-          : "";
-      const params = new URLSearchParams({
-        q: searchQuery,
-        track: activeTrack,
-        asset_class: assetClassFilter,
-        limit: "60",
-      });
-      const res = await fetch(`${apiBase}/api/catalog/search?${params.toString()}`, {
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof data.query_latency_ms === "number") {
-          setSearchLatencyMs(data.query_latency_ms);
+  const loadCatalogPage = useCallback((reset: boolean) => {
+    if (!reset) {
+      if (catalogLoadingRef.current) return;
+      if (catalogTotalRef.current != null && catalogOffsetRef.current >= catalogTotalRef.current) return;
+    } else {
+      catalogAbortRef.current?.abort();
+      catalogGenRef.current += 1;
+      catalogOffsetRef.current = 0;
+      catalogTotalRef.current = null;
+      setCatalogTotal(null);
+      setCatalogListings([]);
+    }
+    const generation = catalogGenRef.current;
+    const offset = reset ? 0 : catalogOffsetRef.current;
+    const controller = new AbortController();
+    catalogAbortRef.current = controller;
+    catalogLoadingRef.current = true;
+    setCatalogLoading(true);
+    const params = new URLSearchParams({
+      q: searchQuery,
+      track: activeTrack,
+      asset_class: assetClassFilter,
+      limit: "80",
+      offset: String(offset),
+    });
+    void fetch(`/api/catalog/search?${params.toString()}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("catalog");
+        return res.json();
+      })
+      .then((data: {
+        query_latency_ms?: number;
+        universe_counts?: {
+          total_assets: number;
+          equities: number;
+          crypto_perps: number;
+          futures: number;
+        };
+        results?: CatalogListingItem[];
+        total_matching?: number;
+        source?: string;
+        is_live?: boolean;
+        execution_permission?: string;
+        notice?: string;
+      }) => {
+        if (catalogGenRef.current !== generation) return;
+        if (
+          data.source !== "synthetic_fixture" ||
+          data.is_live !== false ||
+          data.execution_permission !== "none" ||
+          !Array.isArray(data.results)
+        ) {
+          throw new Error("provenance");
         }
-        if (data.universe_counts) {
-          setUniverseCounts(data.universe_counts);
-        }
-        if (Array.isArray(data.results)) {
-          setCatalogListings(data.results);
+        if (typeof data.query_latency_ms === "number") setSearchLatencyMs(data.query_latency_ms);
+        if (data.universe_counts) setUniverseCounts(data.universe_counts);
+        const total = Number(data.total_matching ?? data.results.length);
+        catalogTotalRef.current = total;
+        setCatalogTotal(total);
+        setCatalogNotice(typeof data.notice === "string" ? data.notice : "Fixture directory. Not a live universe.");
+        setCatalogListings((prev) => {
+          const base = reset ? [] : prev;
+          const seen = new Set(base.map((item) => item.symbol));
+          const next = [...base];
+          for (const item of data.results ?? []) {
+            if (!seen.has(item.symbol)) {
+              seen.add(item.symbol);
+              next.push(item);
+            }
+          }
+          return next;
+        });
+        catalogOffsetRef.current = data.results.length === 0 ? total : offset + data.results.length;
+      })
+      .catch(() => {
+        if (catalogGenRef.current !== generation) return;
+        if (!reset) {
+          const total = catalogTotalRef.current ?? catalogOffsetRef.current;
+          catalogOffsetRef.current = total;
+          setCatalogNotice("The next page did not load. The rows already shown are still the fixture directory.");
           return;
         }
-      }
-    } catch {
-      // Fallback to local filter when backend offline
-    }
-
-    const q = searchQuery.trim().toUpperCase();
-    const filtered = DEFAULT_STUDIO_LISTINGS.filter((item) => {
-      if (activeTrack !== "all" && item.track !== activeTrack) return false;
-      if (assetClassFilter !== "all" && item.asset_class !== assetClassFilter) return false;
-      if (q && !item.symbol.includes(q) && !item.name.toUpperCase().includes(q)) return false;
-      return true;
-    });
-    setCatalogListings(filtered);
+        const q = searchQuery.trim().toUpperCase();
+        const filtered = DEFAULT_STUDIO_LISTINGS.filter((item) => {
+          if (activeTrack !== "all" && item.track !== activeTrack) return false;
+          if (assetClassFilter !== "all" && item.asset_class !== assetClassFilter) return false;
+          if (q && !item.symbol.includes(q) && !item.name.toUpperCase().includes(q)) return false;
+          return true;
+        });
+        catalogTotalRef.current = filtered.length;
+        catalogOffsetRef.current = filtered.length;
+        setCatalogTotal(filtered.length);
+        setCatalogListings(filtered);
+        setCatalogNotice("Catalog request failed. Showing the short local list.");
+      })
+      .finally(() => {
+        if (catalogGenRef.current !== generation) return;
+        catalogLoadingRef.current = false;
+        setCatalogLoading(false);
+      });
   }, [activeTrack, assetClassFilter, searchQuery]);
 
-  useEffect(() => {
-    void fetchCatalog();
-  }, [fetchCatalog]);
+  const libraryQuoteKey = libraryQuoteSymbols(catalogListings, selectedSymbol).join(",");
 
-  // Dynamic On-Demand WebSocket Subscription Multiplexer (/ws/market-stream)
+  useEffect(() => {
+    const symbols = libraryQuoteKey.split(",").filter(Boolean);
+    if (symbols.length === 0) return;
+    let active = true;
+    const controller = new AbortController();
+    const pull = () => {
+      void fetchLibraryQuotes(symbols, controller.signal)
+        .then((quotes) => {
+          if (!active || quotes.length === 0) return;
+          const bySymbol = new Map(quotes.map((row) => [row.symbol, row]));
+          setCatalogListings((prev) =>
+            prev.map((item) => {
+              const quote = bySymbol.get(item.symbol);
+              if (!quote) return item;
+              return {
+                ...item,
+                last_price: quote.price,
+                change_pct: quote.change_pct ?? item.change_pct,
+                quote_origin: quote.feed_origin,
+              };
+            })
+          );
+        })
+        .catch(() => undefined);
+    };
+    pull();
+    const timer = window.setInterval(pull, 20000);
+    return () => {
+      active = false;
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [libraryQuoteKey]);
+
+  useEffect(() => {
+    loadCatalogPage(true);
+    return () => {
+      catalogGenRef.current += 1;
+      catalogAbortRef.current?.abort();
+    };
+  }, [loadCatalogPage]);
+
+  useEffect(() => {
+    catalogListRef.current?.scrollTo({ top: 0 });
+  }, [searchQuery, activeTrack, assetClassFilter]);
+
+  useEffect(() => {
+    if (!symbolsOpen) return;
+    const el = catalogListRef.current;
+    if (!el || catalogLoading) return;
+    const total = catalogTotalRef.current;
+    if (total == null || catalogOffsetRef.current >= total) return;
+    if (el.scrollHeight <= el.clientHeight + 8) loadCatalogPage(false);
+  }, [symbolsOpen, catalogListings.length, catalogLoading, loadCatalogPage]);
+
+  const onCatalogScroll = useCallback(() => {
+    const el = catalogListRef.current;
+    if (!el || catalogLoadingRef.current) return;
+    const total = catalogTotalRef.current;
+    if (total != null && catalogOffsetRef.current >= total) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 72) loadCatalogPage(false);
+  }, [loadCatalogPage]);
+
+  // Dynamic On-Demand WebSocket Subscription Multiplexer (/ws/market-stream).
+  // History comes from /api/market/bars. The socket only moves the right edge.
+  const timeframeRef = useRef(timeframe);
+  useEffect(() => {
+    timeframeRef.current = timeframe;
+  }, [timeframe]);
+
+  useEffect(() => {
+    const requestId = barsRequestRef.current + 1;
+    barsRequestRef.current = requestId;
+    let active = true;
+    setBarsLoading(true);
+    const bucketSeconds = TIMEFRAME_SECONDS[timeframe];
+    void loadMarketBars(selectedSymbol, bucketSeconds, 160)
+      .then((body) => {
+        if (!active || requestId !== barsRequestRef.current) return;
+        barsRef.current = body.candles;
+        barSourceRef.current = body.chart_source;
+        setChartCandles(body.candles);
+        setFeedAvailable(body.candles.length > 0);
+        setDemoFeedActive(body.feed_origin !== "provider_observed");
+        setPublicClose(typeof body.last_close === "number" && body.last_close > 0 ? body.last_close : null);
+        setBarNote(
+          `${body.bar_count} bars · ${body.bucket_seconds}s · ${body.chart_source} · ${body.feed_origin} · execution_permission ${body.execution_permission}`
+        );
+        setBarsLoading(false);
+      })
+      .catch(() => {
+        if (!active || requestId !== barsRequestRef.current) return;
+        barsRef.current = [];
+        setChartCandles([]);
+        setFeedAvailable(false);
+        setBarNote("Labeled bar history did not load");
+        setBarsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedSymbol, timeframe]);
+
   useEffect(() => {
     let ws: WebSocket | null = null;
-    setChartCandles([]);
-    setFeedAvailable(false);
     try {
       const wsBase =
-        typeof window !== "undefined" && window.location.port === "3000"
-          ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
-          : typeof window !== "undefined"
+        typeof window !== "undefined"
           ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
           : "";
       ws = new WebSocket(`${wsBase}/ws/market-stream?symbol=${encodeURIComponent(selectedSymbol)}`);
@@ -456,21 +722,31 @@ export function StreamlinedTradingStudio() {
             }
             return;
           }
-          if (pkt.symbol && Number.isFinite(Number(pkt.price)) && pkt.data_mode !== "demo") {
-            const price = Number(pkt.price);
-            const seconds = { "1s": 1, "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1D": 86400 }[timeframe];
-            const timestamp = new Date(Math.floor(Date.parse(pkt.exchange_timestamp) / (seconds * 1000)) * seconds * 1000).toISOString();
-            setFeedAvailable(true);
-            setChartCandles(previous => {
-              const last = previous[previous.length - 1];
-              if (last && timestamp < last.timestamp) return previous;
-              if (last?.timestamp === timestamp) return [...previous.slice(0, -1), {
-                ...last, high: Math.max(last.high, price), low: Math.min(last.low, price), close: price,
-                volume: last.volume + Number(pkt.size ?? 0),
-              }];
-              return [...previous.slice(-499), { timestamp, open: price, high: price, low: price, close: price, volume: Number(pkt.size ?? 0) }];
-            });
+          if (pkt.symbol && Number.isFinite(Number(pkt.price))) {
+            setDemoFeedActive(pkt.data_mode !== "observed");
+            const tickSymbol = String(pkt.symbol).toUpperCase();
+            if (tickSymbol === selectedSymbolRef.current.toUpperCase()) {
+              const lastClose = barsRef.current[barsRef.current.length - 1]?.close ?? 0;
+              const print = Number(pkt.price);
+              const distantPublicPrint = barSourceRef.current === "public_market_candles" && lastClose > 0 && Math.abs(print - lastClose) / lastClose > 0.03;
+              if (distantPublicPrint) {
+                return;
+              }
+              const merged = mergeTickIntoBars(
+                barsRef.current,
+                {
+                  exchangeTimestamp: String(pkt.exchange_timestamp ?? new Date().toISOString()),
+                  price: Number(pkt.price),
+                  size: Number(pkt.size ?? 0),
+                },
+                TIMEFRAME_SECONDS[timeframeRef.current]
+              );
+              barsRef.current = merged;
+              setChartCandles(merged);
+              setFeedAvailable(merged.length > 0);
+            }
             const nextPrice = Number(pkt.last_price ?? pkt.price ?? 0);
+            const demoPrint = pkt.data_mode !== "observed" && pkt.data_mode !== "public_last_trade";
             if (typeof pkt.latency_ms === "number") {
               setWsLatencyMs(pkt.latency_ms);
             }
@@ -479,7 +755,7 @@ export function StreamlinedTradingStudio() {
                 item.symbol === pkt.symbol
                   ? {
                       ...item,
-                      last_price: nextPrice > 0 ? nextPrice : item.last_price,
+                      last_price: item.quote_origin && demoPrint ? item.last_price : nextPrice > 0 ? nextPrice : item.last_price,
                       vpin: Number(pkt.vpin ?? item.vpin),
                       ofi_z: Number(pkt.ofi_z ?? pkt.ofi ?? item.ofi_z),
                       kyles_lambda: Number(pkt.kyles_lambda ?? item.kyles_lambda),
@@ -502,9 +778,179 @@ export function StreamlinedTradingStudio() {
         ws.close();
       }
     };
+  }, [selectedSymbol]);
+
+  useEffect(() => {
+    let active = true;
+    const pull = async () => {
+      try {
+        const response = await fetch(`/api/market/live-stream?symbol=${encodeURIComponent(selectedSymbol)}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("stream status unavailable");
+        const body = await response.json();
+        if (!active) return;
+        const gateway = body.gateway ?? {};
+        const tick = body.tick ?? {};
+        const providers = gateway.providers ?? {};
+        const names = Object.keys(providers);
+        const unconfigured = names.filter((name) => providers[name]?.status === "UNCONFIGURED").length;
+        const origin = String(gateway.feed_origin ?? (gateway.demo_mode ? "labeled_synthetic_fixture" : "provider_observed"));
+        const price = Number(tick.price ?? tick.last_price ?? 0);
+        setFeedAudit(
+          `${origin} · ${tick.symbol ?? selectedSymbol} ${price > 0 ? price.toLocaleString() : "waiting"} · buffer ${gateway.ring_buffer_size ?? 0}/${gateway.ring_buffer_maxlen ?? 10000} · venues unconfigured ${unconfigured}/${names.length || 0} · execution_permission ${body.execution_permission ?? "none"}`
+        );
+        if (tick.data_mode === "observed") setDemoFeedActive(false);
+        else if (gateway.demo_mode || tick.data_mode === "demo") setDemoFeedActive(true);
+      } catch {
+        if (active) setFeedAudit("Fixture stream status unavailable · execution_permission none");
+      }
+    };
+    void pull();
+    const timer = setInterval(pull, 2000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [selectedSymbol]);
+
+  useEffect(() => {
+    let active = true;
+    const bucketSeconds = TIMEFRAME_SECONDS[timeframe];
+    const pull = async () => {
+      try {
+        const response = await fetch(
+          `/api/ml/chart-read?symbol=${encodeURIComponent(selectedSymbol)}&bucket_seconds=${bucketSeconds}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) throw new Error("chart read unavailable");
+        const body = await response.json();
+        if (active) setChartRead(body);
+      } catch {
+        if (active) setChartRead(null);
+      }
+    };
+    void pull();
+    const timer = setInterval(pull, 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
   }, [selectedSymbol, timeframe]);
 
+  useEffect(() => {
+    let active = true;
+    const pull = async () => {
+      try {
+        const response = await fetch("/api/strategies/range-garden", { cache: "no-store" });
+        if (!response.ok) throw new Error("range garden unavailable");
+        const body = await response.json();
+        if (!active) return;
+        const symbols: Array<{ symbol?: string; action?: string; reason?: string; blocked_action?: string | null }> =
+          Array.isArray(body.symbols) ? body.symbols : [];
+        const row = symbols.find((item) => item.symbol === selectedSymbol) ?? symbols[0];
+        const detail = row
+          ? `${row.symbol} ${row.action} ${row.reason}${row.blocked_action ? ` blocked ${row.blocked_action}` : ""}`
+          : body.status;
+        setGardenNote(
+          `${body.path_id ?? "range-garden:v1"} · ${detail} · orders ${body.orders_submitted ?? 0} · harvests ${body.harvests_closed ?? 0} · execution_permission ${body.execution_permission ?? "none"}`
+        );
+      } catch {
+        if (active) setGardenNote("Range garden unavailable · execution_permission none");
+      }
+    };
+    void pull();
+    const timer = setInterval(pull, 2000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [selectedSymbol]);
+
+  useEffect(() => {
+    let active = true;
+    const pull = async () => {
+      try {
+        const response = await fetch("/api/strategies/reserve-yield", { cache: "no-store" });
+        if (!response.ok) throw new Error("reserve sleeve unavailable");
+        const body = await response.json();
+        if (!active) return;
+        const holdings = Array.isArray(body.holdings) ? body.holdings : [];
+        setReserveHoldings(
+          holdings.map((row: { symbol?: string; in_sweep?: boolean; target_usd?: string }) => ({
+            symbol: String(row.symbol ?? ""),
+            in_sweep: Boolean(row.in_sweep),
+            target_usd: String(row.target_usd ?? "0.00"),
+          }))
+        );
+        setReserveNote(
+          `${body.path_id ?? "reserve-yield:v1"} · distributable ${body.distributable_usd ?? "0.00"} · orders ${body.orders_submitted ?? 0} · TEY ${body.yield_observation ?? "unobserved"} · execution_permission ${body.execution_permission ?? "none"}`
+        );
+      } catch {
+        if (active) setReserveNote("Reserve sleeve unavailable · execution_permission none");
+      }
+    };
+    void pull();
+    const timer = setInterval(pull, 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("tvwidgetsymbol")?.trim() ?? "";
+    setTvQuery(raw);
+  }, []);
+
+  useEffect(() => {
+    if (!tvQuery) {
+      setChartSymbol(null);
+      setModelGap(null);
+      return;
+    }
+    let active = true;
+    const pull = async () => {
+      try {
+        const response = await fetch(
+          `/api/market/tradingview?symbol=${encodeURIComponent(tvQuery)}&timeframe=${encodeURIComponent(timeframe)}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) throw new Error("tradingview map unavailable");
+        const body = (await response.json()) as {
+          tradingview_symbol?: string | null;
+          model_symbol?: string | null;
+          reason_text?: string;
+        };
+        if (!active) return;
+        setChartSymbol(body.tradingview_symbol ?? null);
+        if (body.model_symbol) {
+          setModelGap(null);
+          setSelectedSymbol(body.model_symbol);
+        } else if (body.tradingview_symbol) {
+          setModelGap(
+            `This chart is TradingView's ${body.tradingview_symbol}. The model has no public-candle series for this listing. execution_permission none`
+          );
+        } else {
+          setModelGap(body.reason_text ?? "That symbol is not a TradingView listing. execution_permission none");
+        }
+      } catch {
+        if (!active) return;
+        setChartSymbol(null);
+        setModelGap("TradingView listing map is unavailable. execution_permission none");
+      }
+    };
+    void pull();
+    return () => {
+      active = false;
+    };
+  }, [tvQuery, timeframe]);
+
   const handleSelectSymbol = (newSym: string) => {
+    setTvQuery("");
+    setChartSymbol(null);
+    setModelGap(null);
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("tvwidgetsymbol")) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     const prevSym = prevSymbolRef.current;
     if (prevSym && prevSym !== newSym && wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: "unsubscribe", symbols: [prevSym] }));
@@ -522,27 +968,59 @@ export function StreamlinedTradingStudio() {
     () =>
       catalogListings.find((item) => item.symbol === selectedSymbol) ??
       DEFAULT_STUDIO_LISTINGS.find((item) => item.symbol === selectedSymbol) ??
-      DEFAULT_STUDIO_LISTINGS[0],
-    [catalogListings, selectedSymbol]
+      placeholderListing(selectedSymbol, publicClose ?? 0),
+    [catalogListings, publicClose, selectedSymbol]
   );
 
   // Remaining-Room HUD & Deterministic Position Sizing Math
   const accountEquityUsd = Number(account?.current_equity_usd ?? 0);
-  const dailyLossLimitPct = 4.0;
-  const trailingDdFloorPct = 8.0;
+  const deskTrack = activeAsset.track === "open_market" ? "open_market" : "competition";
+  const dailyLossLimitPct = deskTrack === "open_market" ? 3.0 : 4.0;
+  const trailingDdFloorPct = deskTrack === "open_market" ? 10.0 : 8.0;
+  const riskCapPct = deskTrack === "open_market" ? 0.5 : 0.75;
   const singleDayConsistencyMaxPct = 35.0;
+  const drawdownReferenceUsd = account
+    ? Number(deskTrack === "open_market" ? account.initial_equity_usd || account.high_water_mark_usd : account.high_water_mark_usd)
+    : 0;
 
-  const dailyLossUsedPct = account ? Math.max(0, (1 - accountEquityUsd / Number(account.start_of_day_equity_usd)) * 100) : 0;
-  const trailingDdUsedPct = account ? Math.max(0, (1 - accountEquityUsd / Number(account.high_water_mark_usd)) * 100) : 0;
+  const dailyLossUsedPct = account && Number(account.start_of_day_equity_usd) > 0
+    ? Math.max(0, ((Number(account.start_of_day_equity_usd) - accountEquityUsd) / Number(account.start_of_day_equity_usd)) * 100)
+    : 0;
+  const trailingDdUsedPct = account && drawdownReferenceUsd > 0
+    ? Math.max(0, ((drawdownReferenceUsd - accountEquityUsd) / drawdownReferenceUsd) * 100)
+    : 0;
   const singleDayConsistencyUsedPct = account && Number(account.total_cumulative_profit_usd) > 0 ? Number(account.best_day_profit_usd) / Number(account.total_cumulative_profit_usd) * 100 : 0;
+  const latencyBadge =
+    wsLatencyMs == null
+      ? { background: "#121722", border: "1px solid rgba(255,255,255,0.07)", color: "#94A3B8", label: "Socket —" }
+      : wsLatencyMs < 15
+      ? { background: "rgba(0, 242, 157, 0.1)", border: "1px solid rgba(0, 242, 157, 0.3)", color: "#00F29D", label: `${wsLatencyMs.toFixed(0)} ms` }
+      : wsLatencyMs < 50
+      ? { background: "rgba(245, 158, 11, 0.12)", border: "1px solid rgba(245, 158, 11, 0.45)", color: "#FBBF24", label: `${wsLatencyMs.toFixed(0)} ms` }
+      : { background: "rgba(255, 59, 105, 0.12)", border: "1px solid rgba(255, 59, 105, 0.45)", color: "#FF3B69", label: `${wsLatencyMs.toFixed(0)} ms` };
+  const drawdownMeterLabel =
+    deskTrack === "open_market"
+      ? `${trailingDdFloorPct.toFixed(1)}% Static Drawdown Floor`
+      : `${trailingDdFloorPct.toFixed(1)}% Trailing Drawdown Floor`;
+
+  useEffect(() => {
+    const updateClock = () => {
+      const now = new Date();
+      setSessionClock(deskTrack === "open_market" ? nyseSessionCountdown(now) : "24/7 continuous");
+    };
+    updateClock();
+    const timer = setInterval(updateClock, 1000);
+    return () => clearInterval(timer);
+  }, [deskTrack]);
 
   const sizingCalculation = useMemo(() => {
     const stopFraction = Math.max(0.001, atrStopBps / 10000.0);
     const riskDollars = accountEquityUsd * (equityRiskPct / 100.0);
     const rawNotionalUsd = riskDollars / stopFraction;
-    const cappedNotionalUsd = Math.round(rawNotionalUsd);
-    const px = Math.max(0.0001, activeAsset.last_price);
-    const quantity = Number((cappedNotionalUsd / px).toFixed(px > 500 ? 4 : 2));
+    const hasQuote = activeAsset.last_price > 0;
+    const cappedNotionalUsd = hasQuote ? Math.round(rawNotionalUsd) : 0;
+    const px = hasQuote ? activeAsset.last_price : 0;
+    const quantity = hasQuote ? Number((cappedNotionalUsd / px).toFixed(px > 500 ? 4 : 2)) : 0;
 
     const stopOffset = px * stopFraction;
     const tpOffset = stopOffset * rewardRiskMultiple;
@@ -556,19 +1034,23 @@ export function StreamlinedTradingStudio() {
 
     const postTradeDailyLossPct = Number((dailyLossUsedPct + equityRiskPct).toFixed(2));
     const postTradeTrailingDdPct = Number((trailingDdUsedPct + equityRiskPct).toFixed(2));
-    const dailyRoomUsd = Math.max(0, Math.round(accountEquityUsd * ((dailyLossLimitPct - dailyLossUsedPct) / 100.0)));
+    const startOfDayUsd = Number(account?.start_of_day_equity_usd ?? 0);
+    const dailyRoomUsd = Math.max(0, Math.round(startOfDayUsd * (dailyLossLimitPct / 100) - Math.max(0, startOfDayUsd - accountEquityUsd)));
     const trailingRoomUsd = Math.max(
       0,
-      Math.round(103100.0 * ((trailingDdFloorPct - trailingDdUsedPct) / 100.0))
+      Math.round(drawdownReferenceUsd * (trailingDdFloorPct / 100) - Math.max(0, drawdownReferenceUsd - accountEquityUsd))
     );
 
-    const withinRiskCap = equityRiskPct >= 0.5 && equityRiskPct <= 0.75;
+    const withinRiskCap = equityRiskPct >= 0.5 && equityRiskPct <= riskCapPct;
     const hardRiskBreach =
+      !hasQuote ||
+      !profile.canExecuteTraderOrders ||
       !feedAvailable || !controlAvailable || submitting || killSwitchEngaged ||
-      equityRiskPct > 0.75 ||
+      equityRiskPct < 0.5 ||
+      equityRiskPct > riskCapPct ||
       postTradeDailyLossPct > dailyLossLimitPct ||
       postTradeTrailingDdPct > trailingDdFloorPct ||
-      atrStopBps < 20;
+      atrStopBps < (deskTrack === "open_market" ? 30 : 25);
 
     return {
       riskDollars: Math.round(riskDollars),
@@ -587,14 +1069,27 @@ export function StreamlinedTradingStudio() {
     account, accountEquityUsd, controlAvailable, feedAvailable, submitting, dailyLossUsedPct, trailingDdUsedPct,
     activeAsset.last_price,
     atrStopBps,
+    dailyLossLimitPct,
+    deskTrack,
+    drawdownReferenceUsd,
     equityRiskPct,
     killSwitchEngaged,
     orderSide,
+    profile.canExecuteTraderOrders,
     rewardRiskMultiple,
+    riskCapPct,
+    trailingDdFloorPct,
   ]);
 
   // Emergency Kill-Switch Handler
   const handleToggleKillSwitch = async () => {
+    if (!profile.canTriggerKillSwitch) {
+      setOrderFeedback({
+        status: "rejected",
+        message: "Kill-switch is limited to prop_firm_admin. This role cannot engage or reset it.",
+      });
+      return;
+    }
     const nextState = !killSwitchEngaged;
 
     try {
@@ -602,15 +1097,18 @@ export function StreamlinedTradingStudio() {
         typeof window !== "undefined" && window.location.port === "3000" ? "" : "";
       const response = await fetch(`${apiBase}/api/control/kill-switch`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Atlas-Role": role },
         body: JSON.stringify({
           engaged: nextState,
           reason: nextState ? "studio_emergency_kill_switch" : "studio_operator_reset",
         }),
       });
-      if (!response.ok) throw new Error("Control action rejected");
-    } catch {
-      setOrderFeedback({ status: "rejected", message: "Kill-switch request failed; state is unconfirmed." });
+      if (!response.ok) throw new Error(response.status === 403 ? "Role is not authorized to trigger the kill switch." : "Kill-switch request failed; state is unconfirmed.");
+    } catch (error) {
+      setOrderFeedback({
+        status: "rejected",
+        message: error instanceof Error ? error.message : "Kill-switch request failed; state is unconfirmed.",
+      });
       return;
     }
     setKillSwitchEngaged(nextState);
@@ -630,17 +1128,27 @@ export function StreamlinedTradingStudio() {
 
   // 1-Click Auto-Flatten Handler
   const handleAutoFlattenAll = async () => {
+    if (!profile.canExecuteTraderOrders) {
+      setOrderFeedback({
+        status: "rejected",
+        message: "Flatten is an execution action. This role cannot close positions.",
+      });
+      return;
+    }
     try {
       const apiBase =
         typeof window !== "undefined" && window.location.port === "3000" ? "" : "";
       const response = await fetch(`${apiBase}/api/control/flatten`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Atlas-Role": role },
         body: JSON.stringify({ reason: "studio_one_click_flatten" }),
       });
-      if (!response.ok) throw new Error("Control action rejected");
-    } catch {
-      setOrderFeedback({ status: "rejected", message: "Flatten request failed; state is unconfirmed." });
+      if (!response.ok) throw new Error(response.status === 403 ? "Role is not authorized to flatten." : "Flatten request failed; state is unconfirmed.");
+    } catch (error) {
+      setOrderFeedback({
+        status: "rejected",
+        message: error instanceof Error ? error.message : "Flatten request failed; state is unconfirmed.",
+      });
       return;
     }
     setPositions((prev) => prev.map((p) => ({ ...p, status: "FLATTENED" })));
@@ -657,11 +1165,17 @@ export function StreamlinedTradingStudio() {
   // Submit Pre-Trade Bracket Order to ActionableControlPlaneEngine
   const handleSubmitBracketOrder = async () => {
     if (sizingCalculation.hardRiskBreach) {
-      const rejectReason = killSwitchEngaged
+      const rejectReason = !profile.canExecuteTraderOrders
+        ? "Rejected: this role cannot submit orders. Research output stays execution_permission none."
+        : activeAsset.last_price <= 0
+        ? "Rejected: this name has no quote. Nothing was sent."
+        : killSwitchEngaged
         ? "Rejected: Emergency Kill-Switch is currently engaged."
-        : equityRiskPct > 0.75
-        ? `Rejected: Per-trade risk (${equityRiskPct.toFixed(2)}%) exceeds deterministic 0.75% prop cap.`
-        : "Rejected: Post-trade drawdown breaches 4.0% daily or 8.0% trailing floor.";
+        : equityRiskPct > riskCapPct
+        ? `Rejected: Per-trade risk (${equityRiskPct.toFixed(2)}%) exceeds the ${riskCapPct.toFixed(2)}% ${deskTrack} cap.`
+        : equityRiskPct < 0.5
+        ? `Rejected: Per-trade risk (${equityRiskPct.toFixed(2)}%) is below the 0.50% floor.`
+        : `Rejected: Post-trade drawdown breaches the ${dailyLossLimitPct.toFixed(1)}% daily loss limit or the ${trailingDdFloorPct.toFixed(1)}% drawdown floor.`;
       setOrderFeedback({ status: "rejected", message: rejectReason });
       setWorkingOrders((prev) => [
         {
@@ -687,7 +1201,8 @@ export function StreamlinedTradingStudio() {
     let intake;
     try {
       const response = await fetch("/api/control/strategy-signal", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Atlas-Role": role },
         body: JSON.stringify({
           symbol: activeAsset.symbol, direction: orderSide,
           reference_price: activeAsset.last_price,
@@ -768,7 +1283,9 @@ export function StreamlinedTradingStudio() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        height: "100vh",
+        maxHeight: "100vh",
+        overflow: "hidden",
         background: "#070A0F",
         color: "#F8FAFC",
         display: "flex",
@@ -776,61 +1293,44 @@ export function StreamlinedTradingStudio() {
         fontFamily: "var(--font-sans, Inter, system-ui, sans-serif)",
       }}
     >
+      <AppNav />
       {/* ====================================================================
           1. TOP HEADER BAR
          ==================================================================== */}
       <header
         style={{
-          height: "58px",
-          padding: "0 18px",
+          minHeight: "48px",
+          padding: "6px 14px",
           background: "#0B0F17",
           borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: "12px",
+          gap: "10px",
           flexWrap: "wrap",
         }}
       >
-        {/* Brand + Dual-Track Selector */}
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <a
-            href="/"
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button
+            type="button"
+            onClick={() => setSymbolsOpen((open) => !open)}
             style={{
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
-              gap: "8px",
-              textDecoration: "none",
-              color: "#F8FAFC",
+              gap: "6px",
+              padding: "5px 10px",
+              borderRadius: "6px",
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: symbolsOpen ? "#1E293B" : "transparent",
+              color: "#E2E8F0",
+              fontSize: "11.5px",
+              fontWeight: 700,
+              cursor: "pointer",
             }}
           >
-            <div
-              style={{
-                width: "30px",
-                height: "30px",
-                borderRadius: "6px",
-                background: "linear-gradient(135deg, #00F29D 0%, #00C8FF 100%)",
-                color: "#070A0F",
-                fontWeight: 900,
-                fontSize: "13px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              AT
-            </div>
-            <div>
-              <div style={{ fontSize: "13.5px", fontWeight: 800, letterSpacing: "0.03em" }}>
-                ATLAS STUDIO
-              </div>
-              <div style={{ fontSize: "10px", color: "#94A3B8" }}>
-                {universeCounts.total_assets.toLocaleString()} Universal Assets · perm: none
-              </div>
-            </div>
-          </a>
-
-          {/* Dual-Track Selector */}
+            <GuideIcon name="markets" />
+            {symbolsOpen ? "Hide symbols" : "Symbols"}
+          </button>
           <div
             style={{
               display: "flex",
@@ -849,13 +1349,17 @@ export function StreamlinedTradingStudio() {
                 borderRadius: "6px",
                 border: "none",
                 cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
                 fontSize: "11.5px",
                 fontWeight: 600,
                 background: activeTrack === "all" ? "#1E293B" : "transparent",
                 color: activeTrack === "all" ? "#F8FAFC" : "#94A3B8",
               }}
             >
-              🌐 Full Universe ({universeCounts.total_assets.toLocaleString()})
+              <GuideIcon name="all" />
+              All
             </button>
             <button
               type="button"
@@ -868,13 +1372,17 @@ export function StreamlinedTradingStudio() {
                 borderRadius: "6px",
                 border: "none",
                 cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
                 fontSize: "11.5px",
                 fontWeight: 600,
                 background: activeTrack === "open_market" ? "rgba(0, 200, 255, 0.18)" : "transparent",
                 color: activeTrack === "open_market" ? "#00C8FF" : "#94A3B8",
               }}
             >
-              🏛️ Open-Market Equities ({universeCounts.equities.toLocaleString()})
+              <GuideIcon name="equity" color={activeTrack === "open_market" ? "#00C8FF" : markColor("equity")} />
+              Equities
             </button>
             <button
               type="button"
@@ -887,13 +1395,37 @@ export function StreamlinedTradingStudio() {
                 borderRadius: "6px",
                 border: "none",
                 cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
                 fontSize: "11.5px",
                 fontWeight: 600,
                 background: activeTrack === "competition" ? "rgba(0, 242, 157, 0.18)" : "transparent",
                 color: activeTrack === "competition" ? "#00F29D" : "#94A3B8",
               }}
             >
-              🏆 Prop Competition ({(universeCounts.crypto_perps + universeCounts.futures).toLocaleString()})
+              <GuideIcon name="competition" color={activeTrack === "competition" ? "#00F29D" : markColor("competition")} />
+              Competition
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectSymbol("MUB")}
+              style={{
+                padding: "5px 10px",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "11.5px",
+                fontWeight: 600,
+                background: selectedSymbol === "MUB" ? "rgba(244, 196, 96, 0.18)" : "transparent",
+                color: selectedSymbol === "MUB" ? "#F4C460" : "#94A3B8",
+              }}
+            >
+              <GuideIcon name="reserve" color={selectedSymbol === "MUB" ? "#F4C460" : markColor("reserve")} />
+              Reserve
             </button>
           </div>
         </div>
@@ -901,6 +1433,7 @@ export function StreamlinedTradingStudio() {
         {/* Global Session Clock & WebSocket Latency Indicator (< 15ms) */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div
+            title={feedAudit}
             style={{
               padding: "4px 10px",
               borderRadius: "6px",
@@ -911,42 +1444,62 @@ export function StreamlinedTradingStudio() {
               color: "#E2E8F0",
             }}
           >
-            PAPER ACCOUNT · {feedAvailable ? "Observed feed" : "Awaiting market feed"} · {sessionClock}
+            {feedAvailable ? (demoFeedActive ? "Paper" : "Live print") : "Waiting"} · {sessionClock}
           </div>
           <div
             style={{
               padding: "4px 10px",
               borderRadius: "6px",
-              background: "rgba(0, 242, 157, 0.1)",
-              border: "1px solid rgba(0, 242, 157, 0.3)",
+              background: latencyBadge.background,
+              border: latencyBadge.border,
               fontSize: "11.5px",
               fontFamily: "var(--font-mono, monospace)",
-              color: "#00F29D",
+              color: latencyBadge.color,
             }}
           >
-            ⚡ WS RTT {wsLatencyMs.toFixed(1)}ms (&lt; 15ms) · Subs: {activeSubCount}
+            {latencyBadge.label}
           </div>
         </div>
 
         {/* Emergency Kill-Switch & 1-Click Auto-Flatten Buttons */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <a
-            href="/listings"
+          <div
             style={{
-              padding: "6px 10px",
-              borderRadius: "6px",
-              background: "#121722",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "#94A3B8",
-              textDecoration: "none",
-              fontSize: "11.5px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "5px 10px",
+              borderRadius: "8px",
+              border: "1px solid rgba(0, 242, 157, 0.35)",
+              background: "rgba(0, 242, 157, 0.08)",
             }}
           >
-            Module 02 Grid
-          </a>
+            <select
+              aria-label="Active role selector"
+              value={role}
+              onChange={(e) => setRole(e.target.value as ClientRoleId)}
+              style={{
+                padding: "5px 8px",
+                borderRadius: "6px",
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "#121722",
+                color: "#F8FAFC",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              {(Object.keys(CLIENT_ROLE_PROFILES) as ClientRoleId[]).map((rid) => (
+                <option key={rid} value={rid}>
+                  {CLIENT_ROLE_PROFILES[rid].title}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             type="button"
             onClick={() => void handleAutoFlattenAll()}
+            disabled={!profile.canExecuteTraderOrders}
+            title={profile.canExecuteTraderOrders ? "Flatten paper positions through the control plane" : "This role cannot submit execution actions"}
             style={{
               padding: "6px 12px",
               borderRadius: "6px",
@@ -955,14 +1508,17 @@ export function StreamlinedTradingStudio() {
               color: "#FBBF24",
               fontWeight: 700,
               fontSize: "11.5px",
-              cursor: "pointer",
+              cursor: profile.canExecuteTraderOrders ? "pointer" : "not-allowed",
+              opacity: profile.canExecuteTraderOrders ? 1 : 0.45,
             }}
           >
-            1-Click Auto-Flatten
+            {profile.canExecuteTraderOrders ? "Flatten" : "Flatten locked"}
           </button>
           <button
             type="button"
             onClick={() => void handleToggleKillSwitch()}
+            disabled={!profile.canTriggerKillSwitch}
+            title={profile.canTriggerKillSwitch ? "Engage or reset the platform kill switch" : "Kill-switch is limited to prop_firm_admin"}
             style={{
               padding: "6px 12px",
               borderRadius: "6px",
@@ -971,30 +1527,33 @@ export function StreamlinedTradingStudio() {
               color: killSwitchEngaged ? "#070A0F" : "#FF3B69",
               fontWeight: 800,
               fontSize: "11.5px",
-              cursor: "pointer",
+              cursor: profile.canTriggerKillSwitch ? "pointer" : "not-allowed",
+              opacity: profile.canTriggerKillSwitch ? 1 : 0.45,
             }}
           >
-            {killSwitchEngaged ? "RESET KILL-SWITCH" : "🚨 EMERGENCY KILL-SWITCH"}
+            {!profile.canTriggerKillSwitch ? "Kill locked" : killSwitchEngaged ? "Reset kill" : "Kill"}
           </button>
         </div>
       </header>
-
       {/* ====================================================================
           MAIN 3-PANEL STUDIO GRID (20% Left | 55% Center | 25% Right)
          ==================================================================== */}
       <div
-        className="atlas-command-grid"
+        className={`atlas-command-grid${symbolsOpen ? "" : " is-chart-focus"}`}
         style={{
           flex: 1,
           display: "grid",
-          minHeight: "calc(100vh - 58px)",
+          minHeight: 0,
           overflow: "hidden",
+          gridTemplateRows: "minmax(0, 1fr)",
         }}
       >
         {/* ==================================================================
             2. LEFT PANEL: UNIVERSAL SCREENER & WATCHLIST (20% WIDTH)
            ================================================================== */}
+        {symbolsOpen ? (
         <aside
+          className="desk-symbol-column"
           style={{
             background: "#0B0F17",
             borderRight: "1px solid rgba(255, 255, 255, 0.08)",
@@ -1002,7 +1561,9 @@ export function StreamlinedTradingStudio() {
             flexDirection: "column",
             padding: "12px",
             gap: "10px",
-            overflowY: "auto",
+            minHeight: 0,
+            height: "100%",
+            overflow: "hidden",
           }}
         >
           <div>
@@ -1015,7 +1576,9 @@ export function StreamlinedTradingStudio() {
               }}
             >
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", letterSpacing: "0.05em" }}>
-                UNIVERSAL CATALOG SCREENER
+                {catalogTotal == null
+                  ? "Symbols"
+                  : `Showing ${catalogListings.length.toLocaleString()} of ${catalogTotal.toLocaleString()}`}
               </span>
               <span
                 style={{
@@ -1024,22 +1587,25 @@ export function StreamlinedTradingStudio() {
                   color: "#00F29D",
                 }}
               >
-                {searchLatencyMs.toFixed(1)}ms SQLite
+                {searchLatencyMs == null ? "Catalog —" : `${searchLatencyMs.toFixed(1)} ms`}
               </span>
             </div>
 
             {/* Command Palette Search Input (Ctrl + K) */}
             <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: "8px", top: "9px", color: "#00C8FF" }}>
+                <GuideIcon name="search" />
+              </span>
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search 10,500+ tickers (Ctrl+K)..."
+                placeholder="Search (Ctrl+K)"
                 aria-label="Universal Asset Catalog Search"
                 style={{
                   width: "100%",
-                  padding: "8px 10px",
+                  padding: "8px 10px 8px 28px",
                   borderRadius: "6px",
                   border: "1px solid rgba(0, 200, 255, 0.3)",
                   background: "#070A0F",
@@ -1054,130 +1620,145 @@ export function StreamlinedTradingStudio() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px" }}>
             {(
               [
-                { id: "all", label: "All" },
-                { id: "equities", label: "Equities" },
-                { id: "crypto_perps", label: "Crypto Perps" },
-                { id: "futures", label: "Futures" },
-              ] as const
-            ).map((tab) => (
+                { id: "all", label: "All", mark: "all" },
+                { id: "equities", label: "Equities", mark: "equity" },
+                { id: "crypto_perps", label: "Crypto", mark: "crypto" },
+                { id: "futures", label: "Futures", mark: "futures" },
+              ] as const satisfies ReadonlyArray<{ id: "all" | "equities" | "crypto_perps" | "futures"; label: string; mark: GuideIconName }>
+            ).map((tab) => {
+              const on = assetClassFilter === tab.id;
+              return (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setAssetClassFilter(tab.id)}
+                title={markLabel(tab.mark)}
                 style={{
-                  padding: "5px 4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "3px",
+                  padding: "5px 2px",
                   borderRadius: "5px",
                   border: "1px solid rgba(255,255,255,0.08)",
-                  background: assetClassFilter === tab.id ? "#00C8FF" : "#121722",
-                  color: assetClassFilter === tab.id ? "#070A0F" : "#94A3B8",
+                  background: on ? "#00C8FF" : "#121722",
+                  color: on ? "#070A0F" : "#94A3B8",
                   fontSize: "10.5px",
                   fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
+                <GuideIcon name={tab.mark} size={12} color={on ? "#070A0F" : markColor(tab.mark)} />
                 {tab.label}
               </button>
-            ))}
+              );
+            })}
+          </div>
+          <AssetMarkLegend />
+
+          <div style={{ fontSize: "10.5px", color: "#64748B", lineHeight: 1.4 }}>
+            {universeCounts ? `Directory ${universeCounts.total_assets.toLocaleString()}. ` : ""}
+            {catalogNotice}
+            {" "}
+            Prices on this page are public last prints when a feed answers. Yahoo stock and futures prints can be delayed. Unlisted names stay without a quote.
           </div>
 
           {/* Real-Time Ticker List */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, overflowY: "auto" }}>
+          <div
+            ref={catalogListRef}
+            onScroll={onCatalogScroll}
+            style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, minHeight: 0, overflowY: "auto" }}
+          >
             {catalogListings.map((item) => {
               const isSelected = item.symbol === selectedSymbol;
+              const mark = markForAsset(item.asset_class, item.exchange);
               return (
                 <button
                   key={item.symbol}
                   type="button"
                   onClick={() => handleSelectSymbol(item.symbol)}
+                  title={`${markLabel(mark)} · ${item.name} · ${item.exchange} · VPIN ${(item.vpin * 100).toFixed(1)}% · ${item.regime}`}
                   style={{
                     textAlign: "left",
-                    padding: "8px 10px",
-                    borderRadius: "7px",
-                    border: isSelected
-                      ? "1px solid #00C8FF"
-                      : "1px solid rgba(255, 255, 255, 0.06)",
-                    background: isSelected ? "rgba(0, 200, 255, 0.1)" : "#121722",
+                    padding: "6px 8px",
+                    borderRadius: "6px",
+                    border: isSelected ? "1px solid #00C8FF" : "1px solid transparent",
+                    background: isSelected ? "rgba(0, 200, 255, 0.1)" : "transparent",
                     cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto auto",
+                    gap: "8px",
+                    alignItems: "center",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <strong
-                        style={{
-                          fontSize: "12.5px",
-                          color: "#F8FAFC",
-                          fontFamily: "var(--font-mono, monospace)",
-                        }}
-                      >
-                        {item.symbol}
-                      </strong>
-                      <span
-                        style={{
-                          fontSize: "9.5px",
-                          padding: "1px 5px",
-                          borderRadius: "4px",
-                          background: "rgba(255,255,255,0.06)",
-                          color: "#94A3B8",
-                        }}
-                      >
-                        {item.exchange}
-                      </span>
-                    </div>
-                    <span
+                  <span style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                    <GuideIcon name={mark} color={markColor(mark)} />
+                    <span style={{ minWidth: 0 }}>
+                    <strong
                       style={{
-                        fontSize: "12.5px",
-                        fontWeight: 700,
+                        display: "block",
+                        fontSize: "12px",
+                        color: "#F8FAFC",
                         fontFamily: "var(--font-mono, monospace)",
-                        color: item.change_pct >= 0 ? "#00F29D" : "#FF3B69",
                       }}
                     >
-                      ${item.last_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      width: "100%",
-                      fontSize: "10.5px",
-                      color: "#94A3B8",
-                    }}
-                  >
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "120px" }}>
+                      {item.symbol}
+                    </strong>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "10.5px",
+                        color: "#94A3B8",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {item.name}
                     </span>
-                    <span style={{ fontFamily: "var(--font-mono, monospace)" }}>
-                      {item.change_pct >= 0 ? "+" : ""}
-                      {item.change_pct.toFixed(2)}%
                     </span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      width: "100%",
-                      fontSize: "10px",
-                      fontFamily: "var(--font-mono, monospace)",
-                      marginTop: "2px",
-                    }}
-                  >
-                    <span style={{ color: item.vpin > 0.38 ? "#F59E0B" : "#00F29D" }}>
-                      VPIN {(item.vpin * 100).toFixed(1)}%
-                    </span>
-                    <span style={{ color: "#38BDF8" }}>{item.regime}</span>
-                  </div>
+                  </span>
+                  {item.exchange === "UNLISTED" ? (
+                    <span style={{ gridColumn: "2 / span 2", fontSize: "11px", color: "#94A3B8" }}>Not listed</span>
+                  ) : item.last_price <= 0 ? (
+                    <span style={{ gridColumn: "2 / span 2", fontSize: "11px", color: "#94A3B8" }}>No quote</span>
+                  ) : (
+                    <>
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontFamily: "var(--font-mono, monospace)",
+                          color: item.change_pct >= 0 ? "#00F29D" : "#FF3B69",
+                        }}
+                      >
+                        {item.change_pct >= 0 ? "+" : ""}
+                        {item.change_pct.toFixed(2)}%
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          fontFamily: "var(--font-mono, monospace)",
+                          color: "#E2E8F0",
+                        }}
+                      >
+                        {item.last_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </>
+                  )}
                 </button>
               );
             })}
+            <div style={{ fontSize: "10.5px", color: "#94A3B8", padding: "8px 4px" }}>
+              {catalogLoading
+                ? "Loading the next page…"
+                : catalogTotal != null && catalogListings.length >= catalogTotal
+                  ? "End of this filter."
+                  : "Scroll to load the rest."}
+            </div>
           </div>
         </aside>
+        ) : null}
 
         {/* ==================================================================
             3. CENTER PANEL: DEEP CHART & CANVAS + BOTTOM BLOTTER (55% WIDTH)
@@ -1225,25 +1806,24 @@ export function StreamlinedTradingStudio() {
                       fontWeight: 700,
                     }}
                   >
-                    {activeAsset.asset_class.toUpperCase()} · {activeAsset.exchange}
+                    {activeAsset.asset_class.toUpperCase()} · {activeAsset.exchange === "UNLISTED" ? "Not listed" : activeAsset.exchange}
                   </span>
                 </div>
                 <div style={{ fontSize: "11.5px", color: "#94A3B8" }}>{activeAsset.name}</div>
               </div>
 
-              <div style={{ fontFamily: "var(--font-mono, monospace)", fontSize: "12px", color: "#E2E8F0" }}>
-                Last:{" "}
-                <strong style={{ color: "#00F29D", fontSize: "15px" }}>
-                  ${activeAsset.last_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </strong>{" "}
-                · VPIN: <strong>{(activeAsset.vpin * 100).toFixed(1)}%</strong> · OFI_z:{" "}
-                <strong>{activeAsset.ofi_z.toFixed(2)}</strong> · Kyle&apos;s λ:{" "}
-                <strong>{activeAsset.kyles_lambda.toFixed(4)}</strong>
+              <div
+                title={`VPIN ${(activeAsset.vpin * 100).toFixed(1)}% · OFI ${activeAsset.ofi_z.toFixed(2)} · Kyle λ ${activeAsset.kyles_lambda.toFixed(4)}`}
+                style={{ fontFamily: "var(--font-mono, monospace)", fontSize: "15px", color: activeAsset.last_price > 0 ? "#00F29D" : "#94A3B8", fontWeight: 700 }}
+              >
+                {activeAsset.last_price > 0
+                  ? activeAsset.last_price.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                  : "No quote"}
               </div>
             </div>
 
             {/* Timeframe Switcher: 1s, 1m, 5m, 15m, 1h, 1D */}
-            <div style={{ display: "flex", gap: "4px" }}>
+            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", alignItems: "center" }}>
               {(["1s", "1m", "5m", "15m", "1h", "1D"] as const).map((tf) => (
                 <button
                   key={tf}
@@ -1263,6 +1843,23 @@ export function StreamlinedTradingStudio() {
                   {tf}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setNotesOpen((open) => !open)}
+                style={{
+                  padding: "5px 9px",
+                  borderRadius: "5px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: notesOpen ? "#1E293B" : "#121722",
+                  color: "#94A3B8",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {notesOpen ? "Hide notes" : "Notes"}
+              </button>
+
             </div>
           </div>
 
@@ -1275,7 +1872,57 @@ export function StreamlinedTradingStudio() {
               padding: "10px",
             }}
           >
-            <LiveChartEngine symbol={activeAsset.symbol} candles={chartCandles} marketDataAvailable={feedAvailable} />
+            {notesOpen ? (
+              <div style={{ fontSize: "11px", color: "#64748B", marginBottom: "8px", lineHeight: 1.45 }}>
+                <div>{modelGap ?? (chartRead ? `${chartRead.active.chart_source} · ${chartRead.active.feed_origin} · execution_permission ${chartRead.execution_permission}` : "Model is waiting to read this chart.")}</div>
+                {chartRead ? (
+                  <>
+                    <div>Competition {chartRead.competition.map((row) => `${row.symbol} ${row.direction}`).join(" · ")}</div>
+                    <div>Open market {chartRead.open_market.map((row) => `${row.symbol} ${row.direction}`).join(" · ")}</div>
+                  </>
+                ) : null}
+                <div>{barNote}</div>
+                {reserveHoldings.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "6px" }}>
+                    {reserveHoldings.filter((row) => row.in_sweep).map((row) => (
+                      <button
+                        key={row.symbol}
+                        type="button"
+                        onClick={() => handleSelectSymbol(row.symbol)}
+                        style={{
+                          padding: "3px 7px",
+                          borderRadius: "4px",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          background: selectedSymbol === row.symbol ? "rgba(244, 196, 96, 0.16)" : "#121722",
+                          color: "#E2E8F0",
+                          fontSize: "10.5px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {row.symbol} ${row.target_usd}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <div style={{ fontSize: "11px", color: "#64748B", lineHeight: 1.45, marginBottom: "8px" }}>
+              <div>{gardenNote}</div>
+              <div>{reserveNote}</div>
+            </div>
+            <DeskChart
+              symbol={chartSymbol ?? activeAsset.symbol}
+              timeframe={timeframe}
+              frameClassName="desk-chart-frame"
+              gap={modelGap}
+              onOpenMinute={() => setTimeframe("1m")}
+            >
+              <WhaleOnChart
+                symbol={selectedSymbol}
+                bucketSeconds={TIMEFRAME_SECONDS[timeframe]}
+                gap={modelGap}
+              />
+            </DeskChart>
           </div>
 
           {/* Collapsible Bottom Drawer: Active Positions Blotter, Working Orders & Audit History */}
@@ -1528,7 +2175,7 @@ export function StreamlinedTradingStudio() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "11px", fontWeight: 800, color: "#00C8FF", letterSpacing: "0.04em" }}>
-                REMAINING-ROOM RISK HUD
+                Risk room
               </span>
               <span style={{ fontSize: "11.5px", fontFamily: "var(--font-mono, monospace)", fontWeight: 700 }}>
                 Equity ${accountEquityUsd.toLocaleString()}
@@ -1538,7 +2185,7 @@ export function StreamlinedTradingStudio() {
             {/* 1. 4.0% Daily Loss Breaker */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
-                <span style={{ color: "#94A3B8" }}>4.0% Daily Loss Breaker</span>
+                <span style={{ color: "#94A3B8" }}>{dailyLossLimitPct.toFixed(1)}% Daily Loss Breaker</span>
                 <span style={{ fontFamily: "var(--font-mono, monospace)", color: "#00F29D" }}>
                   ${sizingCalculation.dailyRoomUsd.toLocaleString()} cushion (
                   {(dailyLossLimitPct - dailyLossUsedPct).toFixed(2)}% left)
@@ -1559,7 +2206,7 @@ export function StreamlinedTradingStudio() {
             {/* 2. 8.0% Max Trailing Drawdown Floor */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
-                <span style={{ color: "#94A3B8" }}>8.0% Trailing Drawdown Floor</span>
+                <span style={{ color: "#94A3B8" }}>{drawdownMeterLabel}</span>
                 <span style={{ fontFamily: "var(--font-mono, monospace)", color: "#00C8FF" }}>
                   ${sizingCalculation.trailingRoomUsd.toLocaleString()} cushion (
                   {(trailingDdFloorPct - trailingDdUsedPct).toFixed(2)}% left)
@@ -1610,7 +2257,7 @@ export function StreamlinedTradingStudio() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <strong style={{ fontSize: "12px", letterSpacing: "0.03em" }}>
-                PRE-TRADE BRACKET ORDER TICKET
+                Order
               </strong>
               <span
                 style={{
@@ -1696,12 +2343,12 @@ export function StreamlinedTradingStudio() {
             {/* Equity Risk % Sizing Slider (0.50% - 0.75% Institutional Rule) */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
-                <span style={{ color: "#94A3B8" }}>Per-Trade Equity Risk (0.50%–0.75% Target)</span>
+                <span style={{ color: "#94A3B8" }}>Per-Trade Equity Risk (0.50%–{riskCapPct.toFixed(2)}% Cap)</span>
                 <span
                   style={{
                     fontFamily: "var(--font-mono, monospace)",
                     fontWeight: 700,
-                    color: equityRiskPct <= 0.75 ? "#00F29D" : "#FF3B69",
+                    color: equityRiskPct >= 0.5 && equityRiskPct <= riskCapPct ? "#00F29D" : "#FF3B69",
                   }}
                 >
                   {equityRiskPct.toFixed(2)}% (${sizingCalculation.riskDollars})
@@ -1781,6 +2428,9 @@ export function StreamlinedTradingStudio() {
                 gap: "4px",
               }}
             >
+              {activeAsset.last_price <= 0 ? (
+                <div style={{ color: "#94A3B8" }}>No quote is stored for this name. Size stays at zero. Nothing is sent.</div>
+              ) : null}
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "#94A3B8" }}>Auto-Sized Notional:</span>
                 <strong style={{ color: "#F8FAFC" }}>${sizingCalculation.notionalUsd.toLocaleString()}</strong>

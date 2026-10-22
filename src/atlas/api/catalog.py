@@ -36,6 +36,15 @@ def catalog_search_endpoint(
     )
 
 
+@catalog_router.get("/api/catalog/quotes", include_in_schema=False)
+def catalog_quotes_endpoint(symbols: str = "") -> dict[str, Any]:
+    """Public last prints for the symbols on the current library page."""
+    from atlas.marketdata.library_quotes import quote_library
+
+    raw = [part.strip() for part in symbols.split(",") if part.strip()]
+    return quote_library(raw[:40])
+
+
 @catalog_router.get("/api/catalog/snapshot", include_in_schema=False)
 def catalog_snapshot_endpoint(
     track: str | None = None,

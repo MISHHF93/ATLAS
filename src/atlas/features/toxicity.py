@@ -19,6 +19,8 @@ from atlas.marketdata.microstructure import (
     estimate_kyles_lambda,
 )
 
+from atlas.features.microstructure import compute_atr  # noqa: F401  (canonical ATR re-export)
+
 __all__ = [
     "BookLevelSnapshot",
     "HawkesIntensityReport",
@@ -26,6 +28,7 @@ __all__ = [
     "MultiLevelOfiReport",
     "VpinBucketReport",
     "VpinBucketSlice",
+    "compute_atr",
     "compute_hawkes_intensity",
     "compute_multilevel_ofi",
     "compute_volume_synchronized_vpin",

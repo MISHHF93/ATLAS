@@ -2,15 +2,20 @@
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import asyncio
 import json
+import os
+import threading
 from typing import Literal
 from pydantic import BaseModel
 
 from atlas.api.catalog import catalog_router
+from atlas.api.udf import udf_router
+from atlas.api.rbac import verify_role_action
 from atlas.ai.gemini_provider import GeminiResearchProvider
 from atlas.ai.policy import PolicyError
 from atlas.control.engine import ActionableControlPlaneEngine, ActionableOrderRequest
-from atlas.control.rules import MasterSpecGateInput, evaluate_master_spec_readiness
+from atlas.control.rules import MasterSpecGateInput, TradingRuleBook, evaluate_master_spec_readiness
 from atlas.marketdata.frozen import build_frozen_benchmark_dataset
 from atlas.marketdata.mcp_adapters import ALLOWED_MCP_TOOLS, MCPDataSourceAdapter
 from atlas.marketdata.microstructure import (
@@ -29,7 +34,7 @@ from atlas.models.regimes import classify_regime
 from atlas.models.registry import ProviderRegistry
 from atlas.models.runtime import ProviderRuntime
 from atlas.models.schemas import Capability, MarketDataRequest
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from atlas.market.fixtures import candle_page
@@ -48,8 +53,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(catalog_router)
+app.include_router(udf_router)
 
 control_engine = ActionableControlPlaneEngine()
+
+
+def _reject_forbidden_role(role_id: str | None, action: str) -> None:
+    """Apply RBAC only when the caller names a role. Omitted roles keep operator-console compatibility."""
+    if role_id is None or not role_id.strip():
+        return
+    try:
+        verdict = verify_role_action(role_id, action)  # type: ignore[arg-type]
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if not verdict["authorized"]:
+        raise HTTPException(status_code=403, detail=str(verdict["reason"]))
 
 
 class KillSwitchPayload(BaseModel):
@@ -89,6 +107,51 @@ def health() -> dict[str, str]:
 @app.get("/api/market/candles", response_model=CandlePage)
 def candles(symbol: str = "BTC-USD", interval: str = "1h") -> CandlePage:
     return candle_page(symbol, interval)
+
+
+@app.get("/api/market/tradingview", include_in_schema=False)
+def market_tradingview(symbol: str = "BTC-USD", timeframe: str = "1m") -> dict[str, object]:
+    """Map a desk symbol onto TradingView's chart and the symbol widgets around it."""
+    from atlas.marketdata.tradingview import describe_chart
+
+    return describe_chart(symbol, timeframe=timeframe)
+
+
+@app.get("/api/market/tradingview/tape", include_in_schema=False)
+def market_tradingview_tape(origin: str = "") -> dict[str, object]:
+    """Ticker tape for the nine desk names. It does not feed the model."""
+    from atlas.marketdata.tradingview import describe_tape
+
+    return describe_tape(origin or None)
+
+
+@app.get("/api/market/tradingview/markets", include_in_schema=False)
+def market_tradingview_markets(origin: str = "") -> dict[str, object]:
+    """TradingView stock, crypto, ETF, and forex catalogs. They do not feed the model."""
+    from atlas.marketdata.tradingview import describe_markets
+
+    return describe_markets(origin or None)
+
+
+@app.get("/api/market/bars", include_in_schema=False)
+def market_bars(symbol: str = "BTC-USD", bucket_seconds: int = 60, limit: int = 160) -> dict[str, object]:
+    """Full labeled candle history for any catalog symbol, with a live stream tail when one exists."""
+    from atlas.marketdata.bar_projection import project_symbol_bars
+
+    return project_symbol_bars(
+        live_market_gateway,
+        symbol,
+        bucket_seconds=bucket_seconds,
+        limit=limit,
+    )
+
+
+@app.get("/api/market/second-tape", include_in_schema=False)
+def market_second_tape(symbol: str = "BTC-USD") -> dict[str, object]:
+    """One-second bars from the public last trade. Equities stay withheld."""
+    from atlas.marketdata.second_tape import snapshot
+
+    return snapshot(symbol, sampling=live_market_gateway.public_fetch_enabled)
 
 
 @app.get("/api/research/capabilities")
@@ -136,6 +199,40 @@ def get_control_state() -> dict[str, object]:
     return control_engine.get_state().model_dump(mode="json")
 
 
+def _rulebook_view(book: TradingRuleBook) -> dict[str, object]:
+    """Numbers the ticket check actually loads. This view cannot edit them."""
+    return {
+        "rulebook_id": book.rulebook_id,
+        "revision": book.revision,
+        "track": book.track,
+        "max_per_trade_risk_fraction": str(book.max_per_trade_risk_fraction),
+        "min_stop_distance_bps": str(book.min_stop_distance_bps),
+        "max_daily_loss_fraction": str(book.max_daily_loss_fraction),
+        "drawdown_mode": book.drawdown_mode,
+        "max_drawdown_fraction": str(book.max_drawdown_fraction),
+        "max_position_notional_usd": str(book.max_position_notional_usd),
+        "max_data_age_seconds": book.max_data_age_seconds,
+        "min_trading_days": book.min_trading_days,
+        "max_single_day_profit_share": (
+            None if book.max_single_day_profit_share is None else str(book.max_single_day_profit_share)
+        ),
+        "allowed_sessions": sorted(book.allowed_sessions),
+        "execution_permission": "none",
+    }
+
+
+@app.get("/api/control/rulebooks", include_in_schema=False)
+def list_rulebooks() -> dict[str, object]:
+    """The paper rulebooks loaded in this process. Nothing here is editable and nothing is sent."""
+    return {
+        "trading": "disabled",
+        "execution_permission": "none",
+        "notice": "These are the loaded paper rulebooks. This response does not edit them and does not send an order.",
+        "open_market": _rulebook_view(control_engine.open_rulebook),
+        "competition": _rulebook_view(control_engine.comp_rulebook),
+    }
+
+
 @app.post("/api/control/order", include_in_schema=False)
 def submit_control_order(request: ActionableOrderRequest) -> dict[str, object]:
     decision = control_engine.submit_order(request)
@@ -146,13 +243,18 @@ def submit_control_order(request: ActionableOrderRequest) -> dict[str, object]:
 
 
 @app.post("/api/control/kill-switch", include_in_schema=False)
-def toggle_kill_switch(payload: KillSwitchPayload) -> dict[str, object]:
+def toggle_kill_switch(
+    payload: KillSwitchPayload,
+    x_atlas_role: str | None = Header(default=None),
+) -> dict[str, object]:
+    _reject_forbidden_role(x_atlas_role, "trigger_kill_switch")
     state = control_engine.set_kill_switch(payload.engaged, reason=payload.reason)
     return state.model_dump(mode="json")
 
 
 @app.post("/api/control/flatten", include_in_schema=False)
-def flatten_positions() -> dict[str, object]:
+def flatten_positions(x_atlas_role: str | None = Header(default=None)) -> dict[str, object]:
+    _reject_forbidden_role(x_atlas_role, "submit_bracket_order")
     state = control_engine.flatten_all_positions(reason="operator_flatten_button")
     return state.model_dump(mode="json")
 
@@ -167,6 +269,14 @@ def lifecycle_action(payload: LifecycleActionPayload) -> dict[str, object]:
 def trigger_self_training() -> dict[str, object]:
     state = control_engine.record_training_run()
     return state.model_dump(mode="json")
+
+
+@app.get("/api/research/outcome-ledger", include_in_schema=False)
+def outcome_ledger_endpoint() -> dict[str, object]:
+    """Daily trend forecasts and their later-bar scores. This route submits nothing."""
+    from atlas.models.outcome_ledger import ledger_from_gateway
+
+    return ledger_from_gateway(live_market_gateway)
 
 
 @app.post("/api/research/walk-forward", include_in_schema=False)
@@ -270,25 +380,46 @@ def ingest_market_bar_endpoint(payload: MarketIngestPayload) -> dict[str, object
     }
 
 
+def _ledger_supports(track: str) -> bool:
+    from atlas.models.outcome_ledger import ledger_from_gateway
+
+    report = ledger_from_gateway(live_market_gateway)
+    row = report.get("tracks", {}).get(track, {})
+    return isinstance(row, dict) and row.get("judgment") == "supported_on_this_sample"
+
+
+@app.get("/api/control/trade-readiness", include_in_schema=False)
+def trade_readiness_endpoint() -> dict[str, object]:
+    from atlas.models.outcome_ledger import ledger_from_gateway
+    from atlas.models.trade_readiness import build_trade_readiness
+    from atlas.models.trial_log import remember_ledger
+
+    ledger = ledger_from_gateway(live_market_gateway)
+    report = build_trade_readiness(ledger)
+    report["trials"] = remember_ledger(ledger)
+    return report
+
+
 @app.post("/api/control/readiness-audit", include_in_schema=False)
 def readiness_audit_endpoint() -> dict[str, object]:
     now = datetime.now(timezone.utc)
+    supported = _ledger_supports("competition")
     comp_gate = evaluate_master_spec_readiness(
         MasterSpecGateInput(
             track="competition",
             rulebook_id=control_engine.comp_rulebook.rulebook_id,
-            dataset_id="frozen:competition:btc-perp:v1",
-            frozen_dataset_sha256_verified=True,
-            commercial_data_license_verified=True,
-            beats_naive_mae_on_holdout=True,
-            beats_linear_mae_on_holdout=True,
-            beats_no_trade_net_return_after_costs=True,
-            paper_simulation_rule_compliant=True,
-            paper_simulation_drawdown_within_limit=True,
-            competition_consistency_and_min_days_met=True,
-            scoped_human_research_approval_present=control_engine.challenger_approved,
-            second_independent_holdout_verified=True,
-            live_execution_engine_audit_completed=not control_engine.kill_switch_engaged,
+            dataset_id="public-daily-ledger:v1",
+            frozen_dataset_sha256_verified=False,
+            commercial_data_license_verified=False,
+            beats_naive_mae_on_holdout=False,
+            beats_linear_mae_on_holdout=False,
+            beats_no_trade_net_return_after_costs=supported,
+            paper_simulation_rule_compliant=False,
+            paper_simulation_drawdown_within_limit=False,
+            competition_consistency_and_min_days_met=False,
+            scoped_human_research_approval_present=False,
+            second_independent_holdout_verified=False,
+            live_execution_engine_audit_completed=False,
         ),
         evaluated_at=now,
     )
@@ -408,35 +539,57 @@ def run_continuous_research_tick(payload: ContinuousResearchTickPayload) -> dict
 
 @app.get("/api/docs", include_in_schema=False)
 def list_platform_documentation() -> dict[str, object]:
+    """Return the specification files on disk. Reading them does not authorize an order."""
     from pathlib import Path
 
     repo_root = Path(__file__).resolve().parents[3]
-    doc_paths = [
-        ("README.md", "Platform Overview & Run Guide", "README.md"),
-        ("ATLAS_MASTER_SPEC.md", "Master Product & Authority Spec", "docs/ATLAS_MASTER_SPEC.md"),
-        ("UNIVERSAL_AI_ECOSYSTEM.md", "Universal AI Architecture & Contracts", "docs/architecture/UNIVERSAL_AI_ECOSYSTEM.md"),
-        ("RESEARCH_OPERATING_CONTRACT.md", "Research Operating Contract & Gates", "docs/architecture/RESEARCH_OPERATING_CONTRACT.md"),
-        ("ISO_GOVERNANCE_ALIGNMENT.md", "ISO / NIST AI RMF / IOSCO Governance", "docs/architecture/ISO_GOVERNANCE_ALIGNMENT.md"),
-        ("CURRENT_STATE.md", "Verified Current State", "docs/architecture/CURRENT_STATE.md"),
-        ("DECISIONS.md", "Architectural Decisions", "docs/architecture/DECISIONS.md"),
-        ("AI_ECOSYSTEM.md", "Official AI Ecosystem Review", "docs/research/AI_ECOSYSTEM.md"),
-        ("MCP_DATA_INTEGRATION.md", "MCP Data Integration & Rights Review", "docs/research/MCP_DATA_INTEGRATION.md"),
-        ("EXP_001_BASELINE_VS_SCRATCH_TREE.md", "EXP-001 Baseline vs Scratch Tree Report", "docs/research/experiments/EXP_001_BASELINE_VS_SCRATCH_TREE.md"),
-        ("AGILE_BACKLOG.md", "Agile Backlog & Roadmap", "docs/backlog/AGILE_BACKLOG.md"),
-    ]
+    titled = {
+        "README.md": "Platform overview",
+        "docs/ATLAS_MASTER_SPEC.md": "Master product and authority spec",
+        "docs/architecture/EXECUTION_PLAN.md": "Operating plan for this desk",
+        "docs/architecture/CURRENT_STATE.md": "Verified current state",
+        "docs/architecture/TARGET_STATE.md": "Target state",
+        "docs/architecture/DECISIONS.md": "Architectural decisions",
+        "docs/architecture/RESEARCH_OPERATING_CONTRACT.md": "Research operating contract",
+        "docs/architecture/UNIVERSAL_AI_ECOSYSTEM.md": "Universal AI architecture",
+        "docs/architecture/INTEGRATION_MATRIX.md": "Integration matrix",
+        "docs/architecture/ISO_GOVERNANCE_ALIGNMENT.md": "ISO and NIST alignment",
+        "docs/roadmap/range_garden.md": "Range garden",
+        "docs/roadmap/reserve_yield.md": "Reserve sleeve",
+        "docs/roadmap/tab7_whale_signal_decision_matrix.csv": "Whale decision matrix",
+        "docs/roadmap/tab5_whale_order_flow_ml.csv": "Whale order-flow sheet",
+        "docs/roadmap/tab2_track_rules_limits.csv": "Track rules",
+    }
+    paths = [repo_root / "README.md"]
+    docs_root = repo_root / "docs"
+    if docs_root.is_dir():
+        paths.extend(
+            sorted(
+                item
+                for item in docs_root.rglob("*")
+                if item.is_file() and item.suffix.lower() in {".md", ".csv"}
+            )
+        )
     documents = []
-    for doc_id, title, rel_path in doc_paths:
-        full_path = repo_root / rel_path
-        content = full_path.read_text(encoding="utf-8") if full_path.exists() else f"# {title}\nFile not found: {rel_path}"
+    seen: set[str] = set()
+    for full_path in paths:
+        rel_path = full_path.relative_to(repo_root).as_posix()
+        if rel_path in seen or not full_path.is_file():
+            continue
+        seen.add(rel_path)
+        content = full_path.read_text(encoding="utf-8")
         documents.append(
             {
-                "doc_id": doc_id,
-                "title": title,
+                "doc_id": rel_path,
+                "title": titled.get(rel_path, full_path.stem.replace("_", " ")),
                 "path": rel_path,
                 "content": content,
             }
         )
-    return {"documents": documents}
+    return {
+        "documents": documents,
+        "execution_permission": "none",
+    }
 
 
 class OperatorProfilePayload(BaseModel):
@@ -1113,6 +1266,8 @@ def auto_optimize_platform_configurations(symbol: str = "BTC-USD") -> dict[str, 
 
 
 from atlas.lifecycle import UserLifecycleEngine
+from atlas.mcp import MCPFirewall, ToolCallRejectedError
+from atlas.mcp.server import AtlasReadonlyMCPServer
 from atlas.models.perfect_trader_whale import PerfectTraderWhaleEngine
 from atlas.models.whale_policy import WhalePolicyModel, WhalePolicyTrainer
 
@@ -1122,41 +1277,314 @@ _WHALE_POLICY_TRAINER = WhalePolicyTrainer()
 _WHALE_POLICY_MODEL = WhalePolicyModel()
 
 
+def _mcp_provider_pit_candles(symbol: str, max_bars: int) -> list[dict[str, object]]:
+    """Read-only injector: point-in-time candle batch (no mutation, no order surface)."""
+    batch = live_market_gateway.fetch_live_market_candles_and_ingest(
+        symbol=symbol.upper().strip(),
+        granularity=900,
+        limit=max_bars,
+        allow_network=False,
+    )
+    return list(batch.get("candles") or [])
+
+
+def _mcp_provider_microstructure(symbol: str) -> dict[str, object]:
+    """Read-only injector: latest microstructure telemetry snapshot from the live gateway."""
+    return live_market_gateway.latest_microstructure_metrics(symbol=symbol.upper().strip())  # type: ignore[return-value]
+
+
+def _mcp_provider_prop_health(account_id: str | None) -> dict[str, object]:
+    """Read-only injector: prop rulebook remaining-room HUD & kill-switch state."""
+    del account_id  # single active deterministic engine account
+    return control_engine.get_remaining_room_hud(track="competition")  # type: ignore[return-value]
+
+
+_READONLY_MCP_SERVER = AtlasReadonlyMCPServer(
+    provide_point_in_time_candles=_mcp_provider_pit_candles,
+    provide_microstructure_metrics=_mcp_provider_microstructure,
+    provide_prop_account_health=_mcp_provider_prop_health,
+)
+_MCP_EGRESS_FIREWALL = MCPFirewall()
+
+
+@app.get("/api/mcp/tools", include_in_schema=False)
+def mcp_tools_endpoint() -> dict[str, object]:
+    """List the internal read-only MCP tool registry (`execution_permission: none`)."""
+    return {
+        "status": "ok",
+        "tools": list(_READONLY_MCP_SERVER.list_tools()),
+        "firewall_allowlist": _MCP_EGRESS_FIREWALL.allowlist_snapshot(),
+        "execution_permission": "none",
+    }
+
+
+@app.get("/api/mcp/health", include_in_schema=False)
+def mcp_health_endpoint() -> dict[str, object]:
+    """Internal read-only MCP server health & invocation telemetry."""
+    return _READONLY_MCP_SERVER.health_check()
+
+
+@app.post("/api/mcp/invoke", include_in_schema=False)
+def mcp_invoke_endpoint(payload: dict[str, object]) -> dict[str, object]:
+    """Invoke one internal read-only MCP tool. Responses never carry order authority."""
+    body = payload or {}
+    tool_name = str(body.get("tool_name", ""))
+    params = body.get("params") if isinstance(body.get("params"), dict) else {}
+    try:
+        return {"status": "ok", **_READONLY_MCP_SERVER.invoke_tool(tool_name, dict(params))}
+    except ToolCallRejectedError as exc:
+        return {"status": "rejected", "reason": str(exc), "execution_permission": "none"}
+
+
+@app.post("/api/mcp/firewall-check", include_in_schema=False)
+def mcp_firewall_check_endpoint(payload: dict[str, object]) -> dict[str, object]:
+    """Evaluate an (external_server, tool) pair against the external MCP egress firewall."""
+    body = payload or {}
+    server_id = str(body.get("server_id", ""))
+    tool_name = str(body.get("tool_name", ""))
+    verdict = _MCP_EGRESS_FIREWALL.evaluate(server_id, tool_name)
+    return {
+        "status": "ok",
+        "verdict": verdict.model_dump_result(),
+        "execution_permission": "none",
+    }
+
+
 @app.post("/api/ml/whale-policy/train", include_in_schema=False)
 def train_whale_policy_endpoint(payload: dict[str, object] | None = None) -> dict[str, object]:
     """Train WhalePolicyModel via Triple-Barrier targets (+1.5 ATR, -1.0 ATR, 60m) and EXP-001
     purged walk-forward evaluation (5-day embargo; Sharpe > 1.8, MaxDD < 3.2%, Brier < 0.18).
+    Offline training uses the documented deterministic fixture observation series
+    (`data_mode="synthetic_fixture_training"`). The served signal is derived from the labeled
+    candle batch via candle-only causal features — no market state is fabricated.
     """
     global _WHALE_POLICY_MODEL
     body = payload or {}
     symbol = str(body.get("symbol", "BTC-USD")).upper().strip()
+    sym = symbol.upper().strip()
     model, eval_report = _WHALE_POLICY_TRAINER.train_and_evaluate(symbol=symbol)
     _WHALE_POLICY_MODEL = model
-    sig = _WHALE_POLICY_MODEL.predict(symbol=symbol)
+    live_batch = live_market_gateway.fetch_live_market_candles_and_ingest(
+        symbol=sym,
+        granularity=900,
+        limit=24,
+        allow_network=False,
+        demo_fallback=True,
+    )
+    candles = live_batch.get("candles") or []
+    sig = _WHALE_POLICY_MODEL.predict(symbol=sym, candles=candles) if len(candles) >= 4 else None
     return {
         "status": "ok",
         "evaluation_report": eval_report.model_dump(mode="json"),
-        "latest_signal": sig.model_dump(mode="json"),
+        "latest_signal": sig.model_dump(mode="json") if sig is not None else None,
+        "candle_feed_source": live_batch.get("feed_source", "unavailable"),
+        "data_mode": "synthetic_fixture_training",
         "execution_permission": "none",
     }
 
 
 @app.get("/api/ml/whale-policy/predict", include_in_schema=False)
 def predict_whale_policy_endpoint(symbol: str = "BTC-USD") -> dict[str, object]:
-    """Run inference on WhalePolicyModel.predict() and return the air-gapped StrategySignal."""
+    """Run inference on WhalePolicyModel.predict() and return the air-gapped StrategySignal.
+    Signals are derived exclusively from candle-observed causal features; when no live or
+    labeled offline candles are available the endpoint returns `no_observed_market_data`.
+    """
     sym = symbol.upper().strip()
     live_batch = live_market_gateway.fetch_live_market_candles_and_ingest(
         symbol=sym,
         granularity=900,
         limit=24,
         allow_network=False,
+        demo_fallback=True,
     )
-    sig = _WHALE_POLICY_MODEL.predict(symbol=sym, candles=live_batch["candles"])
+    candles = live_batch.get("candles") or []
+    feed_source = live_batch.get("feed_source", "unavailable")
+    if len(candles) < 4:
+        return {
+            "status": "no_observed_market_data",
+            "signal": None,
+            "candle_feed_source": feed_source,
+            "reason": "No point-in-time candles available for causal inference; refusing to fabricate market state",
+            "execution_permission": "none",
+        }
+    sig = _WHALE_POLICY_MODEL.predict(symbol=sym, candles=candles)
     return {
         "status": "ok",
         "signal": sig.model_dump(mode="json"),
+        "candle_feed_source": feed_source,
         "execution_permission": "none",
     }
+
+
+@app.get("/api/ml/chart-read", include_in_schema=False)
+def chart_read_endpoint(symbol: str = "BTC-USD", bucket_seconds: int = 60) -> dict[str, object]:
+    """Score the streamed chart for the active symbol and both books.
+
+    Competition names and open-market names are read in the same call.
+    The result is a research signal only (`execution_permission: none`).
+    """
+    from atlas.models.chart_reader import read_market_charts
+
+    bucket = min(86_400, max(1, int(bucket_seconds)))
+    report = read_market_charts(
+        live_market_gateway,
+        _WHALE_POLICY_MODEL,
+        symbol=symbol,
+        bucket_seconds=bucket,
+        model_for=_model_for_symbol,
+    )
+    report["training"] = _public_training_link()
+    return report
+
+
+_TRACK_MODELS: dict[str, WhalePolicyModel] = {}
+
+
+def _model_for_symbol(symbol: str) -> WhalePolicyModel:
+    from atlas.models.chart_reader import track_for_symbol
+
+    return _TRACK_MODELS.get(track_for_symbol(symbol), _WHALE_POLICY_MODEL)
+
+
+_TRAIN_CADENCE_SECONDS = 900
+_LIVE_TRAIN_STATE: dict[str, object] = {
+    "status": "waiting",
+    "execution_permission": "none",
+    "order_authority": "control_plane_only",
+    "orders_submitted": 0,
+    "autonomous": True,
+    "chart_linked": True,
+    "cadence_seconds": _TRAIN_CADENCE_SECONDS,
+    "cycle": 0,
+    "trained_at": None,
+    "next_fit_at": None,
+    "notice": (
+        "The desk refits both books on its own while this process is running. "
+        "Chart reads use that fit and still cannot send an order."
+    ),
+}
+_LIVE_TRAIN_LOCK = threading.Lock()
+
+
+def _track_counts(rows: object) -> dict[str, int]:
+    if not isinstance(rows, list):
+        return {"symbols": 0, "trained": 0, "public": 0, "fixture": 0}
+    trained = [row for row in rows if isinstance(row, dict) and row.get("status") == "trained"]
+    public = [row for row in trained if row.get("data_mode") == "public_market_candles"]
+    return {
+        "symbols": len(rows),
+        "trained": len(trained),
+        "public": len(public),
+        "fixture": len(trained) - len(public),
+    }
+
+
+def _public_training_link() -> dict[str, object]:
+    """The slice a chart may show. Model objects stay off this payload."""
+    with _LIVE_TRAIN_LOCK:
+        state = dict(_LIVE_TRAIN_STATE)
+    return {
+        "status": state.get("status", "waiting"),
+        "autonomous": state.get("autonomous") is True,
+        "chart_linked": True,
+        "cadence_seconds": _TRAIN_CADENCE_SECONDS,
+        "cycle": int(state.get("cycle") or 0),
+        "trained_at": state.get("trained_at"),
+        "next_fit_at": state.get("next_fit_at"),
+        "path_id": state.get("path_id"),
+        "served_model_id": state.get("served_model_id"),
+        "competition_model_id": state.get("competition_model_id"),
+        "open_market_model_id": state.get("open_market_model_id"),
+        "orders_submitted": 0,
+        "execution_permission": "none",
+        "tracks": {
+            "competition": _track_counts(state.get("competition")),
+            "open_market": _track_counts(state.get("open_market")),
+        },
+        "notice": state.get("notice"),
+    }
+
+
+def _drop_candles(value: object) -> object:
+    if isinstance(value, list):
+        return [_drop_candles(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _drop_candles(item) for key, item in value.items() if key != "candles"}
+    return value
+
+
+def _remember_live_train(result: dict[str, object]) -> dict[str, object]:
+    """Keep the latest fit for chart reads. The stored copy cannot place an order."""
+    global _LIVE_TRAIN_STATE
+    stored = _drop_candles(
+        {
+            key: value
+            for key, value in result.items()
+            if key not in {"served_model", "competition_model", "open_market_model"}
+        }
+    )
+    if not isinstance(stored, dict):
+        stored = {}
+    now = datetime.now(timezone.utc)
+    with _LIVE_TRAIN_LOCK:
+        stored["cycle"] = int(_LIVE_TRAIN_STATE.get("cycle") or 0) + 1
+        stored["autonomous"] = True
+        stored["chart_linked"] = True
+        stored["cadence_seconds"] = _TRAIN_CADENCE_SECONDS
+        stored["orders_submitted"] = 0
+        stored["execution_permission"] = "none"
+        stored["next_fit_at"] = (now + timedelta(seconds=_TRAIN_CADENCE_SECONDS)).isoformat()
+        stored["notice"] = (
+            "The desk refits both books on its own about every 15 minutes. "
+            "Chart reads use the latest fit and still cannot send an order."
+        )
+        _LIVE_TRAIN_STATE = stored
+        return dict(stored)
+
+
+def _pause_live_train(notice: str) -> None:
+    global _LIVE_TRAIN_STATE
+    with _LIVE_TRAIN_LOCK:
+        paused = dict(_LIVE_TRAIN_STATE)
+        paused["autonomous"] = False
+        paused["chart_linked"] = True
+        paused["orders_submitted"] = 0
+        paused["execution_permission"] = "none"
+        paused["notice"] = notice
+        _LIVE_TRAIN_STATE = paused
+
+
+def _run_live_training() -> dict[str, object]:
+    """Fit the air-gapped whale policy on the current desk candles for both books."""
+    global _WHALE_POLICY_MODEL
+    from atlas.models.live_training import train_live_books
+
+    result = train_live_books(
+        live_market_gateway,
+        _WHALE_POLICY_TRAINER,
+        served_model=_WHALE_POLICY_MODEL,
+    )
+    competition_model = result.pop("competition_model", None)
+    open_model = result.pop("open_market_model", None)
+    result.pop("served_model", None)
+    if isinstance(competition_model, WhalePolicyModel):
+        _TRACK_MODELS["competition"] = competition_model
+        _WHALE_POLICY_MODEL = competition_model
+    if isinstance(open_model, WhalePolicyModel):
+        _TRACK_MODELS["open_market"] = open_model
+    return _remember_live_train(result)
+
+
+@app.get("/api/ml/live-train/status", include_in_schema=False)
+def live_train_status() -> dict[str, object]:
+    with _LIVE_TRAIN_LOCK:
+        return dict(_LIVE_TRAIN_STATE)
+
+
+@app.post("/api/ml/live-train", include_in_schema=False)
+def live_train_now() -> dict[str, object]:
+    """Train on the candles currently readable for both tracks. No order is submitted."""
+    return _run_live_training()
 
 
 @app.post("/api/control/ingest-whale-signal", include_in_schema=False)
@@ -1172,8 +1600,27 @@ def ingest_whale_signal_endpoint(payload: dict[str, object] | None = None) -> di
         granularity=900,
         limit=24,
         allow_network=False,
+        demo_fallback=True,
     )
-    sig = _WHALE_POLICY_MODEL.predict(symbol=symbol, candles=live_batch["candles"])
+    candles = live_batch.get("candles") or []
+    if len(candles) < 4:
+        return {
+            "status": "no_observed_market_data",
+            "intake_report": None,
+            "reason": "No point-in-time candles available to build an air-gapped signal; refusing to fabricate market state",
+            "candle_feed_source": live_batch.get("feed_source", "unavailable"),
+            "execution_permission": "none",
+        }
+    sig = _WHALE_POLICY_MODEL.predict(symbol=symbol, candles=candles)
+    if sig.direction == "HOLD":
+        return {
+            "status": "hold_no_order",
+            "intake_report": None,
+            "signal": sig.model_dump(mode="json"),
+            "reason": "Whale policy produced a HOLD (neutral) signal; no order submitted to the control plane",
+            "candle_feed_source": live_batch.get("feed_source", "unavailable"),
+            "execution_permission": "none",
+        }
     conn = CCXTPerpConnector() if symbol.endswith("-USD") else AlpacaEquitiesConnector()
     intake = control_engine.ingest_whale_policy_signal(
         sig,
@@ -1183,6 +1630,7 @@ def ingest_whale_signal_endpoint(payload: dict[str, object] | None = None) -> di
     return {
         "status": "ok",
         "intake_report": intake.model_dump(mode="json"),
+        "candle_feed_source": live_batch.get("feed_source", "unavailable"),
         "execution_permission": "none",
     }
 
@@ -1825,9 +2273,9 @@ def evaluate_whale_order_flow(payload: dict[str, object]) -> dict[str, object]:
         compute_almgren_chriss_schedule,
         compute_hawkes_intensity,
         compute_kyles_lambda,
-        compute_multilevel_ofi,
         compute_predatory_square_root_impact,
         compute_rl_execution_policy,
+        compute_top5_depth_delta_ofi,
         compute_vpin,
     )
 
@@ -1841,7 +2289,7 @@ def evaluate_whale_order_flow(payload: dict[str, object]) -> dict[str, object]:
     pred = compute_predatory_square_root_impact(whale_volume=whale_qty * 25.0, adv=5000000.0, gamma=0.35, side=-1)
     hawkes = compute_hawkes_intensity([0.12, 0.28, 0.51, 0.89, 1.40], mu_0=0.55, alpha=0.92, beta=1.15)
     vpin = compute_vpin([780.0, 840.0, 920.0, 690.0, 960.0], [340.0, 310.0, 390.0, 410.0, 320.0])
-    ofi = compute_multilevel_ofi([310.0, 240.0, 180.0, 130.0, 95.0], [95.0, 110.0, 120.0, 100.0, 85.0])
+    ofi = compute_top5_depth_delta_ofi([310.0, 240.0, 180.0, 130.0, 95.0], [95.0, 110.0, 120.0, 100.0, 85.0])
     kyle = compute_kyles_lambda([0.15, -0.04, 0.22, 0.29, -0.06, 0.36], [95.0, -35.0, 140.0, 180.0, -45.0, 230.0])
     rl = compute_rl_execution_policy(ofi=ofi["ofi_weighted"], spread_bps=1.4, inventory_fraction=0.45)
 
@@ -1975,9 +2423,408 @@ from atlas.strategies import (
     VpinAbsorptionStrategy,
 )
 
-live_market_gateway = LiveMarketDataGateway(ring_buffer_maxlen=10000, control_engine=control_engine)
+live_market_gateway = LiveMarketDataGateway(
+    ring_buffer_maxlen=10000,
+    control_engine=control_engine,
+    demo_mode=True,
+)
+live_market_gateway.public_fetch_enabled = False
 market_stream_broadcaster = register_market_stream_ws(app, live_market_gateway)
+
+from atlas.strategies.range_garden import RangeGardenBook
+
+range_garden_book = RangeGardenBook()
+
+
+@app.get("/api/strategies/reserve-yield", include_in_schema=False)
+def reserve_yield_status() -> dict[str, object]:
+    """Paper target for the reserve sleeve. It does not submit an order."""
+    from atlas.strategies.reserve_yield import build_reserve_plan
+
+    profit = control_engine.total_cumulative_profit_usd
+    distributable = float(profit) if profit > 0 else 0.0
+    plan = build_reserve_plan(distributable_usd=distributable)
+    plan["seed_position_open"] = any(
+        position.position_id == "pos-001" and position.status == "open"
+        for position in control_engine.open_positions
+    )
+    return plan
+
+
+@app.get("/api/strategies/range-garden", include_in_schema=False)
+def range_garden_status() -> dict[str, object]:
+    """Latest paper tender. Signals stay execution_permission none."""
+    return range_garden_book.snapshot()
+
+
+def _pipeline_stage(letter: str, name: str, state: str, detail: str) -> dict[str, object]:
+    return {
+        "id": letter,
+        "name": name,
+        "state": state,
+        "detail": detail,
+        "opens_vendor_socket": False,
+        "execution_permission": "none",
+    }
+
+
+def _route_mounted(prefix: str) -> bool:
+    """True when a path is on the app or on a router included into it."""
+    pending: list[object] = list(app.routes)
+    while pending:
+        route = pending.pop()
+        path = getattr(route, "path", None)
+        if isinstance(path, str) and (path == prefix or path.startswith(prefix)):
+            return True
+        original = getattr(route, "original_router", None)
+        pending.extend(getattr(original, "routes", []) or [])
+    return False
+
+
+@app.get("/api/data/pipelines", include_in_schema=False)
+def data_pipeline_report() -> dict[str, object]:
+    """Stages this process actually has. It does not fetch vendors or submit an order."""
+    from atlas.marketdata.catalog import GLOBAL_ASSET_CATALOG
+    from atlas.marketdata.tradingview import describe_chart
+    from atlas.models.chart_policy import PATH_ID
+    from atlas.models.chart_reader import decide_trade_stance
+    from atlas.warehouse import filter_observations_point_in_time
+
+    counts = GLOBAL_ASSET_CATALOG.universe_counts()
+    pages: list[dict[str, object]] = []
+    try:
+        cached_pages = list(live_market_gateway._public_bars.items())
+    except RuntimeError:
+        cached_pages = []
+    for (symbol, bucket), payload in cached_pages:
+        if not isinstance(payload, dict):
+            continue
+        candles = payload.get("candles") or []
+        pages.append(
+            {
+                "symbol": symbol,
+                "bucket_seconds": bucket,
+                "bars": len(candles) if isinstance(candles, list) else 0,
+                "feed_source": str(payload.get("feed_source") or "unlabeled"),
+            }
+        )
+    pages.sort(key=lambda row: (str(row["symbol"]), int(row["bucket_seconds"])))
+
+    garden = range_garden_book.snapshot()
+    reserve = reserve_yield_status()
+    seed_open = bool(reserve.get("seed_position_open"))
+    chart = describe_chart("BTC-USD", timeframe="1m")
+    widgets = chart.get("widgets") if isinstance(chart.get("widgets"), list) else []
+    widgets_display_only = chart.get("bars_from_tradingview") is False and all(
+        isinstance(pane, dict) and pane.get("feeds_model") is False for pane in widgets
+    )
+    quarantine = _CONNECTORS_STATE.get("irohan0_quant_mcp") or {}
+    quarantine_blocked = quarantine.get("status") == "blocked" and quarantine.get("enabled") is False
+    rulebooks = [
+        str(control_engine.comp_rulebook.rulebook_id),
+        str(control_engine.open_rulebook.rulebook_id),
+    ]
+    udf_mounted = _route_mounted("/api/udf")
+    socket_mounted = _route_mounted("/ws/market-stream")
+    pit_mounted = callable(filter_observations_point_in_time)
+    abstain_mounted = callable(decide_trade_stance)
+
+    if pages:
+        cache_detail = (
+            f"{len(pages)} public candle page(s) already in memory. "
+            + ", ".join(
+                f"{row['symbol']} {row['bucket_seconds']}s {row['bars']} bars {row['feed_source']}"
+                for row in pages[:8]
+            )
+            + ". This report did not fetch."
+        )
+    else:
+        cache_detail = (
+            "No public candle page is cached on this call. A chart read fills the cache. This report does not fetch."
+        )
+
+    connector_rows = [
+        {
+            "connector_id": str(conn.get("connector_id") or ""),
+            "name": str(conn.get("name") or ""),
+            "category": str(conn.get("category") or ""),
+            "record_flag": "blocked" if conn.get("category") == "quarantined" or conn.get("status") == "blocked"
+            else "off" if conn.get("enabled") is False or conn.get("status") == "standby"
+            else "record",
+            "opens_vendor_socket": False,
+            "execution_permission": "none",
+        }
+        for conn in _CONNECTORS_STATE.values()
+    ]
+
+    stages = [
+        _pipeline_stage(
+            "A",
+            "Catalog directory",
+            "ready" if int(counts.get("total_assets", 0)) > 0 else "withheld",
+            (
+                f"{counts.get('total_assets', 0)} fixture rows "
+                f"({counts.get('equities', 0)} equities, {counts.get('crypto_perps', 0)} crypto perps, "
+                f"{counts.get('futures', 0)} futures). Search pages at most 250. "
+                "This is not a verified tradable universe."
+            ),
+        ),
+        _pipeline_stage(
+            "B",
+            "Public candle cache",
+            "watching" if pages else "withheld",
+            cache_detail,
+        ),
+        _pipeline_stage(
+            "C",
+            "Fixture tape",
+            "ready" if live_market_gateway.demo_mode else "watching",
+            "Demo ticks stay data_mode demo. They are not tradeable prints. "
+            "A missed public candle stays labeled_synthetic_fixture.",
+        ),
+        _pipeline_stage(
+            "D",
+            "Point-in-time filter",
+            "ready" if pit_mounted else "withheld",
+            "A bar is visible only after it has closed. The filter is mounted on this process.",
+        ),
+        _pipeline_stage(
+            "E",
+            "Chart read",
+            "ready",
+            "A chart read is research only. execution_permission stays none. This report does not run a read.",
+        ),
+        _pipeline_stage(
+            "F",
+            "Abstain gate",
+            "ready" if abstain_mounted else "withheld",
+            "decide_trade_stance is mounted. A chart read abstains, and may_propose_order stays false.",
+        ),
+        _pipeline_stage(
+            "G",
+            "Range garden",
+            "watching",
+            (
+                f"{garden.get('path_id')} status {garden.get('status')}. "
+                f"Orders submitted {garden.get('orders_submitted')}. "
+                f"Permission {garden.get('execution_permission')}. This report does not run a cycle."
+            ),
+        ),
+        _pipeline_stage(
+            "H",
+            "Reserve sleeve",
+            "withheld" if int(reserve.get("orders_submitted") or 0) == 0 else "watching",
+            (
+                f"Distributable {reserve.get('distributable_usd')}. "
+                f"Orders submitted {reserve.get('orders_submitted')}. "
+                f"{reserve.get('withheld_reason') or 'No withhold reason.'} "
+                f"Seed position open {seed_open}. Permission {reserve.get('execution_permission')}."
+            ),
+        ),
+        _pipeline_stage(
+            "I",
+            "Connector records",
+            "ready" if connector_rows else "withheld",
+            f"{len(connector_rows)} connector records. A test writes an audit line. It does not open a vendor socket.",
+        ),
+        _pipeline_stage(
+            "J",
+            "Quarantine",
+            "blocked" if quarantine_blocked else "withheld",
+            "irohan0/quant-mcp stays blocked. FRED training stays off. The record cannot be enabled.",
+        ),
+        _pipeline_stage(
+            "K",
+            "Causal stump",
+            "ready",
+            f"{PATH_ID} is a causal stump. This report does not fit a model.",
+        ),
+        _pipeline_stage(
+            "L",
+            "UDF",
+            "ready" if udf_mounted else "withheld",
+            "UDF is mounted at /api/udf. The Charting Library script is not bundled. Bars are not scraped from TradingView.",
+        ),
+        _pipeline_stage(
+            "M",
+            "Market socket",
+            "watching" if socket_mounted else "withheld",
+            "The market socket is mounted at /ws/market-stream. Demo frames are not tradeable prints.",
+        ),
+        _pipeline_stage(
+            "N",
+            "Rulebooks",
+            "ready" if len(rulebooks) == 2 else "withheld",
+            "Loaded rulebooks: " + ", ".join(rulebooks) + ".",
+        ),
+        _pipeline_stage(
+            "O",
+            "Trading switch",
+            "blocked",
+            "Trading is disabled on this process. No order can leave from this report.",
+        ),
+        _pipeline_stage(
+            "P",
+            "TradingView widgets",
+            "ready" if widgets_display_only else "withheld",
+            "Widgets are display only. bars_from_tradingview is false. They do not feed the model.",
+        ),
+        _pipeline_stage(
+            "Q",
+            "Warehouse",
+            "ready" if pit_mounted else "withheld",
+            "The warehouse on this process is a point-in-time filter. There is no parquet lake of exchange prints.",
+        ),
+        _pipeline_stage(
+            "R",
+            "Broker session",
+            "blocked",
+            "No Alpaca, IBKR, Databento, or Polygon session is open. Connector modules stay paper simulators.",
+        ),
+    ]
+    return {
+        "notice": "These stages describe this process. Ready means the stage is present here. It is not a vendor session.",
+        "trading": "disabled",
+        "opens_vendor_socket": False,
+        "execution_permission": "none",
+        "seed_position_open": seed_open,
+        "catalog": counts,
+        "public_candle_pages": pages,
+        "range_garden": {
+            "path_id": garden.get("path_id"),
+            "status": garden.get("status"),
+            "orders_submitted": garden.get("orders_submitted"),
+            "execution_permission": garden.get("execution_permission"),
+        },
+        "reserve": {
+            "distributable_usd": reserve.get("distributable_usd"),
+            "orders_submitted": reserve.get("orders_submitted"),
+            "withheld_reason": reserve.get("withheld_reason"),
+            "seed_position_open": seed_open,
+            "execution_permission": reserve.get("execution_permission"),
+        },
+        "connectors": connector_rows,
+        "stages": stages,
+    }
+
+
+@app.post("/api/strategies/range-garden/cycle", include_in_schema=False)
+def range_garden_cycle(x_atlas_role: str | None = Header(default=None)) -> dict[str, object]:
+    """Run one tender on the public tape. Prices in the body are ignored because there is no body."""
+    _reject_forbidden_role(x_atlas_role, "submit_bracket_order")
+    return range_garden_book.run_cycle(control_engine, live_market_gateway)
 bot_orchestrator = BotOrchestrator(control_engine=control_engine)
+
+
+_universe_pump_stop: asyncio.Event | None = None
+
+
+@app.on_event("startup")
+async def start_universe_tick_pump() -> None:
+    """1Hz labeled-demo universe pump so visual consumers stream per-second ticks.
+
+    Every frame carries ``data_mode="demo"`` (never silently presented as observed);
+    real entitled provider feeds attach later via ``LiveMarketDataGateway.run_provider``.
+    """
+    global _universe_pump_stop
+    stop = asyncio.Event()
+    _universe_pump_stop = stop
+    if os.environ.get("PYTEST_CURRENT_TEST") is None and os.environ.get("ATLAS_DISABLE_LIVE_PUBLIC") != "1":
+        live_market_gateway.public_fetch_enabled = True
+
+    async def pump() -> None:
+        while not stop.is_set():
+            try:
+                live_market_gateway.ingest_dual_track_universe_snapshot()
+                live_market_gateway.ingest_watched_catalog_snapshot()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=0.9)
+            except TimeoutError:
+                continue
+
+    task = asyncio.create_task(pump(), name="universe-tick-pump")
+
+    if not live_market_gateway.public_fetch_enabled:
+        _pause_live_train(
+            "Public candle refresh is off in this process, so the desk is not refitting. "
+            "Chart reads still use the loaded book and cannot send an order."
+        )
+
+    async def live_research_cycle() -> None:
+        if not live_market_gateway.public_fetch_enabled:
+            return
+        while not stop.is_set():
+            try:
+                await asyncio.to_thread(live_market_gateway.refresh_public_universe)
+                await asyncio.to_thread(_run_live_training)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=900)
+            except TimeoutError:
+                continue
+
+    research_task = asyncio.create_task(live_research_cycle(), name="live-research-cycle")
+
+    async def range_garden_loop() -> None:
+        if os.environ.get("PYTEST_CURRENT_TEST") is not None or os.environ.get("ATLAS_DISABLE_RANGE_GARDEN") == "1":
+            return
+        if not live_market_gateway.public_fetch_enabled:
+            return
+        while not stop.is_set():
+            try:
+                await asyncio.to_thread(range_garden_book.run_cycle, control_engine, live_market_gateway)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=1.0)
+            except TimeoutError:
+                continue
+
+    garden_task = asyncio.create_task(range_garden_loop(), name="range-garden")
+
+    async def second_tape_loop() -> None:
+        if not live_market_gateway.public_fetch_enabled:
+            return
+        from atlas.marketdata.public_quotes import fetch_public_ticker
+        from atlas.marketdata.second_tape import fold_trade, note_miss, watched_symbols
+
+        while not stop.is_set():
+            for sym in watched_symbols():
+                try:
+                    ticker = await asyncio.to_thread(fetch_public_ticker, sym, 1.0)
+                except Exception:  # noqa: BLE001
+                    ticker = None
+                if ticker:
+                    fold_trade(ticker)
+                else:
+                    note_miss(sym)
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=0.4)
+            except TimeoutError:
+                continue
+
+    tape_task = asyncio.create_task(second_tape_loop(), name="second-tape")
+
+    async def cancel_pump() -> None:
+        stop.set()
+        task.cancel()
+        research_task.cancel()
+        garden_task.cancel()
+        tape_task.cancel()
+        await asyncio.gather(task, research_task, garden_task, tape_task, return_exceptions=True)
+
+    app.state.universe_pump_stop = stop
+    app.state.cancel_universe_pump = cancel_pump
+
+
+@app.on_event("shutdown")
+async def stop_universe_tick_pump() -> None:
+    cancel = getattr(app.state, "cancel_universe_pump", None)
+    if cancel is not None:
+        await cancel()
 
 
 @app.get("/api/rbac/roles", include_in_schema=False)
@@ -2271,10 +3118,13 @@ def get_institutional_measurements_endpoint(symbol: str = "BTC-USD") -> dict[str
         limit=24,
         allow_network=False,
     )
-    return compute_institutional_quantitative_measurements(
+    report = compute_institutional_quantitative_measurements(
         symbol=clean_sym,
         candles=live_batch["candles"],
     )
+    report["candle_feed_source"] = live_batch.get("feed_source", "unlabeled")
+    report["bars_read"] = len(live_batch.get("candles") or [])
+    return report
 
 
 @app.get("/api/backlog/todos", include_in_schema=False)
@@ -2307,7 +3157,11 @@ def post_backlog_todos_verify_endpoint(payload: dict[str, object] | None = None)
 from atlas.strategies.base import StrategySignal
 
 @app.post("/api/control/strategy-signal", include_in_schema=False)
-def process_strategy_signal_endpoint(signal: StrategySignal) -> dict[str, object]:
+def process_strategy_signal_endpoint(
+    signal: StrategySignal,
+    x_atlas_role: str | None = Header(default=None),
+) -> dict[str, object]:
     """Manual intent intake; all sizing and authorization remains in the control plane."""
+    _reject_forbidden_role(x_atlas_role, "submit_bracket_order")
     report = control_engine.process_strategy_signal(signal, float(control_engine.current_equity_usd))
     return report.model_dump(mode="json")

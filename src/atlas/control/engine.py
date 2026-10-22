@@ -365,6 +365,65 @@ class ActionableControlPlaneEngine:
         )
         return self.get_state(ts)
 
+    def close_position(
+        self,
+        position_id: str,
+        *,
+        exit_price: float,
+        fee_usd: Decimal = Decimal("0"),
+        reason: str = "paper_close",
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Book a paper exit for one open position. This is not a venue fill."""
+        ts = now or datetime.now(timezone.utc)
+        rejected = {
+            "status": "rejected",
+            "position_id": position_id,
+            "execution_mode": "paper",
+            "execution_permission": "none",
+        }
+        if not math.isfinite(exit_price) or exit_price <= 0:
+            return {**rejected, "reason": "invalid_exit_price"}
+        if fee_usd < 0:
+            return {**rejected, "reason": "invalid_fee"}
+        pos = next((p for p in self.open_positions if p.position_id == position_id and p.status == "open"), None)
+        if pos is None:
+            return {**rejected, "reason": "position_not_open"}
+        entry: float | None = None
+        for order in reversed(self.order_history):
+            if order.position_id == position_id and order.entry_price:
+                entry = float(order.entry_price)
+                break
+        pnl = Decimal("0")
+        if entry is not None and entry > 0:
+            sign = Decimal("1") if pos.side == "buy" else Decimal("-1")
+            pnl = (Decimal(str((exit_price - entry) / entry)) * pos.notional_usd * sign).quantize(Decimal("0.01"))
+        net = (pnl - fee_usd).quantize(Decimal("0.01"))
+        self.current_equity_usd = (self.current_equity_usd + net).quantize(Decimal("0.01"))
+        if self.current_equity_usd > self.high_water_mark_usd:
+            self.high_water_mark_usd = self.current_equity_usd
+        self.gross_notional_usd = max(Decimal("0"), self.gross_notional_usd - pos.notional_usd)
+        exposure_cut = (pos.notional_usd * Decimal("0.25")).quantize(Decimal("0.01"))
+        self.correlated_exposure_usd = max(Decimal("0"), self.correlated_exposure_usd - exposure_cut)
+        self.sector_exposure_usd = max(Decimal("0"), self.sector_exposure_usd - exposure_cut)
+        self.open_positions = [
+            item.model_copy(update={"status": "closed"}) if item.position_id == position_id else item
+            for item in self.open_positions
+        ]
+        self.audit_log.append(
+            f"{ts.isoformat()} | position_closed | {position_id} | reason={reason} | paper_pnl_usd={net}"
+        )
+        return {
+            "status": "closed",
+            "position_id": position_id,
+            "exit_price": exit_price,
+            "paper_pnl_usd": float(net),
+            "equity_usd": float(self.current_equity_usd),
+            "reason": reason,
+            "execution_mode": "paper",
+            "execution_permission": "none",
+        }
+
     def set_kill_switch(
         self,
         engaged: bool,
@@ -487,6 +546,9 @@ class ActionableControlPlaneEngine:
             "trailing_dd_room_pct": round(trailing_room_pct, 3),
             "daily_drawdown_fraction": round(float(daily_dd_frac), 6),
             "trailing_drawdown_fraction": round(float(trailing_dd_frac), 6),
+            "daily_loss_limit_pct": float(daily_limit_frac * Decimal("100")),
+            "drawdown_limit_pct": float(trailing_limit_frac * Decimal("100")),
+            "drawdown_mode": rulebook.drawdown_mode,
         }
 
     def evaluate_market_tick(
