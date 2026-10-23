@@ -100,3 +100,36 @@ def test_marks_table_and_timescale_marks(fixture_bars) -> None:
         assert mark["time"] in {row[0] for row in fixture_bars}
     crypto = client.get("/api/udf/timescale_marks", params={**params, "symbol": "BTC-USD"}).json()
     assert crypto == []
+
+
+def test_udf_seam_reads_atlas_feed_and_matches_detectors(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """udf_feed_bars reads the authoritative ATLAS feed; UDF history and the detectors still see identical bars."""
+    from atlas.feeds import AtlasFeed, FeedBar, FeedStore
+    from atlas.feeds import feed as feed_mod
+
+    store = FeedStore(tmp_path / "feed.sqlite")
+    rows = _rows(60)
+    now = int(time.time())
+    store.ingest([FeedBar("SPY", "1h", t, o, h, l, c, v, "yahoo", now, True, "SPY") for t, o, h, l, c, v in rows])
+    monkeypatch.setattr(feed_mod, "_DEFAULT", AtlasFeed(store))
+
+    report = udf.udf_feed_bars(None, "SPY", BUCKET)
+    assert report["feed_origin"].startswith("atlas_feed:yahoo")
+    assert [c["close"] for c in report["candles"]] == [r[4] for r in rows]
+
+    client = TestClient(app)
+    hist = client.get("/api/udf/history", params={"symbol": "SPY", "resolution": "60", "from": 0, "to": now + 1}).json()
+    setups = client.get("/api/quant/setups", params={"symbol": "SPY", "resolution": "60"}).json()
+    assert hist["s"] == "ok"
+    assert [list(r) for r in zip(hist["t"], hist["o"], hist["h"], hist["l"], hist["c"], hist["v"])] == setups["bars"]
+    assert hist["t"] == [r[0] for r in rows]
+
+
+def test_udf_seam_falls_back_when_feed_has_no_series(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    from atlas.feeds import AtlasFeed, FeedStore
+    from atlas.feeds import feed as feed_mod
+
+    monkeypatch.setattr(feed_mod, "_DEFAULT", AtlasFeed(FeedStore(tmp_path / "empty.sqlite")))
+    monkeypatch.setattr(udf, "project_symbol_bars", lambda *a, **k: {"candles": [], "feed_origin": "warehouse"})
+    report = udf.udf_feed_bars(None, "SPY", BUCKET)
+    assert report["feed_origin"].startswith("legacy_projection") and report["candles"] == []

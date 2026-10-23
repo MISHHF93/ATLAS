@@ -40,4 +40,66 @@ class YahooAdapter(ProviderAdapter):
             if None in vals:
                 continue
             out.append(self._bar(instrument, interval, t, *vals, q["volume"][i] or 0, now))
-        return out
+        return clean_intraday(out, interval, getattr(self, "session_hint", None) or _session_for(instrument), self.artifacts)
+
+    @property
+    def artifacts(self) -> list:
+        if not hasattr(self, "_artifacts"):
+            self._artifacts = []
+        return self._artifacts
+
+
+def _session_for(instrument: str) -> str:
+    from ..instruments import InstrumentMaster
+    master = InstrumentMaster()
+    return master.get(instrument).session if instrument in master else "24x7"
+
+
+def clean_intraday(bars: list, interval: str, session: str, artifacts: list | None = None) -> list:
+    """Yahoo intraday artifacts.
+
+    1. Synthetic close bar: for US equities Yahoo appends a bar starting at the session close (16:00 ET, or the early
+       close) with volume 0 and open == high == low == close. It is not a traded bar, so it is dropped.
+    2. :30-offset bars: on hour-aligned sessions (24x7 crypto, FX, futures) Yahoo can return 60m bars starting at :30.
+       They are normalised by moving the start FORWARD to the next grid boundary. This never moves a bar earlier, so it
+       cannot create lookahead. Each one is recorded in ``artifacts``. Bars that are still off-grid (for example on RTH,
+       whose grid anchors at 09:30 ET) are kept unchanged, and quality.assess flags them ``off_grid_bar`` so predict()
+       abstains.
+    """
+    from dataclasses import replace
+    from ..core import INTERVALS
+    from ..quality import on_grid
+    log = artifacts if artifacts is not None else []
+    step = INTERVALS[interval]
+    if step >= 86400:
+        return bars
+    out, seen = [], set()
+    for b in bars:
+        flat = b.open == b.high == b.low == b.close and not b.volume
+        if flat and session == "us_equity_rth" and _is_rth_close(b.event_time):
+            log.append({"artifact": "synthetic_close_bar", "event_time": b.event_time, "action": "dropped"})
+            continue
+        if interval == "1h" and session != "us_equity_rth" and b.event_time % step == step // 2:
+            t = b.event_time + step // 2
+            log.append({"artifact": "half_hour_offset", "event_time": b.event_time, "action": f"normalized_to_{t}"})
+            b = replace(b, event_time=t, confirmed=b.confirmed and t + step <= b.receipt_time)
+        elif not on_grid(b.event_time, session, interval):
+            log.append({"artifact": "off_grid", "event_time": b.event_time, "action": "flagged"})
+        if b.event_time in seen:
+            log.append({"artifact": "duplicate_after_normalize", "event_time": b.event_time, "action": "dropped"})
+            continue
+        seen.add(b.event_time)
+        out.append(b)
+    return out
+
+
+def _is_rth_close(t: int) -> bool:
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    try:
+        from atlas.marketdata.pit.calendars import session_close
+        d = datetime.fromtimestamp(t, ZoneInfo("America/New_York")).date()
+        return int(session_close("XNYS", d).timestamp()) == t
+    except Exception:  # calendar unavailable or not a session day
+        ny = datetime.fromtimestamp(t, ZoneInfo("America/New_York"))
+        return (ny.hour, ny.minute) == (16, 0)

@@ -12,6 +12,24 @@ FLAG_UNCONFIRMED = "unconfirmed_last_bar"
 FLAG_DISAGREE = "provider_disagreement"
 FLAG_EMPTY = "no_data"
 FLAG_INVALID = "invalid_bar"
+FLAG_OFF_GRID = "off_grid_bar"
+
+
+def _rth_open(t: int) -> int:
+    from zoneinfo import ZoneInfo
+    ny = ZoneInfo("America/New_York")
+    d = datetime.fromtimestamp(t, ny)
+    return int(datetime(d.year, d.month, d.day, 9, 30, tzinfo=ny).timestamp())
+
+
+def on_grid(t: int, session: str, interval: str) -> bool:
+    """True if a bar start sits on the session's bar grid (RTH intraday bars anchor at 09:30 ET; others at UTC multiples)."""
+    step = INTERVALS[interval]
+    if step >= 86400:
+        return True
+    if session == "us_equity_rth":
+        return (t - _rth_open(t)) % step == 0
+    return t % step == 0
 
 
 def expected_starts(session: str, interval: str, start: int, end: int) -> list[int]:
@@ -92,6 +110,8 @@ def assess(bars: list[FeedBar], session: str, interval: str, now: int, lookback_
         flags.append(FLAG_UNCONFIRMED)
     if any(not b.valid() for b in bars[-lookback_bars:]):
         flags.append(FLAG_INVALID)
+    if any(not on_grid(b.event_time, session, interval) for b in bars[-lookback_bars:]):
+        flags.append(FLAG_OFF_GRID)
     dis = None
     if cross:
         ref = {b.event_time: b.close for b in cross}

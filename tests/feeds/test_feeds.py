@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import urllib.parse
+from dataclasses import replace
 
 import pytest
 
@@ -345,3 +346,44 @@ def test_tradier_quota_violation_400_is_retried_as_rate_limit():
     with pytest.raises(ProviderError) as ei:
         a.get_json("https://sandbox.tradier.com/v1/markets/timesales", {})
     assert ei.value.retryable and a.health().rate_limited >= 2 and len(http.calls) > 1
+
+
+# ---- Yahoo 1h artifacts --------------------------------------------------------------------------------------------
+def _ny(h, m, day=21):
+    from zoneinfo import ZoneInfo
+    from datetime import datetime as _dt
+    return int(_dt(2026, 10, day, h, m, tzinfo=ZoneInfo("America/New_York")).timestamp())
+
+
+def test_yahoo_1h_drops_synthetic_close_bar_and_keeps_rth_grid():
+    ts = [_ny(9, 30), _ny(10, 30), _ny(15, 30), _ny(16, 0)]
+    body = {"chart": {"result": [{"timestamp": ts, "indicators": {"quote": [{
+        "open": [1, 2, 3, 3.5], "high": [2, 3, 4, 3.5], "low": [0.5, 1, 2, 3.5], "close": [2, 3, 3.5, 3.5],
+        "volume": [10, 10, 10, 0]}]}}]}}
+    yh = YahooAdapter(transport=FakeHTTP({"yahoo": [(200, {}, body)]}), env={}, clock=lambda: _ny(12, 0, 22),
+                      sleep=lambda s: None, limiter=RateLimiter(1000, sleep=lambda s: None))
+    bars = yh.history("SPY", "1h", ts[0], ts[-1] + 3600)
+    assert [b.event_time for b in bars] == ts[:3]                      # 16:00 flat zero-volume bar dropped
+    assert yh.artifacts[0]["artifact"] == "synthetic_close_bar"
+    from atlas.feeds.quality import FLAG_OFF_GRID, assess
+    assert FLAG_OFF_GRID not in assess(bars, "us_equity_rth", "1h", _ny(16, 30)).flags   # :30 is the RTH grid
+    # a traded 16:00 bar (volume > 0) is real and is not dropped
+    from atlas.feeds.providers.yahoo import clean_intraday
+    real = replace(bars[-1], event_time=ts[3], volume=5)
+    assert clean_intraday([real], "1h", "us_equity_rth") == [real]
+
+
+def test_yahoo_1h_half_hour_offset_normalized_forward_and_off_grid_flagged():
+    from atlas.feeds.providers.yahoo import clean_intraday
+    from atlas.feeds.quality import FLAG_OFF_GRID, assess, on_grid
+    base = 1_790_006_400                                               # hour-aligned UTC
+    assert base % 3600 == 0
+    mkbar = lambda t: FeedBar("BTCUSDT", "1h", t, 1, 2, 0.5, 1.5, 3, "yahoo", base + 10 * 3600, True, "BTC-USD")
+    log = []
+    out = clean_intraday([mkbar(base - 1800), mkbar(base + 1800)], "1h", "24x7", log)
+    assert [b.event_time for b in out] == [base, base + 3600]           # moved forward, never earlier
+    assert all(a["artifact"] == "half_hour_offset" for a in log)
+    # hour-aligned bars on the RTH (09:30-anchored) grid are kept but flagged so predict() abstains
+    off = [replace(mkbar(_ny(10, 0)), instrument="SPY")]
+    assert not on_grid(off[0].event_time, "us_equity_rth", "1h")
+    assert FLAG_OFF_GRID in assess(off, "us_equity_rth", "1h", _ny(11, 30)).flags

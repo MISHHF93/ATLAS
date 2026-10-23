@@ -91,14 +91,53 @@ def causal_bars(
     return [(int(t), float(o), float(h), float(l), float(c), float(v)) for t, o, h, l, c, v in found]
 
 
-def udf_feed_bars(gateway: Any, symbol: str, bucket_seconds: int) -> dict[str, Any]:
-    """Single seam between the UDF router and ATLAS's bar source.
+FEED_INTERVALS = {60: "1m", 300: "5m", 900: "15m", 3600: "1h", 14400: "4h", 86400: "1d"}
+# Desk symbols -> ATLAS feed instrument ids. BTC-USD/ETH-USD map to the USDT spot series the feed carries (labelled).
+FEED_ALIASES = {"BTC-USD": "BTCUSDT", "ETH-USD": "ETHUSDT", "BTCUSD": "BTCUSDT", "ETHUSD": "ETHUSDT", "EURUSD": "EUR_USD"}
+UDF_LIMIT = 240
 
-    Today this reads the existing data layer (project_symbol_bars / causal_bars).
-    When the authoritative ATLAS feed API lands, only this function changes;
-    it must keep returning {"candles": [{timestamp, open, high, low, close, volume}], ...}.
+
+def _feed() -> Any | None:
+    """The process-wide ATLAS feed, or None when no store exists yet (never creates var/ files on read)."""
+    import os
+    from atlas.feeds import feed as feed_mod
+    if feed_mod._DEFAULT is not None:
+        return feed_mod._DEFAULT
+    if not os.path.exists(feed_mod.DEFAULT_STORE):
+        return None
+    return feed_mod.get_feed()
+
+
+def udf_feed_bars(gateway: Any, symbol: str, bucket_seconds: int) -> dict[str, Any]:
+    """Single seam between the UDF router / detectors and ATLAS's bar source.
+
+    Reads the authoritative ATLAS feed (``atlas.feeds``): confirmed bars only, known at ``now``. When the feed has no
+    series for this symbol/interval (store not backfilled yet, or an instrument the feed does not carry) it falls back
+    to the legacy projection and says so in ``feed_origin``. Returns {"candles": [{timestamp, open, high, low, close,
+    volume}], "feed_origin", "quality_flags"}. /api/udf/history and /api/quant/setups both call this, so they always
+    see the same bars.
     """
-    return project_symbol_bars(gateway, symbol, bucket_seconds=bucket_seconds, limit=240)
+    interval = FEED_INTERVALS.get(int(bucket_seconds))
+    instrument = FEED_ALIASES.get(symbol.upper(), symbol.upper())
+    feed = _feed() if interval else None
+    if feed is not None and instrument in feed.instruments:
+        now = int(datetime.now(timezone.utc).timestamp())
+        bars = feed.bars(instrument, interval, now - UDF_LIMIT * int(bucket_seconds) * 2, now + 1, as_of=now)[-UDF_LIMIT:]
+        if bars:
+            providers = sorted({b.provider for b in bars})
+            return {
+                "candles": [
+                    {"timestamp": datetime.fromtimestamp(b.event_time, timezone.utc).isoformat(), "open": b.open, "high": b.high,
+                     "low": b.low, "close": b.close, "volume": b.volume}
+                    for b in bars
+                ],
+                "feed_origin": "atlas_feed:" + "+".join(providers) + ("" if instrument == symbol.upper() else f" ({instrument})"),
+                "quality_flags": list(feed.quality_flags(instrument, interval, now)),
+                "instrument": instrument,
+            }
+    report = dict(project_symbol_bars(gateway, symbol, bucket_seconds=bucket_seconds, limit=UDF_LIMIT))
+    report["feed_origin"] = f"legacy_projection (ATLAS feed has no {instrument} {interval or bucket_seconds} series): " + str(report.get("feed_origin", "unknown"))
+    return report
 
 
 def _projected_rows(gateway: Any, symbol: str, bucket_seconds: int) -> tuple[list[tuple[int, float, float, float, float, float]], dict[str, Any]]:
