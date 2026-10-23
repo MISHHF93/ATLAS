@@ -1,0 +1,3 @@
+{"earningsCalendar":[{"date":"2026-10-20","epsActual":1.25,"epsEstimate":1.2,"hour":"amc","quarter":3,"revenueActual":null,"revenueEstimate":null,"symbol":"AAA","year":2026},
+                     {"date":"2026-10-21","epsActual":null,"epsEstimate":0.8,"hour":"bmo","quarter":3,"symbol":"BBB","year":2026},
+                     {"date":"2026-10-22","epsActual":null,"epsEstimate":0.5,"hour":"","quarter":3,"symbol":"CCC","year":2026}]}

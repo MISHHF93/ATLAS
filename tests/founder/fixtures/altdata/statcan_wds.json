@@ -1,0 +1,1 @@
+[{"status":"SUCCESS","object":{"vectorId":41690973,"vectorDataPoint":[{"refPer":"2026-08-01","value":"163.2","releaseTime":"2026-09-16T08:30","scalarFactorCode":0},{"refPer":"2026-09-01","value":"163.9","releaseTime":"2026-10-21T08:30","scalarFactorCode":0}]}},{"status":"FAILED","object":"invalid vector"}]

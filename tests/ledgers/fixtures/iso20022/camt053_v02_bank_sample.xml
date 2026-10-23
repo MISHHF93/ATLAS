@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC test fixture in the shape of a bank-delivered camt.053.001.02 (older version still common); no real data -->
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+  <BkToCstmrStmt>
+    <GrpHdr><MsgId>BANKSTMT20261014</MsgId><CreDtTm>2026-10-15T06:00:00</CreDtTm></GrpHdr>
+    <Stmt>
+      <Id>STMT-1</Id><CreDtTm>2026-10-15T06:00:00</CreDtTm>
+      <Acct><Id><Othr><Id>001-00011-9988776</Id></Othr></Id><Ccy>CAD</Ccy></Acct>
+      <Bal><Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp><Amt Ccy="CAD">1000.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-14</Dt></Dt></Bal>
+      <Bal><Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp><Amt Ccy="CAD">26750.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-14</Dt></Dt></Bal>
+      <Ntry>
+        <Amt Ccy="CAD">25000.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-10-14</Dt></BookgDt><ValDt><Dt>2026-10-14</Dt></ValDt><AcctSvcrRef>BK123</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>RCDT</Cd><SubFmlyCd>DMCT</SubFmlyCd></Fmly></Domn></BkTxCd>
+        <NtryDtls><TxDtls><Refs><EndToEndId>NOTPROVIDED</EndToEndId></Refs>
+          <RltdPties><Dbtr><Nm>NORTHWIND HOLDINGS</Nm></Dbtr></RltdPties>
+          <RmtInf><Ustrd>SUB-0A1B2C3D subscription</Ustrd></RmtInf></TxDtls></NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CAD">750.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-10-14</Dt></BookgDt><ValDt><Dt>2026-10-15</Dt></ValDt><AcctSvcrRef>BK124</AcctSvcrRef>
+        <BkTxCd><Prtry><Cd>WIRE-IN</Cd></Prtry></BkTxCd>
+        <AddtlNtryInf>INCOMING WIRE NO REFERENCE</AddtlNtryInf>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>
