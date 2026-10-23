@@ -154,6 +154,10 @@ class ActionableControlPlaneEngine:
             max_holding_seconds=86400,
             forbid_funding_window_entry=False,
         )
+        # Founder's own capital: owner policy 2% daily-loss Safe stop (see atlas.control.founder_track).
+        from atlas.control.founder_track import build_founder_rulebook
+
+        self.founder_rulebook = build_founder_rulebook()
         self.active_track: Literal["competition", "open_market"] = "competition"
         self.kill_switch_engaged: bool = False
         self.initial_equity_usd = Decimal("100000")

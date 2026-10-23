@@ -38,6 +38,7 @@ from atlas.models.schemas import Capability, MarketDataRequest
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from atlas.api.founder import router as founder_router
 from atlas.market.fixtures import candle_page
 from atlas.market.schemas import CandlePage
 
@@ -56,6 +57,7 @@ app.add_middleware(
 app.include_router(catalog_router)
 app.include_router(udf_router)
 app.include_router(vertical_slice_router)
+app.include_router(founder_router)
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",
@@ -290,6 +292,7 @@ def list_rulebooks() -> dict[str, object]:
         "notice": "These are the loaded paper rulebooks. This response does not edit them and does not send an order.",
         "open_market": _rulebook_view(control_engine.open_rulebook),
         "competition": _rulebook_view(control_engine.comp_rulebook),
+        "founder_capital": _rulebook_view(control_engine.founder_rulebook),
     }
 
 
