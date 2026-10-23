@@ -24,17 +24,13 @@ The row-by-row status matrix is the root workbook `ATLAS Platform Master Roadmap
 | [spec/evidence/technique-selector-2026-10-23.md](spec/evidence/technique-selector-2026-10-23.md) (+ `.json`) | 15m selector and range-break hypothesis. **The selector failed, and the claim is unproven** | yes |
 | [api-and-mcp.md](api-and-mcp.md) | API keys, paper autopilot routes, localhost MCP endpoint | yes |
 | [reshape-decisions.md](reshape-decisions.md) | IA decisions (6 sections, one Safe stop, 410 Gone) and the **founder max holding of 1 day (owner, 2026-10-23)** | yes |
-| [ux-audit.md](ux-audit.md) | Frontend UX audit and overhaul (tokens, AppShell, route registry) | yes. The curtain nav that replaces the sidebar is in progress on `atlas-ux-2` |
+| [ux-audit.md](ux-audit.md) | Frontend UX audit and overhaul (tokens, AppShell, route registry) | yes. The curtain nav that replaces the sidebar is merged |
 | [broken-code-audit.md](broken-code-audit.md) | Import, route and crawl audit with fixes | yes. Its final count (1310) is the count at audit time; the current count is noted |
 | [lola-port-plan.md](lola-port-plan.md) | Lola → ATLAS port: founder capital track, 2% Safe stop, tax, ledgers | yes |
 
 ## Work in progress (not on main)
 
-| Area | Branch | Notes |
-|---|---|---|
-| Curtain navigation, functional console UI (autopilot, Safe stop, API keys, approvals, evidence), responsive grids | `atlas-ux-2` | The branch is 9 commits ahead of main. |
-| TradingView widgets, UDF and Lightweight Charts | `atlas-tv-1` | The branch had no commits ahead of main when checked. Main already has `api/udf.py` and `marketdata/tradingview.py`. |
-| One authoritative ATLAS feed and provider adapter library | `atlas-feeds-1` | The branch had no commits ahead of main when checked. Main uses public Yahoo, Binance and Coinbase bars. |
+None. `atlas-ux-2`, `atlas-tv-1`, `atlas-feeds-1` and `atlas-docs-1` were merged into main on 2026-10-23. The UDF seam (`udf_feed_bars()`) now reads the ATLAS feed. Yahoo 1h artifacts are filtered: the synthetic 16:00 bar is dropped, and :30 offsets are normalised forward or flagged `off_grid_bar`. Safe stop release is CLI-only (`atlas-owner reset` with step-up), and HTTP release returns 403.
 
 ## Product and architecture (background; older wording)
 

@@ -145,9 +145,10 @@ API-only surfaces:
 | API keys and localhost MCP endpoint | Implemented+tested | `keys/api_keys.py`, `api/agent.py` |
 | Shadow-week collector | Implemented+tested (no live weeks yet) | `models/shadow.py` |
 | Economic event ranges | Blocked: interface only, no data feed | `price_action/events.py` |
-| Curtain navigation, functional console UI, responsive grids | **In progress** (branch `atlas-ux-2`) | not on main |
+| Curtain navigation, functional console UI, responsive grids | Implemented+tested (merged) | `frontend/src/components/shell/`, [docs/ux-audit.md](docs/ux-audit.md) |
 | One authoritative feed and provider adapter library | Implemented+tested (paper; keyless providers live, keyed adapters fixture-tested) | `src/atlas/feeds/`, [docs/data-feeds.md](docs/data-feeds.md) |
-| TradingView widgets, UDF and Lightweight Charts | **In progress** (branch `atlas-tv-1`) | not on main |
+| TradingView widgets, UDF and Lightweight Charts | Implemented+tested (merged; UDF reads the ATLAS feed, labelled legacy fallback) | `api/udf.py`, [docs/tradingview-integration.md](docs/tradingview-integration.md) |
+| Safe stop release | CLI-only with owner step-up (`atlas-owner reset`); HTTP release returns 403 | `api/app.py`, `control/owner_cli.py` |
 | Live trading and live money | Blocked by design | `risk_policy.yaml` |
 
 The row-by-row matrix (A–Z subsystems, track rules, pages, SaaS verticals, order-flow models, domains and decision matrix, each with a status, evidence and a changelog) is the root workbook **`ATLAS Platform Master Roadmap & Technical Specifications (A-Z).xlsx`**, last verified 2026-10-23.
