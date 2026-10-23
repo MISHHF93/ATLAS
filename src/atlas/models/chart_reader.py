@@ -510,7 +510,10 @@ def read_symbol_chart(
         if tape.get("chart_source") == "withheld" and tape.get("notice"):
             observation["notice"] = tape["notice"]
         candles = observation.pop("candles")
-        valid = observation["status"] in {"warming_up", "learning"}
+        age = observation.get("feed_age_seconds")
+        # Learning may be paused (no recorded data-use permission) while the real tape is still fresh and displayable.
+        valid = observation["status"] in {"warming_up", "learning"} or (
+            observation["status"] == "paused" and bool(candles) and age is not None and age <= 30)
         return {
             "symbol": sym, "track": track_for_symbol(sym), "bucket_seconds": 1,
             "chart_source": "public_last_trade" if valid else "withheld",
