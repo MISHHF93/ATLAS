@@ -3,7 +3,7 @@ import { MoneyView } from "../../src/components/founder/views";
 
 export default function Page() {
   return (
-    <FounderShell title="Money" summary="Founder P&amp;L, equity and drawdown, loss limits and the non-custodial ledgers.">
+    <FounderShell eyebrow="Money" title="Money overview" summary="Paper P&amp;L, room left before Safe stop, equity and drawdown, and the non-custodial ledgers.">
       <MoneyView />
     </FounderShell>
   );

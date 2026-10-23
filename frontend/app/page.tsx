@@ -1,10 +1,5 @@
-import { RoleProvider } from "../src/context/RoleContext";
-import { StreamlinedTradingStudio } from "../src/components/workbench/StreamlinedTradingStudio";
+import { Overview } from "../src/ui/pages/Overview";
 
 export default function Page() {
-  return (
-    <RoleProvider>
-      <StreamlinedTradingStudio />
-    </RoleProvider>
-  );
+  return <Overview />;
 }

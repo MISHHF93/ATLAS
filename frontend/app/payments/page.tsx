@@ -3,7 +3,7 @@ import { PaymentsView } from "../../src/components/founder/views";
 
 export default function Page() {
   return (
-    <FounderShell title="Payments" summary="Transfers, payees and manual transfer prep with two-person approval.">
+    <FounderShell eyebrow="Money" title="Payments" summary="Transfers, payees and manual transfer prep with two-person approval.">
       <PaymentsView />
     </FounderShell>
   );

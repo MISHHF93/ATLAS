@@ -1,18 +1,22 @@
 import type { ReactNode } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "../src/ui/tokens.css";
+import { AppShell } from "../src/ui/AppShell";
 
 export const metadata: Metadata = {
-  title: "ATLAS | Autonomous Trading, Liquidity, Allocation & Strategy Intelligence",
-  description:
-    "Paper research desk for competition and open-market books. Charts from TradingView. Orders stay with the control plane.",
+  title: "ATLAS",
+  description: "ATLAS: Canadian quant trading intelligence. Paper trading only; orders stay with the control plane.",
   applicationName: "ATLAS",
 };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0D1117" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en-CA" data-theme="dark" suppressHydrationWarning>
+      <body>
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }

@@ -8,7 +8,6 @@ import {
   type ClientRoleId,
 } from "../../context/RoleContext";
 import { AtlasLogo } from "../shell/AtlasLogo";
-import { AppNav } from "../shell/AppNav";
 import { AssetMarkLegend, GuideIcon, markColor, markForSymbol } from "../shell/guideIcons";
 import { type LiveCandlePoint } from "./LiveChartEngine";
 import { TradingViewStockInfo } from "./TradingViewChart";
@@ -455,7 +454,6 @@ function Module02InnerWorkbench() {
 
   return (
     <div className="institutional-shell">
-      <AppNav />
       {/* Persistent Top Command Header */}
       <header className="clean-top-bar">
         <div className="clean-brand">
@@ -507,7 +505,7 @@ function Module02InnerWorkbench() {
               });
             }}
           >
-            {killSwitchEngaged ? "Resume paper trading" : "Halt paper trading"}
+            {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
           </button>
         </div>
       </header>

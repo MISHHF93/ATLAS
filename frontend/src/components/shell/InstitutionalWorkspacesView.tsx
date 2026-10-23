@@ -1646,7 +1646,7 @@ export function InstitutionalWorkspacesView({
             title={killSwitchEngaged ? "Turn the paper desk back on." : "Turn the paper desk off. New orders stop."}
             onClick={() => void onToggleKillSwitch()}
           >
-            {killSwitchEngaged ? "Resume paper trading" : "Halt paper trading"}
+            {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
           </button>
         </div>
       </header>

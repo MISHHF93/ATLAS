@@ -60,6 +60,14 @@ def reset_cache() -> None:
         _APIS.clear()
 
 
+@router.get("/status")
+def status() -> dict[str, Any]:
+    """Lets the UI show an empty state instead of probing views that 404 when nothing is seeded."""
+    var = founder_var()
+    return {"available": (var / "state.sqlite").exists(), "demo": (var / "DEMO_DATA_MARKER").exists(),
+            "hint": f"atlas-console seed-demo --var {var}", "execution_permission": "none", "trading": "paper_only"}
+
+
 @router.get("/{area}/{name}")
 def read(area: str, name: str, id: str | None = None, status: str | None = None) -> dict[str, Any]:  # noqa: A002
     if name not in READS.get(area, ()):

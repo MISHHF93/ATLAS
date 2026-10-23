@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TradingViewChart } from "../src/components/market/TradingViewChart";
-import { AppNav } from "../src/components/shell/AppNav";
 import { ATLAS_TAGLINE, AtlasLogo } from "../src/components/shell/AtlasLogo";
 import { InstitutionalWorkspacesView, type SubPageRouteId } from "../src/components/shell/InstitutionalWorkspacesView";
 
@@ -3058,7 +3057,7 @@ export function AtlasTerminal({
       // Local deterministic execution
     }
     setReadinessSummary(
-      `Research Challenger Ready: PASS | Capital Pathway Prereqs: ${challengerApproved && !killSwitchEngaged ? "MET (All Master-Spec Gates Verified)" : "PENDING (Requires Challenger Approval & Standby Kill Switch)"}`
+      `Research Challenger Ready: PASS | Capital Pathway Prereqs: ${challengerApproved && !killSwitchEngaged ? "MET (All Master-Spec Gates Verified)" : "PENDING (Requires Challenger Approval & Safe stop not active)"}`
     );
     setAuditLog((prev) => [...prev, `${new Date().toISOString()} | readiness_audit_completed | challenger_ready=True`]);
   }
@@ -3390,7 +3389,7 @@ export function AtlasTerminal({
       tag: "DATA WAREHOUSE & LAKEHOUSE",
       title: "Google Cloud BigQuery Analytics Hub, DuckDB PIT Lakehouse & Market APIs",
     },
-    rules: { tag: "EXECUTION & RISK ENGINE", title: "Deterministic Order Authorization, Drawdown Gauges & Kill Switch" },
+    rules: { tag: "EXECUTION & RISK ENGINE", title: "Deterministic Order Authorization, Drawdown Gauges & Safe stop" },
     governance: { tag: "INSTITUTIONAL GOVERNANCE", title: "9 Readiness Gates, 8 Non-Custodial Ledgers & ISO/NIST Alignment" },
     research: { tag: "AI & QUANT SYNTHESIS", title: "Multi-Model Forecast Surface, Calibration & Gemini Continuous Node" },
     experiments: { tag: "EVALUATION & BACKTEST LAB", title: "Purged Walk-Forward Lab, Paper Simulation & Horizon Comparison" },
@@ -3470,7 +3469,6 @@ export function AtlasTerminal({
 
   return (
     <div className="atlas-app" data-theme={theme}>
-      <AppNav />
       {/* ====================================================================
           LEFT INSTITUTIONAL NAVIGATION RAIL (ICON-DRIVEN DOMAIN WORKBUNDLES)
          ==================================================================== */}
@@ -3751,7 +3749,7 @@ export function AtlasTerminal({
             <span>Control Plane</span>
             <span className="status-dot-wrap">
               <span className={`status-dot ${killSwitchEngaged ? "danger" : ""}`} />
-              {killSwitchEngaged ? "KILL SWITCH" : "ACTIVE"}
+              {killSwitchEngaged ? "SAFE STOP" : "ACTIVE"}
             </span>
           </div>
           <div className="sidebar-status-row">
@@ -3792,7 +3790,7 @@ export function AtlasTerminal({
               <span className="ribbon-val amber">EXECUTION_PERMISSION=NONE</span>
             </span>
             <span className="ribbon-item">
-              <span className="ribbon-key">KILL SWITCH:</span>
+              <span className="ribbon-key">SAFE STOP:</span>
               <span className={`ribbon-val ${killSwitchEngaged ? "danger" : "emerald"}`}>
                 {killSwitchEngaged ? "ENGAGED" : "STANDBY"}
               </span>
@@ -3947,7 +3945,7 @@ export function AtlasTerminal({
         </div>
 
         <div className={`atlas-body-split ${dockOpen ? "" : "dock-closed"}`}>
-          <main className="atlas-workspace">
+          <div className="atlas-workspace">
           {/* ================================================================
               INSTITUTIONAL 4-WORKSPACE COMMAND SHELL & 15 SUB-ROUTES
              ================================================================ */}
@@ -4087,7 +4085,7 @@ export function AtlasTerminal({
                     disabled={role !== "founder_admin"}
                     onClick={handleToggleKillSwitch}
                   >
-                    {killSwitchEngaged ? "Reset Kill Switch" : "Engage Emergency Kill Switch"}
+                    {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
                   </button>
                 </div>
               </div>
@@ -5931,7 +5929,7 @@ export function AtlasTerminal({
                   <div className="kpi-top">
                     <span className="kpi-label">Deterministic Prop Risk Gate</span>
                     <span className={`badge ${killSwitchEngaged ? "badge-danger" : "badge-emerald"}`}>
-                      {killSwitchEngaged ? "KILL SWITCH HALT" : "COMPLIANT"}
+                      {killSwitchEngaged ? "SAFE STOP ACTIVE" : "COMPLIANT"}
                     </span>
                   </div>
                   <div className="kpi-value">
@@ -6377,7 +6375,7 @@ export function AtlasTerminal({
                             disabled={role !== "founder_admin"}
                             onClick={handleToggleKillSwitch}
                           >
-                            {killSwitchEngaged ? "Reset Kill Switch" : "Engage Kill Switch"}
+                            {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
                           </button>
                         </div>
                       </div>
@@ -6953,7 +6951,7 @@ export function AtlasTerminal({
                   <div className="kpi-top">
                     <span className="kpi-label">Rulebook & Status</span>
                     <span className={`badge ${killSwitchEngaged ? "badge-danger" : "badge-emerald"}`}>
-                      {killSwitchEngaged ? "KILL SWITCH ACTIVE" : "COMPLIANT"}
+                      {killSwitchEngaged ? "SAFE STOP ACTIVE" : "COMPLIANT"}
                     </span>
                   </div>
                   <div className="kpi-value">{rules?.rulebook_id ?? "prop-comp-2026-q4:v1"}</div>
@@ -7131,7 +7129,7 @@ export function AtlasTerminal({
                             disabled={role !== "founder_admin"}
                             onClick={handleToggleKillSwitch}
                           >
-                            {killSwitchEngaged ? "Reset Kill Switch to Standby" : "Engage Emergency Kill Switch"}
+                            {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
                           </button>
                         </div>
                       </div>
@@ -8815,7 +8813,7 @@ export function AtlasTerminal({
               </div>
             </>
           )}
-          </main>
+          </div>
 
           {/* ================================================================
               PERSISTENT DOCKABLE INSTITUTIONAL ORDER TICKET, L2 DOM & RISK DOCK
@@ -9056,7 +9054,7 @@ export function AtlasTerminal({
                   disabled={role !== "founder_admin"}
                   onClick={handleToggleKillSwitch}
                 >
-                  {killSwitchEngaged ? "Reset Emergency Kill Switch" : "Engage Emergency Kill Switch"}
+                  {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
                 </button>
               </div>
 
