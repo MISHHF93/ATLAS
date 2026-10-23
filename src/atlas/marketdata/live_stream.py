@@ -540,13 +540,19 @@ class LiveMarketDataGateway:
         if snapped is None:
             return None
         cached = self._public_bars.get((sym, snapped))
-        if cached is not None:
-            return cached
         if not self.public_fetch_enabled:
-            return None
+            return cached
+        if cached is not None:
+            try:
+                fetched_at = datetime.fromisoformat(str(cached.get("as_of", "")).replace("Z", "+00:00"))
+                age = (datetime.now(timezone.utc) - fetched_at).total_seconds()
+                if 0 <= age < (900 if snapped == 86400 else 60):
+                    return cached
+            except (ValueError, TypeError):
+                pass
         fetched = fetch_public_candles(sym, snapped, limit=180)
         if fetched is None:
-            return None
+            return cached
         self.store_public_bars(fetched)
         return fetched
 
@@ -564,6 +570,9 @@ class LiveMarketDataGateway:
                 missed.append(sym)
                 continue
             self.store_public_bars(payload)
+            daily = fetch_public_candles(sym, 86400, limit=180)
+            if daily is not None:
+                self.store_public_bars(daily)
             finer = fetch_public_candles(sym, 60, limit=180)
             if finer is not None:
                 self.store_public_bars(finer)
@@ -665,6 +674,14 @@ class LiveMarketDataGateway:
 
         now = datetime.now(timezone.utc)
         sym = symbol.upper().strip()
+        if allow_network:
+            from atlas.marketdata.data_rights import check_data_use
+            provider = "coinbase_exchange_public" if sym.endswith("-USD") else "yahoo_chart_public"
+            decision = check_data_use(provider, sym, granularity, "training")
+            if not decision["allowed"]:
+                return {"symbol": sym, "feed_source": "unavailable", "candles": [], "latest_tick": None,
+                        "data_use": decision, "reason": decision["reason"],
+                        "execution_permission": "none", "as_of": now.isoformat()}
         is_crypto = sym.endswith("-USD") or sym in {"BTC-USD", "ETH-USD", "SOL-USD"}
         candles: list[dict[str, Any]] = []
         feed_source = "coinbase_exchange_live_api" if is_crypto else "yahoo_equities_chart_api"

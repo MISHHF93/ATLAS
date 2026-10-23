@@ -11,12 +11,16 @@ Every payload stays `execution_permission: none`. The model never receives order
 from __future__ import annotations
 
 import math
+import time
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Literal
 
 from atlas.marketdata.live_stream import LiveMarketDataGateway, LiveTickFrame
+from atlas.models.live_observer import observe_public_bars
 from atlas.models.whale_factor_ml import WhaleOpportunityFactorModel
 from atlas.models.whale_policy import WhalePolicyModel
+
+_BOOK_ROW_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 
 COMPETITION_SYMBOLS: tuple[str, ...] = ("BTC-USD", "ETH-USD", "SOL-USD")
 OPEN_MARKET_SYMBOLS: tuple[str, ...] = ("SPY", "NVDA", "AAPL", "MSFT", "QQQ", "TSLA")
@@ -114,6 +118,55 @@ def _directory_quote_state(symbol: str) -> str:
     return "quoted"
 
 
+def _observer_feed_origin(symbol: str, feed_origin: str) -> str:
+    origin = str(feed_origin or "none")
+    if origin not in {"", "none", "provider_observed", "unlabeled"}:
+        return origin
+    return "coinbase_exchange_public" if symbol.endswith("-USD") else "yahoo_chart_public"
+
+
+def _mount_online_observer(
+    symbol: str,
+    candles: list[dict[str, Any]],
+    *,
+    bucket_seconds: int,
+    feed_origin: str,
+    chart_source: str,
+    learning_allowed: bool,
+    public_as_of: str | None = None,
+) -> dict[str, Any] | None:
+    """Attach the same online logistic observer used in live-view to candle reads."""
+    if chart_source != "public_market_candles" or len(candles) < 4:
+        return None
+    moment = datetime.now(timezone.utc)
+    watermark = moment
+    if public_as_of:
+        try:
+            watermark = min(moment, datetime.fromisoformat(str(public_as_of).replace("Z", "+00:00")))
+        except ValueError:
+            watermark = moment
+    last_ts = datetime.fromisoformat(str(candles[-1]["timestamp"]).replace("Z", "+00:00"))
+    bar_end = last_ts + timedelta(seconds=max(1, int(bucket_seconds)))
+    if bar_end <= watermark:
+        watermark = bar_end
+    observation = observe_public_bars(
+        symbol,
+        candles,
+        now=moment,
+        bucket_seconds=max(1, int(bucket_seconds)),
+        feed_origin=_observer_feed_origin(symbol, feed_origin),
+        learning_allowed=learning_allowed,
+        pause_reason="Public feed is disabled or not fresh. Saved learning is retained.",
+        completed_through=watermark,
+    )
+    observation.pop("candles", None)
+    return observation
+
+
+def _book_cache_ttl(bucket_seconds: int) -> float:
+    return min(120.0, max(12.0, float(bucket_seconds) / 2.0))
+
+
 def _resolve_candles(
     gateway: LiveMarketDataGateway,
     symbol: str,
@@ -127,6 +180,12 @@ def _resolve_candles(
         return [], "no_quote", requested
     public = gateway.public_bars(symbol, bucket_seconds) if hasattr(gateway, "public_bars") else None
     public_candles = list(public["candles"]) if public else []
+    if public:
+        cutoff = datetime.now(timezone.utc)
+        duration = int(public["bucket_seconds"])
+        public_candles = [bar for bar in public_candles
+                          if datetime.fromisoformat(str(bar["timestamp"]).replace("Z", "+00:00"))
+                          + timedelta(seconds=duration) <= cutoff]
     if len(public_candles) >= 4:
         return public_candles[-limit:], "public_market_candles", int(public["bucket_seconds"])
     now = datetime.now(timezone.utc)
@@ -432,14 +491,62 @@ def read_symbol_chart(
     include_whale_moment: bool = False,
 ) -> dict[str, Any]:
     sym = symbol.upper().strip()
+    if bucket_seconds == 1:
+        from atlas.marketdata.second_tape import snapshot
+
+        tape = snapshot(sym, sampling=gateway.public_fetch_enabled)
+        health = tape.get("feed_health") or {}
+        watermark = health.get("last_exchange_at")
+        from atlas.marketdata.data_rights import check_data_use
+        decisions = [check_data_use("coinbase_exchange_public", sym, 1, use) for use in ("training", "retention")]
+        denied = [item for item in decisions if not item["allowed"]]
+        observation = observe_public_bars(
+            sym, list(tape.get("candles") or []),
+            learning_allowed=health.get("connection") == "connected" and not denied,
+            pause_reason=denied[0]["reason"] if denied else "The trade transport is not connected. Saved learning is retained.",
+            completed_through=datetime.fromisoformat(str(watermark).replace("Z", "+00:00")) if watermark else None,
+            state_scope=decisions[0].get("policy_sha256") if not denied else None,
+        )
+        if tape.get("chart_source") == "withheld" and tape.get("notice"):
+            observation["notice"] = tape["notice"]
+        candles = observation.pop("candles")
+        valid = observation["status"] in {"warming_up", "learning"}
+        return {
+            "symbol": sym, "track": track_for_symbol(sym), "bucket_seconds": 1,
+            "chart_source": "public_last_trade" if valid else "withheld",
+            "data_mode": "observed" if valid else "withheld",
+            "feed_origin": "coinbase_exchange_public" if candles else "none",
+            "bars_read": len(candles), "candles": candles,
+            "last_close": float(candles[-1]["close"]) if candles else None,
+            "last_bar_close": (datetime.fromisoformat(str(candles[-1]["timestamp"])) + timedelta(seconds=1)).isoformat() if candles else None,
+            "model_id": "online_logistic_observer:experimental",
+            "direction": observation["direction"], "online_observer": observation,
+            "feed_health": tape.get("feed_health", {}),
+            "horizons": [], "signal": {}, "stream_inputs_observed": [],
+            "notice": observation.get("notice"), "execution_permission": "none",
+        }
     candles, chart_source, bucket_used = _resolve_candles(
         gateway, sym, bucket_seconds=bucket_seconds, limit=limit
     )
+    if chart_source == "public_market_candles":
+        from atlas.marketdata.data_rights import check_data_use
+        provider = "coinbase_exchange_public" if sym.endswith("-USD") else "yahoo_chart_public"
+        decision = check_data_use(provider, sym, bucket_used, "training")
+        if not decision["allowed"]:
+            return {"symbol": sym, "track": track_for_symbol(sym), "bucket_seconds": bucket_used,
+                    "chart_source": "withheld", "data_mode": "withheld", "feed_origin": provider,
+                    "model_id": "data_use_not_admitted", "bars_read": 0, "candles": [], "last_close": None,
+                    "direction": "WITHHELD", "conviction": None, "horizons": [], "signal": {},
+                    "stream_inputs_observed": [], "notice": decision["reason"], "data_use": decision,
+                    "whale_moment": {"status": "withheld", "recommendation": {"stance": "abstain",
+                                      "may_propose_order": False, "summary": decision["reason"]}},
+                    "execution_permission": "none"}
     if chart_source == "no_quote":
         payload = {
             "symbol": sym,
             "track": track_for_symbol(sym),
             "chart_source": "no_quote",
+            "data_mode": "withheld",
             "feed_origin": "no_quote",
             "bucket_seconds": bucket_used,
             "bars_read": 0,
@@ -485,16 +592,18 @@ def read_symbol_chart(
         return payload
     latest = gateway.ring_buffer.latest(sym)
     observed: dict[str, float] = {}
-    if latest is not None and latest.price > 0:
+    if chart_source == "stream_ring_buffer" and latest is not None and latest.price > 0 and latest.data_mode != "demo":
         observed["vpin"] = float(latest.vpin)
         observed["ofi_z"] = float(latest.ofi)
         observed["kyles_lambda"] = float(latest.kyles_lambda)
         observed["spread_bps"] = float(latest.spread) / float(latest.price) * 10_000.0
     signal = model.predict(symbol=sym, candles=candles, **observed)
     spot = float(signal.reference_price)
+    public_as_of: str | None = None
     if chart_source == "public_market_candles":
         cached = gateway.public_bars(sym, bucket_seconds) if hasattr(gateway, "public_bars") else None
         feed_origin = str(cached["feed_source"]) if cached else "public_market_data"
+        public_as_of = str(cached["as_of"]) if cached and cached.get("as_of") else None
     else:
         feed_origin = "labeled_synthetic_fixture" if gateway.demo_mode or chart_source == "labeled_fixture_bars" else "provider_observed"
         if chart_source == "stream_ring_buffer" and latest is not None:
@@ -503,6 +612,12 @@ def read_symbol_chart(
         "symbol": sym,
         "track": track_for_symbol(sym),
         "chart_source": chart_source,
+        "data_mode": "synthetic" if chart_source == "labeled_fixture_bars" else "observed",
+        "notice": (
+            "The requested history is not available from an observed feed. These bars are a labeled synthetic fixture and are not live market data."
+            if chart_source == "labeled_fixture_bars"
+            else "Bars are supplied by the reported chart source."
+        ),
         "feed_origin": feed_origin,
         "bucket_seconds": bucket_used,
         "bars_read": len(candles),
@@ -516,6 +631,10 @@ def read_symbol_chart(
         "horizons": _horizons(spot, float(signal.suggested_stop_loss), float(signal.suggested_take_profit)),
         "signal": signal.model_dump(mode="json"),
         "stream_inputs_observed": sorted(observed.keys()),
+        "model_weights": dict(model.weights),
+        "last_bar_open": str(candles[-1]["timestamp"]),
+        "last_bar_close": (datetime.fromisoformat(str(candles[-1]["timestamp"]).replace("Z", "+00:00")) + timedelta(seconds=bucket_used)).isoformat(),
+        "read_at": datetime.now(timezone.utc).isoformat(),
         "execution_permission": "none",
     }
     if include_whale_moment:
@@ -558,7 +677,74 @@ def read_symbol_chart(
             }
         )
         payload["bar_lock"] = lock
+    observer = _mount_online_observer(
+        sym,
+        candles,
+        bucket_seconds=bucket_used,
+        feed_origin=feed_origin,
+        chart_source=chart_source,
+        learning_allowed=bool(getattr(gateway, "public_fetch_enabled", True)),
+        public_as_of=public_as_of,
+    )
+    if observer is not None:
+        payload["online_observer"] = observer
+        payload["realtime_layer"] = {
+            "method": "online_logistic_observer",
+            "horizon_seconds": bucket_used,
+            "probability_up": observer.get("probability_up"),
+            "direction": observer.get("direction"),
+            "status": observer.get("status"),
+            "execution_permission": "none",
+            "notice": (
+                "Short-horizon online observer on the same completed public candles as the "
+                "daily whale policy. Experimental; not calibrated; no order authority."
+            ),
+        }
     return payload
+
+
+def _read_book_row(
+    gateway: LiveMarketDataGateway,
+    model: WhalePolicyModel,
+    item: str,
+    *,
+    bucket_seconds: int,
+    books_mode: Literal["full", "compact"],
+    active_symbol: str,
+) -> dict[str, Any]:
+    if item == active_symbol:
+        return read_symbol_chart(
+            gateway,
+            model,
+            item,
+            bucket_seconds=bucket_seconds,
+            limit=120,
+            include_whale_moment=True,
+        )
+    if books_mode == "full":
+        return read_symbol_chart(
+            gateway,
+            model,
+            item,
+            bucket_seconds=bucket_seconds,
+            limit=48,
+            include_whale_moment=False,
+        )
+    key = (item, bucket_seconds)
+    cached = _BOOK_ROW_CACHE.get(key)
+    now = time.monotonic()
+    if cached and now - cached[0] < _book_cache_ttl(bucket_seconds):
+        return cached[1]
+    row = read_symbol_chart(
+        gateway,
+        model,
+        item,
+        bucket_seconds=bucket_seconds,
+        limit=32,
+        include_whale_moment=False,
+    )
+    _BOOK_ROW_CACHE[key] = (now, row)
+    return row
 
 
 def read_market_charts(
@@ -568,10 +754,13 @@ def read_market_charts(
     symbol: str = "BTC-USD",
     bucket_seconds: int = 60,
     model_for: Any = None,
+    books_mode: Literal["full", "compact"] = "full",
 ) -> dict[str, Any]:
     """Score the active chart plus both books. No order is submitted."""
     active_symbol = symbol.upper().strip()
-    universe = list(dict.fromkeys((*COMPETITION_SYMBOLS, *OPEN_MARKET_SYMBOLS, active_symbol)))
+    # A Real time viewer must not register unrelated listings as watched feeds.
+    universe = ([active_symbol] if bucket_seconds == 1 else
+                list(dict.fromkeys((*COMPETITION_SYMBOLS, *OPEN_MARKET_SYMBOLS, active_symbol))))
 
     def pick(item: str) -> WhalePolicyModel:
         if model_for is None:
@@ -580,13 +769,13 @@ def read_market_charts(
         return chosen if isinstance(chosen, WhalePolicyModel) else model
 
     rows = [
-        read_symbol_chart(
+        _read_book_row(
             gateway,
             pick(item),
             item,
             bucket_seconds=bucket_seconds,
-            limit=120 if item == active_symbol else 48,
-            include_whale_moment=item == active_symbol,
+            books_mode=books_mode,
+            active_symbol=active_symbol,
         )
         for item in universe
     ]
@@ -596,7 +785,12 @@ def read_market_charts(
 
     picture = describe_chart(active_symbol, bucket_seconds=bucket_seconds)
     follows = str(picture.get("model_reads") or "")
-    if picture.get("available") is True and follows == "same_symbol_and_resolution_on_the_public_candle_path":
+    if bucket_seconds == 1:
+        relation = "same_public_trade_feed"
+        track_notice = "The embedded chart and observer read the same Coinbase trade feed; only completed bars train the observer."
+    elif (picture.get("available") is True and follows == "same_symbol_and_resolution_on_the_public_candle_path"
+            and active.get("chart_source") == "public_market_candles"
+            and active.get("bucket_seconds") == bucket_seconds):
         relation = "same_symbol_and_interval"
         track_notice = (
             "The model follows this TradingView chart's symbol and interval on the public-candle path. "
@@ -612,7 +806,7 @@ def read_market_charts(
         "status": "ok",
         "as_of": datetime.now(timezone.utc).isoformat(),
         "active": active,
-        "competition": [by_symbol[item] for item in COMPETITION_SYMBOLS],
+        "competition": [by_symbol[item] for item in COMPETITION_SYMBOLS if item in by_symbol],
         "open_market": [by_symbol[item] for item in OPEN_MARKET_SYMBOLS if item in by_symbol],
         "tradingview": picture,
         "chart_track": {

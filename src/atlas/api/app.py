@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from atlas.api.catalog import catalog_router
 from atlas.api.udf import udf_router
+from atlas.api.vertical_slice import router as vertical_slice_router
 from atlas.api.rbac import verify_role_action
 from atlas.ai.gemini_provider import GeminiResearchProvider
 from atlas.ai.policy import PolicyError
@@ -54,6 +55,26 @@ app.add_middleware(
 )
 app.include_router(catalog_router)
 app.include_router(udf_router)
+app.include_router(vertical_slice_router)
+app.state.experimental_ml_status = {
+    "state": "retired",
+    "audited_path": "/api/research/vertical-slice",
+    "execution_permission": "none",
+    "reason": (
+        "The advanced-ML HTTP surface is retired so ATLAS has one audited research "
+        "pipeline. Its research modules remain importable for isolated experiments."
+    ),
+}
+
+
+@app.api_route("/api/advanced-ml/{path:path}", methods=["GET", "POST"], include_in_schema=False)
+def unavailable_experimental_ml(path: str) -> None:
+    raise HTTPException(status_code=503, detail=app.state.experimental_ml_status)
+
+
+@app.get("/api/research/experimental-status", include_in_schema=False)
+def experimental_ml_status() -> dict[str, object]:
+    return dict(app.state.experimental_ml_status)
 
 control_engine = ActionableControlPlaneEngine()
 
@@ -152,6 +173,45 @@ def market_second_tape(symbol: str = "BTC-USD") -> dict[str, object]:
     from atlas.marketdata.second_tape import snapshot
 
     return snapshot(symbol, sampling=live_market_gateway.public_fetch_enabled)
+
+
+@app.get("/api/market/live-artifacts", include_in_schema=False)
+def live_artifact_manifest() -> dict[str, object]:
+    from atlas.marketdata.live_artifacts import artifact_store
+    from atlas.marketdata.public_stream import CORE_SYMBOLS, feed_health
+    store = artifact_store()
+    return {"capture": store.manifest() if store else {"status": "disabled"},
+            "feeds": {sym: feed_health(sym) for sym in CORE_SYMBOLS},
+            "observer_error": (getattr(app.state, "live_observer_service", None).status().get("last_error")
+                               if getattr(app.state, "live_observer_service", None) is not None else None)}
+
+
+@app.get("/api/market/live-view", include_in_schema=False)
+def market_live_view(symbol: str = "BTC-USD") -> dict[str, object]:
+    """One API snapshot supplies the native chart and its model inputs."""
+    from atlas.marketdata.live_view import live_view_snapshot
+    return live_view_snapshot(symbol, sampling=live_market_gateway.public_fetch_enabled)
+
+
+@app.get("/api/ml/live-observer/status", include_in_schema=False)
+def live_observer_status() -> dict[str, object]:
+    """Actual per-symbol coverage of the independent background observer."""
+    from atlas.models.observer_service import ObserverService
+    service = getattr(app.state, "live_observer_service", None)
+    if service is None:
+        service = ObserverService(sampling=live_market_gateway.public_fetch_enabled)
+    return service.status()
+
+
+@app.get("/api/market/live-artifacts/export", include_in_schema=False)
+def export_live_artifacts():
+    from fastapi.responses import Response
+    from atlas.marketdata.live_artifacts import artifact_store
+    store = artifact_store()
+    if store is None:
+        raise HTTPException(status_code=503, detail="Live artifact capture is disabled")
+    return Response(store.export(), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="atlas-live-artifacts.zip"'})
 
 
 @app.get("/api/research/capabilities")
@@ -626,6 +686,31 @@ _OPERATOR_PROFILE: dict[str, object] = {
     "updated_at": datetime.now(timezone.utc).isoformat(),
 }
 
+def _connector_record(
+    connector_id: str, *, name: str, vendor: str, category: str,
+    protocol: str, tools: list[str], enabled: bool = True,
+) -> dict[str, object]:
+    """Describe an integration slot without claiming a tested vendor session.
+
+    These records are separate from the actual public-feed health endpoints.
+    Enabling a record does not configure a transport or establish data rights.
+    """
+    blocked = category == "quarantined"
+    return {
+        "connector_id": connector_id, "name": name, "vendor": vendor,
+        "category": category, "protocol": protocol, "tools": tools,
+        "status": "blocked" if blocked else "unconfigured" if enabled else "standby",
+        "enabled": enabled, "record_only": True, "connected": False,
+        "transport_configured": False, "connection_test_status": "not_tested",
+        "last_tested_at": None, "latency_ms": None,
+        "license_scope": "Unknown: this record does not verify provider terms or data-use rights.",
+        "license_status": "unknown", "license_ref": None,
+        "data_use_eligibility": {use: "unknown" for use in ("display", "retention", "training", "competition", "redistribution")},
+        "deployment_eligible": False, "execution_permission": "none",
+        "notice": "Integration record only. No vendor transport or entitlement has been tested here.",
+    }
+
+
 _CONNECTORS_STATE: dict[str, dict[str, object]] = {
     "alpha_vantage_mcp": {
         "connector_id": "alpha_vantage_mcp",
@@ -633,12 +718,12 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "vendor": "Alpha Vantage",
         "category": "mcp_data",
         "protocol": "MCP / JSON-RPC",
-        "status": "connected",
+        "status": "unconfigured",
         "enabled": True,
         "tools": ["DIGITAL_CURRENCY_DAILY", "TIME_SERIES_DAILY_ADJUSTED", "TIME_SERIES_INTRADAY"],
-        "license_scope": "Commercial & Point-in-Time Verified",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 42,
+        "latency_ms": None,
     },
     "financial_datasets_mcp": {
         "connector_id": "financial_datasets_mcp",
@@ -646,12 +731,12 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "vendor": "Financial Datasets",
         "category": "mcp_data",
         "protocol": "MCP / REST",
-        "status": "connected",
+        "status": "unconfigured",
         "enabled": True,
         "tools": ["get_company_facts", "get_historical_stock_prices", "get_income_statements"],
-        "license_scope": "Point-in-Time Equities & Fundamentals",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 38,
+        "latency_ms": None,
     },
     "fin_data_mcp": {
         "connector_id": "fin_data_mcp",
@@ -659,12 +744,12 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "vendor": "Fin-Data",
         "category": "mcp_data",
         "protocol": "MCP / Stdio-HTTP",
-        "status": "connected",
+        "status": "unconfigured",
         "enabled": True,
         "tools": ["fetch_equity_bars", "fetch_macro_calendar", "fetch_sec_filings_meta"],
-        "license_scope": "Macro Calendar & Multi-Asset Bars",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 51,
+        "latency_ms": None,
     },
     "google_gemini": {
         "connector_id": "google_gemini",
@@ -672,12 +757,12 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "vendor": "Google DeepMind",
         "category": "ai_provider",
         "protocol": "Google GenAI SDK (No Tools)",
-        "status": "connected",
+        "status": "unconfigured",
         "enabled": True,
         "tools": ["frequent_synthesis", "deep_research_synthesis", "secret_context_screening"],
-        "license_scope": "Paid Tier (Zero Prompt Training Retention)",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 115,
+        "latency_ms": None,
     },
     "sec_edgar_xbrl": {
         "connector_id": "sec_edgar_xbrl",
@@ -685,12 +770,12 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "vendor": "U.S. Securities & Exchange Commission",
         "category": "market_feed",
         "protocol": "HTTPS / XBRL JSON (<=10 req/s)",
-        "status": "connected",
+        "status": "unconfigured",
         "enabled": True,
         "tools": ["10-K", "10-Q", "8-K", "acceptance_time_pit_filter"],
-        "license_scope": "Public Domain Reuse (User-Agent Verified)",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 64,
+        "latency_ms": None,
     },
     "crypto_perp_feed": {
         "connector_id": "crypto_perp_feed",
@@ -698,12 +783,12 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "vendor": "Perpetual Venue & L2 Book",
         "category": "market_feed",
         "protocol": "Point-in-Time Feed + Microstructure Policy",
-        "status": "connected",
+        "status": "unconfigured",
         "enabled": True,
         "tools": ["order_flow_imbalance", "exchange_outflow", "funding_rate", "open_interest"],
-        "license_scope": "Verified Commercial Feed (6+ Block Finality)",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 19,
+        "latency_ms": None,
     },
     "nyse_calendar": {
         "connector_id": "nyse_calendar",
@@ -711,12 +796,12 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "vendor": "ICE / NYSE Session Authority",
         "category": "market_feed",
         "protocol": "Authoritative Session Schedule",
-        "status": "connected",
+        "status": "unconfigured",
         "enabled": True,
         "tools": ["opening_auction", "regular_open", "closing_auction", "early_close_holidays"],
-        "license_scope": "Versioned Exchange Schedule (nyse:regular-sessions)",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 4,
+        "latency_ms": None,
     },
     "atlas_local_ml": {
         "connector_id": "atlas_local_ml",
@@ -724,12 +809,12 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "vendor": "ATLAS Internal Core",
         "category": "ai_provider",
         "protocol": "Local Deterministic Python + SQLite Registry",
-        "status": "connected",
+        "status": "unconfigured",
         "enabled": True,
         "tools": ["boosted_stump_v1", "gbdt_depth2_v1", "linear_ridge_v1", "regime_conditioned_tree"],
-        "license_scope": "100% Founder-Owned Proprietary Weights",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 8,
+        "latency_ms": None,
     },
     "xai_grok_bridge": {
         "connector_id": "xai_grok_bridge",
@@ -740,9 +825,9 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "status": "standby",
         "enabled": False,
         "tools": ["secondary_narrative_check"],
-        "license_scope": "Contract Ready (Optional Secondary Narrator)",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 0,
+        "latency_ms": None,
     },
     "chronos_2_slot": {
         "connector_id": "chronos_2_slot",
@@ -753,9 +838,9 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "status": "standby",
         "enabled": False,
         "tools": ["zero_shot_quantile_forecast"],
-        "license_scope": "Apache-2.0 Archive Verification Gate",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 0,
+        "latency_ms": None,
     },
     "irohan0_quant_mcp": {
         "connector_id": "irohan0_quant_mcp",
@@ -766,10 +851,20 @@ _CONNECTORS_STATE: dict[str, dict[str, object]] = {
         "status": "blocked",
         "enabled": False,
         "tools": ["mutating_execution_rejected", "fred_ml_training_blocked"],
-        "license_scope": "Default-Deny Enforced (ISO 27001 / Master Spec)",
+        "license_scope": "unknown",
         "execution_permission": "none",
-        "latency_ms": 0,
+        "latency_ms": None,
     },
+}
+
+
+_CONNECTORS_STATE = {
+    connector_id: _connector_record(
+        connector_id, name=str(row["name"]), vendor=str(row["vendor"]),
+        category=str(row["category"]), protocol=str(row["protocol"]),
+        tools=list(row["tools"]), enabled=bool(row["enabled"]),
+    )
+    for connector_id, row in _CONNECTORS_STATE.items()
 }
 
 
@@ -795,7 +890,8 @@ def update_operator_profile(payload: OperatorProfilePayload) -> dict[str, object
 
 @app.get("/api/connectors", include_in_schema=False)
 def list_connectors() -> dict[str, object]:
-    return {"connectors": list(_CONNECTORS_STATE.values())}
+    return {"connectors": list(_CONNECTORS_STATE.values()), "record_only": True,
+            "notice": "Integration records are not live-session evidence. Actual public-feed coverage is reported by /api/ml/live-observer/status and /api/market/live-artifacts."}
 
 
 @app.post("/api/connectors/action", include_in_schema=False)
@@ -814,17 +910,25 @@ def connector_action_endpoint(payload: ConnectorActionPayload) -> dict[str, obje
     if payload.action == "toggle_enabled":
         next_enabled = not bool(conn["enabled"])
         conn["enabled"] = next_enabled
-        conn["status"] = "connected" if next_enabled else "standby"
-    elif payload.action in ("test_connection", "sync_metadata"):
-        conn["status"] = "connected" if conn["enabled"] else "standby"
+        conn["status"] = "unconfigured" if next_enabled else "standby"
+    # No transport probe or provider metadata fetch is implemented by these
+    # record actions. Preserve that distinction even after repeated requests.
+    operation_status = "record_updated" if payload.action == "toggle_enabled" else "not_tested" if payload.action == "test_connection" else "not_synced"
+    conn["connected"] = False
+    conn["connection_test_status"] = "not_tested"
+    conn["last_tested_at"] = None
+    conn["latency_ms"] = None
     control_engine.audit_log.append(
-        f"{now} | connector_action | id={payload.connector_id} action={payload.action} status={conn['status']}"
+        f"{now} | connector_record_action | id={payload.connector_id} action={payload.action} result={operation_status}"
     )
     return {
         "status": "ok",
+        "operation_status": operation_status,
+        "record_only": True,
+        "data_synced": False,
         "action": payload.action,
         "connector": conn,
-        "message": f"{conn['name']}: {payload.action} verified ({conn['status'].upper()})",
+        "message": f"{conn['name']}: {operation_status}. Record action only; no vendor session, metadata sync, or data-use entitlement was verified.",
         "timestamp": now,
     }
 
@@ -989,70 +1093,77 @@ _SYNC_PIPELINES_STATE: list[dict[str, object]] = [
     {
         "pipeline_id": "sync:crypto_perp_ohlcv",
         "name": "24/7 Crypto Perp OHLCV & Funding Feed",
-        "source": "verified_pit / crypto_perp_feed",
+        "source": "crypto_perp_feed (unconfigured)",
         "cadence": "5s",
-        "status": "synced",
-        "records_synced": 1440,
-        "manifest_sha256": "8f9b2c1a4d3e5f6a7b8c9d0e1f2a3b4c5d6e7f8a",
-        "latency_ms": 18,
-        "last_synced_at": "2026-10-19T22:00:00Z",
+        "status": "record_only",
+        "records_synced": 0,
+        "manifest_sha256": None,
+        "latency_ms": None,
+        "last_synced_at": None,
     },
     {
         "pipeline_id": "sync:nyse_session_bars",
         "name": "NYSE / Nasdaq Session-Aligned Equity Bars",
         "source": "nyse:regular-sessions / financial_datasets_mcp",
         "cadence": "15s",
-        "status": "synced",
-        "records_synced": 980,
-        "manifest_sha256": "3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f",
-        "latency_ms": 34,
-        "last_synced_at": "2026-10-19T22:00:00Z",
+        "status": "record_only",
+        "records_synced": 0,
+        "manifest_sha256": None,
+        "latency_ms": None,
+        "last_synced_at": None,
     },
     {
         "pipeline_id": "sync:mcp_allowlist_surface",
         "name": "Allowlisted MCP Read-Only Data Surface",
         "source": "alpha_vantage_mcp + fin_data_mcp",
         "cadence": "60s",
-        "status": "synced",
-        "records_synced": 412,
-        "manifest_sha256": "7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b",
-        "latency_ms": 42,
-        "last_synced_at": "2026-10-19T22:00:00Z",
+        "status": "record_only",
+        "records_synced": 0,
+        "manifest_sha256": None,
+        "latency_ms": None,
+        "last_synced_at": None,
     },
     {
         "pipeline_id": "sync:sec_edgar_xbrl_pit",
         "name": "U.S. SEC EDGAR As-Filed XBRL Point-in-Time",
         "source": "sec_edgar_xbrl (acceptance_time <= as_of)",
         "cadence": "60s",
-        "status": "synced",
-        "records_synced": 128,
-        "manifest_sha256": "1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d",
-        "latency_ms": 61,
-        "last_synced_at": "2026-10-19T22:00:00Z",
+        "status": "record_only",
+        "records_synced": 0,
+        "manifest_sha256": None,
+        "latency_ms": None,
+        "last_synced_at": None,
     },
     {
         "pipeline_id": "sync:whale_microstructure",
         "name": "On-Chain Whale & L2 Order-Flow Covariates",
-        "source": "onchain_verified_indexer (6+ blocks)",
+        "source": "onchain_indexer (unconfigured)",
         "cadence": "15s",
-        "status": "synced",
-        "records_synced": 640,
-        "manifest_sha256": "9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
-        "latency_ms": 23,
-        "last_synced_at": "2026-10-19T22:00:00Z",
+        "status": "record_only",
+        "records_synced": 0,
+        "manifest_sha256": None,
+        "latency_ms": None,
+        "last_synced_at": None,
     },
     {
         "pipeline_id": "sync:sqlite_model_registry",
         "name": "SQLite Model Registry & Experiment Checkpoints",
         "source": "local_sqlite_wal",
         "cadence": "5s",
-        "status": "synced",
-        "records_synced": 84,
-        "manifest_sha256": "5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b",
-        "latency_ms": 6,
-        "last_synced_at": "2026-10-19T22:00:00Z",
+        "status": "record_only",
+        "records_synced": 0,
+        "manifest_sha256": None,
+        "latency_ms": None,
+        "last_synced_at": None,
     },
 ]
+
+for _pipeline_record in _SYNC_PIPELINES_STATE:
+    _pipeline_record.update(
+        record_only=True, operation_status="not_synced", data_synced=False,
+        license_status="unknown", last_requested_at=None,
+        notice="Pipeline configuration record only. No transport, scheduler, data transfer, or verified manifest is attached to this action.",
+    )
 
 _PLATFORM_CONFIG_STATE: dict[str, object] = {
     "competition_max_notional_usd": "50000.00",
@@ -1161,28 +1272,30 @@ def listing_action_endpoint(payload: ListingActionPayload) -> dict[str, object]:
 
 @app.get("/api/sync", include_in_schema=False)
 def get_sync_pipelines() -> dict[str, object]:
-    return {"pipelines": list(_SYNC_PIPELINES_STATE)}
+    return {"pipelines": list(_SYNC_PIPELINES_STATE), "record_only": True,
+            "notice": "These are pipeline configuration records, not completed sync evidence. Actual received-feed artifacts are reported by /api/market/live-artifacts."}
 
 
 @app.post("/api/sync/run", include_in_schema=False)
 def run_sync_pipeline(payload: SyncRunPayload) -> dict[str, object]:
     now = datetime.now(timezone.utc).isoformat()
-    synced_count = 0
+    requested_count = 0
     for pipe in _SYNC_PIPELINES_STATE:
         if payload.pipeline_id in ("all", pipe["pipeline_id"]):
-            pipe["status"] = "synced"
-            pipe["records_synced"] = int(pipe["records_synced"]) + 6
-            pipe["last_synced_at"] = now
+            pipe["last_requested_at"] = now
             if payload.cadence:
                 pipe["cadence"] = payload.cadence
-            synced_count += 1
+            requested_count += 1
     control_engine.audit_log.append(
-        f"{now} | sync_executed | target={payload.pipeline_id} pipelines_synced={synced_count}"
+        f"{now} | sync_record_action | target={payload.pipeline_id} records_updated={requested_count} data_synced=false"
     )
     return {
-        "status": "ok",
+        "status": "ok" if requested_count else "error",
+        "operation_status": "not_synced" if requested_count else "not_found",
+        "record_only": True,
+        "data_synced": False,
         "pipelines": list(_SYNC_PIPELINES_STATE),
-        "message": f"Synchronized {synced_count} point-in-time pipeline(s) at {now}",
+        "message": f"Recorded a request for {requested_count} pipeline(s). No data was fetched, synchronized, or licensed; cadence changes update this record only.",
         "timestamp": now,
     }
 
@@ -1268,11 +1381,9 @@ def auto_optimize_platform_configurations(symbol: str = "BTC-USD") -> dict[str, 
 from atlas.lifecycle import UserLifecycleEngine
 from atlas.mcp import MCPFirewall, ToolCallRejectedError
 from atlas.mcp.server import AtlasReadonlyMCPServer
-from atlas.models.perfect_trader_whale import PerfectTraderWhaleEngine
 from atlas.models.whale_policy import WhalePolicyModel, WhalePolicyTrainer
 
 _USER_LIFECYCLE_ENGINE = UserLifecycleEngine()
-_PERFECT_TRADER_WHALE_ENGINE = PerfectTraderWhaleEngine()
 _WHALE_POLICY_TRAINER = WhalePolicyTrainer()
 _WHALE_POLICY_MODEL = WhalePolicyModel()
 
@@ -1635,83 +1746,34 @@ def ingest_whale_signal_endpoint(payload: dict[str, object] | None = None) -> di
     }
 
 
+def _retired_legacy_model() -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail={
+            "status": "retired",
+            "replacement": "/api/research/vertical-slice",
+            "reason": "Legacy heuristic outputs are not validated model evidence.",
+            "execution_permission": "none",
+        },
+    )
+
+
 @app.get("/api/ml/perfect-trader/state", include_in_schema=False)
 def get_perfect_trader_whale_state(symbol: str = "BTC-USD", force_submit: bool = False) -> dict[str, object]:
-    """Evaluates the custom Triple-Barrier + Meta-Labeling Whale ML model and automatically
-    submits BUY/SELL orders through ActionableControlPlaneEngine upon Whaling Moments.
-    """
-    return _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
-        symbol=symbol,
-        gateway=live_market_gateway,
-        control_engine=control_engine,
-        force_submit=force_submit,
-    )
+    """Retired: heuristic scores are not validated model evidence."""
+    raise _retired_legacy_model()
 
 
 @app.post("/api/ml/perfect-trader/train", include_in_schema=False)
 def train_perfect_trader_whale_model(payload: dict[str, object] | None = None) -> dict[str, object]:
-    """Trains/calibrates the custom 'Perfect Trader' Whale ML model (Triple-Barrier + Meta-Labeling
-    + Cont-Kukanov-Stoikov OFI + VPIN + Quarter-Kelly) and immediately evaluates/auto-submits on the active symbol.
-    """
-    body = payload or {}
-    symbol = str(body.get("symbol", "BTC-USD"))
-    report = _PERFECT_TRADER_WHALE_ENGINE.train_custom_perfect_trader(
-        symbol=symbol,
-        gateway=live_market_gateway,
-    )
-    live_state = _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
-        symbol=symbol,
-        gateway=live_market_gateway,
-        control_engine=control_engine,
-        force_submit=True,
-    )
-    return {
-        "status": "ok",
-        "training_report": report.to_dict(),
-        "live_state": live_state,
-        "execution_permission": "none",
-    }
+    """Retired: do not train or promote the legacy heuristic from HTTP."""
+    raise _retired_legacy_model()
 
 
 @app.post("/api/ml/perfect-trader/auto-submit", include_in_schema=False)
 def trigger_perfect_trader_auto_submit(payload: dict[str, object] | None = None) -> dict[str, object]:
-    """Toggles autonomous Whaling Moment order submission or runs a multi-asset Whaling Moment scan & auto-execution."""
-    body = payload or {}
-    action = str(body.get("action", "auto_submit_symbol"))
-    symbol = str(body.get("symbol", "BTC-USD"))
-
-    if action == "toggle_armed":
-        if "armed" in body:
-            _PERFECT_TRADER_WHALE_ENGINE.auto_submit_armed = bool(body["armed"])
-        else:
-            _PERFECT_TRADER_WHALE_ENGINE.auto_submit_armed = not _PERFECT_TRADER_WHALE_ENGINE.auto_submit_armed
-        return _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
-            symbol=symbol,
-            gateway=live_market_gateway,
-            control_engine=control_engine,
-            force_submit=False,
-        )
-
-    if action == "scan_multi_asset":
-        scan_res = _PERFECT_TRADER_WHALE_ENGINE.scan_and_auto_submit_multi_asset(
-            gateway=live_market_gateway,
-            control_engine=control_engine,
-        )
-        state = _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
-            symbol=symbol,
-            gateway=live_market_gateway,
-            control_engine=control_engine,
-            force_submit=False,
-        )
-        state["multi_asset_scan"] = scan_res
-        return state
-
-    return _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
-        symbol=symbol,
-        gateway=live_market_gateway,
-        control_engine=control_engine,
-        force_submit=True,
-    )
+    """Retired: no arming, scan, or submission may run through this surface."""
+    raise _retired_legacy_model()
 
 
 @app.get("/api/lifecycle/state", include_in_schema=False)
@@ -1877,6 +1939,7 @@ def live_internet_market_sync(payload: LiveInternetSyncPayload) -> dict[str, obj
     symbol = payload.symbol.upper() if payload.symbol else "BTC-USD"
     live_candles: list[dict[str, str]] = []
     feed_source = "coinbase_exchange_public_internet_api"
+    data_mode = "observed"
 
     stock_bases: dict[str, tuple[float, float]] = {
         "SPY": (581.40, 0.70),
@@ -1888,7 +1951,8 @@ def live_internet_market_sync(payload: LiveInternetSyncPayload) -> dict[str, obj
     }
 
     if symbol in stock_bases:
-        feed_source = "nyse_nasdaq_sip_polygon_pit_feed"
+        feed_source = "synthesized_demo_bars"
+        data_mode = "synthetic"
         base_px, step_px = stock_bases[symbol]
         for idx in range(6):
             bar_t = (now - timedelta(hours=5 - idx)).replace(minute=0, second=0, microsecond=0)
@@ -1927,6 +1991,8 @@ def live_internet_market_sync(payload: LiveInternetSyncPayload) -> dict[str, obj
             feed_source = "deterministic_pit_fallback_feed"
 
     if not live_candles:
+        feed_source = "synthesized_demo_bars"
+        data_mode = "synthetic"
         base_px = 68120.50 if symbol == "BTC-USD" else 2655.40
         for idx in range(6):
             bar_t = (now - timedelta(hours=5 - idx)).replace(minute=0, second=0, microsecond=0)
@@ -1964,11 +2030,16 @@ def live_internet_market_sync(payload: LiveInternetSyncPayload) -> dict[str, obj
         "status": "ok",
         "symbol": symbol,
         "source": feed_source,
+        "data_mode": data_mode,
         "candles": live_candles,
         "latest_close": latest_close,
         "regime_overlay": regime_state.model_dump(mode="json"),
         "execution_permission": "none",
-        "message": f"Pulled {len(live_candles)} live {symbol} candles via {feed_source} (Latest Close: ${latest_close})",
+        "message": (
+            f"Served {len(live_candles)} labeled synthetic {symbol} candles via {feed_source}; this is not observed live market data."
+            if data_mode == "synthetic"
+            else f"Pulled {len(live_candles)} live {symbol} candles via {feed_source} (Latest Close: ${latest_close})"
+        ),
     }
 
 
@@ -2759,10 +2830,13 @@ async def start_universe_tick_pump() -> None:
             try:
                 await asyncio.to_thread(live_market_gateway.refresh_public_universe)
                 await asyncio.to_thread(_run_live_training)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                with _LIVE_TRAIN_LOCK:
+                    _LIVE_TRAIN_STATE["status"] = "error"
+                    _LIVE_TRAIN_STATE["last_error"] = type(exc).__name__
+                    _LIVE_TRAIN_STATE["notice"] = "Public-data refresh or model fit failed; retrying next cycle. Last fit remains loaded."
             try:
-                await asyncio.wait_for(stop.wait(), timeout=900)
+                await asyncio.wait_for(stop.wait(), timeout=_TRAIN_CADENCE_SECONDS)
             except TimeoutError:
                 continue
 
@@ -2788,25 +2862,27 @@ async def start_universe_tick_pump() -> None:
     async def second_tape_loop() -> None:
         if not live_market_gateway.public_fetch_enabled:
             return
-        from atlas.marketdata.public_quotes import fetch_public_ticker
-        from atlas.marketdata.second_tape import fold_trade, note_miss, watched_symbols
-
-        while not stop.is_set():
-            for sym in watched_symbols():
-                try:
-                    ticker = await asyncio.to_thread(fetch_public_ticker, sym, 1.0)
-                except Exception:  # noqa: BLE001
-                    ticker = None
-                if ticker:
-                    fold_trade(ticker)
-                else:
-                    note_miss(sym)
-            try:
-                await asyncio.wait_for(stop.wait(), timeout=0.4)
-            except TimeoutError:
-                continue
+        from atlas.marketdata.public_stream import run_public_stream
+        await run_public_stream(stop)
 
     tape_task = asyncio.create_task(second_tape_loop(), name="second-tape")
+
+    from atlas.models.observer_service import ObserverService
+    observer_service = ObserverService(sampling=live_market_gateway.public_fetch_enabled)
+    app.state.live_observer_service = observer_service
+    observer_task = asyncio.create_task(observer_service.run(stop), name="live-observer")
+
+    vertical_slice_scheduler = None
+    if (
+        os.environ.get("PYTEST_CURRENT_TEST") is None
+        and os.environ.get("ATLAS_DISABLE_VERTICAL_SLICE_SCHEDULER") != "1"
+        and live_market_gateway.public_fetch_enabled
+    ):
+        from atlas.research.vertical_slice import get_vertical_slice_scheduler
+
+        vertical_slice_scheduler = get_vertical_slice_scheduler()
+        vertical_slice_scheduler.start()
+    app.state.vertical_slice_scheduler = vertical_slice_scheduler
 
     async def cancel_pump() -> None:
         stop.set()
@@ -2814,7 +2890,10 @@ async def start_universe_tick_pump() -> None:
         research_task.cancel()
         garden_task.cancel()
         tape_task.cancel()
-        await asyncio.gather(task, research_task, garden_task, tape_task, return_exceptions=True)
+        observer_task.cancel()
+        if vertical_slice_scheduler is not None:
+            await asyncio.to_thread(vertical_slice_scheduler.stop)
+        await asyncio.gather(task, research_task, garden_task, tape_task, observer_task, return_exceptions=True)
 
     app.state.universe_pump_stop = stop
     app.state.cancel_universe_pump = cancel_pump
@@ -2939,12 +3018,7 @@ def post_live_market_ai_prediction(payload: dict[str, object]) -> dict[str, obje
     symbol = str(payload.get("symbol", "BTC-USD")).upper()
     granularity = int(payload.get("granularity", 900) or 900)
     allow_network = bool(payload.get("allow_network", True))
-    res = bot_orchestrator.predict_live_market_data(
-        live_market_gateway,
-        symbol=symbol,
-        granularity=granularity,
-        allow_network=allow_network,
-    )
+    res = get_live_market_ai_prediction(symbol=symbol, granularity=granularity, allow_network=allow_network)
     control_engine.audit_log.append(
         f"{datetime.now(timezone.utc).isoformat()} | live_ai_prediction | symbol={symbol} dir={res['direction']} prob={res['calibrated_probability']} permission=none"
     )
@@ -2952,147 +3026,8 @@ def post_live_market_ai_prediction(payload: dict[str, object]) -> dict[str, obje
 
 
 def _build_visual_automation_scan(symbol: str = "BTC-USD", trigger_dispatch: bool = False) -> dict[str, object]:
-    clean_sym = symbol.upper()
-    is_crypto = clean_sym.endswith("-USD") or clean_sym in {"BTC-USD", "ETH-USD", "SOL-USD"}
-    track = "competition" if is_crypto else "open_market"
-    now_iso = datetime.now(timezone.utc).isoformat()
-
-    if trigger_dispatch:
-        _PERFECT_TRADER_WHALE_ENGINE.scan_and_auto_submit_multi_asset(
-            gateway=live_market_gateway,
-            control_engine=control_engine,
-        )
-
-    pt_state = _PERFECT_TRADER_WHALE_ENGINE.evaluate_and_auto_submit_whale_moment(
-        symbol=clean_sym,
-        gateway=live_market_gateway,
-        control_engine=control_engine,
-        force_submit=trigger_dispatch,
-    )
-    subsystems = [
-        {
-            "automation_id": "AUTO-01",
-            "title": "Dual-Track & Session Calendar Auto-Router",
-            "route": "/trade/cockpit",
-            "status": "AUTOMATED",
-            "latency_ms": 0.4,
-            "summary": f"Auto-switched {clean_sym} to '{track}' track ({'500ms perp staleness guard · 4% daily / 8% HWM' if is_crypto else '2000ms SIP staleness guard · 3% desk limit'}).",
-            "manual_steps_eliminated": 3,
-        },
-        {
-            "automation_id": "AUTO-02",
-            "title": "Whale Moment ML & Bracket Order Auto-Dispatch",
-            "route": "/trade/cockpit",
-            "status": "AUTOMATED",
-            "latency_ms": 1.1,
-                "summary": "Research signal only; deterministic control owns order sizing and submission.",
-            "manual_steps_eliminated": 5,
-        },
-        {
-            "automation_id": "AUTO-03",
-            "title": "Zero-Touch Order Desk Sizing & ATR Stop Lock",
-            "route": "/trade/cockpit",
-            "status": "AUTOMATED",
-            "latency_ms": 0.6,
-            "summary": "Quarter-Kelly sizing (0.50%–0.75% equity risk) and 1.5x VPIN toxicity stop-widening auto-locked to Remaining-Room HUD.",
-            "manual_steps_eliminated": 4,
-        },
-        {
-            "automation_id": "AUTO-04",
-            "title": "Multi-Account Prop Drawdown Auto-Protection",
-            "route": "/control/risk-hud",
-            "status": "AUTOMATED",
-            "latency_ms": 0.8,
-            "summary": "High-utilization account PROP-100K-02 (77.5% daily limit used) automatically throttled & delta-hedged at 0.25x risk before 4.0% circuit breaker.",
-            "manual_steps_eliminated": 2,
-        },
-        {
-            "automation_id": "AUTO-05",
-            "title": "Sybil & Copy-Bot Cluster Auto-Quarantine",
-            "route": "/control/surveillance",
-            "status": "AUTOMATED",
-            "latency_ms": 1.2,
-            "summary": "Synchronized cluster RING-ALPHA-09 (rho=0.96, delta_t=18ms) automatically quarantined without manual operator clicks.",
-            "manual_steps_eliminated": 2,
-        },
-        {
-            "automation_id": "AUTO-06",
-            "title": "Smart Hybrid A-Book / B-Book Dealing Desk Router",
-            "route": "/control/dealing-desk",
-            "status": "AUTOMATED",
-            "latency_ms": 0.9,
-            "summary": "68.0% low-toxicity flow internalized on B-Book; VPIN > 0.65 & rho >= 0.80 clusters auto-hedged to DMA A-Book ($45.0M/mo).",
-            "manual_steps_eliminated": 3,
-        },
-        {
-            "automation_id": "AUTO-07",
-            "title": "Continuous Webcam KYC & SHA-256 Order Watermarking",
-            "route": "/control/proctoring",
-            "status": "AUTOMATED",
-            "latency_ms": 2.4,
-            "summary": "Continuous 30s biometric liveness (99.1% cosine match), OBS virtual-cam block, 360-deg mobile QR room scan, and SHA-256 order binding active.",
-            "manual_steps_eliminated": 3,
-        },
-        {
-            "automation_id": "AUTO-08",
-            "title": "Continuous Point-in-Time AI Research Synthesis",
-            "route": "/research/central-node",
-            "status": "AUTOMATED",
-            "latency_ms": 3.1,
-            "summary": f"Auto-synthesizes causal regime, VPIN, and SEC XBRL briefs on {clean_sym} transitions with secret-scrubbing guard.",
-            "manual_steps_eliminated": 2,
-        },
-        {
-            "automation_id": "AUTO-09",
-            "title": "Purged Walk-Forward & Calibration Gate Auto-Verifier",
-            "route": "/research/walk-forward",
-            "status": "AUTOMATED",
-            "latency_ms": 1.5,
-            "summary": "Continuously verifies DSR >= 0.95 (0.995) and ECE <= 0.035 (0.021) across CB-01..CB-06 with auto_promoted=False.",
-            "manual_steps_eliminated": 2,
-        },
-        {
-            "automation_id": "AUTO-10",
-            "title": "PIT Lakehouse Causal SQL & SaaS Billing Auto-Sync",
-            "route": "/data/lakehouse",
-            "status": "AUTOMATED",
-            "latency_ms": 1.8,
-            "summary": f"Auto-updates causal SQL (acceptance_time <= as_of) for {clean_sym} and syncs Ledger 1 B2B SaaS MRR telemetry.",
-            "manual_steps_eliminated": 2,
-        },
-    ]
-    total_manual_eliminated = sum(int(s["manual_steps_eliminated"]) for s in subsystems)
-    from atlas.backlog_tracker import build_master_todo_backlog_report
-    from atlas.features.microstructure import compute_institutional_quantitative_measurements
-
-    live_batch = live_market_gateway.fetch_live_market_candles_and_ingest(
-        symbol=clean_sym,
-        granularity=900,
-        limit=24,
-        allow_network=False,
-    )
-    inst_measurements = compute_institutional_quantitative_measurements(
-        symbol=clean_sym,
-        candles=live_batch["candles"],
-    )
-    backlog_report = build_master_todo_backlog_report()
-    control_engine.audit_log.append(
-        f"{now_iso} | visual_automation_scan | symbol={clean_sym} automated_loops={len(subsystems)} manual_eliminated={total_manual_eliminated} permission=none"
-    )
-    return {
-        "status": "ok",
-        "as_of": now_iso,
-        "symbol": clean_sym,
-        "track": track,
-        "automation_coverage_pct": 100.0,
-        "automated_subsystems_count": len(subsystems),
-        "manual_steps_eliminated": total_manual_eliminated,
-        "subsystems": subsystems,
-        "perfect_trader_state": pt_state,
-        "institutional_measurements": inst_measurements,
-        "master_todo_backlog": backlog_report,
-        "execution_permission": "none",
-    }
+    """Retired: static automation coverage and legacy scores are not evidence."""
+    raise _retired_legacy_model()
 
 
 @app.get("/api/automation/visual-scan", include_in_schema=False)

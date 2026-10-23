@@ -1,8 +1,8 @@
 """FastAPI WebSocket Market Stream Broadcaster (`ws.py`).
 
-Implements `/ws/market-stream` and `/api/market/live-stream` with bounded per-client
-queues and non-blocking backpressure frame dropping so slow UI visual consumers
-never block internal risk or microstructure calculation loops.
+Implements `/ws/market-stream`, `/api/market/live-stream`, and `/ws/drift-alerts`
+with bounded per-client queues and non-blocking backpressure frame dropping so slow
+UI visual consumers never block internal risk or microstructure calculation loops.
 
 All broadcast frames carry `execution_permission = "none"`.
 """
@@ -99,6 +99,17 @@ def register_market_stream_ws(
             "execution_permission": "none",
         }
 
+    @app.websocket("/ws/drift-alerts")
+    async def drift_alerts_websocket(websocket: WebSocket) -> None:
+        """WebSocket endpoint for real-time drift alerts."""
+        await websocket.accept()
+        # The shared market queue is not evidence of a fitted drift monitor.
+        # Preserve the route while refusing to label market ticks as alerts.
+        await websocket.send_json({"type": "unavailable", "capability": "drift_alerts",
+                                   "reason": "No validated source-backed drift alert pipeline is configured.",
+                                   "execution_permission": "none"})
+        await websocket.close(code=1008)
+
     @app.get("/api/market/module02-snapshot", include_in_schema=False)
     def get_module02_dual_track_snapshot(track: str = "all") -> dict[str, Any]:
         """Returns real-time streaming tick snapshots across all 9 Module 02 dual-track listings
@@ -123,6 +134,11 @@ def register_market_stream_ws(
         return {
             "status": "ok",
             "as_of": datetime.now(timezone.utc).isoformat(),
+            "data_mode": "synthetic" if gateway.demo_mode else "observed",
+            "notice": (
+                "These listing ticks are a labeled synthetic fixture, not observed venue prints. "
+                "The native live viewer and model observer use separate public feeds."
+            ) if gateway.demo_mode else "Listing ticks come from the loaded gateway stream.",
             "track_filter": track,
             "listings": filtered,
             "remaining_room_hud": hud,

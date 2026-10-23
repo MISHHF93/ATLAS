@@ -246,7 +246,9 @@ def test_http_map_and_chart_read_name_the_same_widget() -> None:
     track = body_read["chart_track"]
     assert track["picture"] == "COINBASE:ETHUSD"
     assert track["interval"] == "60"
-    assert track["follows"] == "same_symbol_and_interval"
+    # An available widget does not establish a matching model feed when the
+    # model is reading fixture or shortened ring-buffer history.
+    assert track["follows"] == "picture_only"
     assert track["bars_from_tradingview"] is False
     assert track["execution_permission"] == "none"
     # The shared ring may already hold a shorter ETH tape from an earlier paper ingest.

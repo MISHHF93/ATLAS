@@ -100,11 +100,14 @@ export function TradingViewChart({
   const [spec, setSpec] = useState<TradingViewSpec | null>(null);
   const [tape, setTape] = useState<TapeSpec | null>(null);
   const [failed, setFailed] = useState(false);
+  const [frameLoaded, setFrameLoaded] = useState(false);
 
   useEffect(() => {
     if (!showChart) return;
     let active = true;
     setFailed(false);
+    setSpec(null);
+    setFrameLoaded(false);
     const pull = async () => {
       try {
         const response = await fetch(
@@ -195,6 +198,9 @@ export function TradingViewChart({
       {showChart && spec && spec.available && spec.embed_url ? (
         <section style={fill ? { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" } : undefined}>
           <iframe
+            key={`${spec.tradingview_symbol}:${spec.interval}`}
+            onLoad={() => setFrameLoaded(true)}
+            onError={() => setFailed(true)}
             title={`TradingView ${spec.tradingview_symbol} ${spec.interval}`}
             src={spec.embed_url}
             scrolling="no"
@@ -209,6 +215,9 @@ export function TradingViewChart({
             }}
             allowFullScreen
           />
+          <div style={{ color: "#94A3B8", fontSize: "11px", marginTop: "4px" }}>
+            {frameLoaded ? "TradingView frame loaded · chart contents are provided by TradingView" : "Loading TradingView frame…"}
+          </div>
           <a
             href={spec.chart_page_url ?? "https://www.tradingview.com/"}
             target="_blank"

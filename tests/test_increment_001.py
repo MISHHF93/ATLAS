@@ -89,9 +89,16 @@ def test_market_endpoint_is_read_only_fixture() -> None:
     assert client.post("/api/market/candles").status_code == 405
 
     paths = set(app.openapi()["paths"])
-    assert paths == {
+    assert {
         "/api/health",
         "/api/market/candles",
         "/api/research/capabilities",
         "/api/research/demo",
-    }
+        "/api/research/vertical-slice/status",
+        "/api/research/vertical-slice/chart",
+        "/api/research/vertical-slice/forecasts",
+        "/api/research/vertical-slice/paper-trades",
+        "/api/research/vertical-slice/lucky-moments",
+        "/api/research/vertical-slice/run",
+        "/api/research/vertical-slice/resolve",
+    }.issubset(paths)

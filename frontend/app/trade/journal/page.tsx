@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
-export default function TradeJournalPage() {
-  return <AtlasTerminal initialSection="overview" initialWorkspaceRoute="/trade/journal" />;
+export default function LegacyPage() {
+  redirect("/control/surveillance");
 }
-

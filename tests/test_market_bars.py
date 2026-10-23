@@ -162,6 +162,7 @@ def test_market_bars_endpoint_and_original_candle_fixture() -> None:
     assert one_second["bucket_seconds"] == 1
     assert one_second["bar_count"] >= 8
     assert one_second["feed_origin"] == "labeled_synthetic_fixture"
+    assert one_second["data_mode"] == "synthetic"
     assert one_second["chart_source"] != "public_market_candles"
     assert one_second["execution_permission"] == "none"
     _assert_ohlc(one_second["candles"])
@@ -171,3 +172,72 @@ def test_market_bars_endpoint_and_original_candle_fixture() -> None:
     assert page.json()["source"] == "fixture"
     assert page.json()["candles"][0]["close"] == "67110.50"
     assert client.get("/api/market/candles", params={"symbol": "AAPL", "interval": "1h"}).json()["candles"] == []
+
+
+def test_public_bar_cache_refreshes_expired_daily_training_data(monkeypatch) -> None:
+    from atlas.marketdata import public_quotes
+
+    gateway = LiveMarketDataGateway(demo_mode=True)
+    candles = [{"timestamp": "2026-01-01T00:00:00+00:00", "close": 100.0}] * 8
+    old = {"symbol": "BTC-USD", "bucket_seconds": 86400, "candles": candles,
+           "as_of": "2026-01-01T00:00:00+00:00"}
+    gateway.store_public_bars(old)
+    fresh = {**old, "as_of": datetime.now(timezone.utc).isoformat()}
+    calls = []
+    def fetch(*args, **kwargs):
+        calls.append(args)
+        return fresh
+    monkeypatch.setattr(public_quotes, "fetch_public_candles", fetch)
+    gateway.public_fetch_enabled = True
+    assert gateway.public_bars("BTC-USD", 86400) is fresh
+    assert gateway.public_bars("BTC-USD", 86400) is fresh
+    assert len(calls) == 1
+
+
+def test_live_training_excludes_unfinished_public_daily_bars(monkeypatch) -> None:
+    from atlas.models import live_training
+    from atlas.models.whale_policy import WhalePolicyModel, WhalePolicyTrainer
+
+    gateway = LiveMarketDataGateway(demo_mode=True)
+    now = datetime.now(timezone.utc)
+    candles = [{"timestamp": (now - timedelta(days=120-i)).isoformat(),
+                "open": 100+i, "high": 102+i, "low": 99+i, "close": 101+i,
+                "volume": 100 + i % 17} for i in range(121)]
+    monkeypatch.setattr(live_training, "project_symbol_bars", lambda gateway, sym, **kwargs: {
+        "chart_source": "public_market_candles", "feed_origin": "test_public",
+        "track": "competition" if sym.endswith("-USD") else "open_market",
+        "candles": candles, "bar_count": len(candles)})
+    result = live_training.train_live_books(gateway, WhalePolicyTrainer(), served_model=WhalePolicyModel())
+    for row in result["competition"] + result["open_market"]:
+        assert row["status"] == "trained"
+        assert row["bars"] == 120
+        assert datetime.fromisoformat(row["last_close_available_at"]) <= datetime.fromisoformat(row["training_as_of"])
+        assert row["last_bar_open"] != candles[-1]["timestamp"]
+
+
+def test_public_chart_read_excludes_partial_bar_and_demo_flow() -> None:
+    from atlas.models.chart_reader import read_symbol_chart, read_market_charts
+    from atlas.models.whale_policy import WhalePolicyModel
+
+    gateway = LiveMarketDataGateway(demo_mode=True)
+    now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    candles = [{"timestamp": (now - timedelta(minutes=20-i)).isoformat(),
+                "open": 100+i, "high": 102+i, "low": 99+i, "close": 101+i,
+                "volume": 100+i} for i in range(21)]
+    gateway.store_public_bars({"symbol": "BTC-USD", "bucket_seconds": 60,
+                               "candles": candles, "feed_source": "test_public"})
+    gateway.ingest_tick(symbol="BTC-USD", price=50000, size=100, side="sell",
+                        exchange_timestamp=now, system_receipt_timestamp=now)
+    model = WhalePolicyModel()
+    active = read_symbol_chart(gateway, model, "BTC-USD", bucket_seconds=60, include_whale_moment=True)
+    assert active["bars_read"] == 20
+    assert active["last_close"] == candles[-2]["close"]
+    assert active["stream_inputs_observed"] == []
+    assert active["signal"]["telemetry"]["ofi_observed"] is False
+    assert active["signal"]["telemetry"]["spread_observed"] is False
+    assert "raw_score" in active["signal"]["telemetry"]
+    assert active["model_weights"] == model.weights
+    assert datetime.fromisoformat(active["last_bar_close"]) <= datetime.now(timezone.utc)
+    report = read_market_charts(gateway, model, symbol="BTC-USD", bucket_seconds=60)
+    assert report["chart_track"]["follows"] == "same_symbol_and_interval"
+    assert report["chart_track"]["bars_from_tradingview"] is False

@@ -1,5 +1,5 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
-export default function ResearchMicrostructurePage() {
-  return <AtlasTerminal initialSection="market" initialWorkspaceRoute="/research/microstructure" />;
+export default function LegacyPage() {
+  redirect("/research");
 }

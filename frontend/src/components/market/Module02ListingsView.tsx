@@ -11,9 +11,9 @@ import { AtlasLogo } from "../shell/AtlasLogo";
 import { AppNav } from "../shell/AppNav";
 import { AssetMarkLegend, GuideIcon, markColor, markForSymbol } from "../shell/guideIcons";
 import { type LiveCandlePoint } from "./LiveChartEngine";
-import { TradingViewChart, TradingViewStockInfo } from "./TradingViewChart";
+import { TradingViewStockInfo } from "./TradingViewChart";
+import { DeskChart } from "./DeskChart";
 import { TradingViewMarkets } from "./TradingViewMarkets";
-import { loadMarketBars } from "../../lib/marketBars";
 
 export interface Module02ListingPacket {
   symbol: string;
@@ -223,10 +223,7 @@ function Module02InnerWorkbench() {
   const { role, setRole, profile } = useRoleContext();
   const [trackFilter, setTrackFilter] = useState<"all" | "open_market" | "competition">("all");
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTC-USD");
-  const [, setHistoryCandles] = useState<LiveCandlePoint[]>([]);
-  const [barNote, setBarNote] = useState("Loading labeled bars");
-  const [barsLoading, setBarsLoading] = useState(true);
-  const [chartTimeframe, setChartTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("1m");
+  const [chartTimeframe, setChartTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("1s");
   const [listings, setListings] = useState<Module02ListingPacket[]>(INITIAL_MODULE02_LISTINGS);
   // Live data fetches from backend API on mount; pollModule02Stream refreshes every 2.5s
   useEffect(() => {
@@ -301,8 +298,9 @@ function Module02InnerWorkbench() {
           });
         }
         const origin = String(data.gateway?.feed_origin ?? "labeled_synthetic_fixture");
+        const mode = String(data.data_mode ?? (data.gateway?.demo_mode ? "synthetic" : "observed"));
         setFeedNote(
-          `${origin} · buffer ${data.gateway?.ring_buffer_size ?? "?"} / ${data.gateway?.ring_buffer_maxlen ?? 10000} · venue sessions ${data.gateway?.venue_sessions ?? "unconfigured"} · execution_permission none`
+          `${mode} feed A� ${origin} A� buffer ${data.gateway?.ring_buffer_size ?? "?"} / ${data.gateway?.ring_buffer_maxlen ?? 10000} A� venue sessions ${data.gateway?.venue_sessions ?? "unconfigured"} A� execution_permission none`
         );
         if (Array.isArray(data.listings) && data.listings.length > 0) {
           setListings((prev) =>
@@ -338,24 +336,10 @@ function Module02InnerWorkbench() {
         }
       }
     } catch {
-      // Deterministic client-side tick synthesis fallback when offline
+      setFeedNote(
+        "The market snapshot is unavailable. Prices are frozen at the last received values; no client-side ticks are invented. execution_permission none"
+      );
     }
-
-    setListings((prev) =>
-      prev.map((item, idx) => {
-        const delta = Math.sin(Date.now() / 1200 + idx) * (item.price * 0.0006);
-        const nextPrice = Number((item.price + delta).toFixed(2));
-        return {
-          ...item,
-          prevPrice: item.price,
-          price: nextPrice,
-          vpin: Number(Math.min(0.65, Math.max(0.18, item.vpin + delta * 0.002)).toFixed(3)),
-          ofi: Number(Math.min(0.85, Math.max(-0.85, item.ofi + (delta >= 0 ? 0.03 : -0.03))).toFixed(3)),
-          flash: nextPrice >= item.price ? "up" : "down",
-        };
-      })
-    );
-    setRingBufferSize((r) => Math.min(10000, r + 9));
   }, []);
 
   useEffect(() => {
@@ -448,36 +432,6 @@ function Module02InnerWorkbench() {
   );
 
   useEffect(() => {
-    let active = true;
-    const seconds = { "1s": 1, "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1D": 86400 }[chartTimeframe];
-    setBarsLoading(true);
-    void loadMarketBars(selectedSymbol, seconds, 160)
-      .then((body) => {
-        if (!active) return;
-        setHistoryCandles(body.candles);
-        setBarNote(
-          `${body.bar_count} labeled bars · ${body.chart_source} · ${body.feed_origin} · ${selectedSymbol} · execution_permission ${body.execution_permission}`
-        );
-        setBarsLoading(false);
-      })
-      .catch(() => {
-        if (!active) return;
-        setBarsLoading(false);
-      });
-    const timer = setInterval(() => {
-      void loadMarketBars(selectedSymbol, seconds, 160)
-        .then((body) => {
-          if (active) setHistoryCandles(body.candles);
-        })
-        .catch(() => undefined);
-    }, 3000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, [chartTimeframe, selectedSymbol]);
-
-  useEffect(() => {
     const price = activeListing.price;
     const symbol = activeListing.symbol;
     const changed = fixtureSymbolRef.current !== symbol;
@@ -519,11 +473,13 @@ function Module02InnerWorkbench() {
           <span className="badge badge-emerald">Ring Buffer: {ringBufferSize.toLocaleString()} / 10,000</span>
           <button
             type="button"
-            className={`btn btn-sm ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+            className="btn btn-sm btn-outline"
             disabled={!profile.canTriggerKillSwitch}
+            aria-pressed={killSwitchEngaged}
+            title={killSwitchEngaged ? "Turn the paper desk back on." : "Turn the paper desk off. New orders stop."}
             onClick={() => {
               if (!profile.canTriggerKillSwitch) {
-                setRbacBanner("Kill switch stays with prop_firm_admin. This role cannot engage it.");
+                setRbacBanner("Only the admin role can turn the desk off.");
                 return;
               }
               const next = !killSwitchEngaged;
@@ -536,22 +492,22 @@ function Module02InnerWorkbench() {
                 }),
               }).then(async (response) => {
                 if (!response.ok) {
-                  setRbacBanner("Kill switch request was refused. The control plane state is unchanged.");
+                  setRbacBanner("The desk did not change. The control plane state is unchanged.");
                   return;
                 }
                 const state = await response.json();
                 setKillSwitchEngaged(Boolean(state.kill_switch_engaged));
                 setRbacBanner(
                   state.kill_switch_engaged
-                    ? "Kill switch engaged by the control plane. Paper positions flattened."
-                    : "Kill switch reset. Control plane is accepting paper orders again."
+                    ? "The desk is off. Open paper positions were closed."
+                    : "The desk is on. Paper orders can be submitted again."
                 );
               }).catch(() => {
-                setRbacBanner("Kill switch request failed. State is unconfirmed.");
+                setRbacBanner("The desk did not change. State is unconfirmed.");
               });
             }}
           >
-            {killSwitchEngaged ? "Reset Kill Switch" : "Emergency Kill"}
+            {killSwitchEngaged ? "Resume paper trading" : "Halt paper trading"}
           </button>
         </div>
       </header>
@@ -560,8 +516,8 @@ function Module02InnerWorkbench() {
         {/* RBAC Client Segment Selector Strip (Section 2) */}
         <div className="clean-card" style={{ marginBottom: "16px", padding: "14px 18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ minWidth: 0, width: "100%" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                 <span className="badge badge-blue">RBAC CLIENT SEGMENT SEGREGATION</span>
                 <strong style={{ fontSize: "14px", color: "#F8FAFC" }}>{profile.title}</strong>
                 <span className="mono-cell" style={{ fontSize: "11.5px", color: "#00F29D" }}>
@@ -607,6 +563,7 @@ function Module02InnerWorkbench() {
             }}
           >
             {rbacBanner}
+            <div style={{ marginTop: 4, color: "#94A3B8" }}>{feedNote}</div>
           </div>
         </div>
 
@@ -648,6 +605,14 @@ function Module02InnerWorkbench() {
               Competition freshness gate 500ms · fixture venue label {activeListing.provider}
             </span>
           </div>
+        </div>
+
+        <div className="clean-card selected-market-viewer">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
+            <strong>{activeListing.symbol} - chart and model inputs</strong>
+            {(["1s", "1m", "5m", "15m", "1h", "1D"] as const).map(interval => <button key={interval} type="button" className={`clean-tf-btn${chartTimeframe === interval ? " is-active" : ""}`} aria-pressed={chartTimeframe === interval} onClick={() => setChartTimeframe(interval)}>{interval === "1s" ? "Real time" : interval}</button>)}
+          </div>
+          <DeskChart symbol={activeListing.symbol} modelSymbol={activeListing.symbol} timeframe={chartTimeframe} frameClassName="desk-chart-frame" onOpenMinute={() => setChartTimeframe("1m")} />
         </div>
 
         <TradingViewStockInfo symbol={activeListing.symbol} timeframe={chartTimeframe} />
@@ -888,18 +853,7 @@ function Module02InnerWorkbench() {
           })}
         </div>
 
-        {/* Selected Instrument Live Chart + Dynamic Volume Profile (VAH/VAL/POC) + Forecast Fan */}
-        <div className="clean-card">
-          <div style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "8px" }}>{feedNote}</div>
-          <div style={{ fontSize: "12px", color: "#64748B", marginBottom: "8px" }}>{barNote}</div>
-          <TradingViewChart
-            symbol={activeListing.symbol}
-            timeframe={chartTimeframe}
-            height={460}
-            showTape
-            showCompanions={false}
-          />
-        </div>
+
       </div>
     </div>
   );

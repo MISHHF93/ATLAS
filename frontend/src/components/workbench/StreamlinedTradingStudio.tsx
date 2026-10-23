@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { type LiveCandlePoint } from "../market/LiveChartEngine";
 import { WhaleOnChart } from "../market/WhaleOnChart";
 import { DeskChart } from "../market/DeskChart";
+import { type LiveSnapshot } from "../market/LiveMarketViewer";
 import { AppNav } from "../shell/AppNav";
 import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel, type GuideIconName } from "../shell/guideIcons";
 import { CLIENT_ROLE_PROFILES, useRoleContext, type ClientRoleId } from "../../context/RoleContext";
@@ -363,7 +364,7 @@ export function StreamlinedTradingStudio() {
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   const [modelGap, setModelGap] = useState<string | null>(null);
   const [publicClose, setPublicClose] = useState<number | null>(null);
-  const [timeframe, setTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("1m");
+  const [timeframe, setTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("1s");
   const [, setChartCandles] = useState<LiveCandlePoint[]>([]);
   const [barsLoading, setBarsLoading] = useState(true);
   const [barNote, setBarNote] = useState("Loading labeled bars");
@@ -468,6 +469,7 @@ export function StreamlinedTradingStudio() {
   const barSourceRef = useRef("labeled_fixture_bars");
   const barsRequestRef = useRef(0);
   const selectedSymbolRef = useRef(selectedSymbol);
+  const nativeQuoteSymbolRef = useRef<string | null>(null);
   const prevSymbolRef = useRef<string>("BTC-USD");
   selectedSymbolRef.current = selectedSymbol;
 
@@ -605,6 +607,7 @@ export function StreamlinedTradingStudio() {
             prev.map((item) => {
               const quote = bySymbol.get(item.symbol);
               if (!quote) return item;
+              if (timeframeRef.current === "1s" && nativeQuoteSymbolRef.current === item.symbol) return item;
               return {
                 ...item,
                 last_price: quote.price,
@@ -657,13 +660,38 @@ export function StreamlinedTradingStudio() {
   // Dynamic On-Demand WebSocket Subscription Multiplexer (/ws/market-stream).
   // History comes from /api/market/bars. The socket only moves the right edge.
   const timeframeRef = useRef(timeframe);
-  useEffect(() => {
-    timeframeRef.current = timeframe;
-  }, [timeframe]);
+  timeframeRef.current = timeframe;
+
+  const handleLiveSnapshot = useCallback((snapshot: LiveSnapshot) => {
+    if (timeframeRef.current !== "1s" || snapshot.symbol !== selectedSymbolRef.current) return;
+    const close = snapshot.candles?.[snapshot.candles.length - 1]?.close;
+    const genuine = ["public_last_trade", "public_market_candles"].includes(snapshot.chart_source ?? "")
+      && Boolean(snapshot.feed_origin && snapshot.feed_origin !== "none");
+    if (snapshot.feed_health?.connection !== "connected" || !genuine || typeof close !== "number" || !Number.isFinite(close) || close <= 0) {
+      setFeedAvailable(false);
+      return;
+    }
+    nativeQuoteSymbolRef.current = snapshot.symbol;
+    setPublicClose(close);
+    setCatalogListings(previous => previous.map(item => item.symbol === snapshot.symbol
+      ? { ...item, last_price: close, quote_origin: snapshot.feed_origin } : item));
+    setFeedAvailable(true);
+    setDemoFeedActive(false);
+  }, []);
 
   useEffect(() => {
     const requestId = barsRequestRef.current + 1;
     barsRequestRef.current = requestId;
+    if (timeframe === "1s") {
+      barsRef.current = [];
+      barSourceRef.current = "native_live_view";
+      setChartCandles([]);
+      setFeedAvailable(false);
+      setPublicClose(null);
+      setBarsLoading(false);
+      setBarNote("The native viewer below owns the received market candles and completed model inputs.");
+      return;
+    }
     let active = true;
     setBarsLoading(true);
     const bucketSeconds = TIMEFRAME_SECONDS[timeframe];
@@ -723,9 +751,9 @@ export function StreamlinedTradingStudio() {
             return;
           }
           if (pkt.symbol && Number.isFinite(Number(pkt.price))) {
-            setDemoFeedActive(pkt.data_mode !== "observed");
+            if (timeframeRef.current !== "1s") setDemoFeedActive(pkt.data_mode !== "observed");
             const tickSymbol = String(pkt.symbol).toUpperCase();
-            if (tickSymbol === selectedSymbolRef.current.toUpperCase()) {
+            if (tickSymbol === selectedSymbolRef.current.toUpperCase() && timeframeRef.current !== "1s") {
               const lastClose = barsRef.current[barsRef.current.length - 1]?.close ?? 0;
               const print = Number(pkt.price);
               const distantPublicPrint = barSourceRef.current === "public_market_candles" && lastClose > 0 && Math.abs(print - lastClose) / lastClose > 0.03;
@@ -798,8 +826,10 @@ export function StreamlinedTradingStudio() {
         setFeedAudit(
           `${origin} · ${tick.symbol ?? selectedSymbol} ${price > 0 ? price.toLocaleString() : "waiting"} · buffer ${gateway.ring_buffer_size ?? 0}/${gateway.ring_buffer_maxlen ?? 10000} · venues unconfigured ${unconfigured}/${names.length || 0} · execution_permission ${body.execution_permission ?? "none"}`
         );
-        if (tick.data_mode === "observed") setDemoFeedActive(false);
-        else if (gateway.demo_mode || tick.data_mode === "demo") setDemoFeedActive(true);
+        if (timeframeRef.current !== "1s") {
+          if (tick.data_mode === "observed") setDemoFeedActive(false);
+          else if (gateway.demo_mode || tick.data_mode === "demo") setDemoFeedActive(true);
+        }
       } catch {
         if (active) setFeedAudit("Fixture stream status unavailable · execution_permission none");
       }
@@ -813,6 +843,10 @@ export function StreamlinedTradingStudio() {
   }, [selectedSymbol]);
 
   useEffect(() => {
+    if (timeframe === "1s") {
+      setChartRead(null);
+      return;
+    }
     let active = true;
     const bucketSeconds = TIMEFRAME_SECONDS[timeframe];
     const pull = async () => {
@@ -965,11 +999,14 @@ export function StreamlinedTradingStudio() {
   };
 
   const activeAsset = useMemo(
-    () =>
-      catalogListings.find((item) => item.symbol === selectedSymbol) ??
+    () => {
+      const listing = catalogListings.find((item) => item.symbol === selectedSymbol) ??
       DEFAULT_STUDIO_LISTINGS.find((item) => item.symbol === selectedSymbol) ??
-      placeholderListing(selectedSymbol, publicClose ?? 0),
-    [catalogListings, publicClose, selectedSymbol]
+      placeholderListing(selectedSymbol, publicClose ?? 0);
+      return timeframe === "1s" && nativeQuoteSymbolRef.current === selectedSymbol && publicClose != null
+        ? { ...listing, last_price: publicClose } : listing;
+    },
+    [catalogListings, publicClose, selectedSymbol, timeframe]
   );
 
   // Remaining-Room HUD & Deterministic Position Sizing Math
@@ -1081,12 +1118,12 @@ export function StreamlinedTradingStudio() {
     trailingDdFloorPct,
   ]);
 
-  // Emergency Kill-Switch Handler
+  // Trading Halt / Resume Handler (paper desk circuit breaker)
   const handleToggleKillSwitch = async () => {
     if (!profile.canTriggerKillSwitch) {
       setOrderFeedback({
         status: "rejected",
-        message: "Kill-switch is limited to prop_firm_admin. This role cannot engage or reset it.",
+        message: "Only the admin role can turn the desk off.",
       });
       return;
     }
@@ -1103,11 +1140,11 @@ export function StreamlinedTradingStudio() {
           reason: nextState ? "studio_emergency_kill_switch" : "studio_operator_reset",
         }),
       });
-      if (!response.ok) throw new Error(response.status === 403 ? "Role is not authorized to trigger the kill switch." : "Kill-switch request failed; state is unconfirmed.");
+      if (!response.ok) throw new Error(response.status === 403 ? "This role cannot turn the desk off." : "The desk did not change. State is unconfirmed.");
     } catch (error) {
       setOrderFeedback({
         status: "rejected",
-        message: error instanceof Error ? error.message : "Kill-switch request failed; state is unconfirmed.",
+        message: error instanceof Error ? error.message : "The desk did not change. State is unconfirmed.",
       });
       return;
     }
@@ -1116,12 +1153,12 @@ export function StreamlinedTradingStudio() {
       setPositions((prev) => prev.map((p) => ({ ...p, status: "FLATTENED" })));
       setOrderFeedback({
         status: "rejected",
-        message: "EMERGENCY KILL-SWITCH ENGAGED · Paper positions flattened · Order intake locked.",
+        message: "The desk is off. Open paper positions were closed. New orders stay stopped.",
       });
     } else {
       setOrderFeedback({
         status: "nominal",
-        message: "Kill-Switch reset by operator · ActionableControlPlaneEngine nominal.",
+        message: "The desk is on. Paper orders can be submitted again.",
       });
     }
   };
@@ -1154,7 +1191,7 @@ export function StreamlinedTradingStudio() {
     setPositions((prev) => prev.map((p) => ({ ...p, status: "FLATTENED" })));
     setOrderFeedback({
       status: "authorized",
-      message: "1-CLICK AUTO-FLATTEN EXECUTED · Paper positions closed; no broker orders sent.",
+      message: "Paper positions closed. Nothing was sent to a broker.",
     });
     setAuditLogs((prev) => [
       `${new Date().toISOString()} | control_plane | 1-Click Auto-Flatten closed all active positions | status=FLATTENED`,
@@ -1170,7 +1207,7 @@ export function StreamlinedTradingStudio() {
         : activeAsset.last_price <= 0
         ? "Rejected: this name has no quote. Nothing was sent."
         : killSwitchEngaged
-        ? "Rejected: Emergency Kill-Switch is currently engaged."
+        ? "The desk is off. Nothing was sent."
         : equityRiskPct > riskCapPct
         ? `Rejected: Per-trade risk (${equityRiskPct.toFixed(2)}%) exceeds the ${riskCapPct.toFixed(2)}% ${deskTrack} cap.`
         : equityRiskPct < 0.5
@@ -1461,7 +1498,6 @@ export function StreamlinedTradingStudio() {
           </div>
         </div>
 
-        {/* Emergency Kill-Switch & 1-Click Auto-Flatten Buttons */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <div
             style={{
@@ -1495,44 +1531,69 @@ export function StreamlinedTradingStudio() {
               ))}
             </select>
           </div>
-          <button
-            type="button"
-            onClick={() => void handleAutoFlattenAll()}
-            disabled={!profile.canExecuteTraderOrders}
-            title={profile.canExecuteTraderOrders ? "Flatten paper positions through the control plane" : "This role cannot submit execution actions"}
+          <div
             style={{
-              padding: "6px 12px",
-              borderRadius: "6px",
-              border: "1px solid rgba(245, 158, 11, 0.45)",
-              background: "rgba(245, 158, 11, 0.14)",
-              color: "#FBBF24",
-              fontWeight: 700,
-              fontSize: "11.5px",
-              cursor: profile.canExecuteTraderOrders ? "pointer" : "not-allowed",
-              opacity: profile.canExecuteTraderOrders ? 1 : 0.45,
+              display: "flex",
+              alignItems: "center",
+              gap: "2px",
+              padding: "3px",
+              borderRadius: "8px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "#121722",
             }}
           >
-            {profile.canExecuteTraderOrders ? "Flatten" : "Flatten locked"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleToggleKillSwitch()}
-            disabled={!profile.canTriggerKillSwitch}
-            title={profile.canTriggerKillSwitch ? "Engage or reset the platform kill switch" : "Kill-switch is limited to prop_firm_admin"}
-            style={{
-              padding: "6px 12px",
-              borderRadius: "6px",
-              border: "1px solid rgba(255, 59, 105, 0.55)",
-              background: killSwitchEngaged ? "#FF3B69" : "rgba(255, 59, 105, 0.18)",
-              color: killSwitchEngaged ? "#070A0F" : "#FF3B69",
-              fontWeight: 800,
-              fontSize: "11.5px",
-              cursor: profile.canTriggerKillSwitch ? "pointer" : "not-allowed",
-              opacity: profile.canTriggerKillSwitch ? 1 : 0.45,
-            }}
-          >
-            {!profile.canTriggerKillSwitch ? "Kill locked" : killSwitchEngaged ? "Reset kill" : "Kill"}
-          </button>
+            <button
+              type="button"
+              onClick={() => void handleAutoFlattenAll()}
+              disabled={!profile.canExecuteTraderOrders}
+              title={profile.canExecuteTraderOrders ? "Close the open paper positions. Nothing goes to a broker." : "This role cannot close positions."}
+              style={{
+                padding: "5px 10px",
+                borderRadius: "6px",
+                border: profile.canExecuteTraderOrders ? "1px solid rgba(249, 115, 22, 0.55)" : "1px solid rgba(255,255,255,0.08)",
+                background: profile.canExecuteTraderOrders ? "rgba(249, 115, 22, 0.16)" : "transparent",
+                color: profile.canExecuteTraderOrders ? "#FB923C" : "#64748B",
+                fontWeight: 700,
+                fontSize: "11.5px",
+                cursor: profile.canExecuteTraderOrders ? "pointer" : "not-allowed",
+              }}
+            >
+              Close all paper positions
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleToggleKillSwitch()}
+              disabled={!profile.canTriggerKillSwitch}
+              aria-pressed={killSwitchEngaged}
+              title={
+                !profile.canTriggerKillSwitch
+                  ? "Only the admin role can turn the desk off."
+                  : killSwitchEngaged
+                    ? "Turn the paper desk back on."
+                    : "Turn the paper desk off. New orders stop."
+              }
+              style={{
+                padding: "5px 10px",
+                borderRadius: "6px",
+                border: !profile.canTriggerKillSwitch
+                  ? "1px solid rgba(255,255,255,0.08)"
+                  : killSwitchEngaged
+                    ? "1px solid rgba(255, 59, 105, 0.9)"
+                    : "1px solid rgba(255, 59, 105, 0.55)",
+                background: !profile.canTriggerKillSwitch
+                  ? "transparent"
+                  : killSwitchEngaged
+                    ? "rgba(255, 59, 105, 0.38)"
+                    : "rgba(255, 59, 105, 0.16)",
+                color: !profile.canTriggerKillSwitch ? "#64748B" : killSwitchEngaged ? "#FF5C7A" : "#FF8CA3",
+                fontWeight: 700,
+                fontSize: "11.5px",
+                cursor: profile.canTriggerKillSwitch ? "pointer" : "not-allowed",
+              }}
+            >
+              {killSwitchEngaged ? "Resume paper trading" : "Halt paper trading"}
+            </button>
+          </div>
         </div>
       </header>
       {/* ====================================================================
@@ -1829,6 +1890,8 @@ export function StreamlinedTradingStudio() {
                   key={tf}
                   type="button"
                   onClick={() => setTimeframe(tf)}
+                  aria-pressed={timeframe === tf}
+                  title={tf === "1s" ? "Native market viewer: 1-second crypto trades where supported; public API minute candles for other listings, with resolution and delay disclosed." : `TradingView ${tf} candles`}
                   style={{
                     padding: "5px 9px",
                     borderRadius: "5px",
@@ -1840,7 +1903,7 @@ export function StreamlinedTradingStudio() {
                     cursor: "pointer",
                   }}
                 >
-                  {tf}
+                  {tf === "1s" ? "Real time" : tf}
                 </button>
               ))}
               <button
@@ -1874,8 +1937,8 @@ export function StreamlinedTradingStudio() {
           >
             {notesOpen ? (
               <div style={{ fontSize: "11px", color: "#64748B", marginBottom: "8px", lineHeight: 1.45 }}>
-                <div>{modelGap ?? (chartRead ? `${chartRead.active.chart_source} · ${chartRead.active.feed_origin} · execution_permission ${chartRead.execution_permission}` : "Model is waiting to read this chart.")}</div>
-                {chartRead ? (
+                <div>{timeframe === "1s" ? "The live feed and model inputs are shown together in the native viewer below." : modelGap ?? (chartRead ? `${chartRead.active.chart_source} · ${chartRead.active.feed_origin} · execution_permission ${chartRead.execution_permission}` : "Model is waiting to read this chart.")}</div>
+                {timeframe !== "1s" && chartRead ? (
                   <>
                     <div>Competition {chartRead.competition.map((row) => `${row.symbol} ${row.direction}`).join(" · ")}</div>
                     <div>Open market {chartRead.open_market.map((row) => `${row.symbol} ${row.direction}`).join(" · ")}</div>
@@ -1916,13 +1979,9 @@ export function StreamlinedTradingStudio() {
               frameClassName="desk-chart-frame"
               gap={modelGap}
               onOpenMinute={() => setTimeframe("1m")}
-            >
-              <WhaleOnChart
-                symbol={selectedSymbol}
-                bucketSeconds={TIMEFRAME_SECONDS[timeframe]}
-                gap={modelGap}
-              />
-            </DeskChart>
+              modelSymbol={selectedSymbol}
+              onSnapshot={handleLiveSnapshot}
+            />
           </div>
 
           {/* Collapsible Bottom Drawer: Active Positions Blotter, Working Orders & Audit History */}
@@ -2473,7 +2532,7 @@ export function StreamlinedTradingStudio() {
             >
               {sizingCalculation.hardRiskBreach
                 ? "⚠️ RISK GATE BLOCKED (CLICK TO INSPECT)"
-                : `SUBMIT ${orderSide} BRACKET (${executionTactic})`}
+                : `SUBMIT PAPER ${orderSide} BRACKET (${executionTactic})`}
             </button>
 
             {/* Real-Time Control Plane Feedback Banner */}

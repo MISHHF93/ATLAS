@@ -47,7 +47,12 @@ class BotPerformanceTelemetry(Record):
 
 
 class PurgedWalkForwardWindow(Record):
-    """Single purged & 5-day embargoed walk-forward fold window (`EXP-001`)."""
+    """A purged fold whose exact sample membership is authoritative.
+
+    End timestamps include label resolution and must never be used to select
+    additional entries. Adjacent test labels may resolve after the next fold's
+    first entry without making that entry a member of both folds.
+    """
 
     fold_index: int = Field(ge=0)
     train_start: AwareDatetime
@@ -224,6 +229,9 @@ class BotOrchestrator:
         `embargo_days` (5 days) are embargoed.
         """
         effective_embargo_days = max(5, int(embargo_days))
+        event_times = [observation.event_time for observation in observations]
+        if event_times != sorted(set(event_times)):
+            raise ValueError("EXP-001 observations must have unique chronological event times")
         tb_samples: tuple[TripleBarrierSample, ...] = label_triple_barrier_samples(
             list(observations),
             atr_window=5,
@@ -243,26 +251,28 @@ class BotOrchestrator:
             if not split.train_sample_indices or not split.test_sample_indices:
                 continue
             first_train = sample_map[split.train_sample_indices[0]]
-            last_train = sample_map[split.train_sample_indices[-1]]
             first_test = sample_map[split.test_sample_indices[0]]
-            last_test = sample_map[split.test_sample_indices[-1]]
+            train_samples = [sample_map[idx] for idx in split.train_sample_indices]
+            test_samples = [sample_map[idx] for idx in split.test_sample_indices]
+            train_end = max(sample.barrier_touch_time for sample in train_samples)
+            test_end = max(sample.barrier_touch_time for sample in test_samples)
 
             # Verify strict temporal causality: train label horizon finishes strictly before test_start
             causal_ok = (
                 split.zero_leakage_verified
-                and last_train.entry_time < first_test.entry_time
-                and last_train.barrier_touch_time < first_test.entry_time
+                and all(sample.entry_time < first_test.entry_time for sample in train_samples)
+                and train_end < first_test.entry_time
                 and max(split.train_sample_indices) < min(split.test_sample_indices)
             )
-            embargo_end = last_test.barrier_touch_time + timedelta(days=effective_embargo_days)
+            embargo_end = test_end + timedelta(days=effective_embargo_days)
 
             windows.append(
                 PurgedWalkForwardWindow(
                     fold_index=split.fold_index,
                     train_start=first_train.entry_time,
-                    train_end=last_train.barrier_touch_time,
+                    train_end=train_end,
                     test_start=first_test.entry_time,
-                    test_end=last_test.barrier_touch_time,
+                    test_end=test_end,
                     embargo_end=embargo_end,
                     embargo_days=effective_embargo_days,
                     purged_samples_count=split.purged_overlap_count,
@@ -430,6 +440,26 @@ class BotOrchestrator:
         latest_tick = live_batch["latest_tick"] or {}
         sym = str(live_batch["symbol"])
         now_dt = datetime.now(timezone.utc)
+        feed_source = str(live_batch.get("feed_source") or "unavailable")
+        synthetic = any(marker in feed_source.lower() for marker in ("synthes", "fallback", "fixture"))
+        data_mode = "synthetic" if synthetic else "unavailable" if feed_source == "unavailable" else "observed"
+        if len(candles) < 4:
+            return {
+                "status": "withheld_no_observed_data",
+                "as_of": now_dt.isoformat(),
+                "symbol": sym,
+                "feed_source": feed_source,
+                "data_mode": "unavailable",
+                "direction": "WITHHELD",
+                "calibrated_probability": None,
+                "locked_whale_opportunity": None,
+                "trading_factors": [],
+                "horizon_forecasts": [],
+                "strategy_signals": [],
+                "candles": [],
+                "notice": "No observed public candles were available for this symbol. No synthetic market state is presented as live.",
+                "execution_permission": "none",
+            }
 
         # Convert live candle bars into point-in-time Observation records
         obs_list: list[Observation] = []
@@ -536,10 +566,15 @@ class BotOrchestrator:
         ]
 
         return {
-            "status": "ok",
+            "status": "synthetic_fixture" if synthetic else "ok",
+            "data_mode": data_mode,
+            "notice": (
+                "This response is a labeled offline fixture, not observed live market data. "
+                "It is served only when the public feed is unavailable."
+            ) if synthetic else "Observed public market data.",
             "as_of": now_dt.isoformat(),
             "symbol": sym,
-            "feed_source": live_batch["feed_source"],
+            "feed_source": feed_source,
             "spot_price": round(spot_px, 4),
             "model_id": whale_report.model_id,
             "direction": direction,

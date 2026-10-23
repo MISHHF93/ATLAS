@@ -6,6 +6,7 @@
     "build": "next build",
     "start": "node server.mjs --production",
     "typecheck": "tsc --noEmit",
+    "test:routes": "node --test scripts/pages.test.mjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

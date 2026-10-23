@@ -29,6 +29,7 @@ def _no_quote_report(sym: str, asset: Any, bucket: int) -> dict[str, Any]:
         "candles": [],
         "last_close": 0.0,
         "chart_source": "no_quote",
+        "data_mode": "withheld",
         "feed_origin": "labeled_synthetic_fixture",
         "catalog_found": asset is not None,
         "venue_sessions": "unconfigured",
@@ -178,12 +179,36 @@ def project_symbol_bars(
             "candles": candles,
             "last_close": float(candles[-1]["close"]),
             "chart_source": "public_market_candles",
+            "data_mode": "observed",
             "feed_origin": str(public["feed_source"]),
             "catalog_found": asset is not None,
             "venue_sessions": "public_market_data",
             "notice": "Public candles from the named feed. This is not a Polygon, Databento, or broker session. The model still cannot send an order.",
             "execution_permission": "none",
         }
+
+    if bucket == 1:
+        from atlas.marketdata.second_tape import snapshot
+
+        tape = snapshot(sym, sampling=bool(getattr(gateway, "public_fetch_enabled", False)), register_interest=False)
+        tape_rows = [bar for bar in (tape.get("candles") or []) if bar.get("timestamp")]
+        if len(tape_rows) >= 8:
+            gateway.note_chart_symbol(sym)
+            return {
+                "symbol": sym,
+                "track": _track_for(sym, asset.track if asset is not None else None),
+                "bucket_seconds": 1,
+                "bar_count": len(tape_rows),
+                "candles": tape_rows[-bar_limit:],
+                "last_close": float(tape_rows[-1]["close"]),
+                "chart_source": tape.get("chart_source", "public_last_trade"),
+                "data_mode": "observed",
+                "feed_origin": tape.get("feed_origin", "coinbase_exchange_public"),
+                "catalog_found": asset is not None,
+                "venue_sessions": "public_trade_tape",
+                "notice": "One-second bars from the same public trade tape used by the live viewer. Equities stay withheld without that transport.",
+                "execution_permission": "none",
+            }
 
     latest = gateway.ring_buffer.latest(sym)
     if latest is not None and latest.price > 0:
@@ -228,6 +253,7 @@ def project_symbol_bars(
         "candles": candles,
         "last_close": float(candles[-1]["close"]) if candles else anchor,
         "chart_source": chart_source,
+        "data_mode": "synthetic" if chart_source in {"labeled_fixture_bars", "fixture_history_plus_stream_tail"} else "observed",
         "feed_origin": feed_origin,
         "catalog_found": asset is not None,
         "venue_sessions": "unconfigured",

@@ -418,7 +418,7 @@ def describe_chart(
                 "symbol": tv_symbol,
                 "interval": interval,
                 "hidesidetoolbar": "0",
-                "hidetoptoolbar": "0",
+                "hidetoptoolbar": "1",
                 "symboledit": "0",
                 "saveimage": "0",
                 "toolbarbg": "0B0F17",

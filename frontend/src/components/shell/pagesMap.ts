@@ -14,6 +14,7 @@ export type WorkspaceRoute =
   | "/research/walk-forward"
   | "/research/microstructure"
   | "/research/registry"
+  | "/research/prediction-ledger"
   | "/data/lakehouse"
   | "/data/pipelines"
   | "/data/governance"
@@ -50,7 +51,7 @@ export const PAGES: AtlasPage[] = [
     group: "desk",
     primary: true,
     summary: "Symbol directory, the chart, and the paper ticket.",
-    aliases: ["/workbench"],
+    aliases: ["/workbench", "/trade", "/trade/cockpit", "/market"],
   },
   {
     id: "listings",
@@ -62,20 +63,9 @@ export const PAGES: AtlasPage[] = [
     summary: "Catalog search. Entries are fixture metadata, not a live listing session.",
   },
   {
-    id: "cockpit",
-    href: "/trade",
-    label: "Cockpit",
-    navLabel: "Trade",
-    group: "trade",
-    primary: true,
-    workspaceRoute: "/trade/cockpit",
-    summary: "Chart, watchlist, and the paper order ticket.",
-    aliases: ["/trade/cockpit", "/market"],
-  },
-  {
     id: "depth",
     href: "/trade/depth-dom",
-    label: "Depth ladder",
+    label: "Estimated depth",
     group: "trade",
     workspaceRoute: "/trade/depth-dom",
     summary: "A reconstructed ladder from the last close and the catalog spread. Not an exchange book.",
@@ -86,15 +76,8 @@ export const PAGES: AtlasPage[] = [
     label: "Positions",
     group: "trade",
     workspaceRoute: "/trade/blotter",
-    summary: "Open control-plane positions and recorded decisions.",
-  },
-  {
-    id: "journal",
-    href: "/trade/journal",
-    label: "Journal",
-    group: "trade",
-    workspaceRoute: "/trade/journal",
-    summary: "Control-plane orders and audit lines.",
+    summary: "Open positions, total exposure, and stop protection from the control plane.",
+    aliases: ["/control/dealing-desk"],
   },
   {
     id: "account",
@@ -113,7 +96,7 @@ export const PAGES: AtlasPage[] = [
     label: "Rulebook",
     group: "risk",
     workspaceRoute: "/control/rulebook",
-    summary: "The printed limits, plus a check of the cockpit ticket against the live account.",
+    summary: "Trading limits and a paper ticket risk check against the account.",
     aliases: ["/rules", "/settings", "/configurations"],
   },
   {
@@ -122,7 +105,8 @@ export const PAGES: AtlasPage[] = [
     label: "Audit log",
     group: "risk",
     workspaceRoute: "/control/surveillance",
-    summary: "Orders and audit lines the control plane recorded.",
+    summary: "Order history and audit lines recorded by the control plane.",
+    aliases: ["/trade/journal"],
   },
   {
     id: "identity",
@@ -133,14 +117,6 @@ export const PAGES: AtlasPage[] = [
     summary: "Send a typed example to the checklist. No camera is opened.",
   },
   {
-    id: "exposure",
-    href: "/control/dealing-desk",
-    label: "Open positions",
-    group: "risk",
-    workspaceRoute: "/control/dealing-desk",
-    summary: "Notional of positions the control plane still has open.",
-  },
-  {
     id: "chart-read",
     href: "/research",
     label: "Chart read",
@@ -148,8 +124,8 @@ export const PAGES: AtlasPage[] = [
     group: "research",
     primary: true,
     workspaceRoute: "/research/central-node",
-    summary: "Read closed public candles for the symbol on the desk. It cannot place an order.",
-    aliases: ["/research/central-node"],
+    summary: "Candle research and flow measurements for the symbol on the desk. It cannot place an order.",
+    aliases: ["/research/central-node", "/research/microstructure", "/research/drift-dashboard", "/matrix"],
   },
   {
     id: "walk-forward",
@@ -161,15 +137,6 @@ export const PAGES: AtlasPage[] = [
     aliases: ["/experiments"],
   },
   {
-    id: "flow",
-    href: "/research/microstructure",
-    label: "Flow read",
-    group: "research",
-    workspaceRoute: "/research/microstructure",
-    summary: "The same public-candle read. There is no live order book on this page.",
-    aliases: ["/matrix"],
-  },
-  {
     id: "training",
     href: "/models",
     label: "Training status",
@@ -177,6 +144,14 @@ export const PAGES: AtlasPage[] = [
     workspaceRoute: "/research/registry",
     summary: "Fit the air-gapped policy on desk candles. It cannot send an order.",
     aliases: ["/research/registry"],
+  },
+  {
+    id: "prediction-ledger",
+    href: "/research/prediction-ledger",
+    label: "Prediction ledger",
+    group: "research",
+    workspaceRoute: "/research/prediction-ledger",
+    summary: "Persistent PIT forecasts, walk-forward evidence, model inputs, outcomes, and paper authorizations.",
   },
   {
     id: "bars",
@@ -232,4 +207,9 @@ const ALIAS_TO_HREF: Record<string, string> = Object.fromEntries(
 export function pageForPath(path: string): AtlasPage {
   const href = ALIAS_TO_HREF[path] ?? path;
   return PAGES.find((page) => page.href === href) ?? PAGES[0];
+}
+
+/** Canonical URL for shell buttons and older workspace destinations. */
+export function hrefForWorkspace(route: WorkspaceRoute): string {
+  return pageForPath(route).href;
 }

@@ -558,24 +558,20 @@ def test_visual_automation_scan_endpoint() -> None:
 
     client = TestClient(app)
     res_get = client.get("/api/automation/visual-scan?symbol=NVDA")
-    assert res_get.status_code == 200
-    data_get = res_get.json()
-    assert data_get["status"] == "ok"
+    assert res_get.status_code == 503
+    data_get = res_get.json()["detail"]
+    assert data_get["status"] == "retired"
     assert data_get["execution_permission"] == "none"
-    assert data_get["automation_coverage_pct"] == 100.0
-    assert data_get["automated_subsystems_count"] == 10
-    assert data_get["manual_steps_eliminated"] == 28
+    assert data_get["replacement"] == "/api/research/vertical-slice"
 
     res_post = client.post(
         "/api/automation/visual-scan",
         json={"symbol": "BTC-USD", "trigger_dispatch": True},
     )
-    assert res_post.status_code == 200
-    data_post = res_post.json()
-    assert data_post["status"] == "ok"
-    assert data_post["execution_permission"] == "none"
-    assert len(data_post["subsystems"]) == 10
-    assert len(data_post["institutional_measurements"]["measurements"]) == 8
+    assert res_post.status_code == 503
+    data_post = res_post.json()["detail"]
+    assert data_post == data_get
+    assert "automation_coverage_pct" not in res_post.text
 
     res_qm = client.get("/api/measurements/institutional?symbol=BTC-USD")
     assert res_qm.status_code == 200

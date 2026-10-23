@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
-export default function TradePage() {
-  return <AtlasTerminal initialSection="overview" initialWorkspaceRoute="/trade/cockpit" />;
+export default function LegacyPage() {
+  redirect("/");
 }
-

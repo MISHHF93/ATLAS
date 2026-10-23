@@ -310,36 +310,20 @@ def test_user_lifecycle_state_and_actions():
 
 
 def test_perfect_trader_whale_ml_and_auto_submit():
-    """Verify the customized 'Perfect Trader' Triple-Barrier + Meta-Labeling Whale ML trainer
-    and autonomous BUY/SELL order dispatch via ActionableControlPlaneEngine upon Whaling Moments.
-    """
+    """Legacy heuristic win rates and automatic submissions are retired, not model evidence."""
     client = TestClient(app)
-
-    res_state = client.get("/api/ml/perfect-trader/state?symbol=BTC-USD&force_submit=true")
-    assert res_state.status_code == 200
-    state = res_state.json()
-    assert state["execution_permission"] == "none"
-    assert state["whale_moment_action"] in ("BUY", "SELL")
-    assert state["meta_labeling"]["meta_label_probability"] >= 0.64
-    assert state["meta_labeling"]["whale_confluence_score"] >= 0.62
-    assert state["auto_submitted_orders"] == []
-    assert state["optimal_notional_usd"] is None
-
-    res_train = client.post("/api/ml/perfect-trader/train", json={"symbol": "NVDA"})
-    assert res_train.status_code == 200
-    train_body = res_train.json()
-    assert train_body["execution_permission"] == "none"
-    assert train_body["training_report"]["training_generation"] >= 2
-    assert train_body["training_report"]["oos_meta_precision_win_rate"] > 0.79
-
-    res_scan = client.post(
-        "/api/ml/perfect-trader/auto-submit",
-        json={"action": "scan_multi_asset", "symbol": "BTC-USD"},
-    )
-    assert res_scan.status_code == 200
-    scan_body = res_scan.json()
-    assert scan_body["execution_permission"] == "none"
-    assert scan_body["multi_asset_scan"]["dispatched_orders"] == []
+    responses = [
+        client.get("/api/ml/perfect-trader/state?symbol=BTC-USD&force_submit=true"),
+        client.post("/api/ml/perfect-trader/train", json={"symbol": "NVDA"}),
+        client.post("/api/ml/perfect-trader/auto-submit", json={"action": "scan_multi_asset", "symbol": "BTC-USD"}),
+    ]
+    for response in responses:
+        assert response.status_code == 503
+        detail = response.json()["detail"]
+        assert detail["status"] == "retired"
+        assert detail["execution_permission"] == "none"
+        assert detail["replacement"] == "/api/research/vertical-slice"
+        assert "oos_meta_precision_win_rate" not in response.text
 
 
 def test_master_todo_backlog_and_ablation_endpoints():

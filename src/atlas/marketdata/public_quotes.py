@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import urllib.request
+from urllib.parse import quote as urlquote
 from datetime import datetime, timezone
 from typing import Any
 
@@ -67,14 +68,17 @@ def _coinbase_candles(symbol: str, granularity: int, limit: int) -> list[dict[st
     return candles
 
 
-def _yahoo_candles(symbol: str, granularity: int, limit: int) -> list[dict[str, Any]]:
+def _yahoo_candles(symbol: str, granularity: int, limit: int, metadata: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     interval, range_ = _YAHOO_INTERVAL.get(granularity, ("1h", "1mo"))
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval={interval}&range={range_}"
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urlquote(symbol, safe='')}?interval={interval}&range={range_}"
     raw = _get_json(url)
     result = (raw.get("chart") or {}).get("result") or []
     if not result:
         return []
     block = result[0]
+    if metadata is not None:
+        meta = block.get("meta") or {}
+        metadata.update({key: meta[key] for key in ("exchangeDataDelayedBy", "regularMarketTime", "marketState", "exchangeName", "currency", "currentTradingPeriod") if key in meta})
     timestamps = block.get("timestamp") or []
     quote = ((block.get("indicators") or {}).get("quote") or [{}])[0]
     candles: list[dict[str, Any]] = []
@@ -104,18 +108,30 @@ def _yahoo_candles(symbol: str, granularity: int, limit: int) -> list[dict[str, 
     return candles[-max(8, min(limit, len(candles))):]
 
 
-def fetch_public_candles(symbol: str, bucket_seconds: int, *, limit: int = 180) -> dict[str, Any] | None:
+def fetch_public_candles(symbol: str, bucket_seconds: int, *, limit: int = 180, intended_use: str = "display") -> dict[str, Any] | None:
     """Return public OHLCV bars, or None when the endpoint misses."""
     sym = symbol.strip().upper()
     granularity = public_bucket(bucket_seconds)
     if granularity is None or not sym:
         return None
+    if intended_use == "training":
+        from atlas.marketdata.data_rights import require_data_use
+        provider = "coinbase_exchange_public" if sym.endswith("-USD") else "yahoo_chart_public"
+        require_data_use(provider, sym, granularity, "training")
+        require_data_use(provider, sym, granularity, "retention")
+    elif intended_use != "display":
+        raise ValueError("Unknown public candle use")
     try:
+        metadata: dict[str, Any] = {}
         if sym.endswith("-USD"):
             candles = _coinbase_candles(sym, granularity, limit)
             source = "coinbase_exchange_public"
         else:
-            candles = _yahoo_candles(sym, granularity, limit)
+            from atlas.marketdata.library_quotes import _yahoo_symbol
+            mapped = _yahoo_symbol(sym)
+            if mapped is None:
+                return None
+            candles = _yahoo_candles(mapped, granularity, limit, metadata)
             source = "yahoo_chart_public"
     except Exception:
         return None
@@ -126,6 +142,7 @@ def fetch_public_candles(symbol: str, bucket_seconds: int, *, limit: int = 180) 
         "bucket_seconds": granularity,
         "candles": candles,
         "feed_source": source,
+        "provider_metadata": metadata,
         "as_of": datetime.now(timezone.utc).isoformat(),
         "execution_permission": "none",
     }

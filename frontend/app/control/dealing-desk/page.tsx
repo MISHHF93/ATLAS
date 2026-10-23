@@ -1,6 +1,5 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
-export default function ControlDealingDeskPage() {
-  return <AtlasTerminal initialSection="matrix" initialWorkspaceRoute="/control/dealing-desk" />;
+export default function LegacyPage() {
+  redirect("/trade/blotter");
 }
-

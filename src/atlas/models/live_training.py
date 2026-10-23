@@ -16,7 +16,7 @@ from the public bars for the timeframe on screen.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from atlas.marketdata.bar_projection import project_symbol_bars
@@ -31,7 +31,7 @@ OPEN_MARKET_SYMBOLS: tuple[str, ...] = ("SPY", "NVDA", "AAPL", "MSFT", "QQQ", "T
 _WEIGHT_KEYS = ("ofi_z", "vpin", "hawkes_ratio", "kyles_lambda")
 
 
-def observations_from_candles(candles: list[dict[str, Any]]) -> list[Observation]:
+def observations_from_candles(candles: list[dict[str, Any]], *, bucket_seconds: int = 0) -> list[Observation]:
     observations: list[Observation] = []
     for bar in candles:
         stamp = datetime.fromisoformat(str(bar["timestamp"]).replace("Z", "+00:00"))
@@ -40,7 +40,8 @@ def observations_from_candles(candles: list[dict[str, Any]]) -> list[Observation
         close_px = float(bar["close"])
         if close_px <= 0:
             continue
-        observations.append(Observation(event_time=stamp, available_at=stamp, value=close_px))
+        close_time = stamp + timedelta(seconds=bucket_seconds)
+        observations.append(Observation(event_time=close_time, available_at=close_time, value=close_px))
     return observations
 
 
@@ -94,6 +95,7 @@ def execute_training_path(
 ) -> dict[str, Any]:
     """Run the six-stage desk path once. No order is submitted."""
     datasets: dict[str, dict[str, Any]] = {}
+    as_of = datetime.now(timezone.utc)
     for sym in (*COMPETITION_SYMBOLS, *OPEN_MARKET_SYMBOLS):
         datasets[sym] = project_symbol_bars(
             gateway,
@@ -101,6 +103,16 @@ def execute_training_path(
             bucket_seconds=TRAINING_BUCKET_SECONDS,
             limit=120,
         )
+        projected = datasets[sym]
+        if projected["chart_source"] == "public_market_candles":
+            # Provider timestamps mark bar opens. A partial daily bar is not a
+            # realized close; conservatively wait a full bucket for both feeds.
+            projected["candles"] = [
+                bar for bar in projected["candles"]
+                if datetime.fromisoformat(str(bar["timestamp"]).replace("Z", "+00:00"))
+                + timedelta(seconds=TRAINING_BUCKET_SECONDS) <= as_of
+            ]
+            projected["bar_count"] = len(projected["candles"])
     public_count = sum(1 for item in datasets.values() if item["chart_source"] == "public_market_candles")
     read_stage = {
         "name": "read_public_candles",
@@ -123,8 +135,19 @@ def execute_training_path(
             else "synthetic_fixture_training"
         )
         track = str(projected["track"])
+        if data_mode == "public_market_candles":
+            from atlas.marketdata.data_rights import check_data_use
+            provider = "coinbase_exchange_public" if sym.endswith("-USD") else "yahoo_chart_public"
+            decisions = [check_data_use(provider, sym, TRAINING_BUCKET_SECONDS, use) for use in ("training", "retention")]
+            blocked = [decision for decision in decisions if not decision["allowed"]]
+            if blocked:
+                rows.append({"symbol": sym, "track": track, "status": "not_trained", "data_mode": data_mode,
+                             "feed_origin": projected["feed_origin"], "bars": len(candles), "promoted": False,
+                             "gate_failures": ["data_use_permission_missing"], "paper_ready": False,
+                             "reason": blocked[0]["reason"], "data_use": decisions, "execution_permission": "none"})
+                continue
         try:
-            observations = observations_from_candles(candles)
+            observations = observations_from_candles(candles, bucket_seconds=TRAINING_BUCKET_SECONDS)
             labeled += 1
             model, report = trainer.train_and_evaluate(symbol=sym, observations=observations)
             _retune_weights(model, candles)
@@ -140,6 +163,9 @@ def execute_training_path(
                     "data_mode": data_mode,
                     "feed_origin": projected["feed_origin"],
                     "bars": projected["bar_count"],
+                    "last_bar_open": candles[-1]["timestamp"] if candles else None,
+                    "last_close_available_at": observations[-1].available_at.isoformat() if observations else None,
+                    "training_as_of": as_of.isoformat(),
                     "model_id": report.model_id,
                     "promoted": bool(report.promoted),
                     "gate_failures": failures,
@@ -228,6 +254,10 @@ def execute_training_path(
         "status": "ok" if trained else "no_trainable_bars",
         "path_id": PATH_ID,
         "trained_at": datetime.now(timezone.utc).isoformat(),
+        "training_bucket_seconds": TRAINING_BUCKET_SECONDS,
+        "serving_method": "candle_retuned_microstructure_heuristic",
+        "evaluation_method": "purged_walk_forward_logistic_policy",
+        "model_notice": "The served research score uses candle-retuned heuristic weights. Walk-forward logistic fits are evaluated separately; their fitted coefficients are not the served model.",
         "stages": stages,
         "served_model_id": competition_model.model_id,
         "competition_model_id": competition_model.model_id,

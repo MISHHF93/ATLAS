@@ -6,8 +6,6 @@ import {
   type LockedWhaleOpportunityData,
   type TradingFactorAttributionPoint,
 } from "../market/LiveChartEngine";
-import { WhaleOnChart } from "../market/WhaleOnChart";
-import { DeskChart } from "../market/DeskChart";
 import { fetchLibraryQuotes, libraryQuoteSymbols } from "../../lib/libraryQuotes";
 import { loadMarketBars } from "../../lib/marketBars";
 import {
@@ -16,7 +14,7 @@ import {
   TEN_CATEGORIES_META,
   type ProctoringScenarioPreset,
 } from "./hundredFeaturesData";
-import { PAGES } from "./pagesMap";
+import { PAGES, hrefForWorkspace } from "./pagesMap";
 import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel } from "./guideIcons";
 import {
   AccountRiskPage,
@@ -25,13 +23,13 @@ import {
   ChartReadPage,
   ConnectorsPage,
   PipelinePath,
-  ExposurePage,
   IdentityChecklist,
   MeasurementsPanel,
   ReservePage,
   RulebookBoards,
   TicketCheck,
   OutcomeLedgerPanel,
+  PredictionLedgerPage,
   TradeReadinessPanel,
   TrainingStatusPage,
   WalkForwardPage,
@@ -169,6 +167,7 @@ export type SubPageRouteId =
   | "/research/walk-forward"
   | "/research/microstructure"
   | "/research/registry"
+  | "/research/prediction-ledger"
   | "/data/lakehouse"
   | "/data/pipelines"
   | "/data/governance"
@@ -1552,9 +1551,9 @@ export function InstitutionalWorkspacesView({
   }, [displayedSpread, lastClose, normalizedCandles]);
 
   function handleNavigateRoute(route: SubPageRouteId) {
-    setCurrentRoute(route);
-    if (typeof window !== "undefined" && window.location.pathname !== route) {
-      window.history.pushState({ route }, "", route);
+    const href = hrefForWorkspace(route);
+    if (typeof window !== "undefined" && window.location.pathname !== href) {
+      window.location.assign(href);
     }
   }
 
@@ -1634,18 +1633,20 @@ export function InstitutionalWorkspacesView({
             onClick={() => setAutoPilotActive((prev) => !prev)}
             title="Sizes the ticket from the forecast. The control plane still has to accept it."
           >
-            {autoPilotActive ? "Autopilot on" : "Autopilot off"}
+            {autoPilotActive ? "Ticket auto-sizing on" : "Ticket auto-sizing off"}
           </button>
           </>
           ) : null}
 
           <button
             type="button"
-            className={`btn btn-sm ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+            className="btn btn-sm btn-outline"
             style={{ borderRadius: "8px", padding: "6px 14px", fontWeight: 700 }}
+            aria-pressed={killSwitchEngaged}
+            title={killSwitchEngaged ? "Turn the paper desk back on." : "Turn the paper desk off. New orders stop."}
             onClick={() => void onToggleKillSwitch()}
           >
-            {killSwitchEngaged ? "Resume Trading" : "Kill Switch"}
+            {killSwitchEngaged ? "Resume paper trading" : "Halt paper trading"}
           </button>
         </div>
       </header>
@@ -1661,7 +1662,7 @@ export function InstitutionalWorkspacesView({
                 {deskNotesOpen ? "Hide notes" : "Notes"}
               </button>
               <button type="button" className="clean-tf-btn" onClick={() => setShowPipeline((open) => !open)}>
-                {showPipeline ? "Hide path" : "Path"}
+                {showPipeline ? "Hide data path" : "Data path"}
               </button>
             </div>
           </div>
@@ -2125,778 +2126,6 @@ export function InstitutionalWorkspacesView({
             </div>
 
         {/* ==================================================================
-            1.1 UNIFIED EXECUTION COCKPIT (/trade/cockpit)
-           ================================================================== */}
-        {currentRoute === "/trade/cockpit" && (
-          <>
-            {/* Clean 4-Card KPI Strip */}
-            <div className="clean-kpi-row">
-              <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Account Equity</span>
-                <span className="clean-kpi-value">
-                  {remainingRoomCalc.controlReady ? formatDeskUsd(remainingRoomCalc.equity, 2) : "—"}
-                </span>
-                <span className="clean-kpi-sub" style={{ color: remainingRoomCalc.profitUsd >= 0 ? "#00F29D" : "#FF3B69" }}>
-                  {remainingRoomCalc.controlReady
-                    ? `${remainingRoomCalc.profitUsd >= 0 ? "+" : ""}${formatDeskUsd(remainingRoomCalc.profitUsd, 2)} (${remainingRoomCalc.profitPct.toFixed(2)}%) · HWM ${formatDeskUsd(remainingRoomCalc.hwm, 2)}`
-                    : "Waiting for the control plane"}
-                </span>
-              </div>
-              <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Active Symbol &amp; Regime</span>
-                <span className="clean-kpi-value">{activeSymbol}</span>
-                <span className="clean-kpi-sub" style={{ color: "#00C8FF" }}>
-                  {displayedRegime}
-                  {lastClose != null ? ` · ${formatPx(lastClose)}` : ""}
-                </span>
-              </div>
-              <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Order Flow Toxicity (VPIN)</span>
-                <span className="clean-kpi-value">
-                  {displayedVpin != null ? `${(displayedVpin * 100).toFixed(1)}%` : "—"}
-                </span>
-                <span className="clean-kpi-sub">
-                  {displayedVpin == null
-                    ? "Catalog metric has not loaded"
-                    : displayedVpin >= 0.45
-                      ? "At or above the 45% widening mark"
-                      : "Below the 45% widening mark"}
-                </span>
-              </div>
-              <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Pre-Trade Control Plane</span>
-                <span className="clean-kpi-value" style={{ color: killSwitchEngaged ? "#FF3B69" : remainingRoomCalc.controlReady ? "#00F29D" : "#F59E0B" }}>
-                  {killSwitchEngaged ? "HALTED" : remainingRoomCalc.controlReady ? "READY" : "WAITING"}
-                </span>
-                <span className="clean-kpi-sub">
-                  Forecasts stay execution_permission none
-                </span>
-              </div>
-            </div>
-
-            {/* 3-Column Execution Cockpit */}
-            <div className="cockpit-3-rail-grid">
-              {/* LEFT RAIL: Searchable full catalog directory */}
-              <div className="clean-card">
-                <div className="clean-card-header">
-                  <div>
-                    <h2 className="clean-card-title">Asset Directory</h2>
-                    <p className="clean-card-subtitle">Search the full catalog · selection does not imply a connected market feed</p>
-                  </div>
-                </div>
-                <AssetMarkLegend />
-
-                <div className="clean-catalog-search-row">
-                  <input
-                    aria-label="Search asset catalog"
-                    className="field-input clean-catalog-search"
-                    type="search"
-                    placeholder="Search symbol, company, or venue"
-                    value={watchlistQuery}
-                    onChange={(event) => {
-                      setWatchlistQuery(event.target.value);
-                    }}
-                  />
-                  <select
-                    aria-label="Filter asset class"
-                    className="field-select clean-catalog-class"
-                    value={watchlistAssetClass}
-                    onChange={(event) => {
-                      setWatchlistAssetClass(event.target.value as typeof watchlistAssetClass);
-                    }}
-                  >
-                    <option value="all">All classes</option>
-                    <option value="equities">Equities / ETFs</option>
-                    <option value="crypto_perps">Crypto perps</option>
-                    <option value="futures">Futures</option>
-                  </select>
-                </div>
-
-                <div className="clean-catalog-track-filter" role="group" aria-label="Filter catalog by track">
-                  {(
-                    [
-                      { id: "all", label: "All" },
-                      { id: "open_market", label: "Open market" },
-                      { id: "competition", label: "Competition" },
-                    ] as const
-                  ).map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      className={`clean-tf-btn ${watchlistFilter === tab.id ? "active" : ""}`}
-                      style={{ padding: "5px 8px" }}
-                      onClick={() => {
-                        setWatchlistFilter(tab.id);
-                      }}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="clean-watchlist" ref={watchlistRef} onScroll={onWatchlistScroll}>
-                  {catalogAssets.map((item) => {
-                    const mark = markForAsset(item.asset_class, item.exchange);
-                    return (
-                    <button
-                      key={item.symbol}
-                      type="button"
-                      title={markLabel(mark)}
-                      className={`clean-watch-item ${activeSymbol === item.symbol ? "active" : ""}`}
-                      onClick={() => {
-                        if (onSelectCatalogAsset) {
-                          onSelectCatalogAsset(item);
-                        } else {
-                          handleTrackSwitch(item.track);
-                          handleSymbolSelect(item.symbol);
-                        }
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                        <GuideIcon name={mark} color={markColor(mark)} />
-                        <div>
-                        <div style={{ fontWeight: 700, fontSize: "13.5px", color: "#F8FAFC", fontFamily: "var(--font-mono)" }}>
-                          {item.symbol}
-                        </div>
-                        <div style={{ fontSize: "11px", color: "#64748B" }}>
-                          {item.name}
-                        </div>
-                        </div>
-                      </div>
-                      <div className="clean-catalog-row-meta">
-                        <span>{item.asset_class.replaceAll("_", " ")}</span>
-                        <span>{item.exchange === "UNLISTED" ? "Not listed" : item.exchange}</span>
-                        <span>{item.track === "open_market" ? "OPEN" : "COMP"}</span>
-                      </div>
-                    </button>
-                    );
-                  })}
-                  {catalogLoading ? <div className="clean-catalog-empty">Loading catalog…</div> : null}
-                  {!catalogLoading && catalogError ? <div className="clean-catalog-empty" role="alert">{catalogError}</div> : null}
-                  {!catalogLoading && !catalogError && catalogAssets.length === 0 ? <div className="clean-catalog-empty">No catalog entries match.</div> : null}
-                  <div className="clean-catalog-empty">
-                    {catalogLoading
-                      ? "Loading the next page…"
-                      : catalogAssets.length >= catalogTotal
-                        ? "End of this filter."
-                        : "Scroll to load the rest."}
-                  </div>
-                </div>
-                <div className="clean-catalog-footer">
-                  <span>
-                    {catalogLoading && catalogAssets.length === 0
-                      ? "Loading"
-                      : `Showing ${catalogAssets.length.toLocaleString()} of ${catalogTotal.toLocaleString()} · synthetic metadata`}
-                  </span>
-                </div>
-                <div className="clean-catalog-notice">Named companies are searchable. Private names stay not listed. EQ and PERP ids are placeholders. No live quotes.</div>
-              </div>
-
-              {/* CENTER STAGE: Chart Canvas + 3 Clean Microstructure Pulse Cards */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: 0 }}>
-                <div className="clean-card cockpit-chart-card">
-                  <div className="cockpit-chart-toolbar">
-                    <span style={{ fontSize: "12px", color: "#94A3B8" }}>{barsLoading ? "Loading bars…" : barsNote}</span>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                      {(["1s", "1m", "5m", "15m", "1h", "1D"] as const).map((frame) => (
-                        <button
-                          key={frame}
-                          type="button"
-                          className={`clean-tf-btn ${chartTimeframe === frame ? "active" : ""}`}
-                          onClick={() => setChartTimeframe(frame)}
-                        >
-                          {frame}
-                        </button>
-                      ))}
-
-                    </div>
-                  </div>
-                  <DeskChart
-                    symbol={activeSymbol}
-                    timeframe={chartTimeframe}
-                    frameClassName="cockpit-chart-frame"
-                    onOpenMinute={() => setChartTimeframe("1m")}
-                  >
-                    <WhaleOnChart
-                      symbol={activeSymbol}
-                      bucketSeconds={{ "1s": 1, "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1D": 86400 }[chartTimeframe]}
-                    />
-                  </DeskChart>
-                </div>
-
-                <div className="clean-grid-3">
-                  <div className="clean-card" style={{ padding: "14px 16px" }}>
-                    <span className="clean-kpi-label">Volume Profile (VAL / POC / VAH)</span>
-                    {volumeProfile ? (
-                      <>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: "8px",
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "13px",
-                            marginTop: "4px",
-                          }}
-                        >
-                          <span style={{ color: "#94A3B8" }}>VAL ${formatPx(volumeProfile.val)}</span>
-                          <strong style={{ color: "#F59E0B" }}>POC ${formatPx(volumeProfile.poc)}</strong>
-                          <span style={{ color: "#94A3B8" }}>VAH ${formatPx(volumeProfile.vah)}</span>
-                        </div>
-                        <div className="clean-mini-bar" style={{ marginTop: "6px" }}>
-                          <div className="clean-mini-fill cyan" style={{ width: `${Math.round(volumeProfile.valueShare * 100)}%` }} />
-                        </div>
-                      </>
-                    ) : (
-                      <span className="clean-kpi-sub">Waiting for closed bars</span>
-                    )}
-                  </div>
-
-                  <div className="clean-card" style={{ padding: "14px 16px" }}>
-                    <span className="clean-kpi-label">Order-flow imbalance</span>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "4px" }}>
-                      <strong style={{ fontFamily: "var(--font-mono)", fontSize: "16px", color: (displayedOfi ?? 0) >= 0 ? "#00F29D" : "#FF3B69" }}>
-                        {displayedOfi == null ? "—" : `${displayedOfi >= 0 ? "+" : ""}${displayedOfi.toFixed(3)}`}
-                      </strong>
-                      <span style={{ fontSize: "11.5px", color: "#94A3B8" }}>Catalog OFI z</span>
-                    </div>
-                    <div className="clean-mini-bar" style={{ marginTop: "6px" }}>
-                      <div className="clean-mini-fill" style={{ width: `${displayedOfi == null ? 0 : Math.min(100, Math.abs(displayedOfi) * 25)}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="clean-card" style={{ padding: "14px 16px" }}>
-                    <span className="clean-kpi-label">Kyle λ and spread</span>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "4px" }}>
-                      <strong style={{ fontFamily: "var(--font-mono)", fontSize: "16px", color: "#00C8FF" }}>
-                        {displayedKyle == null ? "—" : `λ ${displayedKyle.toFixed(4)}`}
-                      </strong>
-                      <span style={{ fontSize: "11.5px", color: "#94A3B8" }}>
-                        {displayedSpread == null ? "Spread waiting" : `${displayedSpread.toFixed(2)} bps`}
-                      </span>
-                    </div>
-                    <div className="clean-mini-bar" style={{ marginTop: "6px" }}>
-                      <div className="clean-mini-fill cyan" style={{ width: `${displayedSpread == null ? 0 : Math.min(100, displayedSpread)}%` }} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* REAL-TIME LIVE MARKET DATA & AI MODEL PREDICTION ENGINE */}
-                {liveAiPrediction && (
-                  <div className="clean-card" style={{ padding: "14px 16px", borderColor: "rgba(0, 200, 255, 0.35)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                        <span className="badge badge-emerald">
-                          ● LIVE DATA + AI FORECAST ({liveAiPrediction.symbol})
-                        </span>
-                        <span className="mono-cell" style={{ fontSize: "13px", fontWeight: 700, color: "#F8FAFC" }}>
-                          Spot: ${liveAiPrediction.spotPrice.toLocaleString()}
-                        </span>
-                        <span
-                          className={`badge ${
-                            liveAiPrediction.direction === "LONG" ? "badge-emerald" : "badge-danger"
-                          }`}
-                        >
-                          AI Signal: {liveAiPrediction.direction} ({(liveAiPrediction.calibratedProbability * 100).toFixed(1)}% Calibrated)
-                        </span>
-                        <span className="mono-cell" style={{ fontSize: "11px", color: "#94A3B8" }}>
-                          Feed: {liveAiPrediction.feedSource} · Updated {liveAiPrediction.updatedAt} · perm: none
-                        </span>
-                      </div>
-
-                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                        <span className="badge badge-blue">⚡ AUTO-STREAMING (5s)</span>
-                      </div>
-                    </div>
-
-                    {/* Multi-Horizon P10 / P50 / P90 AI Price Predictions */}
-                    <div className="clean-grid-3" style={{ marginTop: "10px", gap: "10px" }}>
-                      {liveAiPrediction.horizons.map((h) => (
-                        <div
-                          key={h.horizon}
-                          style={{
-                            background: "#0B0E14",
-                            border: "1px solid rgba(255,255,255,0.07)",
-                            borderRadius: "8px",
-                            padding: "10px 12px",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <strong style={{ fontSize: "12px", color: "#00C8FF" }}>Horizon {h.horizon}</strong>
-                            <span
-                              className="mono-cell"
-                              style={{
-                                fontSize: "11.5px",
-                                fontWeight: 700,
-                                color: h.expectedReturnBps >= 0 ? "#00F29D" : "#FF3B69",
-                              }}
-                            >
-                              {h.expectedReturnBps >= 0 ? "+" : ""}
-                              {h.expectedReturnBps} bps
-                            </span>
-                          </div>
-                          <div
-                            className="mono-cell"
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              fontSize: "11.5px",
-                              marginTop: "6px",
-                              color: "#94A3B8",
-                            }}
-                          >
-                            <span>P10: ${h.p10Price.toLocaleString()}</span>
-                            <strong style={{ color: "#F8FAFC" }}>P50: ${h.p50Price.toLocaleString()}</strong>
-                            <span>P90: ${h.p90Price.toLocaleString()}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Live 4-Strategy Bot Signals on Live Stream */}
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                        gap: "8px",
-                        marginTop: "8px",
-                      }}
-                    >
-                      {liveAiPrediction.botSignals.map((bot) => (
-                        <div
-                          key={bot.strategyId}
-                          style={{
-                            background: "#070A0F",
-                            border: "1px solid rgba(255,255,255,0.06)",
-                            borderRadius: "6px",
-                            padding: "7px 10px",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span className="mono-cell" style={{ fontSize: "10.5px", color: "#94A3B8" }}>
-                            {bot.strategyId.replace("STRAT_", "")}
-                          </span>
-                          <span
-                            className="mono-cell"
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              color:
-                                bot.direction === "BUY"
-                                  ? "#00F29D"
-                                  : bot.direction === "SELL"
-                                  ? "#FF3B69"
-                                  : "#94A3B8",
-                            }}
-                          >
-                            {bot.direction} ({(bot.conviction * 100).toFixed(0)}%)
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* 12-Factor Whale & Microstructure ML Attribution Grid (F1..F12) */}
-                    {liveAiPrediction.tradingFactors && liveAiPrediction.tradingFactors.length > 0 && (
-                      <div
-                        style={{
-                          marginTop: "10px",
-                          paddingTop: "10px",
-                          borderTop: "1px solid rgba(255,255,255,0.06)",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            marginBottom: "6px",
-                          }}
-                        >
-                          <strong style={{ fontSize: "11.5px", color: "#F8FAFC" }}>
-                            12-Factor Whale ML Attribution (`F1`..`F12` · GBDT + Ridge Ensemble)
-                          </strong>
-                          <span className="mono-cell" style={{ fontSize: "10.5px", color: "#00C8FF" }}>
-                            {liveAiPrediction.lockedOpportunity
-                              ? `${liveAiPrediction.lockedOpportunity.scenarioId}: ${liveAiPrediction.lockedOpportunity.triggerSummary}`
-                              : "Causal Point-in-Time Factor Scoring"}
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                            gap: "6px",
-                          }}
-                        >
-                          {liveAiPrediction.tradingFactors.slice(0, 8).map((factor) => (
-                            <div
-                              key={factor.factorCode}
-                              title={factor.interpretation}
-                              style={{
-                                background: "#070A0F",
-                                border: "1px solid rgba(255,255,255,0.05)",
-                                borderRadius: "6px",
-                                padding: "6px 8px",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
-                            >
-                              <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                <span
-                                  className="mono-cell"
-                                  style={{ fontSize: "10px", fontWeight: 700, color: "#00C8FF", marginRight: "4px" }}
-                                >
-                                  {factor.factorCode}
-                                </span>
-                                <span style={{ fontSize: "10.5px", color: "#CBD5E1" }}>
-                                  {factor.factorName.replace(" (WF-0", " (WF")}
-                                </span>
-                              </div>
-                              <span
-                                className="mono-cell"
-                                style={{
-                                  fontSize: "10.5px",
-                                  fontWeight: 700,
-                                  color: factor.signalContributionBps >= 0 ? "#00F29D" : "#FF3B69",
-                                  marginLeft: "6px",
-                                }}
-                              >
-                                {factor.signalContributionBps >= 0 ? "+" : ""}
-                                {factor.signalContributionBps}bp
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* RIGHT RAIL: Smart Pre-Trade Risk Order Ticket */}
-              <div className="clean-card">
-                <div className="clean-card-header">
-                  <div>
-                    <h2 className="clean-card-title">Order Desk · {orderInstrument}</h2>
-                    <p className="clean-card-subtitle">
-                      {autoPilotActive && !orderDeskManualOverride
-                        ? "⚡ Zero-Touch Auto-Locked from Whale ML & Remaining-Room HUD"
-                        : "Deterministic pre-trade risk check"}
-                    </p>
-                  </div>
-                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                    {autoPilotActive && (
-                      <button
-                        type="button"
-                        className="btn btn-dark btn-sm"
-                        style={{ fontSize: "10.5px", padding: "3px 8px" }}
-                        onClick={() => setOrderDeskManualOverride((prev) => !prev)}
-                      >
-                        {orderDeskManualOverride ? "🔒 Re-Lock Auto" : "⚡ Auto-Locked"}
-                      </button>
-                    )}
-                    <span
-                      className={`badge ${!remainingRoomCalc.controlReady ? "badge-amber" : remainingRoomCalc.compliant ? "badge-emerald" : "badge-danger"}`}
-                    >
-                      {!remainingRoomCalc.controlReady ? "WAITING" : remainingRoomCalc.compliant ? "COMPLIANT" : "LIMIT BREACH"}
-                    </span>
-                  </div>
-                </div>
-
-                {autoPilotActive && !orderDeskManualOverride && (
-                  <div
-                    style={{
-                      background: "rgba(0, 242, 157, 0.08)",
-                      border: "1px solid rgba(0, 242, 157, 0.3)",
-                      borderRadius: "8px",
-                      padding: "8px 10px",
-                      fontSize: "11.5px",
-                      color: "#E2E8F0",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <span>
-                      <strong>⚡ Auto-Synced:</strong> {orderSide.toUpperCase()} ${Number(orderNotional).toLocaleString()} via{" "}
-                      <code>{orderTactic}</code> ({atrStopBps} bps ATR Stop)
-                    </span>
-                    <span className="badge badge-emerald" style={{ fontSize: "9.5px" }}>
-                      {remainingRoomCalc.tradeRiskPct.toFixed(2)}% Eq Risk
-                    </span>
-                  </div>
-                )}
-
-                {/* Buy / Sell Toggle */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  <button
-                    type="button"
-                    onClick={() => setOrderSide("buy")}
-                    style={{
-                      padding: "10px",
-                      borderRadius: "8px",
-                      fontWeight: 700,
-                      fontSize: "13px",
-                      cursor: "pointer",
-                      border: orderSide === "buy" ? "1px solid #00F29D" : "1px solid rgba(255,255,255,0.08)",
-                      background: orderSide === "buy" ? "rgba(0, 242, 157, 0.14)" : "#0B0E14",
-                      color: orderSide === "buy" ? "#00F29D" : "#94A3B8",
-                    }}
-                  >
-                    BUY / LONG
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOrderSide("sell")}
-                    style={{
-                      padding: "10px",
-                      borderRadius: "8px",
-                      fontWeight: 700,
-                      fontSize: "13px",
-                      cursor: "pointer",
-                      border: orderSide === "sell" ? "1px solid #FF3B69" : "1px solid rgba(255,255,255,0.08)",
-                      background: orderSide === "sell" ? "rgba(255, 59, 105, 0.14)" : "#0B0E14",
-                      color: orderSide === "sell" ? "#FF3B69" : "#94A3B8",
-                    }}
-                  >
-                    SELL / SHORT
-                  </button>
-                </div>
-
-                <div className="field-group">
-                  <label className="field-label">Execution Algorithm</label>
-                  <select
-                    aria-label="Order Execution Algorithm"
-                    className="field-select"
-                    value={orderTactic}
-                    onChange={(e) =>
-                      setOrderTactic(e.target.value as "LIMIT" | "TWAP" | "VWAP" | "ALMGREN_CHRISS")
-                    }
-                  >
-                    <option value="ALMGREN_CHRISS">Almgren-Chriss Optimal Trajectory</option>
-                    <option value="TWAP">TWAP Child Slicer</option>
-                    <option value="VWAP">VWAP Volume Curve</option>
-                    <option value="LIMIT">Passive Post-Only Limit</option>
-                  </select>
-                </div>
-
-                <div className="clean-grid-2" style={{ gap: "10px" }}>
-                  <div className="field-group">
-                    <label className="field-label">Notional ($ USD)</label>
-                    <input
-                      aria-label="Order Notional USD"
-                      type="number"
-                      className="field-input"
-                      value={orderNotional}
-                      onChange={(e) => setOrderNotional(e.target.value)}
-                    />
-                  </div>
-                  <div className="field-group">
-                    <label className="field-label">ATR Stop (bps)</label>
-                    <input
-                      aria-label="ATR Stop Bps"
-                      type="number"
-                      className="field-input"
-                      value={atrStopBps}
-                      onChange={(e) => setAtrStopBps(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* Visual Pre-Trade Remaining Room Box */}
-                <div
-                  style={{
-                    background: "#0B0E14",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    borderRadius: "10px",
-                    padding: "12px 14px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "10px",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
-                    <span style={{ color: "#94A3B8" }}>Trade Risk Impact</span>
-                    <strong style={{ fontFamily: "var(--font-mono)", color: "#F8FAFC" }}>
-                      {remainingRoomCalc.controlReady ? `$${remainingRoomCalc.tradeRiskUsd.toFixed(0)} (${remainingRoomCalc.tradeRiskPct.toFixed(2)}% eq)` : "—"}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11.5px", marginBottom: "4px" }}>
-                      <span style={{ color: "#94A3B8" }}>Post-Trade Daily Loss</span>
-                      <span style={{ fontFamily: "var(--font-mono)", color: "#00F29D" }}>
-                        {remainingRoomCalc.controlReady ? `${remainingRoomCalc.postTradeDailyLossPct.toFixed(2)}% / ${remainingRoomCalc.dailyLimitPct.toFixed(2)}% (${formatDeskUsd(remainingRoomCalc.dailyLossRemainingUsd)} left)` : "Waiting for the control plane"}
-                      </span>
-                    </div>
-                    <div className="clean-mini-bar">
-                      <div
-                        className={`clean-mini-fill ${remainingRoomCalc.postTradeDailyLossPct > 4 ? "danger" : ""}`}
-                        style={{ width: `${Math.min(100, (remainingRoomCalc.postTradeDailyLossPct / remainingRoomCalc.dailyLimitPct) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11.5px", marginBottom: "4px" }}>
-                      <span style={{ color: "#94A3B8" }}>Post-Trade Trailing DD</span>
-                      <span style={{ fontFamily: "var(--font-mono)", color: "#00C8FF" }}>
-                        {remainingRoomCalc.controlReady ? `${remainingRoomCalc.postTradeTrailingDdPct.toFixed(2)}% / ${remainingRoomCalc.trailingLimitPct.toFixed(2)}% (${formatDeskUsd(remainingRoomCalc.trailingDdRemainingUsd)} left)` : "Waiting for the control plane"}
-                      </span>
-                    </div>
-                    <div className="clean-mini-bar">
-                      <div
-                        className={`clean-mini-fill cyan ${remainingRoomCalc.postTradeTrailingDdPct > 8 ? "danger" : ""}`}
-                        style={{ width: `${Math.min(100, (remainingRoomCalc.postTradeTrailingDdPct / remainingRoomCalc.trailingLimitPct) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ width: "100%", padding: "11px", fontWeight: 700, fontSize: "13px", borderRadius: "8px" }}
-                  disabled={!remainingRoomCalc.compliant || persona === "auditor" || deskSubmitting}
-                  onClick={() => {
-                    void submitDeskOrder();
-                  }}
-                >
-                  {deskSubmitting ? "Submitting…" : `Submit ${orderSide.toUpperCase()} Order (${orderTactic})`}
-                </button>
-
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  style={{ width: "100%", borderRadius: "8px" }}
-                  disabled={deskSubmitting || !remainingRoomCalc.controlReady}
-                  onClick={() => {
-                    void flattenDesk();
-                  }}
-                >
-                  Flatten All Positions
-                </button>
-
-                <div style={{ fontSize: "11.5px", color: "#94A3B8", lineHeight: 1.4 }}>{cockpitNotice}</div>
-              </div>
-            </div>
-
-            {/* REALM-ADAPTIVE PANEL: PROP TRADING COMPETITION ARENA vs OPEN-MARKET EQUITY & SEC XBRL DESK */}
-            {activeTrack === "competition" ? (
-              <div className="clean-card" style={{ borderColor: "rgba(0, 242, 157, 0.25)" }}>
-                <div className="clean-card-header">
-                  <div>
-                    <h2 className="clean-card-title">Prop Trading Competition &amp; Challenge Arena (SAAS-02 / SAAS-08)</h2>
-                    <p className="clean-card-subtitle">
-                      Select your active competition tier and monitor all 4 deterministic pass/fail evaluation gates
-                    </p>
-                  </div>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    {(
-                      [
-                        { id: "50k_sprint", label: "$50K Sprint Competition" },
-                        { id: "100k_2phase", label: "$100K 2-Phase Evaluation" },
-                        { id: "250k_inst", label: "$250K Institutional Tournament" },
-                      ] as const
-                    ).map((tier) => (
-                      <button
-                        key={tier.id}
-                        type="button"
-                        className={`clean-sub-pill ${challengeTier === tier.id ? "active" : ""}`}
-                        onClick={() => setChallengeTier(tier.id)}
-                      >
-                        {tier.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="clean-kpi-row">
-                  <div className="clean-kpi-card" style={{ background: "#0B0E14" }}>
-                    <span className="clean-kpi-label">1. Profit Target Gate (+8.0%)</span>
-                    <span className="clean-kpi-value" style={{ color: "#00F29D" }}>
-                      {remainingRoomCalc.controlReady ? `${remainingRoomCalc.profitPct >= 0 ? "+" : ""}${remainingRoomCalc.profitPct.toFixed(2)}% (${formatDeskUsd(remainingRoomCalc.profitUsd)})` : "—"}
-                    </span>
-                    <div className="clean-mini-bar" style={{ marginTop: "4px" }}>
-                      <div className="clean-mini-fill" style={{ width: `${Math.min(100, Math.max(0, (remainingRoomCalc.profitPct / 8) * 100))}%` }} />
-                    </div>
-                    <span className="clean-kpi-sub">{remainingRoomCalc.controlReady ? `${formatDeskUsd(remainingRoomCalc.targetRemainingUsd)} remaining to the +8% target` : "Waiting for control plane"}</span>
-                  </div>
-
-                  <div className="clean-kpi-card" style={{ background: "#0B0E14" }}>
-                    <span className="clean-kpi-label">2. Daily Loss Buffer ({remainingRoomCalc.dailyLimitPct.toFixed(1)}% Max)</span>
-                    <span className="clean-kpi-value">{remainingRoomCalc.controlReady ? `${remainingRoomCalc.dailyUsedPct.toFixed(2)}% Used` : "—"}</span>
-                    <div className="clean-mini-bar" style={{ marginTop: "4px" }}>
-                      <div className="clean-mini-fill" style={{ width: `${remainingRoomCalc.dailyUtilPct}%` }} />
-                    </div>
-                    <span className="clean-kpi-sub" style={{ color: "#00F29D" }}>{remainingRoomCalc.controlReady ? `${formatDeskUsd(remainingRoomCalc.dailyRoomUsd)} safe daily buffer` : "Waiting for control plane"}</span>
-                  </div>
-
-                  <div className="clean-kpi-card" style={{ background: "#0B0E14" }}>
-                    <span className="clean-kpi-label">3. Trailing HWM Floor ({remainingRoomCalc.trailingLimitPct.toFixed(1)}% Max)</span>
-                    <span className="clean-kpi-value" style={{ color: "#00C8FF" }}>{remainingRoomCalc.controlReady ? `${remainingRoomCalc.trailingUsedPct.toFixed(2)}% Used` : "—"}</span>
-                    <div className="clean-mini-bar" style={{ marginTop: "4px" }}>
-                      <div className="clean-mini-fill cyan" style={{ width: `${remainingRoomCalc.trailingUtilPct}%` }} />
-                    </div>
-                    <span className="clean-kpi-sub">{remainingRoomCalc.controlReady ? `${formatDeskUsd(remainingRoomCalc.trailingRoomUsd)} above ${formatDeskUsd(remainingRoomCalc.trailingFloorUsd)} floor` : "Waiting for control plane"}</span>
-                  </div>
-
-                  <div className="clean-kpi-card" style={{ background: "#0B0E14" }}>
-                    <span className="clean-kpi-label">4. Consistency &amp; Min Days</span>
-                    <span className="clean-kpi-value" style={{ color: "#00F29D" }}>
-                      {remainingRoomCalc.controlReady ? `${remainingRoomCalc.consistencyPct.toFixed(1)}% · Day ${remainingRoomCalc.tradingDays}/5` : "—"}
-                    </span>
-                    <div className="clean-mini-bar" style={{ marginTop: "4px" }}>
-                      <div className="clean-mini-fill" style={{ width: `${Math.min(100, (remainingRoomCalc.consistencyPct / 35) * 100)}%` }} />
-                    </div>
-                    <span className="clean-kpi-sub">Best day vs 35% cap · minimum 5 trading days</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="clean-card" style={{ borderColor: "rgba(0, 200, 255, 0.25)" }}>
-                <div className="clean-card-header">
-                  <div>
-                    <h2 className="clean-card-title">Open-Market Equities &amp; Point-in-Time SEC EDGAR Desk</h2>
-                    <p className="clean-card-subtitle">
-                      Open-market limits from the control plane. No SIP session and no EDGAR filing are attached to this card.
-                    </p>
-                  </div>
-                  <span className="badge badge-blue">PAPER RESEARCH · NO BROKER ROUTE</span>
-                </div>
-
-                <div className="clean-kpi-row">
-                  <div className="clean-kpi-card" style={{ background: "#0B0E14" }}>
-                    <span className="clean-kpi-label">NYSE / Nasdaq clock</span>
-                    <span className="clean-kpi-value" style={{ color: equitySessionLabel().label === "REGULAR HOURS" ? "#00F29D" : "#F59E0B" }}>{equitySessionLabel().label}</span>
-                    <span className="clean-kpi-sub">{equitySessionLabel().detail}</span>
-                  </div>
-                  <div className="clean-kpi-card" style={{ background: "#0B0E14" }}>
-                    <span className="clean-kpi-label">Desk Daily Loss Limit</span>
-                    <span className="clean-kpi-value">{remainingRoomCalc.controlReady ? `${remainingRoomCalc.dailyUsedPct.toFixed(2)}% / ${remainingRoomCalc.dailyLimitPct.toFixed(2)}%` : "—"}</span>
-                    <span className="clean-kpi-sub" style={{ color: "#00F29D" }}>{remainingRoomCalc.riskCapPct.toFixed(2)}% per-trade equity cap · {formatDeskUsd(remainingRoomCalc.dailyRoomUsd)} left</span>
-                  </div>
-                  <div className="clean-kpi-card" style={{ background: "#0B0E14" }}>
-                    <span className="clean-kpi-label">SEC EDGAR PIT XBRL</span>
-                    <span className="clean-kpi-value" style={{ color: "#94A3B8" }}>Unobserved</span>
-                    <span className="clean-kpi-sub">No 10-Q or 10-K print is loaded for {activeSymbol}</span>
-                  </div>
-                  <div className="clean-kpi-card" style={{ background: "#0B0E14" }}>
-                    <span className="clean-kpi-label">Broker session</span>
-                    <span className="clean-kpi-value">Paper only</span>
-                    <span className="clean-kpi-sub">No Alpaca, IBKR, or DMA session is connected</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ==================================================================
             1.2 ORDER BOOK & DOM LADDER (/trade/depth-dom)
            ================================================================== */}
         {currentRoute === "/trade/depth-dom" && (
@@ -3047,8 +2276,8 @@ export function InstitutionalWorkspacesView({
             <div className="clean-card">
               <div className="clean-card-header">
                 <div>
-                  <h2 className="clean-card-title">Open Positions &amp; Active Child Order Slicers</h2>
-                  <p className="clean-card-subtitle">Manage stops or flatten individual positions immediately</p>
+                  <h2 className="clean-card-title">Open paper positions</h2>
+                  <p className="clean-card-subtitle">Inspect exposure and recorded stops, or close all paper positions.</p>
                 </div>
                 <button type="button" className="btn btn-danger btn-sm" disabled={deskSubmitting || !remainingRoomCalc.controlReady} onClick={() => void flattenDesk()}>
                   Flatten All Positions
@@ -3080,77 +2309,6 @@ export function InstitutionalWorkspacesView({
                       <td className="mono-cell">{position.stop_distance_bps} bps {position.stop_kind}</td>
                       <td className="mono-cell">{position.track}</td>
                       <td className="mono-cell">{position.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        {/* ==================================================================
-            1.4 TRADE JOURNAL & BEHAVIORAL ANALYTICS (/trade/journal)
-           ================================================================== */}
-        {currentRoute === "/trade/journal" && (
-          <>
-            <div className="clean-kpi-row">
-              <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Behavioral Discipline Score</span>
-                <span className="clean-kpi-value" style={{ color: "#94A3B8" }}>—</span>
-                <span className="clean-kpi-sub">No behavioral scorer is attached</span>
-              </div>
-              <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Revenge-Trading Risk</span>
-                <span className="clean-kpi-value" style={{ color: "#94A3B8" }}>—</span>
-                <span className="clean-kpi-sub">Unobserved from the control plane</span>
-              </div>
-              <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Recorded decisions</span>
-                <span className="clean-kpi-value">{control.order_history.length}</span>
-                <span className="clean-kpi-sub">Win rate and profit factor are unobserved</span>
-              </div>
-              <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Consistency Rule Check</span>
-                <span className="clean-kpi-value" style={{ color: "#00C8FF" }}>{remainingRoomCalc.controlReady ? `${remainingRoomCalc.consistencyPct.toFixed(1)}% Max Day` : "—"}</span>
-                <span className="clean-kpi-sub">Single-day profit share versus the 35% cap</span>
-              </div>
-            </div>
-
-            <div className="clean-card">
-              <div className="clean-card-header">
-                <div>
-                  <h2 className="clean-card-title">Verified Execution &amp; Behavioral Journal</h2>
-                  <p className="clean-card-subtitle">Tamper-proof SHA-256 trade decisions with behavioral co-pilot grading</p>
-                </div>
-              </div>
-              <table className="clean-table">
-                <thead>
-                  <tr>
-                    <th>Time (UTC)</th>
-                    <th>Instrument</th>
-                    <th>Order</th>
-                    <th>Decision</th>
-                    <th>Control-Plane Detail</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {control.order_history.length === 0 && control.audit_log.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} style={{ color: "#94A3B8" }}>No control-plane orders or audit events yet.</td>
-                    </tr>
-                  ) : null}
-                  {control.order_history.slice(-8).reverse().map((order) => (
-                    <tr key={order.order_id}>
-                      <td className="mono-cell">{order.evaluated_at ?? "—"}</td>
-                      <td className="mono-cell" style={{ fontWeight: 700 }}>{order.instrument_id}</td>
-                      <td>{order.side.toUpperCase()} · {formatDeskUsd(Number(order.notional_usd), 2)}</td>
-                      <td className="mono-cell">{order.control_plane_decision}</td>
-                      <td>{(order.violations ?? []).length ? order.violations?.join(", ") : order.order_id}</td>
-                    </tr>
-                  ))}
-                  {control.audit_log.slice(-6).reverse().map((line, index) => (
-                    <tr key={`audit-${index}-${line}`}>
-                      <td className="mono-cell" colSpan={5}>{line}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -3208,23 +2366,17 @@ export function InstitutionalWorkspacesView({
         
 
         {/* ==================================================================
-            2.4 DEALING DESK COPIER & HEDGING CONSOLE (/control/dealing-desk)
-           ================================================================== */}
-        {currentRoute === "/control/dealing-desk" && (
-          <ExposurePage positions={control.open_positions} />
-        )}
-
-        
-
-        {/* ==================================================================
             3.1 AI SYNTHESIS & CONTINUOUS RESEARCH NODE (/research/central-node)
            ================================================================== */}
         {currentRoute === "/research/central-node" && (
+          <>
           <ChartReadPage
             symbol={activeSymbol}
             heading="Chart read"
-            blurb="Reads closed public candles for the symbol on the desk. The result cannot place an order."
+            blurb="Candle research and flow measurements for the symbol on the desk. The result cannot place an order."
           />
+          <MeasurementsPanel symbol={activeSymbol} />
+          </>
         )}
 
         
@@ -3242,26 +2394,14 @@ export function InstitutionalWorkspacesView({
         
 
         {/* ==================================================================
-            3.3 MICROSTRUCTURE & WHALE FLOW SCREENER (/research/microstructure)
-           ================================================================== */}
-        {currentRoute === "/research/microstructure" && (
-          <>
-            <ChartReadPage
-              symbol={activeSymbol}
-              heading="Flow read"
-              blurb="Uses the same public-candle read as the chart. There is no live order book and no whale fill on this page."
-            />
-            <MeasurementsPanel symbol={activeSymbol} />
-          </>
-        )}
-
-        
-
-        {/* ==================================================================
             3.4 MODEL REGISTRY, SCOPED APPROVALS & CALIBRATION (/research/registry)
            ================================================================== */}
         {currentRoute === "/research/registry" && (
-          <TrainingStatusPage />
+          <TrainingStatusPage symbol={activeSymbol} />
+        )}
+
+        {currentRoute === "/research/prediction-ledger" && (
+          <PredictionLedgerPage symbol={activeSymbol} />
         )}
 
         

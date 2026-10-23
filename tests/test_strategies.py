@@ -383,6 +383,8 @@ def test_realtime_market_data_ingestion_and_live_ai_model_prediction() -> None:
     assert res_btc.status_code == 200
     data_btc = res_btc.json()
     assert data_btc["symbol"] == "BTC-USD"
+    assert data_btc["status"] == "synthetic_fixture"
+    assert data_btc["data_mode"] == "synthetic"
     assert data_btc["execution_permission"] == "none"
     assert data_btc["direction"] in ("LONG", "SHORT", "NEUTRAL")
     assert 0.50 <= float(data_btc["calibrated_probability"]) <= 1.0

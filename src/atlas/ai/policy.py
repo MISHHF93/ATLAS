@@ -17,6 +17,19 @@ class PolicyError(RuntimeError):
     """The research call was refused before or after the provider ran."""
 
 
+def scrub_secrets(text: str, *, replacement: str = "[REDACTED]") -> str:
+    """Return ``text`` with credential-shaped material replaced.
+
+    This is a defensive redaction helper for logs and research prompts. It does
+    not make untrusted text safe on its own; callers must still call
+    :func:`screen_context` before sending any context to a research provider.
+    """
+    cleaned = text
+    for pattern in _SECRET_PATTERNS:
+        cleaned = pattern.sub(replacement, cleaned)
+    return cleaned
+
+
 def screen_context(market_context: str) -> None:
     if not market_context.strip():
         raise PolicyError("Market context is empty.")

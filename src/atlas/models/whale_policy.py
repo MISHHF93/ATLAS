@@ -241,6 +241,7 @@ class WhalePolicyModel:
                 f"(SL=${stop_px:,.2f}, TP=${tp_px:,.2f}) | VPIN={eff_vpin:.2f}, OFI_z={eff_ofi_z:+.2f}, Hawkes={eff_hawkes:.2f}"
             ),
             telemetry={
+                "raw_score": raw_score,
                 "vpin": round(eff_vpin, 4),
                 "ofi_z": round(eff_ofi_z, 4),
                 "hawkes_ratio": round(eff_hawkes, 4),
@@ -489,32 +490,42 @@ class WhalePolicyTrainer:
                 "EXP-001 produced zero purged walk-forward folds; cannot derive an OOS evaluation series"
             )
         values = [float(o.value) for o in obs_seq]
-        time_to_idx = {o.event_time: i for i, o in enumerate(obs_seq)}
+        target_by_idx = {target.sample_index: target for target in targets}
+        if len(target_by_idx) != len(targets):
+            raise ValueError("EXP-001 target sample indices must be unique")
 
         records: list[tuple[datetime, float, float, int]] = []
+        seen_test_indices: set[int] = set()
         for fold in folds:
-
-            def targets_in_window(start: datetime, end: datetime) -> list[WhaleTripleBarrierTarget]:
-                return [
-                    t
-                    for t in targets
-                    if start <= t.entry_time and t.entry_time <= end
-                ]
-
-            train_targets = [
-                t
-                for t in targets_in_window(fold.train_start, fold.train_end)
-            ]
-            test_targets = [
-                t
-                for t in targets_in_window(fold.test_start, fold.test_end)
-            ]
+            # Membership survives purging as exact observation indices. A label's
+            # resolution time is an audit bound, not an additional entry cutoff.
+            train_indices, test_indices = fold.train_sample_indices, fold.test_sample_indices
+            if (not train_indices or not test_indices
+                    or tuple(sorted(set(train_indices))) != train_indices
+                    or tuple(sorted(set(test_indices))) != test_indices):
+                raise ValueError("EXP-001 folds require non-empty unique ordered sample indices")
+            if set(train_indices) & set(test_indices) or max(train_indices) >= min(test_indices):
+                raise ValueError("EXP-001 train/test membership must be strictly chronological and disjoint")
+            if seen_test_indices.intersection(test_indices):
+                raise ValueError("EXP-001 test entries cannot be evaluated in more than one fold")
+            if any(idx not in target_by_idx or not 0 <= idx < len(obs_seq) - 1
+                   for idx in (*train_indices, *test_indices)):
+                raise ValueError("EXP-001 fold references an unavailable labeled observation")
+            first_test_available = obs_seq[test_indices[0]].available_at
+            if any(obs_seq[idx + 1].available_at >= first_test_available for idx in train_indices):
+                raise ValueError("EXP-001 training labels must be available strictly before test inputs")
+            if any(obs_seq[idx].available_at > obs_seq[idx + 1].available_at
+                   for idx in range(test_indices[-1])):
+                raise ValueError("EXP-001 observation availability must be chronological")
+            seen_test_indices.update(test_indices)
+            train_targets = [target_by_idx[idx] for idx in train_indices]
+            test_targets = [target_by_idx[idx] for idx in test_indices]
 
             train_rows: list[tuple[float, ...]] = []
             train_outcomes: list[int] = []
             for t in train_targets:
-                idx = time_to_idx.get(t.entry_time)
-                feats = self._causal_feature_vector(values, idx, min_history=self.MIN_HISTORY_BARS) if idx is not None else None
+                idx = t.sample_index
+                feats = self._causal_feature_vector(values, idx, min_history=self.MIN_HISTORY_BARS)
                 if feats is None:
                     continue
                 train_rows.append(feats)
@@ -525,8 +536,8 @@ class WhalePolicyTrainer:
             weights, intercept = self._fit_policy_weights(train_rows, train_outcomes)
 
             for t in test_targets:
-                idx = time_to_idx.get(t.entry_time)
-                feats = self._causal_feature_vector(values, idx, min_history=self.MIN_HISTORY_BARS) if idx is not None else None
+                idx = t.sample_index
+                feats = self._causal_feature_vector(values, idx, min_history=self.MIN_HISTORY_BARS)
                 if feats is None:
                     continue
                 p = self._sigmoid(intercept + sum(w * x for w, x in zip(weights, feats)))
