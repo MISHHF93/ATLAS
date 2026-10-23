@@ -118,7 +118,8 @@ server.on("upgrade", (req, socket, head) => {
   });
 });
 server.on("error", (error) => { console.error(error); child.kill(); process.exitCode = 1; });
-server.listen(3000, "127.0.0.1", () => console.log("ATLAS http://localhost:3000 (HTTP + WebSocket; Python over stdio)"));
+const port = Number(process.env.PORT ?? 3000);
+server.listen(port, "127.0.0.1", () => console.log(`ATLAS http://localhost:${port}`+" (HTTP + WebSocket; Python over stdio)"));
 function shutdown() { for (const ws of sockets.clients) ws.terminate(); child.kill(); server.close(); }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
