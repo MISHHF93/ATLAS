@@ -2579,8 +2579,8 @@ export function InstitutionalWorkspacesView({
                 </div>
               </div>
               <div className="clean-card">
-                <div className="clean-card-header">
-                  <div>
+                <div className="clean-card-header" style={{ flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ minWidth: 0, flex: "1 1 200px" }}>
                     <h2 className="clean-card-title">
                       {featureSearch.trim().length > 0
                         ? `Matches (${filteredFeatures.length})`
@@ -2592,6 +2592,7 @@ export function InstitutionalWorkspacesView({
                     {page.action}
                   </button>
                 </div>
+                <div style={{ overflowX: "auto", maxWidth: "100%" }}>
                 <table className="clean-table">
                   <thead>
                     <tr>
@@ -2619,6 +2620,7 @@ export function InstitutionalWorkspacesView({
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </>
           );

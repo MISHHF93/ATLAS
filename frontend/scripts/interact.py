@@ -58,8 +58,19 @@ with sync_playwright() as p:
                 last[0] = label
                 pg.evaluate(PROBE); before = pg.evaluate(SNAP); r0, d0 = reqs[0], dialogs[0]
                 aria0 = loc.evaluate("e => [e.getAttribute('aria-expanded'), e.getAttribute('aria-pressed'), e.checked, e.parentElement && e.parentElement.open]")
+                e0 = None
                 try: loc.click(timeout=3000)
-                except Exception as e: dead.append(f"{label or '(unlabelled)'}: not clickable ({' | '.join(l.strip() for l in str(e).splitlines() if 'intercept' in l or 'not stable' in l or 'outside' in l)[:200]})"); continue
+                except Exception as e0_:
+                    e0 = e0_
+                    # nth() locators go stale when a list re-renders; retry once by label before calling it dead
+                    try:
+                        pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
+                        alt = pg.get_by_role("button", name=label, exact=True) if label else loc
+                        vis = [alt.nth(k) for k in range(min(alt.count(), 20)) if alt.nth(k).is_visible()]
+                        (vis[0] if vis else loc).click(timeout=3000); e0 = None
+                    except Exception as e1: e0 = e1
+                if e0 is not None:
+                    e = e0; dead.append(f"{label or '(unlabelled)'}: not clickable ({' | '.join(l.strip() for l in str(e).splitlines() if 'intercept' in l or 'not stable' in l or 'outside' in l)[:200]})"); continue
                 clicked += 1; pg.wait_for_timeout(450)
                 try:
                     after = pg.evaluate(SNAP); mut = pg.evaluate("() => window.__mut || 0")
