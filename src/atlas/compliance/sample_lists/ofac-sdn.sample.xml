@@ -1,0 +1,24 @@
+<?xml version="1.0" standalone="yes"?>
+<!-- SYNTHETIC SAMPLE (invented names) in the shape of the OFAC SDN XML -->
+<sdnList xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML">
+  <publshInformation><Publish_Date>10/14/2026</Publish_Date><Record_Count>3</Record_Count></publshInformation>
+  <sdnEntry>
+    <uid>990001</uid><firstName>Mohammed</firstName><lastName>AL-RASHIDI</lastName><sdnType>Individual</sdnType>
+    <programList><program>SDGT</program></programList>
+    <akaList>
+      <aka><uid>990011</uid><type>a.k.a.</type><category>strong</category><firstName>Muhammad</firstName><lastName>RASHIDI</lastName></aka>
+      <aka><uid>990012</uid><type>a.k.a.</type><category>weak</category><lastName>ABU DEMO</lastName></aka>
+    </akaList>
+    <nationalityList><nationality><uid>990013</uid><country>Testland</country><mainEntry>true</mainEntry></nationality></nationalityList>
+    <dateOfBirthList><dateOfBirthItem><uid>990014</uid><dateOfBirth>12 Jan 1965</dateOfBirth><mainEntry>true</mainEntry></dateOfBirthItem></dateOfBirthList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>990002</uid><lastName>GOLDEN HORIZON SHIPPING LLC</lastName><sdnType>Entity</sdnType>
+    <programList><program>IRAN</program></programList>
+    <addressList><address><uid>990021</uid><city>Example City</city><country>Testland</country></address></addressList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>990003</uid><lastName>SEA FALCON</lastName><sdnType>Vessel</sdnType>
+    <programList><program>IRAN</program></programList>
+  </sdnEntry>
+</sdnList>
