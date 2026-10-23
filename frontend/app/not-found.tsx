@@ -1,13 +1,23 @@
-import { AppNav } from "../src/components/shell/AppNav";
+import { SECTIONS } from "../src/ui/nav";
 
 export default function NotFound() {
   return (
-    <main style={{ minHeight: "100vh", background: "#070A0F", color: "#F8FAFC" }}>
-      <AppNav />
-      <div style={{ padding: "48px", fontFamily: "Segoe UI, sans-serif" }}>
-        <h1>That page is not in ATLAS</h1>
-        <p>Use Home, Trade, Money, Research, Compliance, or Settings. Every former alias still redirects to the page that holds its data.</p>
+    <div className="ux-page">
+      <header className="ux-page-header">
+        <div className="ux-page-header__text">
+          <div className="ux-eyebrow">404</div>
+          <h1 className="ux-h1">That page isn’t in ATLAS</h1>
+          <p className="ux-lede">The address may be mistyped or retired. Former addresses redirect to the page that now holds their data. Pick a section, or press ⌘K / Ctrl+K to search.</p>
+        </div>
+      </header>
+      <div className="ux-tiles">
+        {SECTIONS.map((s) => (
+          <a key={s.id} className="ux-tile-link" href={s.href}>
+            <strong>{s.label}</strong>
+            <span>{s.pages.map((p) => p.navLabel ?? p.label).join(" · ")}</span>
+          </a>
+        ))}
       </div>
-    </main>
+    </div>
   );
 }

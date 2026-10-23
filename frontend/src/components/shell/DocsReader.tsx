@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AppNav } from "./AppNav";
 
 type SpecDoc = {
   doc_id: string;
@@ -42,7 +41,6 @@ export function DocsReader() {
 
   return (
     <div className="atlas-app">
-      <AppNav />
       <main className="docs-shell">
         <aside className="docs-index" aria-label="Specification files">
           <p className="docs-note">{note}</p>

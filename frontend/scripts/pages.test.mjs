@@ -52,7 +52,7 @@ test("every app page is canonical or redirects directly to its owner", () => {
 
 test("retired workspace destinations resolve to their consolidated pages", () => {
   for (const [route, href] of Object.entries({
-    "/trade/cockpit": "/", "/trade/journal": "/control/surveillance",
+    "/trade/cockpit": "/trade", "/trade/journal": "/control/surveillance",
     "/control/dealing-desk": "/trade/blotter", "/research/microstructure": "/research",
   })) assert.equal(hrefForWorkspace(route), href);
 });

@@ -5,7 +5,6 @@ import { type LiveCandlePoint } from "../market/LiveChartEngine";
 import { WhaleOnChart } from "../market/WhaleOnChart";
 import { DeskChart } from "../market/DeskChart";
 import { type LiveSnapshot } from "../market/LiveMarketViewer";
-import { AppNav } from "../shell/AppNav";
 import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel, type GuideIconName } from "../shell/guideIcons";
 import { CLIENT_ROLE_PROFILES, useRoleContext, type ClientRoleId } from "../../context/RoleContext";
 import { fetchLibraryQuotes, libraryQuoteSymbols } from "../../lib/libraryQuotes";
@@ -1029,12 +1028,12 @@ export function StreamlinedTradingStudio() {
   const singleDayConsistencyUsedPct = account && Number(account.total_cumulative_profit_usd) > 0 ? Number(account.best_day_profit_usd) / Number(account.total_cumulative_profit_usd) * 100 : 0;
   const latencyBadge =
     wsLatencyMs == null
-      ? { background: "#121722", border: "1px solid rgba(255,255,255,0.07)", color: "#94A3B8", label: "Socket —" }
+      ? { background: "var(--c-surface)", border: "1px solid var(--c-border)", color: "var(--c-muted)", label: "Socket —" }
       : wsLatencyMs < 15
-      ? { background: "rgba(0, 242, 157, 0.1)", border: "1px solid rgba(0, 242, 157, 0.3)", color: "#00F29D", label: `${wsLatencyMs.toFixed(0)} ms` }
+      ? { background: "rgba(0, 158, 115, 0.1)", border: "1px solid rgba(0, 158, 115, 0.3)", color: "var(--c-good)", label: `${wsLatencyMs.toFixed(0)} ms` }
       : wsLatencyMs < 50
       ? { background: "rgba(245, 158, 11, 0.12)", border: "1px solid rgba(245, 158, 11, 0.45)", color: "#FBBF24", label: `${wsLatencyMs.toFixed(0)} ms` }
-      : { background: "rgba(255, 59, 105, 0.12)", border: "1px solid rgba(255, 59, 105, 0.45)", color: "#FF3B69", label: `${wsLatencyMs.toFixed(0)} ms` };
+      : { background: "rgba(213, 94, 0, 0.12)", border: "1px solid rgba(213, 94, 0, 0.45)", color: "var(--c-bad)", label: `${wsLatencyMs.toFixed(0)} ms` };
   const drawdownMeterLabel =
     deskTrack === "open_market"
       ? `${trailingDdFloorPct.toFixed(1)}% Static Drawdown Floor`
@@ -1320,17 +1319,16 @@ export function StreamlinedTradingStudio() {
   return (
     <div
       style={{
-        height: "100vh",
-        maxHeight: "100vh",
+        height: "100%",
+        maxHeight: "100%",
         overflow: "hidden",
-        background: "#070A0F",
-        color: "#F8FAFC",
+        background: "var(--c-bg)",
+        color: "var(--c-text)",
         display: "flex",
         flexDirection: "column",
         fontFamily: "var(--font-sans, Inter, system-ui, sans-serif)",
       }}
     >
-      <AppNav />
       {/* ====================================================================
           1. TOP HEADER BAR
          ==================================================================== */}
@@ -1338,8 +1336,8 @@ export function StreamlinedTradingStudio() {
         style={{
           minHeight: "48px",
           padding: "6px 14px",
-          background: "#0B0F17",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "var(--c-surface-2)",
+          borderBottom: "1px solid var(--c-border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -1357,9 +1355,9 @@ export function StreamlinedTradingStudio() {
               gap: "6px",
               padding: "5px 10px",
               borderRadius: "6px",
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: symbolsOpen ? "#1E293B" : "transparent",
-              color: "#E2E8F0",
+              border: "1px solid var(--c-border)",
+              background: symbolsOpen ? "var(--c-surface-3)" : "transparent",
+              color: "var(--c-text-2)",
               fontSize: "11.5px",
               fontWeight: 700,
               cursor: "pointer",
@@ -1371,10 +1369,10 @@ export function StreamlinedTradingStudio() {
           <div
             style={{
               display: "flex",
-              background: "#121722",
+              background: "var(--c-surface)",
               padding: "3px",
               borderRadius: "8px",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              border: "1px solid var(--c-border)",
               gap: "4px",
             }}
           >
@@ -1391,8 +1389,8 @@ export function StreamlinedTradingStudio() {
                 gap: "6px",
                 fontSize: "11.5px",
                 fontWeight: 600,
-                background: activeTrack === "all" ? "#1E293B" : "transparent",
-                color: activeTrack === "all" ? "#F8FAFC" : "#94A3B8",
+                background: activeTrack === "all" ? "var(--c-surface-3)" : "transparent",
+                color: activeTrack === "all" ? "var(--c-text)" : "var(--c-muted)",
               }}
             >
               <GuideIcon name="all" />
@@ -1415,10 +1413,10 @@ export function StreamlinedTradingStudio() {
                 fontSize: "11.5px",
                 fontWeight: 600,
                 background: activeTrack === "open_market" ? "rgba(0, 200, 255, 0.18)" : "transparent",
-                color: activeTrack === "open_market" ? "#00C8FF" : "#94A3B8",
+                color: activeTrack === "open_market" ? "var(--c-accent)" : "var(--c-muted)",
               }}
             >
-              <GuideIcon name="equity" color={activeTrack === "open_market" ? "#00C8FF" : markColor("equity")} />
+              <GuideIcon name="equity" color={activeTrack === "open_market" ? "var(--c-accent)" : markColor("equity")} />
               Equities
             </button>
             <button
@@ -1437,11 +1435,11 @@ export function StreamlinedTradingStudio() {
                 gap: "6px",
                 fontSize: "11.5px",
                 fontWeight: 600,
-                background: activeTrack === "competition" ? "rgba(0, 242, 157, 0.18)" : "transparent",
-                color: activeTrack === "competition" ? "#00F29D" : "#94A3B8",
+                background: activeTrack === "competition" ? "rgba(0, 158, 115, 0.18)" : "transparent",
+                color: activeTrack === "competition" ? "var(--c-good)" : "var(--c-muted)",
               }}
             >
-              <GuideIcon name="competition" color={activeTrack === "competition" ? "#00F29D" : markColor("competition")} />
+              <GuideIcon name="competition" color={activeTrack === "competition" ? "var(--c-good)" : markColor("competition")} />
               Competition
             </button>
             <button
@@ -1458,10 +1456,10 @@ export function StreamlinedTradingStudio() {
                 fontSize: "11.5px",
                 fontWeight: 600,
                 background: selectedSymbol === "MUB" ? "rgba(244, 196, 96, 0.18)" : "transparent",
-                color: selectedSymbol === "MUB" ? "#F4C460" : "#94A3B8",
+                color: selectedSymbol === "MUB" ? "var(--c-warn)" : "var(--c-muted)",
               }}
             >
-              <GuideIcon name="reserve" color={selectedSymbol === "MUB" ? "#F4C460" : markColor("reserve")} />
+              <GuideIcon name="reserve" color={selectedSymbol === "MUB" ? "var(--c-warn)" : markColor("reserve")} />
               Reserve
             </button>
           </div>
@@ -1474,11 +1472,11 @@ export function StreamlinedTradingStudio() {
             style={{
               padding: "4px 10px",
               borderRadius: "6px",
-              background: "#121722",
-              border: "1px solid rgba(255, 255, 255, 0.07)",
+              background: "var(--c-surface)",
+              border: "1px solid var(--c-border)",
               fontSize: "11.5px",
               fontFamily: "var(--font-mono, monospace)",
-              color: "#E2E8F0",
+              color: "var(--c-text-2)",
             }}
           >
             {feedAvailable ? (demoFeedActive ? "Paper" : "Live print") : "Waiting"} · {sessionClock}
@@ -1506,8 +1504,8 @@ export function StreamlinedTradingStudio() {
               gap: "8px",
               padding: "5px 10px",
               borderRadius: "8px",
-              border: "1px solid rgba(0, 242, 157, 0.35)",
-              background: "rgba(0, 242, 157, 0.08)",
+              border: "1px solid rgba(0, 158, 115, 0.35)",
+              background: "rgba(0, 158, 115, 0.08)",
             }}
           >
             <select
@@ -1517,9 +1515,9 @@ export function StreamlinedTradingStudio() {
               style={{
                 padding: "5px 8px",
                 borderRadius: "6px",
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "#121722",
-                color: "#F8FAFC",
+                border: "1px solid var(--c-border)",
+                background: "var(--c-surface)",
+                color: "var(--c-text)",
                 fontSize: "11px",
                 cursor: "pointer",
               }}
@@ -1538,8 +1536,8 @@ export function StreamlinedTradingStudio() {
               gap: "2px",
               padding: "3px",
               borderRadius: "8px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "#121722",
+              border: "1px solid var(--c-border)",
+              background: "var(--c-surface)",
             }}
           >
             <button
@@ -1550,9 +1548,9 @@ export function StreamlinedTradingStudio() {
               style={{
                 padding: "5px 10px",
                 borderRadius: "6px",
-                border: profile.canExecuteTraderOrders ? "1px solid rgba(249, 115, 22, 0.55)" : "1px solid rgba(255,255,255,0.08)",
-                background: profile.canExecuteTraderOrders ? "rgba(249, 115, 22, 0.16)" : "transparent",
-                color: profile.canExecuteTraderOrders ? "#FB923C" : "#64748B",
+                border: profile.canExecuteTraderOrders ? "1px solid rgba(230, 159, 0, 0.55)" : "1px solid var(--c-border)",
+                background: profile.canExecuteTraderOrders ? "rgba(230, 159, 0, 0.16)" : "transparent",
+                color: profile.canExecuteTraderOrders ? "var(--c-warn)" : "var(--c-muted)",
                 fontWeight: 700,
                 fontSize: "11.5px",
                 cursor: profile.canExecuteTraderOrders ? "pointer" : "not-allowed",
@@ -1569,29 +1567,29 @@ export function StreamlinedTradingStudio() {
                 !profile.canTriggerKillSwitch
                   ? "Only the admin role can turn the desk off."
                   : killSwitchEngaged
-                    ? "Turn the paper desk back on."
-                    : "Turn the paper desk off. New orders stop."
+                    ? "Safe stop is active on the paper desk. Click to release it."
+                    : "Engage Safe stop: new paper orders are rejected."
               }
               style={{
                 padding: "5px 10px",
                 borderRadius: "6px",
                 border: !profile.canTriggerKillSwitch
-                  ? "1px solid rgba(255,255,255,0.08)"
+                  ? "1px solid var(--c-border)"
                   : killSwitchEngaged
-                    ? "1px solid rgba(255, 59, 105, 0.9)"
-                    : "1px solid rgba(255, 59, 105, 0.55)",
+                    ? "1px solid rgba(213, 94, 0, 0.9)"
+                    : "1px solid rgba(213, 94, 0, 0.55)",
                 background: !profile.canTriggerKillSwitch
                   ? "transparent"
                   : killSwitchEngaged
-                    ? "rgba(255, 59, 105, 0.38)"
-                    : "rgba(255, 59, 105, 0.16)",
-                color: !profile.canTriggerKillSwitch ? "#64748B" : killSwitchEngaged ? "#FF5C7A" : "#FF8CA3",
+                    ? "rgba(213, 94, 0, 0.38)"
+                    : "rgba(213, 94, 0, 0.16)",
+                color: !profile.canTriggerKillSwitch ? "var(--c-muted)" : killSwitchEngaged ? "var(--c-bad)" : "var(--c-bad)",
                 fontWeight: 700,
                 fontSize: "11.5px",
                 cursor: profile.canTriggerKillSwitch ? "pointer" : "not-allowed",
               }}
             >
-              {killSwitchEngaged ? "Resume paper trading" : "Halt paper trading"}
+              {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
             </button>
           </div>
         </div>
@@ -1616,8 +1614,8 @@ export function StreamlinedTradingStudio() {
         <aside
           className="desk-symbol-column"
           style={{
-            background: "#0B0F17",
-            borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+            background: "var(--c-surface-2)",
+            borderRight: "1px solid var(--c-border)",
             display: "flex",
             flexDirection: "column",
             padding: "12px",
@@ -1636,7 +1634,7 @@ export function StreamlinedTradingStudio() {
                 marginBottom: "6px",
               }}
             >
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", letterSpacing: "0.05em" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--c-muted)", letterSpacing: "0.05em" }}>
                 {catalogTotal == null
                   ? "Symbols"
                   : `Showing ${catalogListings.length.toLocaleString()} of ${catalogTotal.toLocaleString()}`}
@@ -1645,7 +1643,7 @@ export function StreamlinedTradingStudio() {
                 style={{
                   fontSize: "10px",
                   fontFamily: "var(--font-mono, monospace)",
-                  color: "#00F29D",
+                  color: "var(--c-good)",
                 }}
               >
                 {searchLatencyMs == null ? "Catalog —" : `${searchLatencyMs.toFixed(1)} ms`}
@@ -1654,7 +1652,7 @@ export function StreamlinedTradingStudio() {
 
             {/* Command Palette Search Input (Ctrl + K) */}
             <div style={{ position: "relative" }}>
-              <span style={{ position: "absolute", left: "8px", top: "9px", color: "#00C8FF" }}>
+              <span style={{ position: "absolute", left: "8px", top: "9px", color: "var(--c-accent)" }}>
                 <GuideIcon name="search" />
               </span>
               <input
@@ -1669,8 +1667,8 @@ export function StreamlinedTradingStudio() {
                   padding: "8px 10px 8px 28px",
                   borderRadius: "6px",
                   border: "1px solid rgba(0, 200, 255, 0.3)",
-                  background: "#070A0F",
-                  color: "#F8FAFC",
+                  background: "var(--c-bg)",
+                  color: "var(--c-text)",
                   fontSize: "12px",
                 }}
               />
@@ -1701,15 +1699,15 @@ export function StreamlinedTradingStudio() {
                   gap: "3px",
                   padding: "5px 2px",
                   borderRadius: "5px",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  background: on ? "#00C8FF" : "#121722",
-                  color: on ? "#070A0F" : "#94A3B8",
+                  border: "1px solid var(--c-border)",
+                  background: on ? "var(--c-accent)" : "var(--c-surface)",
+                  color: on ? "var(--c-bg)" : "var(--c-muted)",
                   fontSize: "10.5px",
                   fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
-                <GuideIcon name={tab.mark} size={12} color={on ? "#070A0F" : markColor(tab.mark)} />
+                <GuideIcon name={tab.mark} size={12} color={on ? "var(--c-bg)" : markColor(tab.mark)} />
                 {tab.label}
               </button>
               );
@@ -1717,7 +1715,7 @@ export function StreamlinedTradingStudio() {
           </div>
           <AssetMarkLegend />
 
-          <div style={{ fontSize: "10.5px", color: "#64748B", lineHeight: 1.4 }}>
+          <div style={{ fontSize: "10.5px", color: "var(--c-muted)", lineHeight: 1.4 }}>
             {universeCounts ? `Directory ${universeCounts.total_assets.toLocaleString()}. ` : ""}
             {catalogNotice}
             {" "}
@@ -1759,7 +1757,7 @@ export function StreamlinedTradingStudio() {
                       style={{
                         display: "block",
                         fontSize: "12px",
-                        color: "#F8FAFC",
+                        color: "var(--c-text)",
                         fontFamily: "var(--font-mono, monospace)",
                       }}
                     >
@@ -1769,7 +1767,7 @@ export function StreamlinedTradingStudio() {
                       style={{
                         display: "block",
                         fontSize: "10.5px",
-                        color: "#94A3B8",
+                        color: "var(--c-muted)",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -1780,16 +1778,16 @@ export function StreamlinedTradingStudio() {
                     </span>
                   </span>
                   {item.exchange === "UNLISTED" ? (
-                    <span style={{ gridColumn: "2 / span 2", fontSize: "11px", color: "#94A3B8" }}>Not listed</span>
+                    <span style={{ gridColumn: "2 / span 2", fontSize: "11px", color: "var(--c-muted)" }}>Not listed</span>
                   ) : item.last_price <= 0 ? (
-                    <span style={{ gridColumn: "2 / span 2", fontSize: "11px", color: "#94A3B8" }}>No quote</span>
+                    <span style={{ gridColumn: "2 / span 2", fontSize: "11px", color: "var(--c-muted)" }}>No quote</span>
                   ) : (
                     <>
                       <span
                         style={{
                           fontSize: "11px",
                           fontFamily: "var(--font-mono, monospace)",
-                          color: item.change_pct >= 0 ? "#00F29D" : "#FF3B69",
+                          color: item.change_pct >= 0 ? "var(--c-good)" : "var(--c-bad)",
                         }}
                       >
                         {item.change_pct >= 0 ? "+" : ""}
@@ -1800,7 +1798,7 @@ export function StreamlinedTradingStudio() {
                           fontSize: "12px",
                           fontWeight: 700,
                           fontFamily: "var(--font-mono, monospace)",
-                          color: "#E2E8F0",
+                          color: "var(--c-text-2)",
                         }}
                       >
                         {item.last_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1810,7 +1808,7 @@ export function StreamlinedTradingStudio() {
                 </button>
               );
             })}
-            <div style={{ fontSize: "10.5px", color: "#94A3B8", padding: "8px 4px" }}>
+            <div style={{ fontSize: "10.5px", color: "var(--c-muted)", padding: "8px 4px" }}>
               {catalogLoading
                 ? "Loading the next page…"
                 : catalogTotal != null && catalogListings.length >= catalogTotal
@@ -1826,7 +1824,7 @@ export function StreamlinedTradingStudio() {
            ================================================================== */}
         <main
           style={{
-            background: "#070A0F",
+            background: "var(--c-bg)",
             display: "flex",
             flexDirection: "column",
             padding: "12px 16px",
@@ -1839,8 +1837,8 @@ export function StreamlinedTradingStudio() {
             style={{
               padding: "10px 14px",
               borderRadius: "8px",
-              background: "#0B0F17",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "var(--c-surface-2)",
+              border: "1px solid var(--c-border)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -1862,20 +1860,20 @@ export function StreamlinedTradingStudio() {
                       background:
                         activeAsset.track === "open_market"
                           ? "rgba(0, 200, 255, 0.16)"
-                          : "rgba(0, 242, 157, 0.16)",
-                      color: activeAsset.track === "open_market" ? "#00C8FF" : "#00F29D",
+                          : "rgba(0, 158, 115, 0.16)",
+                      color: activeAsset.track === "open_market" ? "var(--c-accent)" : "var(--c-good)",
                       fontWeight: 700,
                     }}
                   >
                     {activeAsset.asset_class.toUpperCase()} · {activeAsset.exchange === "UNLISTED" ? "Not listed" : activeAsset.exchange}
                   </span>
                 </div>
-                <div style={{ fontSize: "11.5px", color: "#94A3B8" }}>{activeAsset.name}</div>
+                <div style={{ fontSize: "11.5px", color: "var(--c-muted)" }}>{activeAsset.name}</div>
               </div>
 
               <div
                 title={`VPIN ${(activeAsset.vpin * 100).toFixed(1)}% · OFI ${activeAsset.ofi_z.toFixed(2)} · Kyle λ ${activeAsset.kyles_lambda.toFixed(4)}`}
-                style={{ fontFamily: "var(--font-mono, monospace)", fontSize: "15px", color: activeAsset.last_price > 0 ? "#00F29D" : "#94A3B8", fontWeight: 700 }}
+                style={{ fontFamily: "var(--font-mono, monospace)", fontSize: "15px", color: activeAsset.last_price > 0 ? "var(--c-good)" : "var(--c-muted)", fontWeight: 700 }}
               >
                 {activeAsset.last_price > 0
                   ? activeAsset.last_price.toLocaleString(undefined, { minimumFractionDigits: 2 })
@@ -1895,9 +1893,9 @@ export function StreamlinedTradingStudio() {
                   style={{
                     padding: "5px 9px",
                     borderRadius: "5px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: timeframe === tf ? "#00F29D" : "#121722",
-                    color: timeframe === tf ? "#070A0F" : "#94A3B8",
+                    border: "1px solid var(--c-border)",
+                    background: timeframe === tf ? "var(--c-good)" : "var(--c-surface)",
+                    color: timeframe === tf ? "var(--c-bg)" : "var(--c-muted)",
                     fontSize: "11px",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -1912,9 +1910,9 @@ export function StreamlinedTradingStudio() {
                 style={{
                   padding: "5px 9px",
                   borderRadius: "5px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: notesOpen ? "#1E293B" : "#121722",
-                  color: "#94A3B8",
+                  border: "1px solid var(--c-border)",
+                  background: notesOpen ? "var(--c-surface-3)" : "var(--c-surface)",
+                  color: "var(--c-muted)",
                   fontSize: "11px",
                   fontWeight: 700,
                   cursor: "pointer",
@@ -1929,14 +1927,14 @@ export function StreamlinedTradingStudio() {
           {/* High-Performance Candlestick + Volume Profile (POC/VAH/VAL) + Forecast Fan Canvas */}
           <div
             style={{
-              background: "#0B0F17",
+              background: "var(--c-surface-2)",
               borderRadius: "8px",
-              border: "1px solid rgba(255,255,255,0.08)",
+              border: "1px solid var(--c-border)",
               padding: "10px",
             }}
           >
             {notesOpen ? (
-              <div style={{ fontSize: "11px", color: "#64748B", marginBottom: "8px", lineHeight: 1.45 }}>
+              <div style={{ fontSize: "11px", color: "var(--c-muted)", marginBottom: "8px", lineHeight: 1.45 }}>
                 <div>{timeframe === "1s" ? "The live feed and model inputs are shown together in the native viewer below." : modelGap ?? (chartRead ? `${chartRead.active.chart_source} · ${chartRead.active.feed_origin} · execution_permission ${chartRead.execution_permission}` : "Model is waiting to read this chart.")}</div>
                 {timeframe !== "1s" && chartRead ? (
                   <>
@@ -1955,9 +1953,9 @@ export function StreamlinedTradingStudio() {
                         style={{
                           padding: "3px 7px",
                           borderRadius: "4px",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          background: selectedSymbol === row.symbol ? "rgba(244, 196, 96, 0.16)" : "#121722",
-                          color: "#E2E8F0",
+                          border: "1px solid var(--c-border)",
+                          background: selectedSymbol === row.symbol ? "rgba(244, 196, 96, 0.16)" : "var(--c-surface)",
+                          color: "var(--c-text-2)",
                           fontSize: "10.5px",
                           cursor: "pointer",
                         }}
@@ -1969,7 +1967,7 @@ export function StreamlinedTradingStudio() {
                 ) : null}
               </div>
             ) : null}
-            <div style={{ fontSize: "11px", color: "#64748B", lineHeight: 1.45, marginBottom: "8px" }}>
+            <div style={{ fontSize: "11px", color: "var(--c-muted)", lineHeight: 1.45, marginBottom: "8px" }}>
               <div>{gardenNote}</div>
               <div>{reserveNote}</div>
             </div>
@@ -1987,9 +1985,9 @@ export function StreamlinedTradingStudio() {
           {/* Collapsible Bottom Drawer: Active Positions Blotter, Working Orders & Audit History */}
           <div
             style={{
-              background: "#0B0F17",
+              background: "var(--c-surface-2)",
               borderRadius: "8px",
-              border: "1px solid rgba(255,255,255,0.08)",
+              border: "1px solid var(--c-border)",
               padding: "10px 14px",
             }}
           >
@@ -2015,8 +2013,8 @@ export function StreamlinedTradingStudio() {
                     cursor: "pointer",
                     fontSize: "11.5px",
                     fontWeight: 700,
-                    background: bottomTab === "positions" ? "#1E293B" : "transparent",
-                    color: bottomTab === "positions" ? "#00F29D" : "#94A3B8",
+                    background: bottomTab === "positions" ? "var(--c-surface-3)" : "transparent",
+                    color: bottomTab === "positions" ? "var(--c-good)" : "var(--c-muted)",
                   }}
                 >
                   Active Positions Blotter ({positions.filter((p) => p.status === "OPEN").length})
@@ -2034,8 +2032,8 @@ export function StreamlinedTradingStudio() {
                     cursor: "pointer",
                     fontSize: "11.5px",
                     fontWeight: 700,
-                    background: bottomTab === "orders" ? "#1E293B" : "transparent",
-                    color: bottomTab === "orders" ? "#00C8FF" : "#94A3B8",
+                    background: bottomTab === "orders" ? "var(--c-surface-3)" : "transparent",
+                    color: bottomTab === "orders" ? "var(--c-accent)" : "var(--c-muted)",
                   }}
                 >
                   Working &amp; Bracket Orders ({workingOrders.length})
@@ -2053,8 +2051,8 @@ export function StreamlinedTradingStudio() {
                     cursor: "pointer",
                     fontSize: "11.5px",
                     fontWeight: 700,
-                    background: bottomTab === "audit" ? "#1E293B" : "transparent",
-                    color: bottomTab === "audit" ? "#F8FAFC" : "#94A3B8",
+                    background: bottomTab === "audit" ? "var(--c-surface-3)" : "transparent",
+                    color: bottomTab === "audit" ? "var(--c-text)" : "var(--c-muted)",
                   }}
                 >
                   Execution Audit Log ({auditLogs.length})
@@ -2067,7 +2065,7 @@ export function StreamlinedTradingStudio() {
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: "#94A3B8",
+                  color: "var(--c-muted)",
                   cursor: "pointer",
                   fontSize: "11.5px",
                 }}
@@ -2081,7 +2079,7 @@ export function StreamlinedTradingStudio() {
                 {bottomTab === "positions" && (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11.5px" }}>
                     <thead>
-                      <tr style={{ color: "#94A3B8", borderBottom: "1px solid rgba(255,255,255,0.08)", textAlign: "left" }}>
+                      <tr style={{ color: "var(--c-muted)", borderBottom: "1px solid var(--c-border)", textAlign: "left" }}>
                         <th style={{ padding: "6px" }}>Symbol</th>
                         <th style={{ padding: "6px" }}>Side</th>
                         <th style={{ padding: "6px" }}>Qty / Notional</th>
@@ -2093,11 +2091,11 @@ export function StreamlinedTradingStudio() {
                     </thead>
                     <tbody>
                       {positions.map((pos) => (
-                        <tr key={pos.positionId} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                        <tr key={pos.positionId} style={{ borderBottom: "1px solid var(--c-border)" }}>
                           <td style={{ padding: "6px", fontWeight: 700, fontFamily: "var(--font-mono, monospace)" }}>
                             {pos.symbol}
                           </td>
-                          <td style={{ padding: "6px", color: pos.side === "LONG" ? "#00F29D" : "#FF3B69", fontWeight: 700 }}>
+                          <td style={{ padding: "6px", color: pos.side === "LONG" ? "var(--c-good)" : "var(--c-bad)", fontWeight: 700 }}>
                             {pos.side}
                           </td>
                           <td style={{ padding: "6px", fontFamily: "var(--font-mono, monospace)" }}>
@@ -2106,14 +2104,14 @@ export function StreamlinedTradingStudio() {
                           <td style={{ padding: "6px", fontFamily: "var(--font-mono, monospace)" }}>
                             ${pos.entryPrice.toLocaleString()} / ${pos.markPrice.toLocaleString()}
                           </td>
-                          <td style={{ padding: "6px", fontFamily: "var(--font-mono, monospace)", color: "#94A3B8" }}>
+                          <td style={{ padding: "6px", fontFamily: "var(--font-mono, monospace)", color: "var(--c-muted)" }}>
                             SL ${pos.stopLossPrice} · TP ${pos.takeProfitPrice}
                           </td>
                           <td
                             style={{
                               padding: "6px",
                               fontFamily: "var(--font-mono, monospace)",
-                              color: pos.unrealizedPnlUsd >= 0 ? "#00F29D" : "#FF3B69",
+                              color: pos.unrealizedPnlUsd >= 0 ? "var(--c-good)" : "var(--c-bad)",
                               fontWeight: 700,
                             }}
                           >
@@ -2126,8 +2124,8 @@ export function StreamlinedTradingStudio() {
                                 padding: "2px 6px",
                                 borderRadius: "4px",
                                 background:
-                                  pos.status === "OPEN" ? "rgba(0,242,157,0.15)" : "rgba(255,59,105,0.15)",
-                                color: pos.status === "OPEN" ? "#00F29D" : "#FF3B69",
+                                  pos.status === "OPEN" ? "rgba(0, 158, 115,0.15)" : "rgba(213, 94, 0,0.15)",
+                                color: pos.status === "OPEN" ? "var(--c-good)" : "var(--c-bad)",
                               }}
                             >
                               {pos.status}
@@ -2147,8 +2145,8 @@ export function StreamlinedTradingStudio() {
                         style={{
                           padding: "7px 10px",
                           borderRadius: "6px",
-                          background: "#121722",
-                          border: "1px solid rgba(255,255,255,0.06)",
+                          background: "var(--c-surface)",
+                          border: "1px solid var(--c-border)",
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center",
@@ -2156,14 +2154,14 @@ export function StreamlinedTradingStudio() {
                         }}
                       >
                         <div>
-                          <strong style={{ fontFamily: "var(--font-mono, monospace)", color: "#F8FAFC" }}>
+                          <strong style={{ fontFamily: "var(--font-mono, monospace)", color: "var(--c-text)" }}>
                             {ord.orderId} · {ord.side} {ord.symbol} (${ord.notionalUsd.toLocaleString()})
                           </strong>{" "}
-                          <span style={{ color: "#94A3B8" }}>
+                          <span style={{ color: "var(--c-muted)" }}>
                             via {ord.orderType} · Risk {ord.riskPct.toFixed(2)}% · SL ${ord.stopLossPrice} / TP $
                             {ord.takeProfitPrice}
                           </span>
-                          <div style={{ fontSize: "10.5px", color: "#94A3B8", marginTop: "2px" }}>{ord.reason}</div>
+                          <div style={{ fontSize: "10.5px", color: "var(--c-muted)", marginTop: "2px" }}>{ord.reason}</div>
                         </div>
                         <span
                           style={{
@@ -2172,8 +2170,8 @@ export function StreamlinedTradingStudio() {
                             padding: "2px 7px",
                             borderRadius: "4px",
                             background:
-                              ord.status === "REJECTED" ? "rgba(255,59,105,0.18)" : "rgba(0,242,157,0.16)",
-                            color: ord.status === "REJECTED" ? "#FF3B69" : "#00F29D",
+                              ord.status === "REJECTED" ? "rgba(213, 94, 0,0.18)" : "rgba(0, 158, 115,0.16)",
+                            color: ord.status === "REJECTED" ? "var(--c-bad)" : "var(--c-good)",
                           }}
                         >
                           {ord.status}
@@ -2191,11 +2189,11 @@ export function StreamlinedTradingStudio() {
                       gap: "4px",
                       fontFamily: "var(--font-mono, monospace)",
                       fontSize: "11px",
-                      color: "#94A3B8",
+                      color: "var(--c-muted)",
                     }}
                   >
                     {auditLogs.map((log, i) => (
-                      <div key={i} style={{ padding: "4px 6px", background: "#121722", borderRadius: "4px" }}>
+                      <div key={i} style={{ padding: "4px 6px", background: "var(--c-surface)", borderRadius: "4px" }}>
                         {log}
                       </div>
                     ))}
@@ -2211,8 +2209,8 @@ export function StreamlinedTradingStudio() {
            ================================================================== */}
         <aside
           style={{
-            background: "#0B0F17",
-            borderLeft: "1px solid rgba(255, 255, 255, 0.08)",
+            background: "var(--c-surface-2)",
+            borderLeft: "1px solid var(--c-border)",
             padding: "14px",
             display: "flex",
             flexDirection: "column",
@@ -2225,7 +2223,7 @@ export function StreamlinedTradingStudio() {
             style={{
               padding: "12px",
               borderRadius: "8px",
-              background: "#121722",
+              background: "var(--c-surface)",
               border: "1px solid rgba(0, 200, 255, 0.25)",
               display: "flex",
               flexDirection: "column",
@@ -2233,7 +2231,7 @@ export function StreamlinedTradingStudio() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "11px", fontWeight: 800, color: "#00C8FF", letterSpacing: "0.04em" }}>
+              <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--c-accent)", letterSpacing: "0.04em" }}>
                 Risk room
               </span>
               <span style={{ fontSize: "11.5px", fontFamily: "var(--font-mono, monospace)", fontWeight: 700 }}>
@@ -2244,19 +2242,19 @@ export function StreamlinedTradingStudio() {
             {/* 1. 4.0% Daily Loss Breaker */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
-                <span style={{ color: "#94A3B8" }}>{dailyLossLimitPct.toFixed(1)}% Daily Loss Breaker</span>
-                <span style={{ fontFamily: "var(--font-mono, monospace)", color: "#00F29D" }}>
+                <span style={{ color: "var(--c-muted)" }}>{dailyLossLimitPct.toFixed(1)}% Daily Loss Breaker</span>
+                <span style={{ fontFamily: "var(--font-mono, monospace)", color: "var(--c-good)" }}>
                   ${sizingCalculation.dailyRoomUsd.toLocaleString()} cushion (
                   {(dailyLossLimitPct - dailyLossUsedPct).toFixed(2)}% left)
                 </span>
               </div>
-              <div style={{ height: "6px", background: "#070A0F", borderRadius: "4px", overflow: "hidden" }}>
+              <div style={{ height: "6px", background: "var(--c-bg)", borderRadius: "4px", overflow: "hidden" }}>
                 <div
                   style={{
                     width: `${Math.min(100, (sizingCalculation.postTradeDailyLossPct / dailyLossLimitPct) * 100)}%`,
                     height: "100%",
                     background:
-                      sizingCalculation.postTradeDailyLossPct > dailyLossLimitPct ? "#FF3B69" : "#00F29D",
+                      sizingCalculation.postTradeDailyLossPct > dailyLossLimitPct ? "var(--c-bad)" : "var(--c-good)",
                   }}
                 />
               </div>
@@ -2265,18 +2263,18 @@ export function StreamlinedTradingStudio() {
             {/* 2. 8.0% Max Trailing Drawdown Floor */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
-                <span style={{ color: "#94A3B8" }}>{drawdownMeterLabel}</span>
-                <span style={{ fontFamily: "var(--font-mono, monospace)", color: "#00C8FF" }}>
+                <span style={{ color: "var(--c-muted)" }}>{drawdownMeterLabel}</span>
+                <span style={{ fontFamily: "var(--font-mono, monospace)", color: "var(--c-accent)" }}>
                   ${sizingCalculation.trailingRoomUsd.toLocaleString()} cushion (
                   {(trailingDdFloorPct - trailingDdUsedPct).toFixed(2)}% left)
                 </span>
               </div>
-              <div style={{ height: "6px", background: "#070A0F", borderRadius: "4px", overflow: "hidden" }}>
+              <div style={{ height: "6px", background: "var(--c-bg)", borderRadius: "4px", overflow: "hidden" }}>
                 <div
                   style={{
                     width: `${Math.min(100, (sizingCalculation.postTradeTrailingDdPct / trailingDdFloorPct) * 100)}%`,
                     height: "100%",
-                    background: "#00C8FF",
+                    background: "var(--c-accent)",
                   }}
                 />
               </div>
@@ -2285,12 +2283,12 @@ export function StreamlinedTradingStudio() {
             {/* 3. 35% Single-Day Profit Consistency Gate */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
-                <span style={{ color: "#94A3B8" }}>35% Single-Day Consistency Gate</span>
-                <span style={{ fontFamily: "var(--font-mono, monospace)", color: "#E2E8F0" }}>
+                <span style={{ color: "var(--c-muted)" }}>35% Single-Day Consistency Gate</span>
+                <span style={{ fontFamily: "var(--font-mono, monospace)", color: "var(--c-text-2)" }}>
                   {singleDayConsistencyUsedPct.toFixed(1)}% / {singleDayConsistencyMaxPct.toFixed(1)}% PASS
                 </span>
               </div>
-              <div style={{ height: "6px", background: "#070A0F", borderRadius: "4px", overflow: "hidden" }}>
+              <div style={{ height: "6px", background: "var(--c-bg)", borderRadius: "4px", overflow: "hidden" }}>
                 <div
                   style={{
                     width: `${(singleDayConsistencyUsedPct / singleDayConsistencyMaxPct) * 100}%`,
@@ -2307,8 +2305,8 @@ export function StreamlinedTradingStudio() {
             style={{
               padding: "12px",
               borderRadius: "8px",
-              background: "#121722",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "var(--c-surface)",
+              border: "1px solid var(--c-border)",
               display: "flex",
               flexDirection: "column",
               gap: "10px",
@@ -2322,7 +2320,7 @@ export function StreamlinedTradingStudio() {
                 style={{
                   fontSize: "10px",
                   fontFamily: "var(--font-mono, monospace)",
-                  color: "#00F29D",
+                  color: "var(--c-good)",
                 }}
               >
                 Control Plane Gated
@@ -2341,8 +2339,8 @@ export function StreamlinedTradingStudio() {
                   cursor: "pointer",
                   fontWeight: 800,
                   fontSize: "12.5px",
-                  background: orderSide === "BUY" ? "#00F29D" : "#070A0F",
-                  color: orderSide === "BUY" ? "#070A0F" : "#94A3B8",
+                  background: orderSide === "BUY" ? "var(--c-good)" : "var(--c-bg)",
+                  color: orderSide === "BUY" ? "var(--c-bg)" : "var(--c-muted)",
                 }}
               >
                 BUY / LONG {activeAsset.symbol}
@@ -2357,8 +2355,8 @@ export function StreamlinedTradingStudio() {
                   cursor: "pointer",
                   fontWeight: 800,
                   fontSize: "12.5px",
-                  background: orderSide === "SELL" ? "#FF3B69" : "#070A0F",
-                  color: orderSide === "SELL" ? "#070A0F" : "#94A3B8",
+                  background: orderSide === "SELL" ? "var(--c-bad)" : "var(--c-bg)",
+                  color: orderSide === "SELL" ? "var(--c-bg)" : "var(--c-muted)",
                 }}
               >
                 SELL / SHORT {activeAsset.symbol}
@@ -2367,7 +2365,7 @@ export function StreamlinedTradingStudio() {
 
             {/* Execution Tactic Selector: Market / Limit / Almgren-Chriss TWAP */}
             <div>
-              <label style={{ fontSize: "11px", color: "#94A3B8", display: "block", marginBottom: "4px" }}>
+              <label style={{ fontSize: "11px", color: "var(--c-muted)", display: "block", marginBottom: "4px" }}>
                 Execution Tactic
               </label>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "4px" }}>
@@ -2385,9 +2383,9 @@ export function StreamlinedTradingStudio() {
                     style={{
                       padding: "6px 4px",
                       borderRadius: "5px",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: executionTactic === tac.id ? "#00C8FF" : "#070A0F",
-                      color: executionTactic === tac.id ? "#070A0F" : "#94A3B8",
+                      border: "1px solid var(--c-border)",
+                      background: executionTactic === tac.id ? "var(--c-accent)" : "var(--c-bg)",
+                      color: executionTactic === tac.id ? "var(--c-bg)" : "var(--c-muted)",
                       fontSize: "10.5px",
                       fontWeight: 700,
                       cursor: "pointer",
@@ -2402,12 +2400,12 @@ export function StreamlinedTradingStudio() {
             {/* Equity Risk % Sizing Slider (0.50% - 0.75% Institutional Rule) */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
-                <span style={{ color: "#94A3B8" }}>Per-Trade Equity Risk (0.50%–{riskCapPct.toFixed(2)}% Cap)</span>
+                <span style={{ color: "var(--c-muted)" }}>Per-Trade Equity Risk (0.50%–{riskCapPct.toFixed(2)}% Cap)</span>
                 <span
                   style={{
                     fontFamily: "var(--font-mono, monospace)",
                     fontWeight: 700,
-                    color: equityRiskPct >= 0.5 && equityRiskPct <= riskCapPct ? "#00F29D" : "#FF3B69",
+                    color: equityRiskPct >= 0.5 && equityRiskPct <= riskCapPct ? "var(--c-good)" : "var(--c-bad)",
                   }}
                 >
                   {equityRiskPct.toFixed(2)}% (${sizingCalculation.riskDollars})
@@ -2427,7 +2425,7 @@ export function StreamlinedTradingStudio() {
             {/* Mandatory Structural ATR Stop-Loss & Reward:Risk */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
               <div>
-                <label style={{ fontSize: "10.5px", color: "#94A3B8", display: "block", marginBottom: "3px" }}>
+                <label style={{ fontSize: "10.5px", color: "var(--c-muted)", display: "block", marginBottom: "3px" }}>
                   Mandatory ATR Stop (bps)
                 </label>
                 <input
@@ -2440,16 +2438,16 @@ export function StreamlinedTradingStudio() {
                     width: "100%",
                     padding: "6px 8px",
                     borderRadius: "5px",
-                    background: "#070A0F",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    color: "#F8FAFC",
+                    background: "var(--c-bg)",
+                    border: "1px solid var(--c-border)",
+                    color: "var(--c-text)",
                     fontFamily: "var(--font-mono, monospace)",
                     fontSize: "12px",
                   }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: "10.5px", color: "#94A3B8", display: "block", marginBottom: "3px" }}>
+                <label style={{ fontSize: "10.5px", color: "var(--c-muted)", display: "block", marginBottom: "3px" }}>
                   Take-Profit R:R Multiple
                 </label>
                 <input
@@ -2463,9 +2461,9 @@ export function StreamlinedTradingStudio() {
                     width: "100%",
                     padding: "6px 8px",
                     borderRadius: "5px",
-                    background: "#070A0F",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    color: "#F8FAFC",
+                    background: "var(--c-bg)",
+                    border: "1px solid var(--c-border)",
+                    color: "var(--c-text)",
                     fontFamily: "var(--font-mono, monospace)",
                     fontSize: "12px",
                   }}
@@ -2478,8 +2476,8 @@ export function StreamlinedTradingStudio() {
               style={{
                 padding: "9px 10px",
                 borderRadius: "6px",
-                background: "#070A0F",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: "var(--c-bg)",
+                border: "1px solid var(--c-border)",
                 fontFamily: "var(--font-mono, monospace)",
                 fontSize: "11px",
                 display: "flex",
@@ -2488,25 +2486,25 @@ export function StreamlinedTradingStudio() {
               }}
             >
               {activeAsset.last_price <= 0 ? (
-                <div style={{ color: "#94A3B8" }}>No quote is stored for this name. Size stays at zero. Nothing is sent.</div>
+                <div style={{ color: "var(--c-muted)" }}>No quote is stored for this name. Size stays at zero. Nothing is sent.</div>
               ) : null}
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#94A3B8" }}>Auto-Sized Notional:</span>
-                <strong style={{ color: "#F8FAFC" }}>${sizingCalculation.notionalUsd.toLocaleString()}</strong>
+                <span style={{ color: "var(--c-muted)" }}>Auto-Sized Notional:</span>
+                <strong style={{ color: "var(--c-text)" }}>${sizingCalculation.notionalUsd.toLocaleString()}</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#94A3B8" }}>Auto-Sized Quantity:</span>
-                <strong style={{ color: "#00C8FF" }}>
+                <span style={{ color: "var(--c-muted)" }}>Auto-Sized Quantity:</span>
+                <strong style={{ color: "var(--c-accent)" }}>
                   {sizingCalculation.quantity} {activeAsset.symbol}
                 </strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#94A3B8" }}>ATR Stop-Loss Bracket:</span>
-                <strong style={{ color: "#FF3B69" }}>${sizingCalculation.stopLossPrice}</strong>
+                <span style={{ color: "var(--c-muted)" }}>ATR Stop-Loss Bracket:</span>
+                <strong style={{ color: "var(--c-bad)" }}>${sizingCalculation.stopLossPrice}</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#94A3B8" }}>Take-Profit Bracket:</span>
-                <strong style={{ color: "#00F29D" }}>${sizingCalculation.takeProfitPrice}</strong>
+                <span style={{ color: "var(--c-muted)" }}>Take-Profit Bracket:</span>
+                <strong style={{ color: "var(--c-good)" }}>${sizingCalculation.takeProfitPrice}</strong>
               </div>
             </div>
 
@@ -2523,11 +2521,11 @@ export function StreamlinedTradingStudio() {
                 fontWeight: 800,
                 fontSize: "12.5px",
                 background: sizingCalculation.hardRiskBreach
-                  ? "rgba(255, 59, 105, 0.25)"
+                  ? "rgba(213, 94, 0, 0.25)"
                   : orderSide === "BUY"
-                  ? "#00F29D"
-                  : "#FF3B69",
-                color: sizingCalculation.hardRiskBreach ? "#FF3B69" : "#070A0F",
+                  ? "var(--c-good)"
+                  : "var(--c-bad)",
+                color: sizingCalculation.hardRiskBreach ? "var(--c-bad)" : "var(--c-bg)",
               }}
             >
               {sizingCalculation.hardRiskBreach
@@ -2544,22 +2542,22 @@ export function StreamlinedTradingStudio() {
                 fontFamily: "var(--font-mono, monospace)",
                 background:
                   orderFeedback.status === "rejected"
-                    ? "rgba(255, 59, 105, 0.12)"
+                    ? "rgba(213, 94, 0, 0.12)"
                     : orderFeedback.status === "authorized"
-                    ? "rgba(0, 242, 157, 0.12)"
-                    : "#070A0F",
+                    ? "rgba(0, 158, 115, 0.12)"
+                    : "var(--c-bg)",
                 border:
                   orderFeedback.status === "rejected"
-                    ? "1px solid rgba(255, 59, 105, 0.4)"
+                    ? "1px solid rgba(213, 94, 0, 0.4)"
                     : orderFeedback.status === "authorized"
-                    ? "1px solid rgba(0, 242, 157, 0.4)"
-                    : "1px solid rgba(255, 255, 255, 0.08)",
+                    ? "1px solid rgba(0, 158, 115, 0.4)"
+                    : "1px solid var(--c-border)",
                 color:
                   orderFeedback.status === "rejected"
-                    ? "#FF3B69"
+                    ? "var(--c-bad)"
                     : orderFeedback.status === "authorized"
-                    ? "#00F29D"
-                    : "#94A3B8",
+                    ? "var(--c-good)"
+                    : "var(--c-muted)",
               }}
             >
               {orderFeedback.message}
