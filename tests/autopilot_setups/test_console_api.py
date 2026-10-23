@@ -63,3 +63,11 @@ def test_shadow_read_only(env):
     _, _, c = env
     r = c.get("/api/console/shadow").json()
     assert r["execution_permission"] == "none" and isinstance(r["weeks"], list)
+
+
+def test_models_and_evidence(env):
+    _, _, c = env
+    assert isinstance(c.get("/api/console/models").json()["versions"], list)
+    files = c.get("/api/console/evidence").json()["files"]
+    assert files and c.get("/api/console/evidence", params={"name": files[0]}).json()["name"] == files[0]
+    assert c.get("/api/console/evidence", params={"name": "../x.json"}).status_code == 404

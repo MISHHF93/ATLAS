@@ -109,3 +109,21 @@ def console_reject(approval_id: str, request: Request) -> dict[str, Any]:
 @console_router.post("/approvals/{approval_id}/approve")
 def console_approve(approval_id: str) -> dict[str, Any]:
     raise HTTPException(status_code=403, detail=f"Approving needs owner step-up: atlas-owner approve {approval_id}")
+
+
+@console_router.get("/models")
+def console_models(request: Request) -> dict[str, Any]:
+    """Registered price-action setup models. Empty means every setup abstains (no validated model yet)."""
+    _local(request)
+    from atlas.models.predict import DEFAULT_REGISTRY
+    return {"versions": DEFAULT_REGISTRY.versions(), "policy": "unregistered setups abstain", "execution_permission": "none"}
+
+
+@console_router.get("/evidence")
+def console_evidence(request: Request, name: str | None = None) -> dict[str, Any]:
+    _local(request)
+    from atlas.api.agent import _t_evidence
+    try:
+        return _t_evidence({"name": name} if name else {})
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
