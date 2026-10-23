@@ -14,3 +14,7 @@
 8. **Stale-build guard.** `server.mjs --production` rebuilds when `app/**/page.tsx` has pages missing from
    `.next/server/app-paths-manifest.json` — root cause of "That page is not in ATLAS" on an old prod build.
 9. Safety unchanged: paper/simulation only, `execution_permission: none` for AI, AI can only shrink/veto.
+
+## 2026-10-23: founder max holding period = 1 day
+
+Owner (Masharai) decision: `position_limits.max_holding_seconds: 86400` in `config/founder/risk_policy.yaml`; sha256 pin re-generated. Paper positions opened by the setup autopilot are force-closed after 1 day. Paper only; live trading stays disabled.

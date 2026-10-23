@@ -114,6 +114,9 @@ class PositionLimitsCfg(_Frozen):
     max_orders_per_minute: int = Field(gt=0, le=600)
     max_open_orders: int = Field(gt=0, le=1000)
     price_collar_pct: Pct = Field(gt=0, le=20)
+    # Max time a position may stay open before a forced close. None = unconfigured => the control plane
+    # default-denies entries. Owner decision 2026-10-23: 86400 s (1 day).
+    max_holding_seconds: float | None = Field(default=None, gt=0, le=30 * 86400)
 
 
 class MlFilterCfg(_Frozen):

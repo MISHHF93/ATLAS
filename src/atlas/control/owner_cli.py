@@ -45,6 +45,7 @@ def run(argv: list[str], prompt: Callable[[], tuple[str, str]] = _default_prompt
     t = sub.add_parser("mcp-token"); t.add_argument("action", choices=["create", "revoke"]); t.add_argument("client")
     t.add_argument("--scopes", default="read"); t.add_argument("--ttl-days", type=float, default=30)
     mp = sub.add_parser("model-promote"); mp.add_argument("model_id"); mp.add_argument("--registry", default="var/models")
+    sap = sub.add_parser("setup-autopilot-approve"); sap.add_argument("request_id")
     mr = sub.add_parser("model-rollback"); mr.add_argument("--registry", default="var/models")
     a = ap.parse_args(argv)
 
@@ -101,6 +102,13 @@ def run(argv: list[str], prompt: Callable[[], tuple[str, str]] = _default_prompt
     if a.cmd == "approve":
         q.mark_owner_approved(a.approval_id, owner, True)
         out("approved; the core will re-check risk and execute on its next heartbeat"); return 0
+    if a.cmd == "setup-autopilot-approve":
+        from atlas.control.setup_autopilot_approval import approve_request
+        try:
+            approve_request(store, audit, a.request_id, owner, True, owner, ks.engaged)
+        except (LookupError, PermissionError) as e:
+            out(f"DENIED: {e}"); return 4
+        out("paper setup autopilot switched ON (paper only; stop any time)"); return 0
     if a.cmd == "reset":
         ks.reset(owner, True, owner); out("kill switch reset"); return 0
     if a.cmd in ("model-promote", "model-rollback"):

@@ -113,13 +113,10 @@ def compute_atr(
             f"compute_atr requires at least {max(2, window + 1)} bars to compute a "
             f"{window}-bar true-range average against realized prior closes"
         )
-    tr_values: list[float] = []
-    for i in range(1, n):
-        h_i = float(highs[i])
-        l_i = float(lows[i])
-        pc = float(closes[i - 1])
-        tr_values.append(max(h_i - l_i, abs(h_i - pc), abs(l_i - pc)))
-    return sum(tr_values[-window:]) / window
+    from atlas.features.price_action.indicators import true_range_batch  # canonical TR
+
+    tr_values = true_range_batch(highs, lows, closes)[1:]
+    return float(sum(float(v) for v in tr_values[-window:]) / window)
 
 
 def compute_rolling_vpin(

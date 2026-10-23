@@ -129,6 +129,13 @@ export const PAGES: AtlasPage[] = [
     aliases: ["/research/central-node", "/research/microstructure", "/research/drift-dashboard", "/matrix"],
   },
   {
+    id: "price-action",
+    href: "/research/price-action",
+    label: "Price-action zones",
+    group: "research",
+    summary: "Opening ranges, breakout-retest setups, dual-band and wick zones computed by the backend. Setups are proposals, not trades.",
+  },
+  {
     id: "walk-forward",
     href: "/research/walk-forward",
     label: "Walk-forward",
