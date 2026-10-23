@@ -1,0 +1,134 @@
+# =============================================================================
+# risk_policy.yaml: owner limits, "set once" (v0.4)
+# Loaded and signature-checked by the risk engine at startup. The AI and
+# strategies have read-only access. Intraday changes can only TIGHTEN limits.
+# Loosening takes effect next session and requires step-up auth (owner).
+# No setting here makes profit more likely. These are loss-containment controls.
+# =============================================================================
+version: 4
+schema_version: 0.4
+owner: masharai
+base_currency: CAD
+signed_by: <owner-signing-key-fingerprint-placeholder>
+
+mode:
+  default: paper                 # paper | live
+  live_requires: [LIVE_ENABLED=true, autonomy.level>=2, dashboard_confirmation, step_up_auth]
+
+autonomy:
+  level: 1                       # 1 paper | 2 live_with_approval | 3 autonomous_within_limits | 4 scale
+  approval_required_below_level: 3
+  approval_ttl_seconds: 120
+  promotion_requires_owner_signoff: true
+  auto_demote_on: [weekly_loss_limit_breach, max_drawdown_breach, anomaly_halt, backtest_live_divergence]
+  gates:
+    level_2: { min_paper_trading_days: 60, min_sharpe: 1.0, max_drawdown_pct: 10, min_profit_factor: 1.3, max_backtest_divergence_pct: 30 }
+    level_3: { min_live_approval_days: 60, max_live_vs_paper_divergence_pct: 25, unhandled_breaches: 0 }
+    level_4: { min_quarters_outperforming_benchmark_after_costs: 1, max_capital_step_multiplier: 2.0 }
+  # Per-level limit profiles. Effective limit = the TIGHTER of the profile and loss/position limits below.
+  # L2+ are still LIVE-LOCKED in this build (mode stays paper); profiles only tighten the paper limits.
+  limit_profiles:
+    1: { name: paper,       daily_pct: 2.0, weekly_pct: 4.0, max_drawdown_pct: 10.0, max_position_pct_bot_capital: 10, live: false }
+    2: { name: small_live,  daily_pct: 1.0, weekly_pct: 3.0, max_drawdown_pct: 8.0,  max_position_pct_bot_capital: 10, live: true }   # BRD: 1% daily, 8% MDD
+    3: { name: autonomous,  daily_pct: 1.0, weekly_pct: 3.0, max_drawdown_pct: 8.0,  max_position_pct_bot_capital: 10, live: true }
+    4: { name: scale,       daily_pct: 1.0, weekly_pct: 3.0, max_drawdown_pct: 8.0,  max_position_pct_bot_capital: 8,  live: true }
+
+capital:
+  allocation_cap_pct: 20         # of total account equity across brokers (base currency)
+  allocation_cap_hard_ceiling_pct: 30
+  profits_raise_cap: false       # increases only via autonomy ladder
+
+sleeves:                         # % of bot capital
+  core:      { target_pct: 60, min_pct: 50, max_pct: 70, instruments: [index_etf] }
+  active:    { target_pct: 30, min_pct: 20, max_pct: 40 }
+  high_risk: { target_pct: 10, min_pct: 0,  max_pct: 15, instruments: [crypto_spot, ml_experimental] }
+  derivatives:
+    target_pct: 0
+    max_pct: 5                   # carved out of active/high_risk, never additive
+    locked: true                 # Phase 5; unlock needs BRD §13.2 criteria + owner sign-off
+    stage: null                  # A covered_call/cash_secured_put | B +debit_spread | C +credit_spread
+    allowed_option_strategies: [covered_call, cash_secured_put, debit_spread, credit_spread]
+    forbidden: [naked_short_call, naked_short_put, net_short_ratio, short_straddle, short_strangle, zero_dte]
+    futures_allowed_roots: [MES, MNQ, MGC]
+    max_contracts: { MES: 2, MNQ: 1, MGC: 1, total: 3 }
+    max_loss_per_position_pct_bot_capital: 0.5
+    margin:
+      max_initial_margin_pct_of_sleeve: 50
+      min_account_excess_liquidity_pct: 50
+    expiry_rules:
+      close_short_options_dte: 2
+      expiry_day_hard_close_et: "15:00"
+      futures_roll_business_days_before_expiry: 5
+      roll_before_first_notice_day: true
+      allow_exercise_or_delivery: false
+      min_dte_new_options: 7
+    greeks_limits:
+      max_abs_beta_weighted_delta_pct_bot_capital: 10
+      max_vega_pct_bot_capital_per_vol_pt: 0.2
+      tighten_gamma_within_dte: 7
+rebalance:
+  drift_band_pp: 5
+  schedule: weekly               # also on drift
+  schedule_time_et: "Mon 15:30"
+  max_cost_bps: 10
+  min_trade_value_base: 50
+
+loss_limits:                     # % of bot capital (start-of-period equity), realized + unrealized
+  daily_pct: 2.0                 # small live recommendation: 1.0
+  weekly_pct: 4.0
+  max_drawdown_pct: 10.0
+  on_daily_breach: [cancel_open_orders, halt_new_entries_until_next_session, alert]
+  on_weekly_breach: [cancel_open_orders, halt_until_owner_review, demote_one_level, alert]
+  per_strategy_max_drawdown_pct: 5.0   # auto-pause strategy, re-qualify in paper
+
+position_limits:
+  max_position_pct_bot_capital: 10
+  max_position_notional_base: 5000
+  max_gross_exposure_pct: 100    # no leverage
+  max_net_fx_exposure_pct: 50    # non-CAD net exposure
+  max_single_currency_pct: 35
+  max_sector_pct: 30
+  max_orders_per_minute: 10
+  max_open_orders: 25
+  price_collar_pct: 2.0
+  issuer_netting_by: ISIN
+  symbol_allowlist:
+    min_adv_usd: 5000000
+    max_spread_bps: 20
+  pdt_guard: true
+  extended_hours_limit_only: true
+  low_liquidity_size_mult: 0.5
+
+ai_controls:
+  ml_filter: { enabled: true, min_p_hit: 0.55, require_exp_return_above_cost: true, fallback: rules_only_half_size }
+  # provider: offline_stub (deterministic, no network). No real LLM provider is enabled in this build.
+  # on_timeout / on_error: veto = block the trade (owner DECISION 2026-10-16; TRD said "safe_default").
+  # The owner may change this to `pass` or `downsize` (policy change => re-pin/sign).
+  llm_screener: { enabled: true, provider: offline_stub, allowed_actions: [none, downsize, veto], allowed_downsize_mults: [0.5, 0.25],
+                  max_size_mult: 1.0, timeout_s: 5, on_timeout: veto, on_error: veto }
+  sizing: { method: vol_target, kelly_fraction: 0.25, kelly_is_cap_only: true }
+  model_promotion: { min_shadow_weeks: 4, owner_signoff_at_level_ge: 3, min_lift_bps: 0, max_brier_worsening: 0.0, max_drawdown_pct: 10 }
+  ai_can_approve_orders: false
+  ai_can_change_policy: false
+
+kill_switch:
+  enabled: true
+  channels: [dashboard, mcp, cli, alert_reply_webhook, watchdog]
+  on_engage: [cancel_all_orders_all_brokers, block_new_orders, alert]
+  flatten_positions_default: false   # owner chooses at engage time
+  reset_requires: [owner, step_up_auth]
+  drill_schedule: weekly
+
+anomaly_halts:
+  stale_quote_seconds: 10
+  pnl_jump_sigma: 4
+  fill_deviation_bps: 50
+  reject_spike: { count: 3, window_minutes: 5 }
+  reconciliation_mismatch: halt
+  calendar_disagreement: venue_closed
+
+watchdog:
+  heartbeat_interval_s: 5
+  missed_beats_to_halt: 3
+  deadman_timeout_s: 60
+  fail_mode: closed

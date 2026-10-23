@@ -1,0 +1,15 @@
+# tax.yaml: tax-tracking wiring (tradingbot-app). Record keeping only. NOT TAX ADVICE.
+version: 1
+entity: { id: masharai-personal, kind: individual, taxpayer: masharai }
+other_entities: []          # e.g. [{id: spouse, kind: individual, taxpayer: spouse}, {id: me-tfsa, kind: tfsa, taxpayer: masharai-tfsa}]
+affiliations: []            # groups of entity ids, e.g. [[masharai-personal, spouse, me-tfsa]]
+superficial_loss_guard: warn    # warn (default) | block | off
+fx:
+  source: fill              # fill = paper fill's fx_rate_to_base (labelled, NOT BoC) | boc_file
+  boc_file: null            # path (relative to config dir) of a downloaded BoC Valet JSON file
+boc_fetch:
+  enabled: false            # network fetch of BoC Valet rates; OFF by default (offline build)
+  series: [FXUSDCAD, FXEURCAD]
+  cache_file: ../data/boc_valet_fx.json
+foreign_currencies: [USD, EUR, GBP]   # non-CAD-listed securities are flagged specified foreign property for T1135
+include_crypto_in_t1135: false

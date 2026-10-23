@@ -1,0 +1,16 @@
+# Kraken Canada restricted-asset list, synced-file format (tradingbot-app).
+# HOW TO SYNC: copy the assets from Kraken's published "restricted assets for Canadian
+# clients" support page into `assets`, then set `retrieved` to today (ET). The file goes
+# stale after verification_max_age_days (venues.yaml), and stale fails closed. Offline: this build never fetches it.
+# The entries below are the PARTIAL list from hedge-fund-addendum.md; this is not a complete sync.
+venue: kraken
+jurisdiction: CA
+source: "Kraken support: restricted assets for Canadian clients (manual sync)"
+retrieved: 2026-10-16
+complete: false
+assets:
+  - { symbol: USDT, reason: "value-referenced crypto asset not approved in Canada" }
+  - { symbol: USDG, reason: "value-referenced crypto asset not approved in Canada" }
+  - { symbol: DAI,  reason: "value-referenced crypto asset not approved in Canada" }
+  - { symbol: WBTC, reason: "wrapped asset restricted" }
+  - { symbol: XMR,  reason: "privacy coin delisted for Canada" }

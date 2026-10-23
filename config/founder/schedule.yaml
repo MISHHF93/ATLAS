@@ -1,0 +1,142 @@
+# APP COPY of /workspace/trading-bot/config/schedule.yaml with review fixes (see README)
+# =============================================================================
+# schedule.yaml: global "follow the sun" session config (v0.4)
+# Times are LOCAL to each venue's IANA time zone; the scheduler converts to UTC
+# and handles DST. Holidays/half-days come from calendar libraries
+# (exchange_calendars / pandas_market_calendars) cross-checked daily with IBKR
+# contract trading hours. Disagreement => venue treated as CLOSED (fail closed).
+# Hours are indicative; validate before use.
+# =============================================================================
+version: 0.4
+owner_timezone: America/Toronto
+calendar_sources: [exchange_calendars, ibkr_contract_details]
+on_calendar_mismatch: treat_closed
+holiday_handling: { skip_holidays: true, half_days: reduce_size_and_flatten_early }
+
+defaults:
+  low_liquidity_size_mult: 0.5
+  edge_minutes_reduced: 15          # first/last N minutes of a session run at reduced size
+  no_new_entries_before_close_min: 10
+
+venues:
+  crypto:
+    tz: UTC
+    calendar: "24/7"
+    sessions: [{ phase: continuous, days: [Mon, Tue, Wed, Thu, Fri, Sat, Sun], start: "00:00", end: "24:00" }]
+    low_liquidity: [{ days: [Sat, Sun], mult: 0.5 }, { start: "00:00", end: "06:00", mult: 0.5 }]
+    brokers: [coinbase, kraken]
+
+  fx:
+    tz: America/New_York
+    calendar: FX_24x5
+    open: { day: Sun, time: "17:00" }
+    close: { day: Fri, time: "17:00" }
+    daily_rollover: "17:00"
+    low_liquidity: [{ around: rollover, minutes: 30, mult: 0.5 }, { day: Sun, start: "17:00", end: "18:00", mult: 0.5 }]
+    brokers: [ibkr]                   # app fix: oanda disabled in brokers.yaml
+
+  cme_globex:                       # Phase 5 only (locked)
+    tz: America/New_York
+    calendar: CMEGlobex_Equity
+    open: { day: Sun, time: "18:00" }
+    close: { day: Fri, time: "17:00" }
+    daily_break: { start: "17:00", end: "18:00" }
+    low_liquidity: [{ start: "18:00", end: "08:00", mult: 0.5 }]
+    no_new_risk_before_weekend_close_min: 60
+    roots: [MES, MNQ, MGC]
+    enabled: false
+    brokers: [ibkr]
+
+  XTKS:                             # Tokyo Stock Exchange
+    tz: Asia/Tokyo
+    calendar: XTKS
+    sessions:
+      - { phase: morning, start: "09:00", end: "11:30" }
+      - { phase: lunch_break, start: "11:30", end: "12:30" }
+      - { phase: afternoon, start: "12:30", end: "15:30" }
+    lot_size: 100
+    brokers: [ibkr]
+
+  XHKG:                             # Hong Kong Exchanges
+    tz: Asia/Hong_Kong
+    calendar: XHKG
+    sessions:
+      - { phase: pre_open_auction, start: "09:00", end: "09:30" }
+      - { phase: morning, start: "09:30", end: "12:00" }
+      - { phase: lunch_break, start: "12:00", end: "13:00" }
+      - { phase: afternoon, start: "13:00", end: "16:00" }
+      - { phase: closing_auction, start: "16:00", end: "16:10" }
+    brokers: [ibkr]
+
+  XASX:                             # Australian Securities Exchange
+    tz: Australia/Sydney
+    calendar: XASX
+    sessions:
+      - { phase: pre_open, start: "07:00", end: "10:00" }
+      - { phase: regular, start: "10:00", end: "16:00", note: "staggered open ~10:00-10:10" }
+      - { phase: closing_auction, start: "16:10", end: "16:12" }
+    brokers: [ibkr]
+
+  XLON:                             # London Stock Exchange
+    tz: Europe/London
+    calendar: XLON
+    sessions:
+      - { phase: opening_auction, start: "07:50", end: "08:00" }
+      - { phase: regular, start: "08:00", end: "16:30" }
+      - { phase: closing_auction, start: "16:30", end: "16:35" }
+    brokers: [ibkr]
+
+  XETR:                             # Deutsche Börse Xetra
+    tz: Europe/Berlin
+    calendar: XETR
+    sessions:
+      - { phase: opening_auction, start: "08:50", end: "09:00" }
+      - { phase: regular, start: "09:00", end: "17:30" }
+      - { phase: closing_auction, start: "17:30", end: "17:35" }
+    brokers: [ibkr]
+
+  XPAR_XAMS:                        # Euronext Paris / Amsterdam
+    tz: Europe/Paris
+    calendar: XPAR
+    sessions:
+      - { phase: opening_auction, start: "07:15", end: "09:00" }
+      - { phase: regular, start: "09:00", end: "17:30" }
+      - { phase: closing_auction, start: "17:30", end: "17:35" }
+    brokers: [ibkr]
+
+  XTSE:                             # Toronto Stock Exchange
+    tz: America/Toronto
+    calendar: XTSE
+    sessions:
+      - { phase: pre_open, start: "07:00", end: "09:30" }
+      - { phase: regular, start: "09:30", end: "16:00" }
+    brokers: [ibkr]
+
+  XNYS_XNAS:                        # NYSE / Nasdaq
+    tz: America/New_York
+    calendar: XNYS
+    sessions:
+      - { phase: pre_market, start: "04:00", end: "09:30", size_mult: 0.5, order_types: [limit] }
+      - { phase: regular, start: "09:30", end: "16:00" }
+      - { phase: after_hours, start: "16:00", end: "20:00", size_mult: 0.5, order_types: [limit] }
+    us_options_regular_hours: { start: "09:30", end: "16:00", note: "some index/ETF options to 16:15; Phase 5 only" }
+    brokers: [alpaca, ibkr]
+
+intraday_rules:
+  flatten_intraday_strategies_before_close_min: 10
+  hold_overnight_allowed_sleeves: [core, active, high_risk]   # app fix: was active_swing (undefined sleeve)
+
+weekend_mode:
+  trigger: { from: "fx.close", to: "fx.open" }      # Fri 17:00 ET -> Sun 17:00 ET
+  active_venues: [crypto]
+  equities: hold_per_sleeve_rules_no_new_orders
+  fx: no_new_orders
+  derivatives: no_new_risk
+  learning_loop: { run: true, day: Sat, time_et: "10:00" }   # weekly reweight + retrain
+
+jobs:                                                  # America/Toronto
+  daily_summary: "17:30"
+  reconciliation_interval_s: 60
+  calendar_refresh: "03:00"
+  model_drift_report: "Sun 12:00"
+  kill_switch_drill: "Sat 11:00 (paper)"

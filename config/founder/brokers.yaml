@@ -1,0 +1,159 @@
+# APP COPY of /workspace/trading-bot/config/brokers.yaml with review fixes (see README)
+# =============================================================================
+# brokers.yaml: per-platform configuration (v0.4)
+# Secrets are referenced by env/vault key name only. Never put credentials here.
+# Rate limits are indicative; always confirm against current vendor docs.
+# =============================================================================
+version: 0.4
+base_currency: CAD
+default_mode: paper            # every platform starts in paper unless overridden
+
+platforms:
+
+  alpaca:
+    enabled: true
+    mode: paper                # paper | live  (live: not available to Canadian residents yet; see PLATFORMS.md)
+    purpose: "US equities & ETFs (primary for US, paper first)"
+    base_urls:
+      paper: https://paper-api.alpaca.markets
+      live: https://api.alpaca.markets
+      data: https://data.alpaca.markets
+      stream_trading_paper: wss://paper-api.alpaca.markets/stream
+      stream_data: wss://stream.data.alpaca.markets/v2/iex
+    credentials: { key_id: ALPACA_API_KEY_ID, secret: ALPACA_API_SECRET_KEY }
+    asset_classes: [us_equity, etf]
+    markets: [NYSE, NASDAQ, ARCA]
+    account_currency: USD
+    permissions:
+      trading: true
+      shorting: false
+      margin: false            # cash account; avoids PDT complications
+      options: false
+      crypto: false
+      withdrawals: false       # API keys can't move money; keep it that way
+    order_types: [market, limit, stop, stop_limit, trailing_stop, bracket, oco]
+    time_in_force: [day, gtc, ioc, fok, opg, cls]
+    extended_hours:
+      enabled: true
+      sessions: [pre, post]    # 04:00-09:30 and 16:00-20:00 ET; limit + day TIF only
+      order_types: [limit]
+    rate_limits: { rest_per_min: 200 }
+    paper_environment: true
+
+  ibkr:
+    enabled: true
+    mode: paper
+    purpose: "Global equities (TSX, TSE, HKEX, ASX, LSE, Xetra, Euronext, US), FX; derivatives in Phase 5"
+    connection:
+      api: tws                 # tws (IB Gateway via ib_async) | client_portal
+      host_env: IBKR_GATEWAY_HOST
+      port_env: IBKR_GATEWAY_PORT
+      ports: { gateway_paper: 4002, gateway_live: 4001, tws_paper: 7497, tws_live: 7496 }
+      client_id_env: IBKR_CLIENT_ID
+      account_env: IBKR_ACCOUNT_ID
+    asset_classes: [equity, etf, fx]          # + [option, future] only when Phase 5 unlocks
+    markets: [TSX, NYSE, NASDAQ, ARCA, TSE, HKEX, ASX, LSE, XETRA, EURONEXT, IDEALPRO]
+    account_currency: CAD
+    multi_currency_cash: [CAD, USD, JPY, HKD, AUD, GBP, EUR]
+    permissions:
+      trading: true
+      shorting: false
+      margin: false
+      fx_spot: true
+      options: false           # Phase 5 (locked); covered/cash-secured/spreads only when enabled
+      futures: false           # Phase 5 (locked); CME micros only
+      withdrawals: false
+    order_types: [market, limit, stop, stop_limit, moc, loc, combo_bag]
+    time_in_force: [day, gtc, ioc, opg]
+    extended_hours: { enabled: true, sessions: [pre, post], order_types: [limit], outside_rth_flag: true }
+    rate_limits: { api_msgs_per_sec: 50, historical_data_pacing: "per IBKR pacing rules" }
+    paper_environment: true
+
+  coinbase:
+    enabled: true
+    mode: paper                # Coinbase has a limited sandbox; the bot's internal paper simulator is used by default
+    purpose: "Crypto (high-risk sleeve)"
+    base_urls:
+      rest: https://api.coinbase.com/api/v3/brokerage
+      websocket: wss://advanced-trade-ws.coinbase.com
+      sandbox: https://api-sandbox.coinbase.com
+    credentials: { key_name: COINBASE_API_KEY_NAME, private_key: COINBASE_API_PRIVATE_KEY }   # JWT ES256
+    asset_classes: [crypto_spot]
+    markets: [BTC-USD, ETH-USD, BTC-CAD, ETH-CAD]
+    account_currency: CAD
+    permissions: { view: true, trade: true, transfer: false }
+    order_types: [market, limit, stop_limit, bracket]
+    time_in_force: [gtc, gtd, ioc, fok]
+    extended_hours: { enabled: true, note: "24/7 market" }
+    rate_limits: { private_rest_per_sec: 30, public_rest_per_sec: 10 }
+    paper_environment: limited_sandbox
+    canada_status: "Confirm CSA registration / API availability for Ontario"
+
+  kraken:
+    enabled: true              # app: CSA registration verified 2026-10-16 (addendum); paper/sim only, blocklist enforced via venues.yaml
+    mode: paper                # no spot sandbox; internal paper simulator
+    purpose: "Crypto (high-risk sleeve), redundancy venue"
+    base_urls: { rest: https://api.kraken.com, websocket: wss://ws.kraken.com/v2 }
+    credentials: { key: KRAKEN_API_KEY, secret: KRAKEN_API_SECRET }
+    asset_classes: [crypto_spot]
+    markets: [XBT/CAD, ETH/CAD, XBT/USD, ETH/USD]
+    account_currency: CAD
+    permissions: { query: true, trade: true, withdraw: false }
+    order_types: [market, limit, stop_loss, take_profit, stop_loss_limit]
+    time_in_force: [gtc, ioc, gtd]
+    extended_hours: { enabled: true, note: "24/7 market" }
+    rate_limits: { rest: "call-counter model (tier-based decay)", trading: "per-pair order rate counter" }
+    paper_environment: none
+    canada_status: "Confirm CSA registration for Ontario"
+
+  robinhood_crypto:
+    enabled: false             # US-only; likely NOT available to Ontario residents
+    mode: paper
+    purpose: "Crypto (conditional / US-only)"
+    base_urls: { rest: https://trading.robinhood.com }
+    credentials: { api_key: ROBINHOOD_CRYPTO_API_KEY, private_key: ROBINHOOD_CRYPTO_PRIVATE_KEY_B64 }   # Ed25519 signing
+    asset_classes: [crypto_spot]
+    markets: [BTC-USD, ETH-USD]
+    account_currency: USD
+    permissions: { trade: true, withdraw: false }
+    order_types: [market, limit, stop_loss, stop_limit]
+    rate_limits: { per_min: 100, burst: 300 }
+    paper_environment: none
+
+  oanda:
+    enabled: false             # optional FX alternative/data source; IBKR is primary FX venue
+    mode: paper                # maps to OANDA_ENV=practice
+    purpose: "Optional spot FX (unlevered by policy) and FX pricing"
+    base_urls:
+      practice: https://api-fxpractice.oanda.com
+      live: https://api-fxtrade.oanda.com
+      stream_practice: https://stream-fxpractice.oanda.com
+      stream_live: https://stream-fxtrade.oanda.com
+    credentials: { token: OANDA_API_TOKEN, account: OANDA_ACCOUNT_ID, env: OANDA_ENV }
+    asset_classes: [fx_spot]
+    markets: [USD_CAD, EUR_USD, USD_JPY, GBP_USD, AUD_USD, EUR_CAD]
+    account_currency: CAD
+    permissions: { trade: true, leverage_max: 1.0 }   # policy: no leverage
+    order_types: [market, limit, stop, market_if_touched, take_profit, stop_loss, trailing_stop_loss]
+    rate_limits: { rest_per_sec: 100, note: "verify current OANDA v20 limits" }
+    paper_environment: true
+
+data_providers:
+  polygon_massive: { enabled: true, key_env: POLYGON_API_KEY, base_url: https://api.massive.com, use: [us_bars, trades, quotes, reference, news] }
+  finnhub:         { enabled: true, key_env: FINNHUB_API_KEY, base_url: https://finnhub.io/api/v1, use: [fundamentals, earnings_calendar, news_sentiment], rate_limit_per_min: 60 }
+  alpaca_data:     { enabled: true, use: [us_bars, quotes, news] }
+  ibkr_data:       { enabled: true, use: [global_quotes, contract_details, trading_hours] }
+
+excluded_platforms:
+  wealthsimple:     "No official public trading API; unofficial access breaches ToS. Manual use only."
+  robinhood_stocks: "No official stock-trading API (crypto API only, US-only)."
+  nasdaq:           "An exchange, not a broker. Retail can't trade on it directly; access is through brokers. Nasdaq Data Link is data only."
+
+routing:
+  us_equity: [alpaca, ibkr]      # until Alpaca Canada live exists, live US equities route to IBKR
+  ca_equity: [ibkr]
+  intl_equity: [ibkr]
+  fx: [ibkr]                     # app fix: oanda disabled
+  crypto: [coinbase, kraken]     # kraken re-enabled (paper/sim) behind venues.yaml blocklist
+  derivatives: [ibkr]            # Phase 5 only
+  failover_policy: flatten_only  # never open new risk on a failover route

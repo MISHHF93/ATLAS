@@ -1,0 +1,93 @@
+# =============================================================================
+# venues.yaml: venue / jurisdiction eligibility (tradingbot-app, from
+# trading-bot-review/hedge-fund-addendum.md, verified 2026-10-16 ET).
+# NOT legal advice. Re-verify each venue at least every 90 days; stale => fail closed.
+# =============================================================================
+version: 1
+verification_max_age_days: 90
+operating_entity:
+  id: masharai-personal
+  type: individual            # individual | corporation | fund
+  province: "ON"
+  data_licence: non_pro       # non_pro | pro   (corp/fund use is generally pro/commercial)
+
+venues:
+  ibkr:
+    legal_entity: Interactive Brokers Canada Inc.
+    entity_types: [individual, corporation, fund]
+    registration: { status: ciro_member, regulator: CIRO, cipf: true, last_verified: 2026-10-16 }
+    execution_allowed: true
+    asset_classes: [equity, etf, index_etf, us_equity, ca_equity, fx, fx_spot]   # options/futures locked (Phase 5)
+    flags: { margin: false, derivatives: false, spot_only: false }
+    asset_blocklist: []
+    notes: "Recommended primary broker. Crypto eligibility for IBKR Canada clients unverified -> crypto not routed here."
+  alpaca:
+    legal_entity: Alpaca Securities LLC
+    entity_types: [individual]
+    registration: { status: not_registered_in_canada, regulator: none, last_verified: 2026-10-16 }
+    execution_allowed: true
+    paper_only: true          # live accounts not available to Canadian residents
+    asset_classes: [us_equity, etf, index_etf]
+    flags: { margin: false, derivatives: false, spot_only: false }
+    asset_blocklist: []
+    notes: "Paper API only for Canadians. Recheck after Nov 2026 (targeted approval, not launched)."
+  coinbase:
+    legal_entity: Coinbase Canada Inc.
+    entity_types: [individual, corporation]
+    registration: { status: restricted_dealer, regulator: OSC/CSA, interim_relief: true, last_verified: 2026-10-16,
+                    note: "Interim relief extended 2026-04-01 while CIRO membership application continues; monitor OSC page" }
+    execution_allowed: true
+    asset_classes: [crypto_spot]
+    flags: { margin: false, derivatives: false, spot_only: true }
+    asset_blocklist: []
+  kraken:
+    legal_entity: Payward Canada Inc.
+    entity_types: [individual, corporation]
+    registration: { status: restricted_dealer, regulator: OSC/CSA, fintrac_msb: M19343731, last_verified: 2026-10-16,
+                    note: "Amended decision 2026-08-18" }
+    execution_allowed: true
+    asset_classes: [crypto_spot]
+    flags: { margin: false, derivatives: false, spot_only: true }
+    # Synced-file format: config/blocklists/kraken_ca.yaml (merged at load; stale => fail closed).
+    asset_blocklist: []
+    asset_blocklist_file: blocklists/kraken_ca.yaml
+  robinhood_crypto:
+    legal_entity: Robinhood Crypto LLC
+    entity_types: []
+    registration: { status: not_registered_in_canada, regulator: none, last_verified: 2026-10-16 }
+    execution_allowed: false
+    asset_classes: []
+    flags: { margin: false, derivatives: false, spot_only: true }
+    asset_blocklist: []
+  oanda:
+    legal_entity: OANDA (Canada) Corporation ULC
+    entity_types: [individual, corporation]
+    registration: { status: unverified, regulator: CIRO, last_verified: 2026-10-16, note: "Not re-verified in addendum" }
+    execution_allowed: false
+    asset_classes: [fx_spot]
+    flags: { margin: false, derivatives: false, spot_only: true }
+    asset_blocklist: []
+
+excluded_venues:
+  alpaca_live: "Live accounts not available to Canadian residents"
+  questrade: "Customer API is read-only; execution limited to partner developers (data/reconciliation only)"
+  wealthsimple: "No official API"
+  binance: "Unregistered offshore exchange"
+  bybit: "Unregistered offshore exchange"
+  okx: "Unregistered offshore exchange"
+
+registered_statuses: [ciro_member, restricted_dealer, investment_dealer]
+
+data_providers:
+  massive:   { markets: [US], tsx: false, plans: { individual: non_pro, corporation: business, fund: business } }
+  databento: { markets: [US], tsx: false, plans: { individual: non_pro, corporation: business, fund: business } }
+  finnhub:   { markets: [GLOBAL_FUNDAMENTALS], tsx: false, plans: { individual: non_pro, corporation: commercial, fund: commercial } }
+  ibkr_data: { markets: [US, CA, GLOBAL], tsx: true, plans: { individual: non_pro, corporation: pro, fund: pro } }
+  tmx:       { markets: [CA], tsx: true, plans: { individual: non_pro, corporation: pro, fund: pro } }
+
+data_routes:
+  us_equity: [massive, ibkr_data]
+  ca_equity: [ibkr_data, tmx]       # TSX data via IBKR/TMX, never Massive/Databento
+  fundamentals: [finnhub]
+  # licence used per provider under the operating entity (must match plans[entity.type])
+  licences: { massive: non_pro, finnhub: non_pro, ibkr_data: non_pro, tmx: non_pro }
