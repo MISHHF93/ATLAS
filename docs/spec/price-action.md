@@ -117,3 +117,23 @@ All fixtures are seeded synthetic data and labelled as such.
   - `microstructure.compute_atr`
   - `udf._atr`
 - The legacy `features/zones` engine is kept. `PriceZone.to_lifecycle_zone()` adapts it to the lifecycle `Zone`; it has not been rewritten.
+
+## Slice 3: real-data evidence and the zone engine rewrite
+
+- **Data.** `scripts/fetch_public_history.py` pulls free public bars into `var/evidence_cache/`, which is never committed:
+  - Yahoo chart API, 1h (730 days) and 1d (since inception), for SPY, QQQ and IWM;
+  - Binance `data-api.binance.vision` 1h klines (2 years) for BTCUSDT and ETHUSDT.
+- **Evaluation.** `scripts/run_setup_evidence.py` runs `atlas.research.setup_evidence`:
+  - triple-barrier labels from the conservative replay;
+  - expanding walk-forward with 5 folds, purged by exit time, plus a 1-day embargo;
+  - per-detector Platt calibration fitted on the training window only;
+  - Brier score, log-loss and reliability bins, each compared with the base-rate baseline;
+  - DSR across all trials, and PBO via CSCV.
+- **Results** are in `docs/spec/evidence/price-action-setups-2026-10-23.{md,json}`. No config passed the gates, so nothing was registered.
+- **Replay additions:**
+  - `ReplayConfig.cost_bps`, a round-trip cost as bps of entry;
+  - `ReplayConfig.zone_rule="zone_entry_v1"`, a research-only mapping of dual-band and wick zones to candidates.
+- **`features/zones.ZoneEngine`** is now a facade over price_action. It keeps the same methods and the `PriceZone` outputs:
+  - Breakout uses the canonical population-std bands. This is a documented change from the old pandas ddof=1 bands.
+  - The anchor rule is unchanged and is checked against a frozen reference.
+  - Opening, breakout and event construction used to raise TypeError because of missing fields. This is fixed.
