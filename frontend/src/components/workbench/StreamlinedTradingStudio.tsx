@@ -1326,7 +1326,7 @@ export function StreamlinedTradingStudio() {
         color: "var(--c-text)",
         display: "flex",
         flexDirection: "column",
-        fontFamily: "var(--font-sans, Inter, system-ui, sans-serif)",
+        fontFamily: "var(--font-ui)",
       }}
     >
       {/* ====================================================================
@@ -1822,7 +1822,7 @@ export function StreamlinedTradingStudio() {
         {/* ==================================================================
             3. CENTER PANEL: DEEP CHART & CANVAS + BOTTOM BLOTTER (55% WIDTH)
            ================================================================== */}
-        <main
+        <section aria-label="Chart and order book"
           style={{
             background: "var(--c-bg)",
             display: "flex",
@@ -2202,7 +2202,7 @@ export function StreamlinedTradingStudio() {
               </div>
             )}
           </div>
-        </main>
+        </section>
 
         {/* ==================================================================
             4. RIGHT PANEL: ORDER DESK & REMAINING-ROOM HUD (25% WIDTH)

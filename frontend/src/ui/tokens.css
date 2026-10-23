@@ -338,3 +338,13 @@ body { font-family: var(--font-ui); background: var(--c-bg); color: var(--c-text
 .ux-dl dt { color: var(--c-muted); }
 .ux-dl dd { margin: 0; }
 @media (max-width: 860px) { .ux-dl { grid-template-columns: 1fr; } .ux-dl dd { margin-bottom: 8px; } }
+
+/* Docs prose */
+.ux-prose { font-family: var(--font-ui); font-size: var(--t-sm); line-height: 1.65; color: var(--c-text-2); max-width: 80ch; }
+.ux-prose h2, .ux-prose h3, .ux-prose h4 { color: var(--c-text); line-height: 1.3; margin: 1.6em 0 .5em; }
+.ux-prose h2 { font-size: var(--t-xl, 20px); } .ux-prose h3 { font-size: var(--t-lg, 17px); } .ux-prose h4 { font-size: var(--t-md); }
+.ux-prose p, .ux-prose ul, .ux-prose ol { margin: 0 0 1em; }
+.ux-prose blockquote { margin: 0 0 1em; padding: var(--s-2) var(--s-4); border-left: 3px solid var(--c-info); background: var(--c-surface-2); border-radius: var(--r-sm); }
+.ux-prose .ux-table-wrap { margin: 0 0 1em; }
+.ux-prose hr { border: 0; border-top: 1px solid var(--c-border); margin: 1.5em 0; }
+.ux-md-pre { font-family: var(--font-mono); font-size: var(--t-xs); background: var(--c-surface-2); padding: var(--s-3); border-radius: var(--r-sm); overflow: auto; white-space: pre; }

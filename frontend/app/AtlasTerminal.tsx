@@ -3945,7 +3945,7 @@ export function AtlasTerminal({
         </div>
 
         <div className={`atlas-body-split ${dockOpen ? "" : "dock-closed"}`}>
-          <main className="atlas-workspace">
+          <div className="atlas-workspace">
           {/* ================================================================
               INSTITUTIONAL 4-WORKSPACE COMMAND SHELL & 15 SUB-ROUTES
              ================================================================ */}
@@ -8813,7 +8813,7 @@ export function AtlasTerminal({
               </div>
             </>
           )}
-          </main>
+          </div>
 
           {/* ================================================================
               PERSISTENT DOCKABLE INSTITUTIONAL ORDER TICKET, L2 DOM & RISK DOCK

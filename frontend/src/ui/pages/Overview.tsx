@@ -21,7 +21,7 @@ export function Overview() {
   const safe = useSafeStop();
   const room = pnl.data?.remaining_room;
   const limit = num(room?.daily_loss_limit_pct) ?? 2;
-  const usedFrac = (num(room?.daily_drawdown_fraction) ?? 0) * 100 / limit;
+  const usedFrac = ((num(room?.daily_drawdown_fraction) ?? 0) * 100 / limit) * 100; // % of the daily limit used
 
   return (
     <div className="ux-page">

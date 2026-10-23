@@ -1,4 +1,5 @@
 "use client";
+import { Markdown } from "../../ui/Markdown";
 
 import { useEffect, useState } from "react";
 
@@ -41,7 +42,7 @@ export function DocsReader() {
 
   return (
     <div className="atlas-app">
-      <main className="docs-shell">
+      <div className="docs-shell">
         <aside className="docs-index" aria-label="Specification files">
           <p className="docs-note">{note}</p>
           {docs.map((doc) => (
@@ -61,13 +62,13 @@ export function DocsReader() {
             <>
               <h1>{selected.title}</h1>
               <p className="docs-note">{selected.path}</p>
-              <pre>{selected.content}</pre>
+              {/\.md$/i.test(selected.path) ? <Markdown source={selected.content} /> : <pre>{selected.content}</pre>}
             </>
           ) : (
             <p className="docs-note">{note}</p>
           )}
         </article>
-      </main>
+      </div>
     </div>
   );
 }
