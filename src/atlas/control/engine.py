@@ -106,8 +106,12 @@ class ActionableControlState(Record):
 class ActionableControlPlaneEngine:
     """Deterministic control-plane execution, risk, and lifecycle action engine."""
 
-    def __init__(self) -> None:
+    def __init__(self, safe_stop=None) -> None:
         now = datetime.now(timezone.utc)
+        # Single Safe stop (persisted, watchdog-shared). Each engine gets an isolated in-memory one unless given.
+        from atlas.risk.safe_stop import new_safe_stop
+
+        self.safe_stop = safe_stop if safe_stop is not None else new_safe_stop()
         self.comp_rulebook = TradingRuleBook(
             rulebook_id="prop-comp-2026-q4:v1",
             revision="1.0.0",
@@ -159,7 +163,6 @@ class ActionableControlPlaneEngine:
 
         self.founder_rulebook = build_founder_rulebook()
         self.active_track: Literal["competition", "open_market"] = "competition"
-        self.kill_switch_engaged: bool = False
         self.initial_equity_usd = Decimal("100000")
         self.current_equity_usd = Decimal("101850")
         self.high_water_mark_usd = Decimal("103100")
@@ -196,6 +199,20 @@ class ActionableControlPlaneEngine:
         self.execution_connector = None
         self._order_seq = 1
         self._pos_seq = 1
+
+    @property
+    def kill_switch_engaged(self) -> bool:
+        return self.safe_stop.engaged
+
+    @kill_switch_engaged.setter
+    def kill_switch_engaged(self, engaged: bool) -> None:
+        if engaged:
+            if not self.safe_stop.engaged:
+                self.safe_stop.engage("control_plane", channel="control_plane")
+        elif self.safe_stop.engaged:
+            from atlas.risk.safe_stop import operator_reset
+
+            operator_reset(self.safe_stop, "control_plane_reset")
 
     def _rulebook_for(self, track: Literal["competition", "open_market"]) -> TradingRuleBook:
         return self.comp_rulebook if track == "competition" else self.open_rulebook
@@ -436,6 +453,8 @@ class ActionableControlPlaneEngine:
         now: datetime | None = None,
     ) -> ActionableControlState:
         ts = now or datetime.now(timezone.utc)
+        if engaged and not self.safe_stop.engaged:
+            self.safe_stop.engage(reason, channel="control_plane")
         self.kill_switch_engaged = engaged
         if engaged:
             self.flatten_all_positions(reason=f"kill_switch_engaged:{reason}", now=ts)

@@ -78,7 +78,9 @@ def unavailable_experimental_ml(path: str) -> None:
 def experimental_ml_status() -> dict[str, object]:
     return dict(app.state.experimental_ml_status)
 
-control_engine = ActionableControlPlaneEngine()
+from atlas.risk.safe_stop import shared_safe_stop
+
+control_engine = ActionableControlPlaneEngine(safe_stop=shared_safe_stop())
 
 
 def _reject_forbidden_role(role_id: str | None, action: str) -> None:

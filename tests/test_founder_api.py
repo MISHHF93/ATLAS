@@ -13,8 +13,11 @@ from atlas.governance import EIGHT_NON_CUSTODIAL_LEDGERS, LEDGER_IMPLEMENTATIONS
 
 @pytest.fixture()
 def client():
+    from atlas.risk.safe_stop import operator_reset, shared_safe_stop
+
     founder.service.cache_clear()
     yield TestClient(app)
+    operator_reset(shared_safe_stop(), "test_teardown")
     founder.service.cache_clear()
 
 
@@ -67,3 +70,16 @@ def test_canadian_venues_loaded(client):
     names = {v["venue"] for v in body["venues"]}
     assert {"ibkr", "alpaca"} <= names
     assert next(v for v in body["venues"] if v["venue"] == "alpaca")["paper_only"] is True
+
+
+def test_one_safe_stop_shared_by_control_plane_and_founder(client):
+    from atlas.api.app import control_engine
+
+    client.post("/api/founder/safe-stop", json={"reason": "unify"})
+    assert control_engine.get_state().kill_switch_engaged is True
+    from atlas.risk.safe_stop import operator_reset, shared_safe_stop
+
+    operator_reset(shared_safe_stop(), "t")
+    eng = ActionableControlPlaneEngine(safe_stop=shared_safe_stop())  # isolated positions, shared switch
+    eng.kill_switch_engaged = True
+    assert client.get("/api/founder/safe-stop").json()["engaged"] is True

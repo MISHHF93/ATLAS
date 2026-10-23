@@ -38,7 +38,9 @@ class _Svc:
     def __init__(self) -> None:
         self.store = StateStore(os.environ.get("ATLAS_STATE_DB", ":memory:"))
         self.audit = AuditLog(os.environ.get("ATLAS_AUDIT_DB", ":memory:"))
-        self.ks = KillSwitch(self.audit, store=self.store)
+        from atlas.risk.safe_stop import shared_safe_stop
+
+        self.ks = shared_safe_stop()  # the same Safe stop the control plane uses
         cfg = _config()
         ttl = float(cfg.risk.autonomy.approval_ttl_seconds) if cfg else 120.0
         owner = cfg.risk.owner if cfg else "owner"
