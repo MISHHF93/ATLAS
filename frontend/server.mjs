@@ -37,7 +37,25 @@ child.on("exit", () => {
   channels.clear();
 });
 
-const app = next({ dev: !process.argv.includes("--production"), dir: directory });
+const production = process.argv.includes("--production");
+if (production) {
+  // A stale .next build serves new routes as "That page is not in ATLAS". Rebuild when any page is missing.
+  const { existsSync, readFileSync, readdirSync } = await import("node:fs");
+  const manifest = path.join(directory, ".next", "server", "app-paths-manifest.json");
+  const built = existsSync(manifest) ? Object.keys(JSON.parse(readFileSync(manifest, "utf8"))) : [];
+  const pages = [];
+  const walk = (dir, rel) => { for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isDirectory()) walk(path.join(dir, e.name), `${rel}/${e.name}`); else if (e.name === "page.tsx") pages.push(`${rel}/page`); } };
+  walk(path.join(directory, "app"), "");
+  const missing = pages.filter((p) => !built.includes(p));
+  if (missing.length) {
+    console.error(`ATLAS: production build is stale (missing ${missing.join(", ")}); running next build...`);
+    const { spawnSync } = await import("node:child_process");
+    const r = spawnSync(process.execPath, [require.resolve("next/dist/bin/next"), "build"], { cwd: directory, stdio: "inherit" });
+    if (r.status !== 0) { console.error("ATLAS: next build failed"); process.exit(1); }
+  }
+}
+const app = next({ dev: !production, dir: directory });
 await app.prepare();
 const handle = app.getRequestHandler();
 const server = http.createServer(async (req, res) => {

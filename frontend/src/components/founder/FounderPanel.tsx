@@ -1,5 +1,6 @@
 "use client";
 
+import { AppNav } from "../shell/AppNav";
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 /** Founder workbench panels (Lola port). Read-only views of /api/founder/*; paper only, execution_permission none. */
@@ -34,7 +35,9 @@ export function useFounder(path: string, refreshMs = 15000) {
 
 export function FounderShell({ title, summary, children }: { title: string; summary: string; children: ReactNode }) {
   return (
-    <main style={{ minHeight: "100vh", background: "var(--bg-canvas)", padding: 24, display: "grid", gap: 16, alignContent: "start" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-canvas)" }}>
+    <AppNav />
+    <main style={{ padding: 24, display: "grid", gap: 16, alignContent: "start" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
         <div>
           <a href="/" style={{ ...muted, textDecoration: "none" }}>ATLAS / Founder</a>
@@ -45,6 +48,7 @@ export function FounderShell({ title, summary, children }: { title: string; summ
       </header>
       {children}
     </main>
+    </div>
   );
 }
 

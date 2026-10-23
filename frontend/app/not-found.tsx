@@ -6,7 +6,7 @@ export default function NotFound() {
       <AppNav />
       <div style={{ padding: "48px", fontFamily: "Segoe UI, sans-serif" }}>
         <h1>That page is not in ATLAS</h1>
-        <p>Use Desk, Markets, Trade, Risk, Research, or Data. Every former alias still redirects to the page that holds its data.</p>
+        <p>Use Home, Trade, Money, Research, Compliance, or Settings. Every former alias still redirects to the page that holds its data.</p>
       </div>
     </main>
   );

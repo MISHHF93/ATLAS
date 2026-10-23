@@ -1,10 +1,10 @@
-import { FounderPanel, FounderShell } from "../../src/components/founder/FounderPanel";
+import { FounderShell } from "../../src/components/founder/FounderPanel";
+import { InboxView } from "../../src/components/founder/views";
 
-export default function InboxPage() {
+export default function Page() {
   return (
-    <FounderShell title="Action needed" summary="Everything waiting on you: Safe stop, paper approvals, policy and venue checks.">
-      <FounderPanel path="inbox" title="Action needed" />
-      <FounderPanel path="approvals" title="Approval queue (decide with atlas-owner + step-up)" />
+    <FounderShell title="Action needed" summary="Everything waiting on you: Safe stop, paper approvals, payouts, policy and venue checks.">
+      <InboxView />
     </FounderShell>
   );
 }

@@ -1,9 +1,10 @@
-import { FounderPanel, FounderShell } from "../../src/components/founder/FounderPanel";
+import { FounderShell } from "../../src/components/founder/FounderPanel";
+import { PortalView } from "../../src/components/founder/views";
 
-export default function PortalPage() {
+export default function Page() {
   return (
-    <FounderShell title="Investor portal" summary="Investor wallet and fund statements (read-only, non-custodial).">
-      <FounderPanel path="ledgers" title="Investor wallet and fund ledgers" hide={["payments"]} />
+    <FounderShell title="Investor portal" summary="Read-only investor wallet: NAV, balances, subscriptions, redemptions and payouts.">
+      <PortalView />
     </FounderShell>
   );
 }

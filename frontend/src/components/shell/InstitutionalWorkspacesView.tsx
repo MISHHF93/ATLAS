@@ -308,7 +308,7 @@ for (const group of SHELL_GROUPS) {
     number: group.number,
     label: group.label,
     basePath: group.basePath,
-    subpages: PAGES.filter((page) => (page.group === "risk" ? "control" : page.group) === group.id && page.workspaceRoute).map((page) => ({
+    subpages: PAGES.filter((page) => page.workspaceRoute?.split("/")[1] === group.basePath.slice(1)).map((page) => ({
       route: page.workspaceRoute as SubPageRouteId,
       title: page.label,
       summary: page.summary,

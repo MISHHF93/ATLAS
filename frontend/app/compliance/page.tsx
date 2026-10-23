@@ -1,10 +1,10 @@
-import { FounderPanel, FounderShell } from "../../src/components/founder/FounderPanel";
+import { FounderShell } from "../../src/components/founder/FounderPanel";
+import { ComplianceView } from "../../src/components/founder/views";
 
-export default function CompliancePage() {
+export default function Page() {
   return (
-    <FounderShell title="Compliance" summary="FINTRAC records, sanctions screening, privacy and Canadian venue registration.">
-      <FounderPanel path="compliance" title="Compliance overview" />
-      <FounderPanel path="venues" title="Canadian venues and broker restrictions" />
+    <FounderShell title="Compliance" summary="Sanctions hits, FINTRAC records, privacy and venue checks.">
+      <ComplianceView />
     </FounderShell>
   );
 }

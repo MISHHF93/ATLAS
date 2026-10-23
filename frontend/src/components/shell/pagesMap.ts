@@ -1,4 +1,4 @@
-export type PageGroupId = "desk" | "trade" | "risk" | "research" | "data" | "money";
+export type PageGroupId = "home" | "trade" | "money" | "research" | "compliance" | "settings";
 
 export type WorkspaceRoute =
   | "/trade/cockpit"
@@ -36,12 +36,12 @@ export type AtlasPage = {
 };
 
 export const PAGE_GROUPS: Array<{ id: PageGroupId; label: string }> = [
-  { id: "desk", label: "Desk" },
+  { id: "home", label: "Home" },
   { id: "trade", label: "Trade" },
-  { id: "risk", label: "Risk" },
-  { id: "research", label: "Research" },
-  { id: "data", label: "Data" },
   { id: "money", label: "Money" },
+  { id: "research", label: "Research" },
+  { id: "compliance", label: "Compliance" },
+  { id: "settings", label: "Settings" },
 ];
 
 export const PAGES: AtlasPage[] = [
@@ -49,7 +49,7 @@ export const PAGES: AtlasPage[] = [
     id: "desk",
     href: "/",
     label: "Desk",
-    group: "desk",
+    group: "home",
     primary: true,
     summary: "Symbol directory, the chart, and the paper ticket.",
     aliases: ["/workbench", "/trade", "/trade/cockpit", "/market"],
@@ -59,7 +59,7 @@ export const PAGES: AtlasPage[] = [
     href: "/listings",
     label: "Listings",
     navLabel: "Markets",
-    group: "desk",
+    group: "home",
     primary: true,
     summary: "Catalog search. Entries are fixture metadata, not a live listing session.",
   },
@@ -85,7 +85,7 @@ export const PAGES: AtlasPage[] = [
     href: "/control",
     label: "Account risk",
     navLabel: "Risk",
-    group: "risk",
+    group: "trade",
     primary: true,
     workspaceRoute: "/control/risk-hud",
     summary: "The one paper account: equity, drawdown room, and open positions.",
@@ -95,7 +95,7 @@ export const PAGES: AtlasPage[] = [
     id: "rulebook",
     href: "/control/rulebook",
     label: "Rulebook",
-    group: "risk",
+    group: "trade",
     workspaceRoute: "/control/rulebook",
     summary: "Trading limits and a paper ticket risk check against the account.",
     aliases: ["/rules", "/settings", "/configurations"],
@@ -104,7 +104,7 @@ export const PAGES: AtlasPage[] = [
     id: "audit",
     href: "/control/surveillance",
     label: "Audit log",
-    group: "risk",
+    group: "compliance",
     workspaceRoute: "/control/surveillance",
     summary: "Order history and audit lines recorded by the control plane.",
     aliases: ["/trade/journal"],
@@ -113,7 +113,7 @@ export const PAGES: AtlasPage[] = [
     id: "identity",
     href: "/control/proctoring",
     label: "Identity checklist",
-    group: "risk",
+    group: "compliance",
     workspaceRoute: "/control/proctoring",
     summary: "Send a typed example to the checklist. No camera is opened.",
   },
@@ -159,7 +159,7 @@ export const PAGES: AtlasPage[] = [
     href: "/data",
     label: "Bar query",
     navLabel: "Data",
-    group: "data",
+    group: "research",
     primary: true,
     workspaceRoute: "/data/lakehouse",
     summary: "Load closed bars for the symbol on the desk. This is not a SQL warehouse.",
@@ -169,7 +169,7 @@ export const PAGES: AtlasPage[] = [
     id: "connectors",
     href: "/data/pipelines",
     label: "Connectors",
-    group: "data",
+    group: "research",
     workspaceRoute: "/data/pipelines",
     summary: "Connector records on this process. A test writes an audit line and does not open a vendor socket.",
     aliases: ["/connectors", "/integrations", "/sync"],
@@ -178,7 +178,7 @@ export const PAGES: AtlasPage[] = [
     id: "reserve",
     href: "/governance",
     label: "Reserve sleeve",
-    group: "data",
+    group: "research",
     workspaceRoute: "/data/governance",
     summary: "Load the paper reserve plan. It does not send an order.",
     aliases: ["/data/governance"],
@@ -187,7 +187,7 @@ export const PAGES: AtlasPage[] = [
     id: "capability",
     href: "/data/features-100",
     label: "Capability map",
-    group: "data",
+    group: "settings",
     workspaceRoute: "/data/features-100",
     summary: "A map of 100 desk ideas. Open a row to use the page that actually runs.",
     aliases: ["/roadmap"],
@@ -196,14 +196,18 @@ export const PAGES: AtlasPage[] = [
     id: "specs",
     href: "/docs",
     label: "Specifications",
-    group: "data",
+    navLabel: "Docs",
+    group: "settings",
+    primary: true,
     summary: "The specification files this desk is built from. Reading them does not send an order.",
   },
   {
     id: "inbox",
     href: "/inbox",
     label: "Action needed",
-    group: "desk",
+    navLabel: "Inbox",
+    group: "home",
+    primary: true,
     summary: "Safe stop, paper approvals and checks waiting on you.",
   },
   {
@@ -211,6 +215,7 @@ export const PAGES: AtlasPage[] = [
     href: "/money",
     label: "Money",
     group: "money",
+    primary: true,
     summary: "The 8 non-custodial money ledgers and read-only balances.",
   },
   {
@@ -238,7 +243,8 @@ export const PAGES: AtlasPage[] = [
     id: "compliance",
     href: "/compliance",
     label: "Compliance",
-    group: "money",
+    group: "compliance",
+    primary: true,
     summary: "FINTRAC records, sanctions, privacy and Canadian venues.",
   },
 ];

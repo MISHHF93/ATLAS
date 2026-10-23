@@ -69,6 +69,8 @@ export function markForPage(pageId: string): GuideIconName {
   if (pageId === "bars" || pageId === "connectors") return "data";
   if (pageId === "reserve") return "reserve";
   if (pageId === "capability" || pageId === "specs") return "pages";
+  if (pageId === "money" || pageId === "compliance") return "reserve";
+  if (pageId === "inbox") return "risk";
   return "desk";
 }
 
