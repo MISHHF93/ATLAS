@@ -328,8 +328,19 @@ def test_candidate_goes_through_control_plane_as_proposal():
     d = ORBRetestDetector("SPY", 3600, US_EQUITY_RTH)
     for b in _orb_long_bars():
         d.step(b, {})
-    sig = candidate_to_signal(d.candidates[0])
-    assert sig.execution_permission == "none" and sig.direction == "BUY" and sig.telemetry["probability_calibrated"] is False
+    from atlas.features.price_action.proposals import Abstained, evaluate
+    from tests.price_action.test_predict import synthetic_setup_registry
+
+    c = d.candidates[0]
+    _, ev0 = evaluate(c)                       # no validated model registered -> abstain, no proposal
+    assert ev0.abstained and "no_validated_model" in ev0.abstention_reason
+    with pytest.raises(Abstained):
+        candidate_to_signal(c, ev0)
+    pred, ev = evaluate(c, model_version="synthetic-setup-v1", registry=synthetic_setup_registry(p=0.6))
+    assert not ev.abstained, ev.abstention_reason
+    sig = candidate_to_signal(c, ev)
+    assert sig.execution_permission == "none" and sig.direction == "BUY" and sig.telemetry["probability_calibrated"] is True
+    assert sig.conviction == pytest.approx(pred.probability_positive)
     report = ActionableControlPlaneEngine().ingest_whale_policy_signal(sig, track="open_market")
     assert report.execution_permission == "none"
     assert report.connector_receipt is None  # no connector: nothing dispatched
@@ -347,7 +358,10 @@ def test_quant_api_endpoints():
     assert r.status_code == 200
     body = r.json()
     assert body["execution_permission"] == "none" and body["feed_origin"] == "synthetic_fixture"
-    assert body["proposals"][0]["submitted"] is False
+    assert body["proposals"] == []          # no validated setup model: abstain rather than propose
+    assert body["evaluations"][0]["evaluation"]["abstention_reason"] == ["no_validated_model"]
+    rp = client.get("/api/quant/replay", params={"symbol": "SPY", "resolution": "60"})
+    assert rp.status_code == 200 and rp.json()["execution_permission"] == "none"
     assert client.post("/api/quant/analyze", json={"instrument": "X", "timeframe": 3600, "rows": rows, "session": "mars"}).status_code == 400
     bad = [[0, 10, 9, 8, 9.5, 1]]
     assert client.post("/api/quant/analyze", json={"instrument": "X", "timeframe": 3600, "rows": bad}).status_code == 422
