@@ -18,6 +18,9 @@ Statuses used: **implemented+tested**, **partial**, **missing**, **duplicated**.
 | Calibration | `calibration/` (Platt, ProbabilityCalibrator), `models/uncertainty_calibration` | done (slice 2) | Wired via `models.predict` (PlattCalibrator, BinCalibratorAdapter). |
 | Unified predict() contract + abstention | many model-specific `predict()` | done (slice 2) | `models.predict` + `models.opportunity` EV gate; registry empty, so everything abstains until a model is validated. |
 | Real-data setup evidence (walk-forward, Platt, DSR/PBO) | `research/setup_evidence.py`, `docs/spec/evidence/` | done (slice 3) | All 21 configs failed the gates; no model registered. |
+| Paper setup autopilot (switch, approval, Safe stop) | `autopilot/setups.py`, `api/agent.py` | done (slice 4) | Founder rulebook default-denies until a holding limit is configured (owner decision). |
+| Shadow-week collector | `models/shadow.py` | done (slice 4) | Feeds `record_shadow_week`; no live weeks collected yet. |
+| API keys + localhost MCP | `keys/api_keys.py`, `keys/cli.py`, `api/agent.py` | done (slice 4) | Existing `/api/quant` UI routes stay unauthenticated (localhost UI). |
 | EV / sizing | `autopilot/sizing.fractional_kelly` | partial | No EV-after-cost gate on calibrated probability. |
 | Portfolio / ES | `portfolio/construction.py` (HRP/HERC, CVaR), `models/evaluation.expected_shortfall_95` | partial | — |
 | Execution / costs | `execution/scheduling.almgren_chriss`, `execution/tactics/optimal`, `execution/paper`, `models/quant/costmodel` | implemented+tested (paper only) | Live trading disabled. |

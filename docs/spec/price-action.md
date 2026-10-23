@@ -137,3 +137,16 @@ All fixtures are seeded synthetic data and labelled as such.
   - Breakout uses the canonical population-std bands. This is a documented change from the old pandas ddof=1 bands.
   - The anchor rule is unchanged and is checked against a frozen reference.
   - Opening, breakout and event construction used to raise TypeError because of missing fields. This is fixed.
+
+## Slice 4: paper setup autopilot and shadow-week collector
+
+- **`autopilot/setups.SetupAutopilot`.** One on/off switch (stored in the state DB). Each tick reads the latest confirmed bars for every stream (`ATLAS_SETUP_AUTOPILOT_STREAMS`, default `SPY:60:us_equity_rth`) and runs them through:
+  `PriceActionEngine.update`, then `proposals.evaluate` (predict() + EV gate), then `candidate_to_signal` (only if not abstained), then `ActionableControlPlaneEngine.ingest_whale_policy_signal` (founder rulebook, `PaperConnector`, `require_connector=True`).
+  - Only `authorized_and_executed` decisions become paper positions. Fills and exits use the replay model (`conservative_ohlc_v1`) and are booked back through `close_position`. No venue, no money movement.
+  - **Switching on needs owner approval:** `request_on` (API, `paper-trade` key) files a 15-minute request, and `atlas-owner setup-autopilot-approve <id>` (passphrase + TOTP) switches it on. Switching off is instant (any valid key, or the owner).
+  - **Founder Safe stop:** checked on every bar with realized plus floating paper P&L against the founder limits (2% daily, 10% static drawdown, never looser). A trip engages the shared Safe stop, flattens paper positions and switches off. An engaged Safe stop blocks approval.
+  - Every decision, refusal, exit, feed error and trip goes to the hash-chained audit log.
+  - With the empty registry every candidate abstains with `no_validated_model`; the loop still runs and records the reasons.
+  - **Finding:** with the real founder rulebook the control plane currently rejects any proposal with `default_deny_unconfigured:max_holding_seconds` (the founder rulebook sets no holding limit). The authorized path is exercised only in a test with a labelled test-only rulebook copy. Setting a holding limit is an owner policy decision and was not changed.
+- **`models/shadow.ShadowCollector`** (append-only JSONL, `ATLAS_SHADOW_PATH`, default `var/shadow/…`): records every live candidate with its decision and reasons, then resolves the outcome with the same replay rule, including abstentions (counterfactual). `weekly()` aggregates per ISO week; `registry_record(week)` returns the fields for `ModelRegistry.record_shadow_week`, or `None` when nothing was scored. `champion_brier` uses the prior weeks' base rate; `lift_bps` is proposed minus all-candidates mean realized bps. Uncomputable fields stay `None`.
+- API and MCP: see `docs/api-and-mcp.md`.
