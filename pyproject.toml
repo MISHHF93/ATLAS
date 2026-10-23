@@ -14,6 +14,8 @@ dependencies = [
   "duckdb>=0.10.0",
   "websockets>=12.0",
   "aiohttp>=3.9.0",
+  "pyyaml>=6",
+  "cryptography>=42",
 ]
 
 [project.optional-dependencies]
@@ -27,10 +29,30 @@ marketdata = [
   "websockets>=12.0",
   "aiohttp>=3.9.0",
 ]
-dev = ["pytest>=8", "httpx>=0.27"]
+# Lola port (docs/lola-port-plan.md): founder capital track, Canadian tax/venues, ledgers, ML, MCP.
+founder = ["pandas>=2.1", "pyarrow>=15", "exchange_calendars>=4.5", "defusedxml>=0.7", "openpyxl>=3.1"]
+ml = ["scikit-learn>=1.4", "scipy>=1.12", "lightgbm>=4", "hmmlearn>=0.3", "arch>=6", "statsmodels>=0.14", "mapie>=0.8", "skfolio>=0.3", "shap>=0.45"]
+mcp = ["mcp>=1.2"]
+dev = ["pytest>=8", "httpx>=0.27", "hypothesis>=6"]
 
 [project.scripts]
 atlas-research = "atlas.ai.cli:main"
+atlas-validate = "atlas.control.policy_cli:validate_main"
+atlas-owner = "atlas.control.owner_cli:main"
+atlas-sign-policy = "atlas.control.policy.signing:sign_policy_main"
+atlas-watchdog = "atlas.risk.watchdog_proc:main"
+atlas-mcp = "atlas.mcp.trading.server:main"
+atlas-backtest = "atlas.research.backtest.cli:main"
+atlas-research2 = "atlas.strategies.sleeve_strategies.research:main"
+atlas-dashboard = "atlas.ops.dashboard.server:main"
+atlas-ml = "atlas.models.quant.retrain:main"
+atlas-run = "atlas.ops.runner:main"
+atlas-sim = "atlas.ops.sim:main"
+atlas-health = "atlas.ops.health:main"
+atlas-drill = "atlas.ops.drill:main"
+atlas-summary = "atlas.ops.summary:main"
+atlas-payments = "atlas.ledgers.cli:main"
+atlas-console = "atlas.console.cli:main"
 
 [build-system]
 requires = ["setuptools>=69"]
@@ -38,6 +60,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"atlas.console" = ["static/*"]
+"atlas.ops.dashboard" = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
