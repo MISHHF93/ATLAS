@@ -4,6 +4,8 @@ Implements:
 1. Fractional Kelly Criterion sizing (`f* = k_frac * (mu - r_f) / sigma^2`)
 2. Inverse-Volatility Risk Parity weights (`w_i = (1 / sigma_i) / sum_j (1 / sigma_j)`)
 3. Mean-Variance Diagonal Tangency allocation (`w_i propto mu_i / sigma_i^2`)
+HRP/HERC vs inverse-vol construction lives in `construction.py`; cost-aware 60/30/10 sleeve
+rebalancing in `sleeves/` (paper only).
 All outputs carry `execution_permission = "none"`.
 """
 from __future__ import annotations
