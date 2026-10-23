@@ -36,9 +36,9 @@ class AtlasStrategyRunner:
         self.control_plane = control_plane
         self.coordinator = OpportunityCoordinator(classifier, feature_extractor, memory_engine)
     def on_market_update(
-        self, 
-        symbol: str, 
-        df: pd.DataFrame, 
+        self,
+        symbol: str,
+        df: pd.DataFrame,
         track: str = "competition",
         session_start: Optional[datetime] = None,
         event_time: Optional[datetime] = None
@@ -46,17 +46,22 @@ class AtlasStrategyRunner:
         """
         Main entry point invoked on every significant market update (e.g., hour close).
         """
+        # Fetch the latest microstructure frame for the symbol
+        microstructure = None
+        if hasattr(self.coordinator, 'gateway'): # If we've linked the gateway
+            microstructure = self.coordinator.gateway.ring_buffer.latest(symbol)
+        
         # 1. Rank opportunities using the coordinator
         opportunity = self.coordinator.evaluate_asset(
-            symbol=symbol, 
-            df=df, 
-            session_start=session_start, 
-            event_time=event_time
+            symbol=symbol,
+            df=df,
+            session_start=session_start,
+            event_time=event_time,
+            microstructure=microstructure
         )
         
         if not opportunity or opportunity.recommended_action == "ignore":
             return None
-
         # 2. Translate the RankedOpportunity into an ActionableOrderRequest
         # We derive stop and target levels from the a structural boundaries
         zone_engine = self.coordinator.zone_engines[symbol.upper()]

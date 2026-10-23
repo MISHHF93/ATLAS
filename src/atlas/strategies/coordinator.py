@@ -69,41 +69,42 @@ class OpportunityCoordinator:
         return self.zone_engines[sym], self.detectors[sym]
 
     def evaluate_asset(
-        self, 
-        symbol: str, 
-        df: pd.DataFrame, 
+        self,
+        symbol: str,
+        df: pd.DataFrame,
         session_start: Optional[datetime] = None,
-        event_time: Optional[datetime] = None
+        event_time: Optional[datetime] = None,
+        microstructure: Optional[Any] = None
     ) -> Optional[RankedOpportunity]:
         """
         Full pipeline execution for a single asset:
         Zones -> Setup Detection -> ML Scoring -> Ranking.
         """
         zone_engine, detector = self._get_or_create_engines(symbol)
-        
+
         # 1. Update structural zones
         active_zones = zone_engine.update_zones(
-            df, 
-            session_start=session_start, 
+            df,
+            session_start=session_start,
             event_time=event_time
         )
-        
+
         # 2. Detect Snapback Setup
         opening_box = active_zones.get(ZoneType.OPENING)
         setup = detector.process_bars(df, opening_box)
-        
+
         if setup is None or setup.state != SnapbackState.QUALIFIED:
             return None
 
         # 3. Extract features for the ML model
         timestamp = df['timestamp'].iloc[-1]
         zone_features = self.extractor.extract_zone_features(
-            symbol, df, active_zones, timestamp
+            symbol, df, active_zones, timestamp, microstructure=microstructure
         )
         snapback_features = self.extractor.extract_snapback_features(
             symbol, setup, timestamp
         )
-        
+
         # Combine features into a single vector
         full_features = pd.concat([zone_features, snapback_features], axis=1)
         # Remove duplicate timestamp/symbol columns
@@ -119,7 +120,7 @@ class OpportunityCoordinator:
         # Blend Model Probability with Historical Consensus
         # Weight: 70% Model, 30% Historical Analogue
         blended_prob = (prediction.probability_of_success * 0.7) + (consensus_prob * 0.3)
-        
+
         # Update prediction with blended probability for EV calculation
         blended_ev = (blended_prob * 1.5) - ((1 - blended_prob) * 1.0)
 
@@ -142,7 +143,6 @@ class OpportunityCoordinator:
             recommended_action=prediction.recommended_action,
             evaluated_at=datetime.now(timezone.utc)
         )
-
     def rank_opportunities(self, opportunities: list[RankedOpportunity]) -> list[RankedOpportunity]:
         """
         Ranks opportunities by Expected Value (EV) and filters by 

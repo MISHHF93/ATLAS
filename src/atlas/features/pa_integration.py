@@ -22,6 +22,7 @@ from atlas.features.zones import ZoneType, PriceZone, ZoneDirection
 from atlas.strategies.snapback import SnapbackSetup, SnapbackState
 from atlas.models.schemas import Record, Text
 from atlas.marketdata.live_stream import LiveMarketDataGateway, LiveTickFrame
+from atlas.features.scaling import RegimeScaler
 
 
 class PriceActionFeatureExtractor:
@@ -32,6 +33,7 @@ class PriceActionFeatureExtractor:
 
     def __init__(self, store: FeatureStore):
         self.store = store
+        self.scaler = RegimeScaler()
 
     def extract_zone_features(
         self,
@@ -58,7 +60,8 @@ class PriceActionFeatureExtractor:
 
         # 1. Structural Distance (Normalized by current ATR/StdDev)
         # Use 20-period std as a proxy for local volatility (vol-normalization)
-        local_vol = df['close'].tail(20).std() + 1e-9
+        close_series = df['close'].tail(20)
+        local_vol = close_series.std() + 1e-9
         
         for z_type, zone in active_zones.items():
             if zone is None:
@@ -69,13 +72,17 @@ class PriceActionFeatureExtractor:
             # Distance in terms of local volatility (z-score like)
             dist = min(abs(current_price - zone.boundary.high),
                        abs(current_price - zone.boundary.low))
-            features[f"{z_type.name.lower()}_dist_norm"] = dist / local_vol
+            
+            raw_dist_norm = dist / local_vol
+            
+            # Apply asset-specific scaling if params are available
+            scaled_dist = self.scaler.scale_feature(symbol, f"{z_type.name.lower()}_dist", raw_dist_norm)
+            features[f"{z_type.name.lower()}_dist_norm"] = scaled_dist
             features[f"{z_type.name.lower()}_active"] = 1
-
+            
             # Relative position (Inside vs Outside)
             is_inside = zone.boundary.low <= current_price <= zone.boundary.high
             features[f"{z_type.name.lower()}_inside"] = 1 if is_inside else 0
-
         # 2. Structural Coincidence (Zone Overlap)
         active_count = sum(1 for z in active_zones.values() if z is not None)
         features["zone_overlap_count"] = active_count
