@@ -12,7 +12,7 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 from dataclasses import dataclass
 
 from atlas.features.zones import ZoneEngine, ZoneType

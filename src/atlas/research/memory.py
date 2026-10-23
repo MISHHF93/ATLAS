@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from dataclasses import dataclass
 
 from atlas.research.ledger import OpportunityLedger

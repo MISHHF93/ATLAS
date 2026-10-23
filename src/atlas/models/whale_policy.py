@@ -32,6 +32,7 @@ from typing import Any, Literal, Sequence
 from pydantic import AwareDatetime, Field, FiniteFloat
 
 from atlas.features.microstructure import (
+    WhaleCandleOnlyFeatureSnapshot,
     MicrostructureWhaleFeatureExtractor,
     WhaleMicrostructureFeatureSnapshot,
 )

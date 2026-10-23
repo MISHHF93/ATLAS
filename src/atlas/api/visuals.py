@@ -7,18 +7,29 @@ overlays on top of the TradingView charts.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Literal, Optional
-import pandas as pd
+from typing import Any, Literal, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 
-from atlas.api.app import get_coordinator # Hypothetical dependency injection
-from atlas.strategies.coordinator import OpportunityCoordinator, RankedOpportunity
-from atlas.features.zones import ZoneType, PriceZone
+from atlas.features.zones import ZoneType
+from atlas.models.schemas import Record
+from atlas.strategies.coordinator import OpportunityCoordinator
 from atlas.strategies.snapback import SnapbackState
 
+router = APIRouter(prefix="/api/visuals", tags=["visuals"])
+_COORDINATOR: OpportunityCoordinator | None = None
 
-router = APIRouter(prefix="/visuals", tags=["visuals"])
+
+def register_coordinator(coordinator: OpportunityCoordinator | None) -> None:
+    """Called by the strategy runner so the chart overlay reads the live (paper) zone engines."""
+    global _COORDINATOR
+    _COORDINATOR = coordinator
+
+
+def get_coordinator() -> OpportunityCoordinator:
+    if _COORDINATOR is None:
+        raise HTTPException(status_code=404, detail="No strategy runner is active; no price-action overlays yet")
+    return _COORDINATOR
 
 
 class ChartMarker(Record):
@@ -26,8 +37,8 @@ class ChartMarker(Record):
     type: Literal["box", "line", "label"]
     label: str
     color: str
-    coords: dict[str, any] # e.g., {"x1": ts, "y1": price, "x2": ts, "y2": price}
-    metadata: dict[str, any] = {}
+    coords: dict[str, Any] # e.g., {"x1": ts, "y1": price, "x2": ts, "y2": price}
+    metadata: dict[str, Any] = {}
     execution_permission: Literal["none"] = "none"
 
 

@@ -60,6 +60,9 @@ app.include_router(udf_router)
 app.include_router(vertical_slice_router)
 app.include_router(founder_router)
 app.include_router(founder_data_router)
+from atlas.api.visuals import router as visuals_router  # noqa: E402
+
+app.include_router(visuals_router)
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",
@@ -2487,7 +2490,7 @@ def evaluate_proctoring_frame(payload: dict[str, object]) -> dict[str, object]:
     }
 
 
-from atlas.api.rbac import ROLE_PROFILES, verify_role_action
+from atlas.api.rbac import ROLE_PROFILES
 from atlas.api.ws import register_market_stream_ws
 from atlas.connectors import AlpacaEquitiesConnector, CCXTPerpConnector, DXtradePropConnector
 from atlas.marketdata.live_stream import LiveMarketDataGateway

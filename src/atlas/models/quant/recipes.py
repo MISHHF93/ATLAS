@@ -532,7 +532,7 @@ def render_md(res: dict, top: int = 15) -> str:
     L = ["# Recipe search: ranked results", "",
          f"Generated {res['generated']} · grid {res['grid_size']} valid combinations · **{res['evaluated']} evaluated this run** · "
          f"**{res['trial_log_total']} trials in the log** (all count toward the Deflated Sharpe penalty) · PBO (CSCV) = "
-         f"{'n/a' if res['pbo'] is None else f'{res['pbo']:.2f}'} · OOS {res['oos_start']} → {res['oos_end']} ({res['folds']} purged walk-forward folds, "
+         f"{'n/a' if res['pbo'] is None else format(res['pbo'], '.2f')} · OOS {res['oos_start']} → {res['oos_end']} ({res['folds']} purged walk-forward folds, "
          f"embargo {EMBARGO}d, horizon {HORIZON}d) · TSFM provider: {res.get('tsfm_provider') or 'n/a'} ({res.get('tsfm_status') or '-'})", "",
          "> **Synthetic data warning.** " + ("This run used a SYNTHETIC market with small planted effects. It shows the search, "
          "validation and multiple-testing machinery working end to end. It does **not** prove any real edge. Re-run on point-in-time "

@@ -18,6 +18,7 @@ from atlas.models.strategy_classifier import StrategyClassifier
 from atlas.features.pa_integration import PriceActionFeatureExtractor
 from atlas.features.zones import ZoneEngine, ZoneType
 from atlas.strategies.snapback import SnapbackDetector
+from atlas.research.memory import MarketMemoryEngine
 
 
 class AtlasStrategyRunner:
@@ -35,6 +36,9 @@ class AtlasStrategyRunner:
     ):
         self.control_plane = control_plane
         self.coordinator = OpportunityCoordinator(classifier, feature_extractor, memory_engine)
+        from atlas.api.visuals import register_coordinator
+
+        register_coordinator(self.coordinator)
     def on_market_update(
         self,
         symbol: str,
