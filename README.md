@@ -59,6 +59,16 @@ The terminal features an **Icon-Driven Domain Sidebar** (zero wizard/step number
 
 ---
 
+## Founder Capital Track (Lola port)
+
+The Lola platform's features are now part of ATLAS (see [docs/lola-port-plan.md](docs/lola-port-plan.md)):
+- **2% daily-loss Safe stop** is the default for the founder's own capital. The prop-competition rulebook keeps its configurable 4%.
+- Separate watchdog, approval queue with step-up, and Canadian venues and tax (ACB, superficial loss, BoC FX, T5008/T1135).
+- Payments, investor wallet and compliance are mapped onto the 8 non-custodial ledgers.
+- New pages: `/money`, `/payments`, `/portal`, `/tax`, `/compliance`, `/inbox`, plus a Safe stop button.
+
+Paper only, and `execution_permission: none` everywhere. Install with `pip install -e ".[dev,founder,ml,mcp]"`.
+
 ## Quick Start & Run Commands
 
 Python 3.11+ (workspace uses Python 3.12) and Node.js 18+:
