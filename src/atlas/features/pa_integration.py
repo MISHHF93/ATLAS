@@ -72,9 +72,23 @@ class PriceActionFeatureExtractor:
         active_count = sum(1 for z in active_zones.values() if z is not None)
         features["zone_overlap_count"] = active_count
 
-        # 3. Microstructure Integration (Whale/Order Flow)
+        # 3. Volatility & Volume Alpha Features
+        if len(df) >= 20:
+            # Relative Volume (RVOL)
+            avg_vol = df['volume'].tail(20).mean()
+            features["rvol"] = df['volume'].iloc[-1] / (avg_vol + 1e-9)
+            
+            # Volatility Compression (BB Width)
+            close = df['close'].tail(20)
+            std20 = close.std()
+            ma20 = close.mean()
+            features["vol_compression"] = (std20 * 4) / (ma20 + 1e-9)
+        else:
+            features["rvol"] = 1.0
+            features["vol_compression"] = 0.0
+
+        # 4. Microstructure Integration (Whale/Order Flow)
         if microstructure:
-            # Handle both dataclass and dict formats
             m_data = microstructure if isinstance(microstructure, dict) else microstructure.__dict__
             features["vpin"] = m_data.get("vpin", 0.0)
             features["ofi"] = m_data.get("ofi", 0.0)

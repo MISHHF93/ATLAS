@@ -16,6 +16,8 @@ from typing import Literal, Optional, Tuple
 
 import xgboost as xgb
 from sklearn.metrics import log_loss, roc_auc_score
+from sklearn.calibration import CalibratedClassifierCV
+import joblib
 
 from atlas.models.schemas import Record, Text
 from atlas.features.zones import ZoneType
@@ -45,14 +47,13 @@ class StrategyClassifier:
 
     def __init__(self, model_path: Optional[str] = None):
         self.model_version = "xgb-pa-v1"
-        self.model: xgb.Booster | None = None
+        self.model: xgb.Booster | CalibratedClassifierCV | None = None
         if model_path:
             self.load_model(model_path)
 
     def load_model(self, path: str) -> None:
-        """Load a trained XGBoost model from disk."""
-        self.model = xgb.Booster()
-        self.model.load_model(path)
+        """Load a trained XGBoost model or calibrated wrapper from disk."""
+        self.model = joblib.load(path)
 
     def predict(
         self, 
@@ -61,23 +62,25 @@ class StrategyClassifier:
     ) -> StrategyPrediction:
         """
         Predicts the outcome of a qualified setup.
-        
-        Args:
-            setup: The qualified Snapback setup
-            features: DataFrame containing normalized structural and regime features
         """
         if self.model is None:
-            # Fallback to a naive baseline if no model is loaded
-            # In production, this would trigger a 'model_not_ready' alert
             return self._naive_baseline(setup, features)
 
-        # Ensure features are in the correct order for the Booster
-        # This would normally be handled by a feature_schema object
-        dmatrix = xgb.DMatrix(features.drop(columns=['timestamp', 'symbol'], errors='ignore'))
-        prob = self.model.predict(dmatrix)[0]
+        # Ensure features are in the correct order
+        # In production, we use a FixedFeatureSet schema
+        X = features.drop(columns=['timestamp', 'symbol'], errors='ignore')
         
-        # Calibrate probability and calculate EV
-        # Assumption: Reward/Risk ratio is 1.5 for baseline
+        try:
+            # If it's a calibrated model, it uses .predict_proba
+            if hasattr(self.model, "predict_proba"):
+                prob = self.model.predict_proba(X)[0][1]
+            else:
+                # If it's a raw Booster, it uses .predict
+                dmatrix = xgb.DMatrix(X)
+                prob = self.model.predict(dmatrix)[0]
+        except Exception:
+            return self._naive_baseline(setup, features)
+        
         ev = (prob * 1.5) - ((1 - prob) * 1.0)
         
         action = "ignore"
