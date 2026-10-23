@@ -26,9 +26,8 @@ logger = logging.getLogger("PA-Warmup")
 def generate_synthetic_ohlcv(symbol: str, days: int = 30) -> pd.DataFrame:
     """Generates synthetic OHLC data with random walk and structured spikes."""
     np.random.seed(42)
-    timestamps = pd.date_range(start=datetime.now(timezone.utc) - timedelta(days=days), 
-                               periods=days*24, freq='H', tz='UTC')
-    
+    timestamps = pd.date_range(start=datetime.now(timezone.utc) - timedelta(days=days),
+                               periods=days*24, freq='h', tz='UTC')
     price = 100.0
     data = []
     for ts in timestamps:
@@ -68,7 +67,8 @@ def bootstrap_ledger(ledger: OpportunityLedger, symbol: str, df: pd.DataFrame):
             uncertainty=np.random.uniform(0, 0.5),
             setup_details={},
             recommended_action="buy",
-            evaluated_at=datetime.now(timezone.utc)
+            evaluated_at=datetime.now(timezone.utc),
+            execution_permission="none"
         )
         
         pred = StrategyPrediction(
