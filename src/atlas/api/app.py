@@ -69,6 +69,9 @@ app.include_router(quant_router)
 from atlas.api.agent import agent_router  # noqa: E402
 
 app.include_router(agent_router)
+from atlas.api.console import console_router  # noqa: E402
+
+app.include_router(console_router)
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",
