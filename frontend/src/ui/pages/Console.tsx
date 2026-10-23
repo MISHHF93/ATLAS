@@ -215,7 +215,10 @@ function ApprovalActions({ id, onDone }: { id: string; onDone: () => void }) {
 
 /* ---------------------------------------------------------- models & evidence */
 
-type Evidence = { name: string; generated_at?: string; method?: string; pbo?: number | null; n_trials?: number; configs?: unknown };
+type Evidence = { name: string; generated_at?: unknown; method?: unknown; pbo?: unknown; n_trials?: unknown; configs?: unknown };
+/** Evidence files are free-form JSON; never hand an object straight to React. */
+const show = (v: unknown, empty = "—"): string =>
+  v === null || v === undefined || v === "" ? empty : typeof v === "object" ? Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${typeof x === "object" ? JSON.stringify(x) : String(x)}`).join(" · ") : String(v);
 
 export function EvidenceView() {
   const models = useApi<{ versions: string[]; policy: string }>("/api/console/models", 60000);
@@ -242,10 +245,10 @@ export function EvidenceView() {
           <Async state={detail} label="Loading file">
             {(d) => (
               <dl className="ux-dl">
-                <dt>Generated</dt><dd>{d.generated_at ?? "—"}</dd>
-                <dt>Method</dt><dd>{typeof d.method === "string" ? d.method : JSON.stringify(d.method ?? "—")}</dd>
-                <dt>PBO</dt><dd>{d.pbo ?? "not reported"}</dd>
-                <dt>Trials</dt><dd>{d.n_trials ?? "—"}</dd>
+                <dt>Generated</dt><dd>{show(d.generated_at)}</dd>
+                <dt>Method</dt><dd>{show(d.method)}</dd>
+                <dt>PBO</dt><dd>{show(d.pbo, "not reported")}</dd>
+                <dt>Trials</dt><dd>{show(d.n_trials)}</dd>
                 <dt>Configs</dt><dd><pre className="ux-md-pre">{JSON.stringify(d.configs ?? null, null, 1)?.slice(0, 4000)}</pre></dd>
               </dl>
             )}

@@ -2049,8 +2049,8 @@ body {
   overflow: hidden;
   color: #94A3B8;
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .clean-page-context-source {
@@ -3152,6 +3152,12 @@ body {
     grid-template-rows: auto !important;
   }
   .atlas-command-grid > * { overflow: visible !important; }
+  /* the watchlist keeps its own scroll box so rows never spill under the order desk */
+  .atlas-command-grid > .desk-symbol-column { overflow: hidden !important; height: 42vh !important; }
+  /* stacked panels size to their content; nothing overlaps the next panel */
+  .atlas-command-grid { grid-auto-rows: auto !important; height: auto !important; flex: none !important; }
+  .atlas-command-grid > :not(.desk-symbol-column) { min-height: auto !important; height: auto !important; }
+  div:has(> .atlas-command-grid) > header { flex: none !important; height: auto !important; flex-wrap: wrap; gap: 8px; }
   div:has(> .atlas-command-grid) > header > div {
     flex-wrap: wrap;
     max-width: 100%;

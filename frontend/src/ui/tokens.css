@@ -342,7 +342,7 @@ body { font-family: var(--font-ui); background: var(--c-bg); color: var(--c-text
   .ux-stat__value { font-size: var(--t-2xl); }
   .ux-kv { grid-template-columns: 1fr; gap: 2px; } .ux-kv dd { margin-bottom: 8px; }
 }
-@media (max-width: 480px) { .ux-menu-btn__text, .ux-paper { display: none; } }
+@media (max-width: 480px) { .ux-menu-btn__text { display: none; } .ux-header__right { gap: 2px; } }
 
 /* Forms + console actions */
 .ux-form-row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-end; margin-bottom: var(--s-3); }

@@ -1768,9 +1768,8 @@ export function StreamlinedTradingStudio() {
                         display: "block",
                         fontSize: "10.5px",
                         color: "var(--c-muted)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        lineHeight: 1.3,
+                        overflowWrap: "anywhere",
                       }}
                     >
                       {item.name}
