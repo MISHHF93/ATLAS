@@ -60,7 +60,7 @@ These documents describe the target or vision. Some of their claims are **not** 
 
 ## Roadmap exports
 
-`roadmap/tab*.csv` are exported by `src/atlas/whale_saas_az.export_master_roadmap_csvs` from constants in that file. Since 2026-10-23 they carry verified statuses (A–Z as in the root workbook, SaaS verticals Planned, challenger metrics None because no run is recorded, WF metrics labelled as sample inputs). Exceptions: `tab9_100_feature_matrix.csv` comes from `proctoring_and_features100.py`, which has not been audited and still says "ACTIVE" with illustrative telemetry. `ATLAS_MASTER_ROADMAP.csv` is hand-maintained, was partly corrected in atlas-fix-1, and still says "Implemented". Regenerate the tab CSVs with `python -c "from atlas.whale_saas_az import export_master_roadmap_csvs as e; e()"`.
+`roadmap/tab*.csv` are exported by `src/atlas/whale_saas_az.export_master_roadmap_csvs` from constants in that file. Since 2026-10-23 they carry verified statuses (A–Z as in the root workbook, SaaS verticals Planned, challenger metrics None because no run is recorded, WF metrics labelled as sample inputs). `tab9_100_feature_matrix.csv` comes from `proctoring_and_features100.FEATURE_STATUS`: each of the 100 features is Implemented, Partial or Planned with an evidence note, and telemetry reads "Not measured". `ATLAS_MASTER_ROADMAP.csv` is hand-maintained; its statuses were reconciled with the workbook and code on 2026-10-23. Regenerate the tab CSVs with `python -c "from atlas.whale_saas_az import export_master_roadmap_csvs as e; e()"`.
 
 - [roadmap/range_garden.md](roadmap/range_garden.md): paper harvest of a proven range
 - [roadmap/reserve_yield.md](roadmap/reserve_yield.md): reserve-yield sleeve

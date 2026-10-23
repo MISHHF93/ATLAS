@@ -48,8 +48,7 @@ def test_challenger_model_benchmark_and_b2b_pricing() -> None:
     assert "Implemented" not in statuses
     assert statuses <= {"Implemented+tested", "Partial", "Experimental", "Blocked", "Planned"}
     import json
-    # hundred_feature_matrix comes from proctoring_and_features100.py (not yet audited) and is checked separately.
-    blob = json.dumps({k: v for k, v in state.items() if k != "hundred_feature_matrix"})
+    blob = json.dumps(state)
     for banned in ("Executed Directly (Live)", "0.995", "250 Seats", "0.8ms", "100% Compliant"):
         assert banned not in blob, banned
     assert "challenger_benchmarks" in state
