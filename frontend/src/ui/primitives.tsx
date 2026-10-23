@@ -225,3 +225,72 @@ export function StaleNote({ updatedAt, onRetry }: { updatedAt: number | null; on
 export function Grid({ children, cols = 3 }: { children: ReactNode; cols?: 2 | 3 | 4 }) {
   return <div className="ux-grid" data-cols={cols}>{children}</div>;
 }
+
+/* --------------------------------------------------------------- actions */
+
+export type ActionState<T> = { busy: boolean; error: string; status: number | null; result: T | null; run: (body?: unknown) => Promise<T | null>; reset: () => void };
+
+/** One backend write. Console writes carry X-Atlas-Console so the API can refuse cross-site form posts. */
+export function useAction<T = Record<string, unknown>>(url: string, method: "POST" | "DELETE" = "POST"): ActionState<T> {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState<number | null>(null);
+  const [result, setResult] = useState<T | null>(null);
+  const run = useCallback(async (body?: unknown) => {
+    setBusy(true); setError(""); setStatus(null);
+    try {
+      const r = await fetch(url, { method, headers: { "Content-Type": "application/json", "X-Atlas-Console": "1" }, body: JSON.stringify(body ?? {}) });
+      let j: unknown = null;
+      try { j = await r.json(); } catch { /* not JSON */ }
+      if (!r.ok) {
+        const d = (j as { detail?: unknown } | null)?.detail;
+        setStatus(r.status); setError(typeof d === "string" ? d : d ? JSON.stringify(d) : `HTTP ${r.status}`);
+        return null;
+      }
+      setResult(j as T); return j as T;
+    } catch {
+      setStatus(0); setError("ATLAS backend is unreachable"); return null;
+    } finally { setBusy(false); }
+  }, [url, method]);
+  return { busy, error, status, result, run, reset: () => { setError(""); setResult(null); setStatus(null); } };
+}
+
+export function ActionButton({ action, body, children, tone, confirm, onDone, disabled }: {
+  action: ActionState<unknown>; body?: unknown; children: ReactNode; tone?: "primary" | "danger" | "default"; confirm?: string; onDone?: () => void; disabled?: boolean;
+}) {
+  return (
+    <button type="button" className="ux-btn" data-variant={tone ?? "default"} disabled={action.busy || disabled} aria-busy={action.busy}
+      onClick={async () => {
+        if (confirm && !window.confirm(confirm)) return;
+        const r = await action.run(body);
+        if (r !== null) onDone?.();
+      }}>
+      {action.busy ? <RefreshCw size={14} aria-hidden className="ux-spin" /> : null}{children}
+    </button>
+  );
+}
+
+/** Inline result line under a control: success text or the API's own error. */
+export function ActionResult({ action, success }: { action: ActionState<unknown>; success?: ReactNode }) {
+  if (action.error) return <p className="ux-action-msg" data-tone={action.status === 403 ? "warn" : "bad"} role="alert">{action.status === 403 ? "Not allowed here: " : "Failed: "}{action.error}</p>;
+  if (action.result && success) return <p className="ux-action-msg" data-tone="good" role="status">{success}</p>;
+  return null;
+}
+
+export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button type="button" className="ux-btn" data-size="sm" aria-label={`${label}: ${text.slice(0, 60)}`}
+      onClick={async () => {
+        try { await navigator.clipboard.writeText(text); } catch {
+          const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+          try { document.execCommand("copy"); } finally { ta.remove(); }
+        }
+        setDone(true); setTimeout(() => setDone(false), 1500);
+      }}>{done ? "Copied" : label}</button>
+  );
+}
+
+export function Command({ text }: { text: string }) {
+  return <div className="ux-cmd"><code>{text}</code><CopyButton text={text} /></div>;
+}

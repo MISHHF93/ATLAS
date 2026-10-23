@@ -1567,16 +1567,16 @@ type SliceAblationMulti = {
 
 function sliceNumber(value: unknown, digits = 4): string {
   const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed.toFixed(digits) : "�";
+  return Number.isFinite(parsed) ? parsed.toFixed(digits) : "—";
 }
 
 function slicePercent(value: unknown, digits = 2): string {
   const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? `${(parsed * 100).toFixed(digits)}%` : "�";
+  return Number.isFinite(parsed) ? `${(parsed * 100).toFixed(digits)}%` : "—";
 }
 
 function sliceTime(value: unknown): string {
-  if (typeof value !== "string") return "�";
+  if (typeof value !== "string") return "—";
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 }
@@ -1742,7 +1742,7 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
 
   const run = async () => {
     setBusy("run");
-    setNote(`Fetching authorized public candles for ${symbol} and recording a point-in-time forecast�`);
+    setNote(`Fetching authorized public candles for ${symbol} and recording a point-in-time forecast…`);
     try {
       const response = await fetch("/api/research/vertical-slice/run", {
         method: "POST",
@@ -1763,7 +1763,7 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
 
   const resolve = async () => {
     setBusy("resolve");
-    setNote(`Resolving open forecasts for ${symbol} with the latest public close�`);
+    setNote(`Resolving open forecasts for ${symbol} with the latest public close…`);
     try {
       const response = await fetch("/api/research/vertical-slice/resolve", {
         method: "POST",
@@ -1811,7 +1811,12 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
         body: JSON.stringify({ symbol, bucket_seconds: 86400, horizon_steps: 1 }),
       });
       if (!response.ok) throw new Error(`Ablation returned HTTP ${response.status}`);
-      const body = (await response.json()) as SliceAblation;
+      const body = (await response.json()) as SliceAblation & { status?: string; reason?: string };
+      if (!Array.isArray(body.ablations)) {
+        setAblation(null);
+        setNote(`Ablation not run: ${String(body.reason ?? body.status ?? "no result").replaceAll("_", " ")}. Nothing was changed.`);
+        return;
+      }
       setAblation(body);
       setNote(`${body.ablations.length} feature families measured. Ablation is read-only; the forecast ledger was not changed.`);
     } catch (error) {
@@ -1831,7 +1836,12 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
         body: JSON.stringify({ symbols: [symbol, "ETH-USD", "SPY"], bucket_seconds: 86400, horizon_steps: [1, 5], include_session: true, include_cross_asset: true }),
       });
       if (!response.ok) throw new Error(`Ablation matrix returned HTTP ${response.status}`);
-      const body = (await response.json()) as SliceAblationMulti;
+      const body = (await response.json()) as SliceAblationMulti & { status?: string; reason?: string };
+      if (!Array.isArray(body.rows)) {
+        setAblationMatrix(null);
+        setNote(`Ablation matrix not run: ${String(body.reason ?? body.status ?? "no result").replaceAll("_", " ")}. Nothing was changed.`);
+        return;
+      }
       setAblationMatrix(body);
       setNote(`${body.scored_cells} of ${body.cells} symbol/horizon cells scored. No forecasts, trades, or order permission were created.`);
     } catch (error) {
@@ -1866,24 +1876,24 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
       <div className="clean-card">
         <div className="clean-card-header">
           <div>
-            <h2 className="clean-card-title">Prediction ledger � {symbol}</h2>
+            <h2 className="clean-card-title">Prediction ledger · {symbol}</h2>
             <p className="clean-card-subtitle">{note}</p>
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <button type="button" className="btn btn-primary btn-sm" disabled={busy !== null} onClick={() => void run()}>
-              {busy === "run" ? "Running�" : "Run forecast"}
+              {busy === "run" ? "Running…" : "Run forecast"}
             </button>
             <button type="button" className="btn btn-outline btn-sm" disabled={busy !== null} onClick={() => void resolve()}>
-              {busy === "resolve" ? "Resolving���" : "Resolve open"}
+              {busy === "resolve" ? "Resolving…" : "Resolve open"}
             </button>
             <button type="button" className="btn btn-outline btn-sm" disabled={busy !== null} onClick={() => void evaluate()}>
-              {busy === "evaluate" ? "Evaluating���������" : "Evaluate horizons"}
+              {busy === "evaluate" ? "Evaluating…" : "Evaluate horizons"}
             </button>
             <button type="button" className="btn btn-outline btn-sm" disabled={busy !== null} onClick={() => void ablate()}>
-              {busy === "ablate" ? "Ablating���������������������������" : "Ablate features"}
+              {busy === "ablate" ? "Ablating…" : "Ablate features"}
             </button>
             <button type="button" className="btn btn-outline btn-sm" disabled={busy !== null} onClick={() => void ablateMatrix()}>
-              {busy === "ablate-matrix" ? "Ablating matrix���������" : "Ablate matrix"}
+              {busy === "ablate-matrix" ? "Ablating matrix…" : "Ablate matrix"}
             </button>
           </div>
         </div>
@@ -1891,7 +1901,7 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
           <div className="clean-kpi-card">
             <span className="clean-kpi-label">Forecasts</span>
             <span className="clean-kpi-value">{status?.forecasts.total ?? 0}</span>
-            <span className="clean-kpi-sub">{status?.forecasts.open ?? 0} open � {status?.forecasts.resolved ?? 0} resolved</span>
+            <span className="clean-kpi-sub">{status?.forecasts.open ?? 0} open · {status?.forecasts.resolved ?? 0} resolved</span>
           </div>
           <div className="clean-kpi-card">
             <span className="clean-kpi-label">Mean Brier</span>
@@ -1900,13 +1910,13 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
           </div>
           <div className="clean-kpi-card">
             <span className="clean-kpi-label">Direction accuracy</span>
-            <span className="clean-kpi-value">{status?.resolved_direction_accuracy == null ? "�" : slicePercent(status.resolved_direction_accuracy, 1)}</span>
+            <span className="clean-kpi-value">{status?.resolved_direction_accuracy == null ? "—" : slicePercent(status.resolved_direction_accuracy, 1)}</span>
             <span className="clean-kpi-sub">{status?.resolved_taken ?? 0} taken forecasts resolved</span>
           </div>
           <div className="clean-kpi-card">
             <span className="clean-kpi-label">Paper P&amp;L</span>
-            <span className="clean-kpi-value">{status?.paper_trades.net_pnl_usd == null ? "�" : `$${sliceNumber(status.paper_trades.net_pnl_usd, 2)}`}</span>
-            <span className="clean-kpi-sub">{status?.paper_trades.authorized ?? 0} authorized � {status?.paper_trades.rejected_or_not_proposed ?? 0} blocked/abstained</span>
+            <span className="clean-kpi-value">{status?.paper_trades.net_pnl_usd == null ? "—" : `$${sliceNumber(status.paper_trades.net_pnl_usd, 2)}`}</span>
+            <span className="clean-kpi-sub">{status?.paper_trades.authorized ?? 0} authorized · {status?.paper_trades.rejected_or_not_proposed ?? 0} blocked/abstained</span>
           </div>
           <div className="clean-kpi-card">
             <span className="clean-kpi-label">Paper equity</span>
@@ -2131,17 +2141,17 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
                 <span className="clean-kpi-value" style={{ fontSize: "15px" }}>
                   {slicePercent(latestProbabilities?.down, 1)} / {slicePercent(latestProbabilities?.neutral, 1)} / {slicePercent(latestProbabilities?.up, 1)}
                 </span>
-                <span className="clean-kpi-sub">Confidence {slicePercent(latestForecast?.confidence, 1)} � edge {sliceNumber(latestForecast?.edge, 3)}</span>
+                <span className="clean-kpi-sub">Confidence {slicePercent(latestForecast?.confidence, 1)} · edge {sliceNumber(latestForecast?.edge, 3)}</span>
               </div>
               <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Empirical 5�95% interval</span>
+                <span className="clean-kpi-label">Empirical 5–95% interval</span>
                 <span className="clean-kpi-value" style={{ fontSize: "15px" }}>{slicePercent(latestForecast?.interval_low, 2)} to {slicePercent(latestForecast?.interval_high, 2)}</span>
                 <span className="clean-kpi-sub">Conditional return quantiles, not a guarantee</span>
               </div>
               <div className="clean-kpi-card">
                 <span className="clean-kpi-label">Walk-forward Brier</span>
                 <span className="clean-kpi-value">{sliceNumber(modelMetrics?.brier_score, 5)}</span>
-                <span className="clean-kpi-sub">{String(walkForward?.status ?? "not scored")} � {String(modelMetrics?.rows ?? "�")} out-of-sample rows</span>
+                <span className="clean-kpi-sub">{String(walkForward?.status ?? "not scored")} · {String(modelMetrics?.rows ?? "—")} out-of-sample rows</span>
               </div>
               <div className="clean-kpi-card">
                 <span className="clean-kpi-label">XGBoost Brier</span>
@@ -2156,7 +2166,7 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
               <tbody>
                 {contributions.length === 0
                   ? Object.entries(latestFeatures).map(([name, value]) => (
-                      <tr key={name}><td>{name}</td><td>{sliceNumber(value, 6)}</td><td>�</td><td>�</td></tr>
+                      <tr key={name}><td>{name}</td><td>{sliceNumber(value, 6)}</td><td>—</td><td>—</td></tr>
                     ))
                   : contributions.map((row) => (
                       <tr key={String(row.feature)}>
@@ -2189,7 +2199,7 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
             ) : forecasts.map((row) => (
               <tr key={row.forecast_id}>
                 <td>{sliceTime(row.decision_time)}</td>
-                <td>{row.symbol} � {row.track}</td>
+                <td>{row.symbol} · {row.track}</td>
                 <td>{row.action}</td>
                 <td>{slicePercent(row.confidence, 1)}</td>
                 <td>{slicePercent(row.probabilities?.up, 1)} / {slicePercent(row.probabilities?.down, 1)}</td>
@@ -2223,10 +2233,10 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
                 <td>{row.symbol}</td>
                 <td>{row.side}</td>
                 <td>${sliceNumber(row.requested_notional_usd, 2)}</td>
-                <td>{row.authorized_notional_usd == null ? "�" : `$${sliceNumber(row.authorized_notional_usd, 2)}`}</td>
+                <td>{row.authorized_notional_usd == null ? "—" : `$${sliceNumber(row.authorized_notional_usd, 2)}`}</td>
                 <td>{row.control_plane_decision}</td>
                 <td>{row.status}</td>
-                <td>{row.realized_pnl_usd == null ? "�" : `$${sliceNumber(row.realized_pnl_usd, 2)}`}</td>
+                <td>{row.realized_pnl_usd == null ? "—" : `$${sliceNumber(row.realized_pnl_usd, 2)}`}</td>
               </tr>
             ))}
           </tbody>
@@ -2282,7 +2292,7 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
               <tr key={String(row.name)}>
                 <td>{String(row.name)}</td>
                 <td>{String(row.status)}</td>
-                <td>{String(row.version ?? "�")}</td>
+                <td>{String(row.version ?? "—")}</td>
                 <td>{String(row.reason ?? "")}</td>
               </tr>
             ))}

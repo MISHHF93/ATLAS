@@ -299,7 +299,7 @@ function Module02InnerWorkbench() {
         const origin = String(data.gateway?.feed_origin ?? "labeled_synthetic_fixture");
         const mode = String(data.data_mode ?? (data.gateway?.demo_mode ? "synthetic" : "observed"));
         setFeedNote(
-          `${mode} feed A� ${origin} A� buffer ${data.gateway?.ring_buffer_size ?? "?"} / ${data.gateway?.ring_buffer_maxlen ?? 10000} A� venue sessions ${data.gateway?.venue_sessions ?? "unconfigured"} A� execution_permission none`
+          `${mode} feed · ${origin} · buffer ${data.gateway?.ring_buffer_size ?? "?"} / ${data.gateway?.ring_buffer_maxlen ?? 10000} · venue sessions ${data.gateway?.venue_sessions ?? "unconfigured"} · execution_permission none`
         );
         if (Array.isArray(data.listings) && data.listings.length > 0) {
           setListings((prev) =>
@@ -758,7 +758,7 @@ function Module02InnerWorkbench() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
                     gap: "6px",
                     marginTop: "12px",
                   }}

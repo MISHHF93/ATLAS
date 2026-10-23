@@ -33,6 +33,8 @@ export type AtlasPage = {
   workspaceRoute?: WorkspaceRoute;
   /** Older addresses that open this same page. */
   aliases?: string[];
+  /** Rarely used: listed under the curtain's "Advanced" group instead of the section's main tiles. */
+  advanced?: boolean;
 };
 
 export const PAGE_GROUPS: Array<{ id: PageGroupId; label: string }> = [
@@ -74,6 +76,7 @@ export const PAGES: AtlasPage[] = [
   },
   {
     id: "depth",
+    advanced: true,
     href: "/trade/depth-dom",
     label: "Estimated depth",
     group: "trade",
@@ -120,6 +123,7 @@ export const PAGES: AtlasPage[] = [
   },
   {
     id: "identity",
+    advanced: true,
     href: "/control/proctoring",
     label: "Identity checklist",
     group: "compliance",
@@ -172,6 +176,7 @@ export const PAGES: AtlasPage[] = [
   },
   {
     id: "bars",
+    advanced: true,
     href: "/data",
     label: "Bar query",
     group: "research",
@@ -181,6 +186,7 @@ export const PAGES: AtlasPage[] = [
   },
   {
     id: "connectors",
+    advanced: true,
     href: "/data/pipelines",
     label: "Connectors",
     group: "settings",
@@ -190,6 +196,7 @@ export const PAGES: AtlasPage[] = [
   },
   {
     id: "reserve",
+    advanced: true,
     href: "/governance",
     label: "Reserve sleeve",
     group: "research",
@@ -199,6 +206,7 @@ export const PAGES: AtlasPage[] = [
   },
   {
     id: "capability",
+    advanced: true,
     href: "/data/features-100",
     label: "Capability map",
     group: "settings",
@@ -260,6 +268,27 @@ export const PAGES: AtlasPage[] = [
     group: "compliance",
     primary: true,
     summary: "FINTRAC records, sanctions, privacy and Canadian venues.",
+  },
+  {
+    id: "autopilot",
+    href: "/autopilot",
+    label: "Setup autopilot",
+    group: "trade",
+    summary: "Request the paper setup autopilot on (owner approves with step-up), switch it off, and see shadow weeks.",
+  },
+  {
+    id: "evidence",
+    href: "/research/evidence",
+    label: "Models & evidence",
+    group: "research",
+    summary: "Registered setup models and the walk-forward evidence files behind them. Unregistered setups abstain.",
+  },
+  {
+    id: "api-keys",
+    href: "/keys",
+    label: "API keys",
+    group: "settings",
+    summary: "Create read or research keys for agents and MCP clients, see them once, revoke any time.",
   },
 ];
 

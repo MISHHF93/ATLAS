@@ -1676,7 +1676,7 @@ export function StreamlinedTradingStudio() {
           </div>
 
           {/* Asset Class Filter Tabs: All, Equities, Crypto Perps, Futures */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 80px), 1fr))", gap: "4px" }}>
             {(
               [
                 { id: "all", label: "All", mark: "all" },
@@ -1768,9 +1768,8 @@ export function StreamlinedTradingStudio() {
                         display: "block",
                         fontSize: "10.5px",
                         color: "var(--c-muted)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        lineHeight: 1.3,
+                        overflowWrap: "anywhere",
                       }}
                     >
                       {item.name}
@@ -2328,7 +2327,7 @@ export function StreamlinedTradingStudio() {
             </div>
 
             {/* BUY / SELL Selector */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 110px), 1fr))", gap: "6px" }}>
               <button
                 type="button"
                 onClick={() => setOrderSide("BUY")}
@@ -2368,7 +2367,7 @@ export function StreamlinedTradingStudio() {
               <label style={{ fontSize: "11px", color: "var(--c-muted)", display: "block", marginBottom: "4px" }}>
                 Execution Tactic
               </label>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "4px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 90px), 1fr))", gap: "4px" }}>
                 {(
                   [
                     { id: "MARKET", label: "Market" },
@@ -2423,7 +2422,7 @@ export function StreamlinedTradingStudio() {
             </div>
 
             {/* Mandatory Structural ATR Stop-Loss & Reward:Risk */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 110px), 1fr))", gap: "8px" }}>
               <div>
                 <label style={{ fontSize: "10.5px", color: "var(--c-muted)", display: "block", marginBottom: "3px" }}>
                   Mandatory ATR Stop (bps)
