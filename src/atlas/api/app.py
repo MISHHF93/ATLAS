@@ -63,6 +63,9 @@ app.include_router(founder_data_router)
 from atlas.api.visuals import router as visuals_router  # noqa: E402
 
 app.include_router(visuals_router)
+from atlas.api.quant import quant_router  # noqa: E402
+
+app.include_router(quant_router)
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",
