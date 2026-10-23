@@ -1730,7 +1730,7 @@ export function InstitutionalWorkspacesView({
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
                       gap: "8px",
                     }}
                   >
@@ -1799,7 +1799,7 @@ export function InstitutionalWorkspacesView({
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
                         gap: "6px",
                       }}
                     >
@@ -1873,7 +1873,7 @@ export function InstitutionalWorkspacesView({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 160px), 1fr))",
                   gap: "10px",
                   marginTop: "8px",
                 }}
@@ -2476,7 +2476,7 @@ export function InstitutionalWorkspacesView({
                     </p>
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: "8px" }}>
                   {PROCTORING_SCENARIO_PRESETS.map((preset) => (
                     <button
                       key={preset.id}
@@ -2561,7 +2561,7 @@ export function InstitutionalWorkspacesView({
                     />
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: "8px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 120px), 1fr))", gap: "8px" }}>
                   {TEN_CATEGORIES_META.map((cat) => (
                     <button
                       key={cat.id}

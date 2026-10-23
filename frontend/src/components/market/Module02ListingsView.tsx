@@ -758,7 +758,7 @@ function Module02InnerWorkbench() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
                     gap: "6px",
                     marginTop: "12px",
                   }}

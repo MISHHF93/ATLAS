@@ -1353,7 +1353,7 @@ export function LiveChartEngine({
           background: "#070A0F",
           border: "1px solid rgba(56, 189, 248, 0.2)",
           display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))",
           gap: "6px",
         }}
       >
