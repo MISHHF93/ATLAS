@@ -115,6 +115,9 @@ def test_hundred_features_and_proctoring_api_endpoints(tmp_path: Path) -> None:
     assert payload["total_features"] == 100
     assert payload["filtered_count"] == 100
     assert payload["execution_permission"] == "none"
+    first = payload["features"][0]
+    assert first["status"] in {"Implemented", "Partial", "Planned"}
+    assert first["evidence"] and first["live_telemetry"] == "Not measured"
 
     cat1_res = client.get("/api/features-100?category_id=1")
     assert cat1_res.status_code == 200
