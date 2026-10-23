@@ -17,6 +17,7 @@ from typing import Any, Sequence
 from atlas.features.price_action.bars import Bar
 from atlas.features.price_action.detectors import Candidate
 from atlas.features.price_action.engine import EngineConfig, PriceActionEngine
+from atlas.features.price_action.zones import Zone
 
 
 @dataclass
@@ -34,6 +35,7 @@ class ReplayTrade:
     outcome: str = "unfilled"          # unfilled | target | stop | timeout | open
     ambiguous: bool = False
     r_multiple: float | None = None
+    features: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -41,6 +43,34 @@ class ReplayConfig:
     entry_window: int = 3
     max_hold_bars: int = 8
     cost_per_unit: float = 0.0
+    cost_bps: float = 0.0              # round-trip cost as bps of entry, added to cost_per_unit
+    zone_rule: str | None = None       # None: ORB candidates only; "zone_entry_v1": also research-map zones
+
+
+def trade_cost(t: "ReplayTrade", cfg: ReplayConfig) -> float:
+    return cfg.cost_per_unit + cfg.cost_bps * 1e-4 * abs(t.entry)
+
+
+ZONE_RULE_RR = 2.0
+
+
+def zone_trade(z: Zone, bar: Bar) -> "ReplayTrade | None":
+    """Research mapping ``zone_entry_v1`` for zone-only detectors (dual_bollinger, wick_reversal).
+    Entry limit at the confirmation bar close, stop at the far zone bound, target at 2R. Not a live rule."""
+    long = z.direction == "bullish"
+    entry = bar.close
+    stop = z.lower_bound if long else z.upper_bound
+    risk = (entry - stop) if long else (stop - entry)
+    if not risk > 0:
+        return None
+    tgt = entry + ZONE_RULE_RR * risk if long else entry - ZONE_RULE_RR * risk
+    fs = z.feature_snapshot or {}
+    if z.zone_type == "wick_reversal":
+        score = fs.get("lower_wick_ratio") if long else fs.get("upper_wick_ratio")
+    else:
+        score = fs.get("breakout_strength_atr")
+    return ReplayTrade(f"{z.zone_id}:{bar.end}", z.zone_type, "long" if long else "short", bar.end, entry, stop, tgt,
+                       features={"score": score, "risk_atr": risk / fs["atr"] if fs.get("atr") else None})
 
 
 @dataclass
@@ -64,7 +94,7 @@ def _step_trade(t: ReplayTrade, b: Bar, cfg: ReplayConfig, held: int) -> None:
     def close(price: float, outcome: str) -> None:
         pnl = (price - t.entry) if long else (t.entry - price)
         t.exit_at, t.exit_price, t.outcome = b.start, price, outcome
-        t.r_multiple = (pnl - cfg.cost_per_unit) / risk if risk > 0 else None
+        t.r_multiple = (pnl - trade_cost(t, cfg)) / risk if risk > 0 else None
 
     hit_stop = b.low <= t.stop if long else b.high >= t.stop
     hit_tgt = b.high >= t.target if long else b.low <= t.target
@@ -118,9 +148,15 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
         for ev in eng.update(b):
             if isinstance(ev, Candidate):
                 t = ReplayTrade(ev.candidate_id, ev.detector, ev.direction, ev.detected_at,
-                                ev.entry_reference, ev.proposed_stop, ev.proposed_target)
+                                ev.entry_reference, ev.proposed_stop, ev.proposed_target,
+                                features={"score": ev.features.get("breakout_strength_atr")})
                 trades.append(t)
                 waiting.append((t, 0))
+            elif cfg.zone_rule == "zone_entry_v1" and isinstance(ev, Zone) and ev.zone_type != "opening_range":
+                zt = zone_trade(ev, b)
+                if zt is not None:
+                    trades.append(zt)
+                    waiting.append((zt, 0))
     res = ReplayResult(data_label, trades, eng.candidates, len(bars), len(eng.refused))
     done = [t for t in trades if t.r_multiple is not None]
     res.summary = {
@@ -133,7 +169,7 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
         "ambiguous_bars_counted_as_stop": sum(t.ambiguous for t in trades),
         "mean_r": (sum(t.r_multiple for t in done) / len(done)) if done else None,
         "total_r": sum(t.r_multiple for t in done) if done else None,
-        "cost_per_unit": cfg.cost_per_unit,
+        "cost_per_unit": cfg.cost_per_unit, "cost_bps": cfg.cost_bps, "zone_rule": cfg.zone_rule,
         "fill_model": "conservative_ohlc_v1",
     }
     return res
