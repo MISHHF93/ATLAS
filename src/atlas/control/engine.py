@@ -532,11 +532,11 @@ class ActionableControlPlaneEngine:
     def get_remaining_room_hud(
         self,
         *,
-        track: Literal["competition", "open_market"] | None = None,
+        track: Literal["competition", "open_market", "founder_capital"] | None = None,
     ) -> dict[str, object]:
         """Compute exact dollar and percentage buffers remaining before breaching daily or trailing drawdown limits."""
         active_trk = track or self.active_track
-        rulebook = self._rulebook_for(active_trk)
+        rulebook = self.founder_rulebook if active_trk == "founder_capital" else self._rulebook_for(active_trk)
         sod = max(Decimal("1"), self.start_of_day_equity_usd)
         hwm = max(Decimal("1"), self.initial_equity_usd if rulebook.drawdown_mode == "static" else self.high_water_mark_usd)
         curr = self.current_equity_usd
@@ -572,6 +572,26 @@ class ActionableControlPlaneEngine:
             "daily_loss_limit_pct": float(daily_limit_frac * Decimal("100")),
             "drawdown_limit_pct": float(trailing_limit_frac * Decimal("100")),
             "drawdown_mode": rulebook.drawdown_mode,
+            "rulebook_id": rulebook.rulebook_id,
+            "safe_stop_engaged": self.kill_switch_engaged,
+        }
+
+    def founder_pnl(self) -> dict[str, object]:
+        """Founder P&L on the paper account (day and since inception), with the 2% founder remaining room."""
+        curr, sod, init = self.current_equity_usd, self.start_of_day_equity_usd, self.initial_equity_usd
+        day = curr - sod
+        total = curr - init
+        realized = sum((Decimal(str(getattr(p, "realized_pnl_usd", 0) or 0)) for p in self.open_positions), Decimal("0"))
+        return {
+            "currency": "USD",
+            "day_pnl_usd": float(day.quantize(Decimal("0.01"))),
+            "day_pnl_pct": round(float(day / max(Decimal("1"), sod) * 100), 4),
+            "total_pnl_usd": float(total.quantize(Decimal("0.01"))),
+            "total_pnl_pct": round(float(total / max(Decimal("1"), init) * 100), 4),
+            "realized_in_open_positions_usd": float(realized),
+            "remaining_room": self.get_remaining_room_hud(track="founder_capital"),
+            "execution_mode": "paper",
+            "execution_permission": "none",
         }
 
     def evaluate_market_tick(

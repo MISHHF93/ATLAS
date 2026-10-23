@@ -21,7 +21,7 @@ def client():
     founder.service.cache_clear()
 
 
-ROUTES = ["state", "safe-stop", "approvals", "inbox", "venues", "tax", "ledgers", "compliance"]
+ROUTES = ["pnl", "remaining-room", "state", "safe-stop", "approvals", "inbox", "venues", "tax", "ledgers", "compliance"]
 
 
 @pytest.mark.parametrize("route", ROUTES)
@@ -83,3 +83,10 @@ def test_one_safe_stop_shared_by_control_plane_and_founder(client):
     eng = ActionableControlPlaneEngine(safe_stop=shared_safe_stop())  # isolated positions, shared switch
     eng.kill_switch_engaged = True
     assert client.get("/api/founder/safe-stop").json()["engaged"] is True
+
+
+def test_founder_remaining_room_uses_two_percent(client):
+    body = client.get("/api/founder/remaining-room").json()
+    assert body["daily_loss_limit_pct"] == 2.0 and body["rulebook_id"].startswith("founder-capital")
+    pnl = client.get("/api/founder/pnl").json()
+    assert pnl["remaining_room"]["daily_loss_limit_pct"] == 2.0 and "day_pnl_usd" in pnl

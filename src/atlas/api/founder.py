@@ -87,6 +87,22 @@ def founder_state() -> dict[str, Any]:
     })
 
 
+def _engine():
+    from atlas.api.app import control_engine  # lazy: app includes this router
+
+    return control_engine
+
+
+@router.get("/pnl")
+def founder_pnl() -> dict[str, Any]:
+    return _env(_engine().founder_pnl())
+
+
+@router.get("/remaining-room")
+def founder_remaining_room() -> dict[str, Any]:
+    return _env(_engine().get_remaining_room_hud(track="founder_capital"))
+
+
 @router.get("/safe-stop")
 def safe_stop_status() -> dict[str, Any]:
     return _env(_safe_stop(service()))
