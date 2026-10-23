@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trading Bot · one-pager (paper only)</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header>
+  <div class="brand">Trading Bot <small>Masharai Borah · base CAD · local</small></div>
+  <span class="badge paperonly">PAPER ONLY · live disabled in this build</span>
+  <span class="badge" id="autonomy">L1</span>
+  <div class="status" id="hdrStatus" role="status" aria-live="polite"><span class="dot"></span><span id="wd">…</span></div>
+  <nav class="strip" id="markets" aria-label="Market hours"></nav>
+  <button id="kill" class="kill" type="button" title="Cancel all orders and halt trading" aria-label="Kill switch: cancel all orders and halt trading">■ KILL SWITCH</button>
+</header>
+<main id="main">
+  <section class="kpis" aria-label="Key figures">
+    <div class="kpi"><h2>Bot capital</h2><div class="v" id="botcap">–</div><div class="s" id="botcap_s"></div></div>
+    <div class="kpi"><h2>Today's P&amp;L</h2><div class="v" id="pnl">–</div><div class="s" id="pnl_s"></div></div>
+    <div class="kpi"><h2>Positions</h2><div class="v" id="npos">–</div><div class="s" id="npos_s"></div></div>
+    <div class="kpi"><h2>Loss limits used</h2><div id="limits_used"></div></div>
+    <div class="kpi"><h2>Treasury cash <span class="pill">read-only</span></h2><div class="v" id="paycash">–</div><div class="s" id="paycash_s"></div></div>
+    <div class="kpi"><h2>Equity <span class="pill" id="eqpill">–</span></h2><canvas id="eqchart" height="44" role="img" aria-label="Paper equity sparkline"></canvas><p class="empty" id="eqempty" hidden>No equity history yet.</p></div>
+  </section>
+
+  <section class="card t-sleeves"><h2>Sleeves <span class="pill" id="driftpill">–</span></h2><div class="legend" id="sleeves"></div></section>
+  <section class="card t-limits"><h2>Risk limits <span class="pill" id="polver">policy</span></h2><div class="kv" id="limits"></div></section>
+  <section class="card t-appr"><h2>Approvals <span class="pill p" id="qcount">0 pending</span></h2><div class="scroll" id="queue"></div></section>
+  <section class="card t-pay"><h2>Pending transfers <span class="pill" id="paystate">–</span></h2><div class="scroll" id="paypending"></div></section>
+  <section class="card t-models"><h2>Models <span class="pill" id="ladder">autonomy: –</span></h2><div class="scroll" id="models"></div><div id="ladderchecks" class="checks"></div></section>
+
+  <section class="card t-tabs">
+    <div class="tabs" role="tablist" aria-label="Details">
+      <button role="tab" id="tab-decisions" aria-controls="p-decisions" aria-selected="true">Decisions <span class="pill" id="decsum">–</span></button>
+      <button role="tab" id="tab-positions" aria-controls="p-positions" aria-selected="false" tabindex="-1">Positions</button>
+      <button role="tab" id="tab-transfers" aria-controls="p-transfers" aria-selected="false" tabindex="-1">Transfers &amp; balances</button>
+      <button role="tab" id="tab-audit" aria-controls="p-audit" aria-selected="false" tabindex="-1">Audit log</button>
+    </div>
+    <div class="panel" role="tabpanel" id="p-decisions" aria-labelledby="tab-decisions">
+      <div class="tools"><label for="decfilter">Show</label><select id="decfilter"><option value="">all</option><option value="submitted">submitted</option><option value="dropped">dropped</option></select>
+        <span class="hint">Identical repeat evaluations are collapsed (×N, first → last seen).</span></div>
+      <div id="decisions"></div><button type="button" class="btn" id="decmore" hidden>Show more</button>
+    </div>
+    <div class="panel" role="tabpanel" id="p-positions" aria-labelledby="tab-positions" hidden>
+      <table><caption class="sr">Open positions, values in CAD</caption><thead><tr><th>Symbol</th><th>Sleeve</th><th>Ccy</th><th class="r">Qty</th><th class="r">Avg</th><th class="r">Last</th><th class="r">Value CAD</th></tr></thead><tbody id="positions"></tbody></table>
+    </div>
+    <div class="panel" role="tabpanel" id="p-transfers" aria-labelledby="tab-transfers" hidden>
+      <p class="hint">Read-only view of the separate payments service (SQLite mode=ro). Money moves only through the payments CLI with step-up auth.</p>
+      <div class="two"><table><caption>Balances</caption><thead><tr><th>Account</th><th>Ccy</th><th class="r">Amount</th></tr></thead><tbody id="paybal"></tbody></table>
+      <table><caption>Recent transfers</caption><thead><tr><th>#</th><th>Status</th><th class="r">Amount</th><th>Ccy</th><th>Rail</th><th>Purpose</th></tr></thead><tbody id="paytx"></tbody></table></div>
+    </div>
+    <div class="panel" role="tabpanel" id="p-audit" aria-labelledby="tab-audit" hidden>
+      <table><caption class="sr">Hash-chained audit log, newest first</caption><thead><tr><th>#</th><th>Time (ET)</th><th>Event</th><th>Actor</th><th>Details</th></tr></thead><tbody id="audit"></tbody></table>
+    </div>
+  </section>
+</main>
+<footer id="footer">Read-only except the kill switch · approvals/reset via <code>tradingbot-owner</code> (step-up) · times America/Toronto</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>
