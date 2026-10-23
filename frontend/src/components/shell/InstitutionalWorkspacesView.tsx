@@ -34,6 +34,7 @@ import {
   TrainingStatusPage,
   WalkForwardPage,
 } from "./deskPages";
+import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 
 const API = "";
 
@@ -1639,16 +1640,20 @@ export function InstitutionalWorkspacesView({
           </>
           ) : null}
 
-          <button
-            type="button"
-            className="btn btn-sm btn-outline"
-            style={{ borderRadius: "8px", padding: "6px 14px", fontWeight: 700 }}
-            aria-pressed={killSwitchEngaged}
-            title={killSwitchEngaged ? "Turn the paper desk back on." : "Turn the paper desk off. New orders stop."}
-            onClick={() => void onToggleKillSwitch()}
-          >
-            {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
-          </button>
+          {killSwitchEngaged ? (
+            <SafeStopReleaseCli compact />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              style={{ borderRadius: "8px", padding: "6px 14px", fontWeight: 700 }}
+              aria-pressed={killSwitchEngaged}
+              title={killSwitchEngaged ? "Turn the paper desk back on." : "Turn the paper desk off. New orders stop."}
+              onClick={() => void onToggleKillSwitch()}
+            >
+              Engage Safe stop
+            </button>
+          )}
         </div>
       </header>
 

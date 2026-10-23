@@ -216,13 +216,15 @@ def test_module02_ws_packets_rbac_segregation_and_zero_llm_control_imports() -> 
     assert mid_state["kill_switch_engaged"] is False
     assert len(mid_state["open_positions"]) == open_before
 
-    admin_noop = client.post(
+    # Even an admin role header cannot release Safe stop over HTTP: release is CLI-only with owner step-up.
+    admin_release = client.post(
         "/api/control/kill-switch",
         headers={"X-Atlas-Role": "prop_firm_admin"},
-        json={"engaged": False, "reason": "rbac_admin_noop_reset"},
+        json={"engaged": False, "reason": "rbac_admin_release_probe"},
     )
-    assert admin_noop.status_code == 200
-    assert admin_noop.json()["kill_switch_engaged"] is False
+    assert admin_release.status_code == 403
+    assert admin_release.json()["detail"]["cli"] == "atlas-owner reset"
+    assert client.get("/api/control/state").json()["kill_switch_engaged"] is False
 
     denied_signal = client.post(
         "/api/control/strategy-signal",

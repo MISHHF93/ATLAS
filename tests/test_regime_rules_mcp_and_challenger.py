@@ -968,9 +968,15 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert ks_on.json()["kill_switch_engaged"] is True
     assert len(ks_on.json()["open_positions"]) == 0
 
+    # Release over HTTP is refused (CLI-only with owner step-up) and the switch stays engaged.
     ks_off = client.post("/api/control/kill-switch", json={"engaged": False, "reason": "test_reset"})
-    assert ks_off.status_code == 200
-    assert ks_off.json()["kill_switch_engaged"] is False
+    assert ks_off.status_code == 403
+    assert ks_off.json()["detail"]["cli"] == "atlas-owner reset"
+    assert client.get("/api/control/state").json()["kill_switch_engaged"] is True
+    # Stand-in for the owner's `atlas-owner reset` (step-up) so the rest of this flow runs on a clear switch.
+    from atlas.api.app import control_engine as _engine
+    _engine.set_kill_switch(False, reason="test_owner_cli_reset")
+    assert client.get("/api/control/state").json()["kill_switch_engaged"] is False
 
     # 6. Verify production platform snapshot endpoint (/api/platform/snapshot)
     snap_res = client.get("/api/platform/snapshot")

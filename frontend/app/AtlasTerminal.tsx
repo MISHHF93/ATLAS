@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { TradingViewChart } from "../src/components/market/TradingViewChart";
 import { ATLAS_TAGLINE, AtlasLogo } from "../src/components/shell/AtlasLogo";
 import { InstitutionalWorkspacesView, type SubPageRouteId } from "../src/components/shell/InstitutionalWorkspacesView";
+import { SafeStopReleaseCli } from "../src/components/safety/SafeStopReleaseCli";
 
 const API = "";
 
@@ -4079,14 +4080,18 @@ export function AtlasTerminal({
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => handleRunSync("all")}>
                     Sync All 6 Data Pipelines
                   </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
-                    disabled={role !== "founder_admin"}
-                    onClick={handleToggleKillSwitch}
-                  >
-                    {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
-                  </button>
+                  {killSwitchEngaged ? (
+                    <SafeStopReleaseCli compact />
+                  ) : (
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+                      disabled={role !== "founder_admin"}
+                      onClick={handleToggleKillSwitch}
+                    >
+                      Engage Safe stop
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -6369,14 +6374,18 @@ export function AtlasTerminal({
                           >
                             Flatten All ({openPositions.length})
                           </button>
-                          <button
-                            type="button"
-                            className={`btn ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
-                            disabled={role !== "founder_admin"}
-                            onClick={handleToggleKillSwitch}
-                          >
-                            {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
-                          </button>
+                          {killSwitchEngaged ? (
+                            <SafeStopReleaseCli compact />
+                          ) : (
+                            <button
+                              type="button"
+                              className={`btn ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+                              disabled={role !== "founder_admin"}
+                              onClick={handleToggleKillSwitch}
+                            >
+                              Engage Safe stop
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -7123,14 +7132,18 @@ export function AtlasTerminal({
                           >
                             Flatten All Positions ({openPositions.length})
                           </button>
-                          <button
-                            type="button"
-                            className={`btn ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
-                            disabled={role !== "founder_admin"}
-                            onClick={handleToggleKillSwitch}
-                          >
-                            {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
-                          </button>
+                          {killSwitchEngaged ? (
+                            <SafeStopReleaseCli compact />
+                          ) : (
+                            <button
+                              type="button"
+                              className={`btn ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+                              disabled={role !== "founder_admin"}
+                              onClick={handleToggleKillSwitch}
+                            >
+                              Engage Safe stop
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -9048,14 +9061,18 @@ export function AtlasTerminal({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className={`btn btn-sm ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
-                  disabled={role !== "founder_admin"}
-                  onClick={handleToggleKillSwitch}
-                >
-                  {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
-                </button>
+                {killSwitchEngaged ? (
+                  <SafeStopReleaseCli compact />
+                ) : (
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${killSwitchEngaged ? "btn-primary" : "btn-danger"}`}
+                    disabled={role !== "founder_admin"}
+                    onClick={handleToggleKillSwitch}
+                  >
+                    Engage Safe stop
+                  </button>
+                )}
               </div>
 
               {/* 4. Active Positions Blotter */}

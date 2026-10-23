@@ -9,6 +9,7 @@ import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel, type Gu
 import { CLIENT_ROLE_PROFILES, useRoleContext, type ClientRoleId } from "../../context/RoleContext";
 import { fetchLibraryQuotes, libraryQuoteSymbols } from "../../lib/libraryQuotes";
 import { loadMarketBars, mergeTickIntoBars } from "../../lib/marketBars";
+import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 
 const TIMEFRAME_SECONDS = { "1s": 1, "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1D": 86400 } as const;
 
@@ -1558,39 +1559,43 @@ export function StreamlinedTradingStudio() {
             >
               Close all paper positions
             </button>
-            <button
-              type="button"
-              onClick={() => void handleToggleKillSwitch()}
-              disabled={!profile.canTriggerKillSwitch}
-              aria-pressed={killSwitchEngaged}
-              title={
-                !profile.canTriggerKillSwitch
-                  ? "Only the admin role can turn the desk off."
-                  : killSwitchEngaged
-                    ? "Safe stop is active on the paper desk. Click to release it."
-                    : "Engage Safe stop: new paper orders are rejected."
-              }
-              style={{
-                padding: "5px 10px",
-                borderRadius: "6px",
-                border: !profile.canTriggerKillSwitch
-                  ? "1px solid var(--c-border)"
-                  : killSwitchEngaged
-                    ? "1px solid rgba(213, 94, 0, 0.9)"
-                    : "1px solid rgba(213, 94, 0, 0.55)",
-                background: !profile.canTriggerKillSwitch
-                  ? "transparent"
-                  : killSwitchEngaged
-                    ? "rgba(213, 94, 0, 0.38)"
-                    : "rgba(213, 94, 0, 0.16)",
-                color: !profile.canTriggerKillSwitch ? "var(--c-muted)" : killSwitchEngaged ? "var(--c-bad)" : "var(--c-bad)",
-                fontWeight: 700,
-                fontSize: "11.5px",
-                cursor: profile.canTriggerKillSwitch ? "pointer" : "not-allowed",
-              }}
-            >
-              {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
-            </button>
+            {killSwitchEngaged ? (
+              <SafeStopReleaseCli compact />
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleToggleKillSwitch()}
+                disabled={!profile.canTriggerKillSwitch}
+                aria-pressed={killSwitchEngaged}
+                title={
+                  !profile.canTriggerKillSwitch
+                    ? "Only the admin role can turn the desk off."
+                    : killSwitchEngaged
+                      ? "Safe stop is active on the paper desk. Click to release it."
+                      : "Engage Safe stop: new paper orders are rejected."
+                }
+                style={{
+                  padding: "5px 10px",
+                  borderRadius: "6px",
+                  border: !profile.canTriggerKillSwitch
+                    ? "1px solid var(--c-border)"
+                    : killSwitchEngaged
+                      ? "1px solid rgba(213, 94, 0, 0.9)"
+                      : "1px solid rgba(213, 94, 0, 0.55)",
+                  background: !profile.canTriggerKillSwitch
+                    ? "transparent"
+                    : killSwitchEngaged
+                      ? "rgba(213, 94, 0, 0.38)"
+                      : "rgba(213, 94, 0, 0.16)",
+                  color: !profile.canTriggerKillSwitch ? "var(--c-muted)" : killSwitchEngaged ? "var(--c-bad)" : "var(--c-bad)",
+                  fontWeight: 700,
+                  fontSize: "11.5px",
+                  cursor: profile.canTriggerKillSwitch ? "pointer" : "not-allowed",
+                }}
+              >
+                Engage Safe stop
+              </button>
+            )}
           </div>
         </div>
       </header>

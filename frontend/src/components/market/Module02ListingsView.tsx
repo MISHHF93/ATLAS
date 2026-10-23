@@ -13,6 +13,7 @@ import { type LiveCandlePoint } from "./LiveChartEngine";
 import { TradingViewStockInfo } from "./TradingViewChart";
 import { DeskChart } from "./DeskChart";
 import { TradingViewMarkets } from "./TradingViewMarkets";
+import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 
 export interface Module02ListingPacket {
   symbol: string;
@@ -469,44 +470,48 @@ function Module02InnerWorkbench() {
         {/* Role-Gated Kill Switch */}
         <div className="clean-top-actions">
           <span className="badge badge-emerald">Ring Buffer: {ringBufferSize.toLocaleString()} / 10,000</span>
-          <button
-            type="button"
-            className="btn btn-sm btn-outline"
-            disabled={!profile.canTriggerKillSwitch}
-            aria-pressed={killSwitchEngaged}
-            title={killSwitchEngaged ? "Turn the paper desk back on." : "Turn the paper desk off. New orders stop."}
-            onClick={() => {
-              if (!profile.canTriggerKillSwitch) {
-                setRbacBanner("Only the admin role can turn the desk off.");
-                return;
-              }
-              const next = !killSwitchEngaged;
-              void fetch("/api/control/kill-switch", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "X-Atlas-Role": role },
-                body: JSON.stringify({
-                  engaged: next,
-                  reason: next ? "listings_emergency_kill_switch" : "listings_operator_reset",
-                }),
-              }).then(async (response) => {
-                if (!response.ok) {
-                  setRbacBanner("The desk did not change. The control plane state is unchanged.");
+          {killSwitchEngaged ? (
+            <SafeStopReleaseCli compact />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              disabled={!profile.canTriggerKillSwitch}
+              aria-pressed={killSwitchEngaged}
+              title={killSwitchEngaged ? "Turn the paper desk back on." : "Turn the paper desk off. New orders stop."}
+              onClick={() => {
+                if (!profile.canTriggerKillSwitch) {
+                  setRbacBanner("Only the admin role can turn the desk off.");
                   return;
                 }
-                const state = await response.json();
-                setKillSwitchEngaged(Boolean(state.kill_switch_engaged));
-                setRbacBanner(
-                  state.kill_switch_engaged
-                    ? "The desk is off. Open paper positions were closed."
-                    : "The desk is on. Paper orders can be submitted again."
-                );
-              }).catch(() => {
-                setRbacBanner("The desk did not change. State is unconfirmed.");
-              });
-            }}
-          >
-            {killSwitchEngaged ? "Release Safe stop" : "Engage Safe stop"}
-          </button>
+                const next = !killSwitchEngaged;
+                void fetch("/api/control/kill-switch", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "X-Atlas-Role": role },
+                  body: JSON.stringify({
+                    engaged: next,
+                    reason: next ? "listings_emergency_kill_switch" : "listings_operator_reset",
+                  }),
+                }).then(async (response) => {
+                  if (!response.ok) {
+                    setRbacBanner("The desk did not change. The control plane state is unchanged.");
+                    return;
+                  }
+                  const state = await response.json();
+                  setKillSwitchEngaged(Boolean(state.kill_switch_engaged));
+                  setRbacBanner(
+                    state.kill_switch_engaged
+                      ? "The desk is off. Open paper positions were closed."
+                      : "The desk is on. Paper orders can be submitted again."
+                  );
+                }).catch(() => {
+                  setRbacBanner("The desk did not change. State is unconfirmed.");
+                });
+              }}
+            >
+              Engage Safe stop
+            </button>
+          )}
         </div>
       </header>
 

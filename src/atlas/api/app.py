@@ -321,13 +321,27 @@ def submit_control_order(request: ActionableOrderRequest) -> dict[str, object]:
     }
 
 
+SAFE_STOP_RELEASE_CLI = "atlas-owner reset"
+
+
 @app.post("/api/control/kill-switch", include_in_schema=False)
 def toggle_kill_switch(
     payload: KillSwitchPayload,
     x_atlas_role: str | None = Header(default=None),
 ) -> dict[str, object]:
+    if not payload.engaged:
+        # Release is CLI-only with owner step-up (passphrase + TOTP). HTTP can never release Safe stop,
+        # whatever X-Atlas-Role says, because that header is self-declared.
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "safe_stop_release_is_cli_only",
+                "message": "Safe stop can only be released by the owner from a local terminal with step-up auth.",
+                "cli": SAFE_STOP_RELEASE_CLI,
+            },
+        )
     _reject_forbidden_role(x_atlas_role, "trigger_kill_switch")
-    state = control_engine.set_kill_switch(payload.engaged, reason=payload.reason)
+    state = control_engine.set_kill_switch(True, reason=payload.reason)
     return state.model_dump(mode="json")
 
 
