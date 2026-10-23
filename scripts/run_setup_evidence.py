@@ -7,7 +7,10 @@ from atlas.research.setup_evidence import registry_gates, run
 
 root = Path(__file__).resolve().parents[1]
 tag = sys.argv[1] if len(sys.argv) > 1 else "run"
-r = run(root / "var" / "evidence_cache")
+# Prefer the authoritative ATLAS feed store; fall back to the legacy JSON cache. Override with argv[2].
+_feed = root / "var" / "feeds" / "atlas_feed.sqlite"
+src = Path(sys.argv[2]) if len(sys.argv) > 2 else (_feed if _feed.exists() else root / "var" / "evidence_cache")
+r = run(src)
 for c in r["configs"]:
     c["gates"] = registry_gates(c, r["pbo"])
     c["passes_offline_gates"] = all(g["passed"] for g in c["gates"] if g["gate"] != "shadow_weeks")

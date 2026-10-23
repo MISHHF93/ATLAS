@@ -46,6 +46,41 @@ def load_bars(path: Path) -> tuple[list[Bar], dict[str, Any]]:
     return bars, meta
 
 
+def load_bars_from_feed(instrument: str, interval: str, feed=None, as_of: int | None = None) -> tuple[list[Bar], dict[str, Any]]:
+    """Same contract as load_bars, but reads the authoritative ATLAS feed store (confirmed bars known at ``as_of``)."""
+    from atlas.feeds import get_feed
+    feed = feed or get_feed()
+    fb = feed.bars(instrument, interval, as_of=as_of)
+    dur = {"15m": 900, "1h": 3600}.get(interval, 86400)
+    bars = [Bar(b.event_time, dur, b.open, b.high, b.low, b.close, b.volume) for b in fb]
+    provs = sorted({b.provider for b in fb})
+    inst = feed.instruments.get(instrument)
+    meta = {"source": "+".join(provs) + " via atlas-feed", "url": f"atlas-feed:{feed.store.path}", "symbol": instrument,
+            "interval": interval, "fetched_at": _iso(max(b.receipt_time for b in fb)) if fb else None,
+            "asset_class": "crypto" if inst.asset_class == "crypto" else "equity", "providers": provs}
+    meta |= {"n_bars": len(bars), "first_bar_utc": _iso(bars[0].start) if bars else None, "last_bar_utc": _iso(bars[-1].start) if bars else None}
+    return bars, meta
+
+
+def load_datasets(cache: Path, intervals: tuple[str, ...] | None = None):
+    """Training/evidence/replay input. If ``cache`` is an ATLAS feed SQLite file (or ATLAS_EVIDENCE_SOURCE=feed),
+    read from the store; otherwise read the legacy JSON cache files."""
+    import os
+    cache = Path(cache)
+    if cache.suffix == ".sqlite" or os.environ.get("ATLAS_EVIDENCE_SOURCE") == "feed":
+        from atlas.feeds import AtlasFeed, FeedStore
+        feed = AtlasFeed(FeedStore(cache if cache.suffix == ".sqlite" else os.environ.get("ATLAS_FEED_DB", "var/feeds/atlas_feed.sqlite")))
+        for inst in feed.instruments.all():
+            for iv in intervals or ("15m", "1h"):
+                bars, meta = load_bars_from_feed(inst.id, iv, feed)
+                if len(bars) > 50:
+                    yield bars, meta
+        return
+    for bars, meta in load_datasets(cache):
+        if intervals is None or meta["interval"] in intervals:
+            yield bars, meta
+
+
 def _iso(t: int) -> str:
     return datetime.fromtimestamp(t, timezone.utc).isoformat()
 
