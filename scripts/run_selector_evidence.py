@@ -7,7 +7,7 @@ from pathlib import Path
 
 from atlas.research.technique_selection import run
 
-cache = Path(sys.argv[1] if len(sys.argv) > 1 else "var/evidence_cache_15m")
+cache = Path(sys.argv[1] if len(sys.argv) > 1 else ("var/feeds/atlas_feed.sqlite" if Path("var/feeds/atlas_feed.sqlite").exists() else "var/evidence_cache_15m"))
 out = run(cache)
 p = Path("docs/spec/evidence") / f"technique-selector-{date.today().isoformat()}.json"
 p.write_text(json.dumps(out, indent=1, default=str))

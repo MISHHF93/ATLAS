@@ -40,6 +40,7 @@ CAL_UNSUPPORTED = "calibration_unsupported"
 UNC_UNAVAILABLE = "uncertainty_unavailable"
 UNC_WIDE = "uncertainty_too_wide"
 NO_MODEL = "no_validated_model"
+DATA_QUALITY = "data_quality"   # ATLAS feed flagged stale/gap/unconfirmed/provider_disagreement
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class FeatureSnapshot:
     """Point-in-time features. ``available_at`` is the earliest unix time each value could have been known."""
     values: Mapping[str, float | None]
     available_at: Mapping[str, int]
+    data_quality_flags: tuple[str, ...] = ()   # from atlas.feeds AtlasFeed.quality_flags(); non-empty -> abstain
 
 
 @dataclass(frozen=True)
@@ -218,6 +220,9 @@ def predict(instrument: str, observation_time: int, horizon: str, feature_snapsh
         ok += 1
     out.feature_quality = ok / len(m.required_features) if m.required_features else 1.0
     reasons += [r for r, flag in ((MISSING, missing), (FUTURE, future), (STALE, stale)) if flag]
+    if feature_snapshot.data_quality_flags:
+        reasons.append(DATA_QUALITY)
+        reasons += [f"{DATA_QUALITY}:{f}" for f in feature_snapshot.data_quality_flags]
     if reasons:
         return out
 
