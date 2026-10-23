@@ -59,7 +59,7 @@ Requirements: Python 3.11+ and Node.js 18+.
 # backend deps (editable install with extras)
 python -m venv .venv && . .venv/bin/activate        # Windows: .\.venv\Scripts\activate
 pip install -e ".[dev,founder,ml,mcp]"
-python -m pytest -q                                  # main: 1404 passed, 9 skipped
+python -m pytest -q                                  # main: 1404 passed, 9 skipped (tests/conftest.py creates .test-runs/)
 
 # frontend + backend on ONE port (Node spawns FastAPI over stdio; binds 127.0.0.1 only)
 cd frontend && npm install
@@ -85,8 +85,8 @@ Owner and agent commands:
 python -m atlas.keys.cli create --name claude-desktop --scope read --rate 60   # key printed once
 atlas-owner setup-autopilot-approve <request_id>                               # passphrase + TOTP
 python scripts/fetch_public_history.py && python scripts/run_setup_evidence.py # reproduce setup evidence (cache in var/)
-python scripts/run_selector_evidence.py var/evidence_cache_15m                 # selector evidence; needs a 15m bar cache
-                                                                               # (fetch_public_history.py only fetches 1h/1d)
+python scripts/fetch_public_history.py --15m                                  # 15m cache -> var/evidence_cache_15m (Yahoo 60d, Binance 730d)
+python scripts/run_selector_evidence.py var/evidence_cache_15m                 # reproduce selector evidence
 ```
 
 ## Page map (`frontend/src/components/shell/pagesMap.ts`)

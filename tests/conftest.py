@@ -2,6 +2,18 @@
 import pytest
 
 
+def pytest_configure(config):
+    """Create the parent of --basetemp (pyproject: .test-runs/pytest-default) so fresh clones/worktrees work.
+
+    pytest creates basetemp itself but not its parent directory.
+    """
+    from pathlib import Path
+
+    basetemp = config.option.basetemp
+    if basetemp:
+        Path(basetemp).resolve().parent.mkdir(parents=True, exist_ok=True)
+
+
 @pytest.fixture(autouse=True)
 def explicit_mock_market_data_permission(request, monkeypatch):
     """Grant only isolated test fixtures; production admission never inspects pytest.

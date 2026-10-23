@@ -284,7 +284,7 @@ def test_master_roadmap_excel_wf01_to_wf08_and_az_subsystems() -> None:
     state = build_master_roadmap_state("SPY", 0)
     assert len(state["roadmap_az"]) == 26
     for row in state["roadmap_az"]:
-        assert row["status"] == "Implemented"
+        assert row["status"] in {"Implemented+tested", "Partial", "Experimental", "Blocked", "Planned"}
         assert (repo_root / row["path"]).exists(), f"Missing A-Z path: {row['path']}"
 
     for wf in state["whale_execution_ml"]:

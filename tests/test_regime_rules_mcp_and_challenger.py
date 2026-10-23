@@ -1187,7 +1187,9 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert rm_get.status_code == 200
     rm_body = rm_get.json()
     assert len(rm_body["roadmap_az"]) == 26
-    assert all(r["status"] == "Implemented" for r in rm_body["roadmap_az"])
+    assert all(r["status"] in {"Implemented+tested", "Partial", "Experimental", "Blocked", "Planned"} for r in rm_body["roadmap_az"])
+    assert all(v["phase"] == "Planned" and v["status"] == "Planned" for v in rm_body["b2b_saas_verticals"])
+    assert rm_body["live_wf_telemetry_source"] == "sample_inputs"
     assert len(rm_body["b2b_saas_verticals"]) == 12
     assert len(rm_body["whale_execution_ml"]) == 8
     assert len(rm_body["global_multi_domain"]) == 5
@@ -1204,6 +1206,8 @@ def test_actionable_control_plane_engine_and_api_endpoints() -> None:
     assert wf_body["execution_permission"] == "none"
     assert wf_body["live_wf_telemetry"]["wf04_almgren_chriss"]["total_shares"] == 25000.0
     assert wf_body["whale_decision_matrix"][2]["active"] is True
+    assert wf_body["input_source"] == "sample_inputs"
+    assert "sample inputs" in wf_body["sample_inputs_note"]
 
     saas_act = client.post(
         "/api/master-roadmap/saas-action",

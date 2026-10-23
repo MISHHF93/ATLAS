@@ -1,7 +1,7 @@
 # Audit and gap map (Phase 1)
 
 Branch `atlas-quant-1`, base `main@6de1e02`. Status was checked by reading the code and running the tests. It does not come from earlier docs.
-Statuses used: **implemented+tested**, **partial**, **missing**, **duplicated**. Baseline suite on main: 1308 passed, 9 skipped (local venv run).
+Statuses used: **implemented+tested**, **partial**, **missing**, **duplicated**. Baseline suite at the base `main@6de1e02`: 1308 passed, 9 skipped (local venv run). Current `main@c87ef50` (after slices 4–5): 1404 passed, 9 skipped.
 
 | Spec area | Existing location(s) | Status | Notes |
 |---|---|---|---|
@@ -13,7 +13,7 @@ Statuses used: **implemented+tested**, **partial**, **missing**, **duplicated**.
 | Economic events | none with availability timestamps | missing → **interface only** | `price_action/events.py`. There is no data source. |
 | Order flow: Kyle λ, VPIN, OFI, Hawkes | `features/microstructure.py`, `marketdata/microstructure.py`, `marketdata/live_stream.py`, `whale_saas_az.py`, `regime/hawkes_detector.py` | implemented+tested (light), duplicated | 1–2 test files each. Multiple copies. |
 | Order-book imbalance | — | missing | No explicit function. |
-| Regimes | `models/regimes.py` (causal rules), `regime/hawkes_detector.classify_regime` | partial | No HMM or change-point model. |
+| Regimes | `models/regimes.py` (causal rules), `regime/hawkes_detector.classify_regime` | partial | `models/quant/regime.py` fits a GaussianHMM (hmmlearn, GaussianMixture fallback) on volatility features. It is not wired into the price-action candidates (`market_regime` is None). There is no change-point model. *(Corrected 2026-10-23: an earlier version said "No HMM".)* |
 | ML: labels, CV, PBO, DSR, conformal | `models/quant/*` (triple_barrier, purged k-fold/walk-forward, pbo_cscv, deflated_sharpe, conformal, registry gates, costmodel) | implemented+tested | — |
 | Calibration | `calibration/` (Platt, ProbabilityCalibrator), `models/uncertainty_calibration` | done (slice 2) | Wired via `models.predict` (PlattCalibrator, BinCalibratorAdapter). |
 | Unified predict() contract + abstention | many model-specific `predict()` | done (slice 2) | `models.predict` + `models.opportunity` EV gate; registry empty, so everything abstains until a model is validated. |

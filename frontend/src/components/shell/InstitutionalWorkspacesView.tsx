@@ -774,7 +774,7 @@ export function InstitutionalWorkspacesView({
       route: "/research/walk-forward",
       status: "AUTOMATED",
       latencyMs: 1.5,
-      summary: "Continuously verifies DSR >= 0.95 (0.995) and ECE <= 0.035 (0.021) across CB-01..CB-06 with auto_promoted=False.",
+      summary: "Gate thresholds DSR >= 0.95 and ECE <= 0.035 across CB-01..CB-06 with auto_promoted=False. No benchmark run is recorded.",
       manualStepsEliminated: 2,
     },
     {

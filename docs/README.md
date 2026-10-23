@@ -18,14 +18,14 @@ The row-by-row status matrix is the root workbook `ATLAS Platform Master Roadmap
 | Doc | What it is | Current? |
 |---|---|---|
 | [spec/master-wrapper-summary.md](spec/master-wrapper-summary.md) | Condensed master wrapper spec (owner directive 2026-10-23), the governing spec | yes |
-| [spec/audit-and-gap.md](spec/audit-and-gap.md) | Phase-1 audit and gap map, with status per spec area | mostly. Baseline count (1308) predates slices 4–5. It says "no HMM", but `models/quant/regime.py` has one |
+| [spec/audit-and-gap.md](spec/audit-and-gap.md) | Phase-1 audit and gap map, with status per spec area | yes. The HMM note and the test counts were corrected on 2026-10-23 |
 | [spec/price-action.md](spec/price-action.md) | Price-action package spec, slices 1–5: engine, predict(), EV gate, replay, evidence, autopilot, shadow, prior-day detector, selector | yes |
 | [spec/evidence/price-action-setups-2026-10-23.md](spec/evidence/price-action-setups-2026-10-23.md) (+ `.json`) | Real-data setup evaluation. **All 21 configs failed the gates; no model registered** | yes |
 | [spec/evidence/technique-selector-2026-10-23.md](spec/evidence/technique-selector-2026-10-23.md) (+ `.json`) | 15m selector and range-break hypothesis. **The selector failed, and the claim is unproven** | yes |
 | [api-and-mcp.md](api-and-mcp.md) | API keys, paper autopilot routes, localhost MCP endpoint | yes |
 | [reshape-decisions.md](reshape-decisions.md) | IA decisions (6 sections, one Safe stop, 410 Gone) and the **founder max holding of 1 day (owner, 2026-10-23)** | yes |
 | [ux-audit.md](ux-audit.md) | Frontend UX audit and overhaul (tokens, AppShell, route registry) | yes. The curtain nav that replaces the sidebar is in progress on `atlas-ux-2` |
-| [broken-code-audit.md](broken-code-audit.md) | Import, route and crawl audit with fixes | yes. Its final test count (1310) predates slices 4–5 |
+| [broken-code-audit.md](broken-code-audit.md) | Import, route and crawl audit with fixes | yes. Its final count (1310) is the count at audit time; the current count is noted |
 | [lola-port-plan.md](lola-port-plan.md) | Lola → ATLAS port: founder capital track, 2% Safe stop, tax, ledgers | yes |
 
 ## Work in progress (not on main)
@@ -60,7 +60,7 @@ These documents describe the target or vision. Some of their claims are **not** 
 
 ## Roadmap exports
 
-`roadmap/tab*.csv` are exported by `src/atlas/whale_saas_az.export_master_roadmap_csvs` from constants in that file. `ATLAS_MASTER_ROADMAP.csv` was partly corrected in atlas-fix-1. Both still carry "Implemented" and "Executed Directly (Live)" labels that the code does not support. The verified statuses are in the root workbook.
+`roadmap/tab*.csv` are exported by `src/atlas/whale_saas_az.export_master_roadmap_csvs` from constants in that file. Since 2026-10-23 they carry verified statuses (A–Z as in the root workbook, SaaS verticals Planned, challenger metrics None because no run is recorded, WF metrics labelled as sample inputs). Exceptions: `tab9_100_feature_matrix.csv` comes from `proctoring_and_features100.py`, which has not been audited and still says "ACTIVE" with illustrative telemetry. `ATLAS_MASTER_ROADMAP.csv` is hand-maintained, was partly corrected in atlas-fix-1, and still says "Implemented". Regenerate the tab CSVs with `python -c "from atlas.whale_saas_az import export_master_roadmap_csvs as e; e()"`.
 
 - [roadmap/range_garden.md](roadmap/range_garden.md): paper harvest of a proven range
 - [roadmap/reserve_yield.md](roadmap/reserve_yield.md): reserve-yield sleeve
