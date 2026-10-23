@@ -48,3 +48,6 @@ The UDF bars match the bars the detectors use (`tests/test_udf_spec_parity.py`).
 
 ## Feed seam
 `udf_feed_bars()` in `src/atlas/api/udf.py` is the only place the UDF reads bars. When the authoritative ATLAS feed API (atlas-feeds-1) lands, swap the body of `udf_feed_bars()` and leave everything else alone.
+
+## Training data: where ML features have to come from
+TradingView can't be a training source: it has no data API, its terms don't allow export, and widget pixels aren't data. ML models must train on the same bars ATLAS stores in `causal_bars`, which come from the single ATLAS feed (atlas-feeds-1). That's the only way the UDF chart, the detectors and the models stay consistent. If the feed later moves to licensed vendors (e.g. Databento or Polygon, which are already listed in the matrix), the change goes behind `udf_feed_bars()` and the feed API. TradingView stays the display layer.
