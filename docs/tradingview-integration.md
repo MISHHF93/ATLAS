@@ -45,3 +45,6 @@ The UDF bars match the bars the detectors use (`tests/test_udf_spec_parity.py`).
 - The Advanced Charts library is not vendored. To use it, apply at https://www.tradingview.com/advanced-charts/ and then load it as a private asset. Don't commit it.
 - In the console, widgets log CORS errors from `widget-sheriff.tradingview-widget.com` when the page is served from localhost. These are third-party and don't affect anything.
 - CSP (recommended, not yet set): `frame-src https://s.tradingview.com https://www.tradingview-widget.com; script-src` adds `https://s3.tradingview.com` if script embeds are used.
+
+## Feed seam
+`udf_feed_bars()` in `src/atlas/api/udf.py` is the only place the UDF reads bars. When the authoritative ATLAS feed API (atlas-feeds-1) lands, swap the body of `udf_feed_bars()` and leave everything else alone.

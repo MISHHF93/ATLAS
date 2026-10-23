@@ -91,8 +91,18 @@ def causal_bars(
     return [(int(t), float(o), float(h), float(l), float(c), float(v)) for t, o, h, l, c, v in found]
 
 
+def udf_feed_bars(gateway: Any, symbol: str, bucket_seconds: int) -> dict[str, Any]:
+    """Single seam between the UDF router and ATLAS's bar source.
+
+    Today this reads the existing data layer (project_symbol_bars / causal_bars).
+    When the authoritative ATLAS feed API lands, only this function changes;
+    it must keep returning {"candles": [{timestamp, open, high, low, close, volume}], ...}.
+    """
+    return project_symbol_bars(gateway, symbol, bucket_seconds=bucket_seconds, limit=240)
+
+
 def _projected_rows(gateway: Any, symbol: str, bucket_seconds: int) -> tuple[list[tuple[int, float, float, float, float, float]], dict[str, Any]]:
-    report = project_symbol_bars(gateway, symbol, bucket_seconds=bucket_seconds, limit=240)
+    report = udf_feed_bars(gateway, symbol, bucket_seconds)
     rows: list[tuple[int, float, float, float, float, float]] = []
     for candle in report.get("candles") or []:
         stamp = datetime.fromisoformat(str(candle["timestamp"]).replace("Z", "+00:00"))
