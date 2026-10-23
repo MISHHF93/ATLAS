@@ -11,7 +11,12 @@ const require = createRequire(import.meta.url);
 const { WebSocketServer } = require("next/dist/compiled/ws");
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(directory, "..");
-const python = process.env.ATLAS_PYTHON ?? path.join(root, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+// ATLAS_PYTHON wins; else the repo's .venv, else a sibling .atlas-venv, else python3/python on PATH.
+const { existsSync: venvExists } = await import("node:fs");
+const venvBin = process.platform === "win32" ? "Scripts/python.exe" : "bin/python";
+const python = process.env.ATLAS_PYTHON
+  ?? [path.join(root, ".venv", venvBin), path.join(root, "..", ".atlas-venv", venvBin)].find((p) => venvExists(p))
+  ?? (process.platform === "win32" ? "python" : "python3");
 const child = spawn(python, ["-B", "-u", path.join(directory, "scripts/asgi_stdio.py")], {
   cwd: root, stdio: ["pipe", "pipe", "inherit"], windowsHide: true,
   env: { ...process.env, PYTHONPATH: path.join(root, "src") },
@@ -118,7 +123,8 @@ server.on("upgrade", (req, socket, head) => {
   });
 });
 server.on("error", (error) => { console.error(error); child.kill(); process.exitCode = 1; });
-server.listen(3000, "127.0.0.1", () => console.log("ATLAS http://localhost:3000 (HTTP + WebSocket; Python over stdio)"));
+const port = Number(process.env.PORT ?? 3000);
+server.listen(port, "127.0.0.1", () => console.log(`ATLAS http://localhost:${port}`+" (HTTP + WebSocket; Python over stdio)"));
 function shutdown() { for (const ws of sockets.clients) ws.terminate(); child.kill(); server.close(); }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
