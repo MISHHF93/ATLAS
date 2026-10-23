@@ -36,6 +36,7 @@ class ReplayTrade:
     ambiguous: bool = False
     r_multiple: float | None = None
     features: dict[str, Any] = field(default_factory=dict)
+    entry_type: str = "limit"          # "stop": fills when price crosses entry, at max(entry, open) (long) / min (short)
 
 
 @dataclass
@@ -87,6 +88,24 @@ class ReplayResult:
                 "trades": [asdict(t) for t in self.trades], "execution_permission": "none"}
 
 
+def try_fill(t: "ReplayTrade", b: Bar) -> bool:
+    """Entry fill on bar b. Limit: touched -> fill at the limit (no improvement). Stop: crossed -> fill at the trigger,
+    or at the open when the bar gaps through it (slippage taken in full)."""
+    long = t.direction == "long"
+    if t.entry_type == "stop":
+        if not ((b.high >= t.entry) if long else (b.low <= t.entry)):
+            return False
+        t.entry = max(t.entry, b.open) if long else min(t.entry, b.open)
+        if (long and t.entry <= t.stop) or (not long and t.entry >= t.stop) or \
+                (long and t.entry >= t.target) or (not long and t.entry <= t.target):
+            t.outcome = "gap_skipped"          # gapped beyond stop/target: the stop order would be cancelled
+            return False
+    elif not ((b.low <= t.entry) if long else (b.high >= t.entry)):
+        return False
+    t.filled_at, t.outcome = b.start, "open"
+    return True
+
+
 def _step_trade(t: ReplayTrade, b: Bar, cfg: ReplayConfig, held: int) -> None:
     long = t.direction == "long"
     risk = abs(t.entry - t.stop)
@@ -135,12 +154,12 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
         live = nxt_live
         nxt_wait = []
         for t, age in waiting:
-            touched = b.low <= t.entry if t.direction == "long" else b.high >= t.entry
-            if touched:
-                t.filled_at, t.outcome = b.start, "open"
+            if try_fill(t, b):
                 _step_trade(t, b, cfg, 0)
                 if t.exit_at is None:
                     live.append((t, 0))
+            elif t.outcome == "gap_skipped":
+                pass
             elif age + 1 < cfg.entry_window:
                 nxt_wait.append((t, age + 1))
         waiting = nxt_wait
@@ -149,10 +168,13 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
             if isinstance(ev, Candidate):
                 t = ReplayTrade(ev.candidate_id, ev.detector, ev.direction, ev.detected_at,
                                 ev.entry_reference, ev.proposed_stop, ev.proposed_target,
-                                features={"score": ev.features.get("breakout_strength_atr")})
+                                features={"score": ev.features.get("breakout_strength_atr", ev.features.get("reward_risk")),
+                                          **{k: v for k, v in ev.features.items() if isinstance(v, (int, float))}},
+                                entry_type=ev.entry_type)
                 trades.append(t)
                 waiting.append((t, 0))
-            elif cfg.zone_rule == "zone_entry_v1" and isinstance(ev, Zone) and ev.zone_type != "opening_range":
+            elif cfg.zone_rule == "zone_entry_v1" and isinstance(ev, Zone) and ev.zone_type != "opening_range" \
+                    and not ev.zone_type.startswith("pdr_"):   # PDR level zones are context, not trade rules
                 zt = zone_trade(ev, b)
                 if zt is not None:
                     trades.append(zt)

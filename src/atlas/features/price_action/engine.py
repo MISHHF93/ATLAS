@@ -13,6 +13,7 @@ from typing import Any, Sequence
 from atlas.features.price_action.bars import Bar, bar_confirmed
 from atlas.features.price_action.detectors import (Candidate, DualBandConfig, DualBollingerDetector, ORBRetestConfig,
                                                    ORBRetestDetector, Transition, WickConfig, WickReversalDetector)
+from atlas.features.price_action.prior_day import PriorDayRangeConfig, PriorDayRangeReversalDetector
 from atlas.features.price_action.features import StreamingFeatures, batch_features
 from atlas.features.price_action.sessions import SessionSpec
 from atlas.features.price_action.zones import Zone
@@ -25,6 +26,7 @@ class EngineConfig:
     dual: DualBandConfig = field(default_factory=DualBandConfig)
     wick: WickConfig = field(default_factory=WickConfig)
     atr_n: int = 14
+    pdr: PriorDayRangeConfig | None = None      # prior-day range reversal; off unless configured (needs a session)
 
 
 class PriceActionEngine:
@@ -34,6 +36,8 @@ class PriceActionEngine:
                                      WickReversalDetector(instrument, timeframe, self.cfg.wick)]
         if self.cfg.session is not None:
             self.detectors.insert(0, ORBRetestDetector(instrument, timeframe, self.cfg.session, self.cfg.orb))
+            if self.cfg.pdr is not None:
+                self.detectors.append(PriorDayRangeReversalDetector(instrument, timeframe, self.cfg.session, self.cfg.pdr))
         self._features = StreamingFeatures(self.cfg.atr_n)
         self.last_start: int | None = None
         self.refused: list[tuple[int, str]] = []

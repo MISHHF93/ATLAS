@@ -45,6 +45,7 @@ class Candidate:
     zone: dict[str, Any]
     features: dict[str, Any]
     execution_permission: str = "none"
+    entry_type: str = "limit"        # "limit" (rest at entry_reference) or "stop" (trigger when price crosses it)
     probability: None = None  # no calibrated model is attached in this slice
     note: str = "deterministic setup candidate; not a trade; control plane decides"
 
