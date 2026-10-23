@@ -14,21 +14,20 @@ export const fmt = (v: unknown, d = 2) => n(v).toLocaleString("en-CA", { maximum
 
 export function Figure({ title, caption, table, children }: { title: string; caption: string; table: ReactNode; children: ReactNode }) {
   return (
-    <figure style={{ margin: 0, background: "var(--bg-surface)", border: "1px solid var(--border-light)", borderRadius: 8, padding: 16, color: "var(--text-primary)" }}>
-      <figcaption><h2 style={{ fontSize: 15, margin: "0 0 4px" }}>{title}</h2><p style={{ ...muted, margin: "0 0 10px" }}>{caption}</p></figcaption>
-      {children}
-      <details style={{ marginTop: 8 }}><summary style={{ ...muted, cursor: "pointer" }}>Data table</summary>{table}</details>
+    <figure className="ux-card ux-figure">
+      <figcaption className="ux-card__head"><div><h2 className="ux-h2">{title}</h2><p className="ux-card__sub">{caption}</p></div></figcaption>
+      <div className="ux-card__body">{children}</div>
+      {table ? <details className="ux-details"><summary>Show data table</summary>{table}</details> : null}
     </figure>
   );
 }
 
 export function DataTable({ head, rows }: { head: string[]; rows: Array<Array<ReactNode>> }) {
-  const cell: CSSProperties = { padding: "4px 8px", borderBottom: "1px solid var(--border-light)", textAlign: "left", fontSize: 12 };
   return (
-    <div style={{ maxHeight: 260, overflow: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead><tr>{head.map(h => <th key={h} scope="col" style={{ ...cell, ...muted }}>{h}</th>)}</tr></thead>
-        <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} style={cell}>{c}</td>)}</tr>)}</tbody>
+    <div className="ux-table-wrap" style={{ maxHeight: 260 }}>
+      <table className="ux-table">
+        <thead><tr>{head.map(h => <th key={h} scope="col">{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
       </table>
     </div>
   );
