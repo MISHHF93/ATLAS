@@ -1,0 +1,136 @@
+"""Paper setup autopilot + shadow collector. All bars are hand-built SYNTHETIC fixtures; the registry used for
+proposals is the constant-probability TEST FIXTURE from test_predict (not a fitted model)."""
+from __future__ import annotations
+
+from decimal import Decimal
+
+import pytest
+
+from atlas.autopilot.control import StepUpRequired
+from atlas.autopilot.setups import SetupAutopilot, Stream
+from atlas.control.setup_autopilot_approval import approve_request
+from atlas.models.shadow import ShadowCollector, iso_week
+from atlas.risk.safe_stop import new_safe_stop
+from tests.price_action.test_price_action import O, _orb_long_bars
+from tests.price_action.test_predict import synthetic_setup_registry
+from tests.price_action.test_replay import B
+
+BARS = _orb_long_bars() + [B(O + 3 * 3600, 103.2, 103.5, 102.5, 103.1), B(O + 4 * 3600, 103.1, 107.5, 103.0, 107.2)]
+END = O + 6 * 3600
+
+
+def _approve(ap, rid, actor, verified):
+    return approve_request(ap.store, ap.audit, rid, actor, verified, ap.expected_owner, ap.safe_stop.engaged)
+
+
+def _ap(tmp_path, registry=None, model_version=None, bars=BARS, **kw):
+    return SetupAutopilot(lambda s, tf: list(bars), [Stream("SPY", 3600, "us_equity_rth")],
+                          shadow=ShadowCollector(tmp_path / "shadow.jsonl"), registry=registry,
+                          model_version=model_version, cost_bps=0.0, **kw)
+
+
+def _on(ap):
+    rid = ap.request_on("owner", "test")["id"]
+    _approve(ap, rid, "owner", True)
+
+
+def test_off_by_default_and_on_requires_owner_step_up(tmp_path):
+    ap = _ap(tmp_path)
+    assert ap.tick(END)["state"] == "off" and not ap.engines[ap.streams[0]].events
+    rid = ap.request_on("mcp-client")["id"]
+    with pytest.raises(StepUpRequired):
+        _approve(ap, rid, "owner", False)
+    with pytest.raises(StepUpRequired):
+        _approve(ap, rid, "someone", True)
+    assert not ap.is_on()
+    _approve(ap, rid, "owner", True)
+    assert ap.is_on() and ap.status()["mode"] == "paper"
+    ap.switch_off("owner")
+    assert not ap.is_on() and ap.tick(END)["state"] == "off"
+    events = [e["event"] for e in ap.audit.entries()]
+    assert events.count("setup_autopilot.approve_refused") == 2 and "setup_autopilot.switched_on" in events
+    assert ap.audit.verify() > 0
+
+
+def test_empty_registry_runs_and_abstains_with_reasons(tmp_path):
+    ap = _ap(tmp_path); _on(ap)
+    out = ap.tick(END)
+    assert out["state"] == "on" and out["bars"] == len(BARS)
+    assert out["decisions"] and all(d["decision"] == "abstain" for d in out["decisions"])
+    assert all("no_validated_model" in d["reasons"] for d in out["decisions"])
+    assert ap.connector.receipts == [] and ap.cp.order_history == []
+    recs = ap.shadow.records()
+    assert recs and recs[0]["decision"] == "abstain" and recs[0]["resolution"]["outcome"] == "target"  # counterfactual
+    wk = ap.shadow.weekly()[0]
+    assert wk["abstained"] == wk["candidates"] and wk["abstain_reasons"]["no_validated_model"] >= 1
+    assert ap.shadow.registry_record(wk["week"]) is None          # nothing scored -> nothing invented
+    assert ap.tick(END)["bars"] == 0                              # bars are consumed once
+
+
+def test_real_founder_rulebook_rejects_proposals_until_holding_limit_configured(tmp_path):
+    ap = _ap(tmp_path, registry=synthetic_setup_registry(0.6), model_version="synthetic-setup-v1"); _on(ap)
+    (d,) = [x for x in ap.tick(END)["decisions"] if x["detector"].startswith("orb")]
+    assert d["decision"] == "proposal_rejected" and "default_deny_unconfigured:max_holding_seconds" in d["reasons"]
+    assert len(ap.cp.order_history) == 1 and ap.connector.receipts == []
+    rec = ap.shadow.registry_record(iso_week(BARS[0].end))
+    assert rec is not None and rec["n"] == 1 and rec["brier"] == pytest.approx(0.16)
+
+
+def test_authorized_paper_order_path(tmp_path):
+    """TEST-ONLY rulebook copy with a holding limit, to exercise the authorized -> paper fill -> booked exit path."""
+    ap = _ap(tmp_path, registry=synthetic_setup_registry(0.6), model_version="synthetic-setup-v1"); _on(ap)
+    ap.cp.open_rulebook = ap.cp.open_rulebook.model_copy(update={"max_holding_seconds": 86400.0})
+    (d,) = [x for x in ap.tick(END)["decisions"] if x["detector"].startswith("orb")]
+    assert d["decision"] == "proposal_authorized", d
+    assert ap.connector.receipts[0]["execution_mode"] == "paper"
+    assert ap.cp.current_equity_usd > Decimal("100000")             # target hit -> paper gain booked
+    assert not any(p.status == "open" for p in ap.cp.open_positions)
+
+
+def test_founder_safe_stop_trips_flattens_and_blocks_restart(tmp_path):
+    ks = new_safe_stop()
+    ap = _ap(tmp_path, safe_stop=ks); _on(ap)
+    ap.cp.current_equity_usd = Decimal("97900")                   # 2.1% below start of day (synthetic)
+    out = ap.tick(END)
+    assert out["state"] == "halted" and out["halted"].startswith("founder_daily_loss")
+    assert ks.engaged and not ap.is_on()
+    with pytest.raises(PermissionError):
+        _approve(ap, ap.request_on("owner")["id"], "owner", True)
+
+
+def test_drawdown_limit_and_external_safe_stop(tmp_path):
+    ap = _ap(tmp_path); _on(ap)
+    ap.cp.start_of_day_equity_usd = ap.cp.current_equity_usd = Decimal("89000")   # 11% below initial (synthetic)
+    assert ap.tick(END)["halted"].startswith("founder_drawdown")
+    ks = new_safe_stop(); ap2 = _ap(tmp_path, safe_stop=ks); _on(ap2)
+    ks.engage("owner_button", channel="test")
+    assert ap2.tick(END)["halted"].startswith("safe_stop_engaged") and not ap2.is_on()
+
+
+def test_feed_error_is_audited_not_traded(tmp_path):
+    def bad(s, tf):
+        raise RuntimeError("feed down")
+    ap = SetupAutopilot(bad, [Stream("SPY", 3600, "us_equity_rth")]); _on(ap)
+    assert ap.tick(END)["bars"] == 0
+    assert any(e["event"] == "setup_autopilot.feed_error" for e in ap.audit.entries())
+
+
+def test_owner_cli_approval_switches_on_through_shared_state(tmp_path):
+    import time as _t
+    from atlas.control.owner_cli import run
+    from atlas.risk.stepup import totp
+    from pathlib import Path
+    CONFIG_DIR = Path(__file__).resolve().parents[2] / "config" / "founder"
+    PW = "correct horse battery staple"   # test-only passphrase
+    st, au = str(tmp_path / "state.sqlite"), str(tmp_path / "audit.sqlite")
+    base = ["--config", str(CONFIG_DIR), "--state", st, "--audit", au, "--stepup", str(tmp_path / "su.json")]
+    out: list[str] = []
+    run(base + ["init-stepup"], prompt=lambda: (PW, PW), out=out.append)
+    secret = out[-1].rsplit(" ", 1)[-1]
+    ap = SetupAutopilot(lambda s, tf: list(BARS), [Stream("SPY", 3600, "us_equity_rth")], state_db=st, audit_db=au,
+                        expected_owner="masharai")
+    rid = ap.request_on("key:x")["id"]
+    assert run(base + ["setup-autopilot-approve", rid], prompt=lambda: ("wrong passphrase!!", "000000"), out=out.append) == 3
+    assert not ap.is_on()
+    assert run(base + ["setup-autopilot-approve", rid], prompt=lambda: (PW, totp(secret, _t.time())), out=out.append) == 0
+    assert ap.is_on()
