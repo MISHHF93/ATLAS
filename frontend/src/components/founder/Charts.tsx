@@ -51,7 +51,7 @@ export function EquityDrawdown({ points }: { points: Array<[string, number]> }) 
   return (
     <Figure title="Equity and drawdown" caption={`Paper equity ${fmt(eq[0])} → ${fmt(eq[eq.length - 1])}; max drawdown ${fmt(maxDd)}%.`}
       table={<DataTable head={["time (UTC)", "equity", "drawdown %"]} rows={points.map((p, i) => [p[0].slice(0, 16), fmt(eq[i]), fmt(dd[i])])} />}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Equity line chart with drawdown area">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxHeight: 300 }} role="img" aria-label="Equity line chart with drawdown area">
         <text x={2} y={14} fontSize={10} fill="currentColor">{fmt(hi, 0)}</text>
         <text x={2} y={top - 6} fontSize={10} fill="currentColor">{fmt(lo, 0)}</text>
         <path d={line} fill="none" stroke={C.blue} strokeWidth={2} />
@@ -91,31 +91,35 @@ export function LossBullets({ gauges }: { gauges: Array<{ name: string; used: nu
 }
 
 export type Flow = { from: string; to: string; value: number };
-/** Two-column Sankey of money flows (CAD). Non-custodial: the platform records, the custodian holds. */
+/** Sankey of money flows (CAD), up to three columns: pure sources, pass-through nodes, pure sinks. */
 export function MoneySankey({ flows, title = "Money flow (CAD)" }: { flows: Flow[]; title?: string }) {
-  const W = 640, H = 240, pal = [C.blue, C.orange, C.green, C.purple, C.sky, C.vermillion];
+  const W = 760, H = 260, nodeW = 10, gap = 10, pal = [C.blue, C.orange, C.green, C.purple, C.sky, C.vermillion];
   const live = flows.filter(f => f.value > 0);
-  const lefts = Array.from(new Set(live.map(f => f.from))), rights = Array.from(new Set(live.map(f => f.to)));
-  const total = live.reduce((a, f) => a + f.value, 0) || 1, gap = 8;
-  const scale = (H - gap * Math.max(lefts.length, rights.length)) / total;
-  const place = (names: string[], key: "from" | "to") => {
-    let y = 0; const m: Record<string, { y: number; h: number; off: number }> = {};
-    for (const nm of names) { const h = live.filter(f => f[key] === nm).reduce((a, f) => a + f.value, 0) * scale; m[nm] = { y, h, off: 0 }; y += h + gap; }
-    return m;
-  };
-  const L = place(lefts, "from"), R = place(rights, "to");
+  const names = Array.from(new Set(live.flatMap(f => [f.from, f.to])));
+  const isSrc = (nm: string) => live.some(f => f.from === nm), isDst = (nm: string) => live.some(f => f.to === nm);
+  const col = (nm: string) => (!isDst(nm) ? 0 : !isSrc(nm) ? 2 : 1);
+  const cols = [0, 1, 2].map(c => names.filter(nm => col(nm) === c)).filter(c => c.length);
+  const xs = cols.length === 3 ? [170, W / 2 - nodeW / 2, W - 180] : [170, W - 180];
+  const size = (nm: string) => Math.max(live.filter(f => f.from === nm).reduce((a, f) => a + f.value, 0), live.filter(f => f.to === nm).reduce((a, f) => a + f.value, 0));
+  const maxCol = Math.max(...cols.map(c => c.reduce((a, nm) => a + size(nm), 0)), 1);
+  const scale = (H - gap * Math.max(...cols.map(c => c.length), 1)) / maxCol;
+  const pos: Record<string, { x: number; y: number; h: number; out: number; inn: number; ci: number }> = {};
+  cols.forEach((c, ci) => { let y = 0; for (const nm of c) { const h = size(nm) * scale; pos[nm] = { x: xs[ci], y, h, out: 0, inn: 0, ci }; y += h + gap; } });
+  const colour = (nm: string) => pal[names.indexOf(nm) % pal.length];
   return (
-    <Figure title={title} caption="Flows recorded in the non-custodial ledgers. Width is proportional to CAD amount."
+    <Figure title={title} caption="Flows recorded in the non-custodial ledgers. Width is proportional to CAD amount; hover a band for its value."
       table={<DataTable head={["from", "to", "CAD"]} rows={live.map(f => [f.from, f.to, fmt(f.value)])} />}>
       {live.length ? (
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Sankey diagram of money flows">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxHeight: 320 }} role="img" aria-label="Sankey diagram of money flows">
           {live.map((f, i) => {
-            const a = L[f.from], b = R[f.to], h = f.value * scale, y0 = a.y + a.off + h / 2, y1 = b.y + b.off + h / 2;
-            a.off += h; b.off += h;
-            return <path key={i} d={`M150,${y0} C320,${y0} 320,${y1} 490,${y1}`} stroke={pal[lefts.indexOf(f.from) % pal.length]} strokeOpacity={0.45} strokeWidth={Math.max(1, h)} fill="none"><title>{`${f.from} → ${f.to}: ${fmt(f.value)} CAD`}</title></path>;
+            const a = pos[f.from], b = pos[f.to], h = f.value * scale;
+            const y0 = a.y + a.out + h / 2, y1 = b.y + b.inn + h / 2, x0 = a.x + nodeW, x1 = b.x, mx = (x0 + x1) / 2;
+            a.out += h; b.inn += h;
+            return <path key={i} d={`M${x0},${y0} C${mx},${y0} ${mx},${y1} ${x1},${y1}`} stroke={colour(f.from)} strokeOpacity={0.45} strokeWidth={Math.max(1, h)} fill="none"><title>{`${f.from} → ${f.to}: ${fmt(f.value)} CAD`}</title></path>;
           })}
-          {lefts.map((nm, i) => <g key={nm}><rect x={140} y={L[nm].y} width={10} height={Math.max(2, L[nm].h)} fill={pal[i % pal.length]} /><text x={134} y={L[nm].y + L[nm].h / 2 + 4} fontSize={11} textAnchor="end" fill="currentColor">{nm}</text></g>)}
-          {rights.map(nm => <g key={nm}><rect x={490} y={R[nm].y} width={10} height={Math.max(2, R[nm].h)} fill="currentColor" fillOpacity={0.5} /><text x={506} y={R[nm].y + R[nm].h / 2 + 4} fontSize={11} fill="currentColor">{nm}</text></g>)}
+          {names.map(nm => { const p = pos[nm]; const right = p.ci === cols.length - 1 && cols.length > 1; return (
+            <g key={nm}><rect x={p.x} y={p.y} width={nodeW} height={Math.max(2, p.h)} fill={colour(nm)} />
+              <text x={right ? p.x + nodeW + 6 : p.x - 6} y={p.y + Math.max(2, p.h) / 2 + 4} fontSize={12} textAnchor={right ? "start" : "end"} fill="currentColor">{nm} {fmt(size(nm), 0)}</text></g>); })}
         </svg>
       ) : <p style={muted}>No flows recorded.</p>}
     </Figure>
@@ -137,7 +141,7 @@ export function TaxWaterfall({ proceeds, acb, denied }: { proceeds: number; acb:
   return (
     <Figure title="Capital gains waterfall (CAD)" caption="Adjusted cost base method; denied superficial losses are added to the replacement ACB (ITA s.54)."
       table={<DataTable head={["step", "amount CAD"]} rows={steps.map(s => [s.label, fmt(s.end - s.start)])} />}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Tax waterfall chart">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxHeight: 300 }} role="img" aria-label="Tax waterfall chart">
         <line x1={20} x2={W - 10} y1={y(0)} y2={y(0)} stroke="currentColor" strokeOpacity={0.4} />
         {steps.map((s, i) => (
           <g key={s.label}>

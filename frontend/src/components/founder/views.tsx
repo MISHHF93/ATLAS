@@ -42,7 +42,7 @@ export function InboxView() {
 
 export function MoneyView() {
   const pnl = useFounder("pnl"), eq = useFounder("data/trading/equity"), risk = useFounder("data/trading/risk"), led = useFounder("data/payments/ledger");
-  const tb = (led.data?.trial_balance_cad ?? {}) as Record<string, unknown>;
+  const accounts = arr(led.data?.accounts);
   return (<>
     <Err e={eq.error} />
     <div style={grid}>
@@ -51,8 +51,8 @@ export function MoneyView() {
     </div>
     <div style={grid}>
       <FounderPanel path="pnl" title="Founder P&L and 2% Safe stop room" />
-      <Figure title="Trial balance (CAD)" caption="Non-custodial ledger: balances are records, the bank/custodian holds the money." table={<span />}>
-        <DataTable head={["account", "CAD"]} rows={Object.entries(tb).map(([k, v]) => [k, fmt(v)])} />
+      <Figure title={`Ledger accounts (trial balance ${fmt(led.data?.trial_balance_cad)} CAD)`} caption="Non-custodial ledger: balances are records, the bank/custodian holds the money." table={<span />}>
+        <DataTable head={["account", "kind", "ccy", "balance CAD"]} rows={accounts.map(a => [String(a.code), String(a.kind), String(a.currency), fmt(a.balance_cad)])} />
       </Figure>
     </div>
     {pnl.error ? <Err e={pnl.error} /> : null}
