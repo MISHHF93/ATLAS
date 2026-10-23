@@ -1,15 +1,19 @@
 /**
- * Single route config consumer. `pagesMap.ts` is the one registry; the sidebar, breadcrumbs, command palette,
+ * Single route config consumer. `pagesMap.ts` is the one registry; the curtain menu, breadcrumbs, command palette,
  * page headers and the 404 page are all derived from it here, so adding a page there is the only step.
  */
 import { PAGE_GROUPS, PAGES, type AtlasPage, type PageGroupId } from "../components/shell/pagesMap";
 
-export type NavSection = { id: PageGroupId; label: string; href: string; pages: AtlasPage[] };
+export type NavSection = { id: PageGroupId; label: string; href: string; pages: AtlasPage[]; main: AtlasPage[]; advanced: AtlasPage[] };
 
 export const SECTIONS: NavSection[] = PAGE_GROUPS.map((group) => {
   const pages = PAGES.filter((p) => p.group === group.id).sort((a, b) => Number(Boolean(b.primary)) - Number(Boolean(a.primary)));
-  return { id: group.id, label: group.label, href: pages[0]?.href ?? "/", pages };
+  return { id: group.id, label: group.label, href: pages[0]?.href ?? "/", pages,
+    main: pages.filter((p) => !p.advanced), advanced: pages.filter((p) => p.advanced) };
 });
+
+/** Rarely used pages from every section, shown together in the curtain's "Advanced" group. */
+export const ADVANCED: AtlasPage[] = SECTIONS.flatMap((s) => s.advanced);
 
 const ALIASES: Record<string, string> = Object.fromEntries(PAGES.flatMap((p) => (p.aliases ?? []).map((a) => [a, p.href])));
 
