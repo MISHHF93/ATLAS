@@ -9,7 +9,7 @@ All features maintain execution_permission = 'none'.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 import pandas as pd
 import numpy as np
 
@@ -17,6 +17,7 @@ from atlas.features.feature_store import FeatureStore, FeatureMetadata, FeatureL
 from atlas.features.zones import ZoneType, PriceZone, ZoneDirection
 from atlas.strategies.snapback import SnapbackSetup, SnapbackState
 from atlas.models.schemas import Record, Text
+from atlas.marketdata.live_stream import LiveMarketDataGateway, LiveTickFrame
 
 
 class PriceActionFeatureExtractor:
@@ -31,15 +32,16 @@ class PriceActionFeatureExtractor:
         self.store = store
 
     def extract_zone_features(
-        self, 
-        symbol: str, 
-        df: pd.DataFrame, 
+        self,
+        symbol: str,
+        df: pd.DataFrame,
         active_zones: dict[ZoneType, PriceZone | None],
-        timestamp: datetime
+        timestamp: datetime,
+        microstructure: Optional[LiveTickFrame | dict[str, Any]] = None
     ) -> pd.DataFrame:
         """
-        Computes quantitative features based on current active zones.
-        
+        Computes quantitative features based on current active zones and order-flow.
+
         Returns a DataFrame with a single row containing the features for the given timestamp.
         """
         # 1. Distance from Zones (Normalized by volatility or price)
@@ -55,13 +57,13 @@ class PriceActionFeatureExtractor:
                 features[f"{z_type.name.lower()}_dist_pct"] = np.nan
                 features[f"{z_type.name.lower()}_active"] = 0
                 continue
-            
+
             # Distance to nearest boundary
-            dist = min(abs(current_price - zone.boundary.high), 
+            dist = min(abs(current_price - zone.boundary.high),
                        abs(current_price - zone.boundary.low))
             features[f"{z_type.name.lower()}_dist_pct"] = dist / current_price * 10_000
             features[f"{z_type.name.lower()}_active"] = 1
-            
+
             # Relative position (Inside vs Outside)
             is_inside = zone.boundary.low <= current_price <= zone.boundary.high
             features[f"{z_type.name.lower()}_inside"] = 1 if is_inside else 0
@@ -69,13 +71,22 @@ class PriceActionFeatureExtractor:
         # 2. Zone Overlap (Structural Coincidence)
         active_count = sum(1 for z in active_zones.values() if z is not None)
         features["zone_overlap_count"] = active_count
-        
-        # 3. Regime Context (from existing ATLAS microstructure)
-        # These are merged during the query_features call in the ML pipeline, 
-        # but we track the structural state here.
+
+        # 3. Microstructure Integration (Whale/Order Flow)
+        if microstructure:
+            # Handle both dataclass and dict formats
+            m_data = microstructure if isinstance(microstructure, dict) else microstructure.__dict__
+            features["vpin"] = m_data.get("vpin", 0.0)
+            features["ofi"] = m_data.get("ofi", 0.0)
+            features["kyles_lambda"] = m_data.get("kyles_lambda", 0.0)
+            features["regime"] = 1 if m_data.get("regime") == "Expansion" else 0
+        else:
+            features["vpin"] = 0.0
+            features["ofi"] = 0.0
+            features["kyles_lambda"] = 0.0
+            features["regime"] = 0
 
         return pd.DataFrame([features])
-
     def extract_snapback_features(
         self, 
         symbol: str, 

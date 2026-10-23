@@ -51,7 +51,7 @@ class PriceZone(Record):
     boundary: ZoneBoundary
     start_time: datetime
     end_time: datetime
-    metadata: dict[str, any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     execution_permission: Literal["none"] = "none"
 
 
