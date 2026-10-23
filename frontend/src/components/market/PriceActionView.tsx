@@ -2,7 +2,9 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Card, DataTable, EmptyState, ErrorState } from "../../ui/primitives";
-import { createChart, type IChartApi, type UTCTimestamp } from "lightweight-charts";
+import { ColorType, createChart, LineStyle, type IChartApi, type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
+import { deskTimeOptions, freshness } from "./lwTime";
+import { TvProvenance } from "./TvFrame";
 
 type Zone = {
   zone_id: string; zone_type: string; direction: string; lower_bound: number; upper_bound: number;
@@ -39,10 +41,16 @@ export function PriceActionView() {
 
   useEffect(() => {
     if (!box.current || !data?.bars?.length) return;
-    const css = getComputedStyle(document.documentElement);
-    const chart: IChartApi = createChart(box.current, { autoSize: true, layout: { textColor: css.getPropertyValue("--c-muted").trim() || "#98A3B3", background: { color: "transparent" } },
-      grid: { vertLines: { color: "rgba(128,128,128,.12)" }, horzLines: { color: "rgba(128,128,128,.12)" } } });
-    const candles = chart.addCandlestickSeries({ upColor: "#009E73", downColor: "#D55E00", wickUpColor: "#009E73", wickDownColor: "#D55E00", borderVisible: false });
+    const element = box.current;
+    const chart: IChartApi = createChart(element, {
+      ...deskTimeOptions,
+      width: Math.max(1, element.clientWidth),
+      height: Math.max(1, element.clientHeight || 360),
+      layout: { attributionLogo: true, textColor: "#CBD5E1", background: { type: ColorType.Solid, color: "#0B0F17" } },
+      grid: { vertLines: { color: "#182431" }, horzLines: { color: "#182431" } },
+    });
+    // Okabe-Ito bluish green / vermillion for up / down
+    const candles = chart.addCandlestickSeries({ upColor: "#009E73", downColor: "#D55E00", borderVisible: false, wickUpColor: "#009E73", wickDownColor: "#D55E00" });
     const bars = data.bars;
     candles.setData(bars.map(r => ({ time: r[0] as UTCTimestamp, open: r[1], high: r[2], low: r[3], close: r[4] })));
     const lastT = bars[bars.length - 1][0];
@@ -57,8 +65,29 @@ export function PriceActionView() {
         s.setData(pts.map(t => ({ time: t, value: level })));
       }
     }
+    // Setup candidates exactly as the backend detector emitted them (detected_at is a bar time).
+    const barTimes = new Set(bars.map(r => r[0]));
+    const markers: SeriesMarker<UTCTimestamp>[] = data.candidates
+      .filter(c => barTimes.has(c.detected_at))
+      .map(c => ({
+        time: c.detected_at as UTCTimestamp,
+        position: c.direction === "short" ? "aboveBar" : "belowBar",
+        shape: c.direction === "short" ? "arrowDown" : "arrowUp",
+        color: c.direction === "short" ? "#D55E00" : "#009E73",
+        text: c.candidate_id.split(":").slice(-1)[0]?.slice(0, 12) ?? "setup",
+      }));
+    markers.sort((a, b) => (a.time as number) - (b.time as number));
+    candles.setMarkers(markers);
+    const latest = data.candidates[data.candidates.length - 1];
+    if (latest) {
+      candles.createPriceLine({ price: latest.entry_reference, title: "entry ref", color: "#56B4E9", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true });
+      candles.createPriceLine({ price: latest.proposed_stop, title: "proposed stop", color: "#D55E00", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true });
+      candles.createPriceLine({ price: latest.proposed_target, title: "proposed target", color: "#009E73", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true });
+    }
     chart.timeScale().fitContent();
-    return () => chart.remove();
+    const observer = new ResizeObserver(() => chart.applyOptions({ width: Math.max(1, element.clientWidth), height: Math.max(1, element.clientHeight || 360) }));
+    observer.observe(element);
+    return () => { observer.disconnect(); chart.remove(); };
   }, [data, on]);
 
   const zones = data ? data.zones.filter(z => on[z.zone_type]).slice(-30) : [];
@@ -89,7 +118,18 @@ export function PriceActionView() {
           </p>
         ) : null}
         {data && !data.bars?.length ? <EmptyState title="No confirmed bars for this symbol">Try another symbol or bar size.</EmptyState> : null}
+        {data && data.bars?.length ? (() => {
+          const fresh = freshness(data.bars[data.bars.length - 1][0], Number(query.resolution) * 60);
+          return (
+            <p className="ux-muted" data-freshness={fresh.stale ? "stale" : "fresh"} style={fresh.stale ? { color: "#E69F00" } : undefined}>
+              <TvProvenance kind="atlas" /> Same confirmed bars the detectors read (/api/quant/setups) · {fresh.label}{fresh.stale ? " · stale" : ""}
+            </p>
+          );
+        })() : null}
         <div ref={box} className="ux-chart" hidden={!data?.bars?.length} />
+        <p className="ux-muted" style={{ fontSize: 11 }}>
+          Chart rendering: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts™</a> (Apache-2.0). Data: ATLAS, not TradingView. Times America/Toronto.
+        </p>
       </Card>
       <Card title="Setup candidates" subtitle="Detected patterns awaiting the control plane.">
         {data?.candidates.length ? (

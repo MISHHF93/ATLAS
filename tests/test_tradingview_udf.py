@@ -41,7 +41,7 @@ def test_udf_config_symbols_and_clock() -> None:
     assert config["supports_search"] is True
     assert config["supports_group_request"] is False
     assert config["supports_marks"] is True
-    assert config["supports_timescale_marks"] is False
+    assert config["supports_timescale_marks"] is True
     assert {item["value"] for item in config["symbols_types"]} == {"stock", "crypto", "futures", "bond"}
     assert config["execution_permission"] == "none"
 
@@ -125,7 +125,7 @@ def test_history_is_causal_and_marks_do_not_invent_news() -> None:
 
     marks = client.get(
         "/api/udf/marks",
-        params={"symbol": "BTC-USD", "resolution": "60", "from": now - 20 * 24 * 3600, "to": now + 3600},
+        params={"symbol": "BTC-USD", "resolution": "60", "from": now - 20 * 24 * 3600, "to": now + 3600, "layout": "rows"},
     ).json()
     assert isinstance(marks, list)
     assert len(marks) <= 40

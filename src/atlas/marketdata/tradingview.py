@@ -425,7 +425,7 @@ def describe_chart(
                 "studies": "[]",
                 "theme": "dark",
                 "style": "1",
-                "timezone": "Etc/UTC",
+                "timezone": "America/Toronto",
                 "locale": "en",
                 "withdateranges": "1",
                 "hideideas": "1",

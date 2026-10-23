@@ -91,8 +91,18 @@ def causal_bars(
     return [(int(t), float(o), float(h), float(l), float(c), float(v)) for t, o, h, l, c, v in found]
 
 
+def udf_feed_bars(gateway: Any, symbol: str, bucket_seconds: int) -> dict[str, Any]:
+    """Single seam between the UDF router and ATLAS's bar source.
+
+    Today this reads the existing data layer (project_symbol_bars / causal_bars).
+    When the authoritative ATLAS feed API lands, only this function changes;
+    it must keep returning {"candles": [{timestamp, open, high, low, close, volume}], ...}.
+    """
+    return project_symbol_bars(gateway, symbol, bucket_seconds=bucket_seconds, limit=240)
+
+
 def _projected_rows(gateway: Any, symbol: str, bucket_seconds: int) -> tuple[list[tuple[int, float, float, float, float, float]], dict[str, Any]]:
-    report = project_symbol_bars(gateway, symbol, bucket_seconds=bucket_seconds, limit=240)
+    report = udf_feed_bars(gateway, symbol, bucket_seconds)
     rows: list[tuple[int, float, float, float, float, float]] = []
     for candle in report.get("candles") or []:
         stamp = datetime.fromisoformat(str(candle["timestamp"]).replace("Z", "+00:00"))
@@ -119,7 +129,9 @@ def history_payload(
     end: int,
     *,
     as_of: datetime | None = None,
+    countback: int | None = None,
 ) -> dict[str, Any]:
+    """UDF ``/history``. ``countback`` wins over ``from`` per the UDF spec."""
     bucket = resolution_seconds(resolution)
     if bucket is None:
         return {"s": "error", "errmsg": "unsupported_resolution"}
@@ -129,7 +141,11 @@ def history_payload(
     as_of_unix = int(clock.timestamp())
     rows, report = _projected_rows(gateway, _desk_symbol(symbol), bucket)
     closed_by = min(end, as_of_unix)
+    if countback is not None and countback > 0:
+        start = 0
     visible = causal_bars(rows, bucket_seconds=bucket, start=start, end=end, as_of=closed_by)
+    if countback is not None and countback > 0:
+        visible = visible[-int(countback):]
     if not visible:
         earlier = [row[0] for row in rows if row[0] < start and row[0] + bucket <= closed_by]
         payload: dict[str, Any] = {"s": "no_data", "execution_permission": "none"}
@@ -201,9 +217,56 @@ def marks_payload(gateway: Any, symbol: str, resolution: str, start: int, end: i
     return marks[-40:]
 
 
+def to_table(rows: list[dict[str, Any]], keys: tuple[str, ...]) -> dict[str, list[Any]]:
+    """UDF "response-as-a-table": one array per column."""
+    return {key: [row.get(key) for row in rows] for key in keys}
+
+
+MARK_KEYS = ("id", "time", "color", "text", "label", "labelFontColor", "minSize")
+
+
+def timescale_marks_payload(gateway: Any, symbol: str, resolution: str, start: int, end: int) -> list[dict[str, Any]]:
+    """Session-open marks on the time scale for intraday stock bars (09:30 New York).
+
+    Derived only from the bar timestamps ATLAS already holds. No news or events feed.
+    """
+    from zoneinfo import ZoneInfo
+
+    bucket = resolution_seconds(resolution) or 60
+    if bucket >= 86_400:
+        return []
+    desk = _desk_symbol(symbol)
+    asset = GLOBAL_ASSET_CATALOG.get_asset(desk)
+    if _kind(desk, asset.asset_class if asset is not None else None) not in {"stock", "bond"}:
+        return []
+    rows, _report = _projected_rows(gateway, desk, bucket)
+    visible = causal_bars(rows, bucket_seconds=bucket, start=start, end=end, as_of=min(end, int(_now().timestamp())))
+    zone = ZoneInfo("America/New_York")
+    seen: set[str] = set()
+    marks: list[dict[str, Any]] = []
+    for row in visible:
+        local = datetime.fromtimestamp(row[0], zone)
+        day = local.date().isoformat()
+        if day in seen or (local.hour, local.minute) < (9, 30):
+            continue
+        seen.add(day)
+        marks.append(
+            {
+                "id": f"open-{day}",
+                "time": row[0],
+                "color": "#56B4E9",
+                "label": "O",
+                "tooltip": [f"First regular-session bar {day} (09:30 New York)"],
+            }
+        )
+    return marks[-40:]
+
+
 def symbol_info(symbol: str) -> dict[str, Any]:
     desk = _desk_symbol(symbol)
     asset = GLOBAL_ASSET_CATALOG.get_asset(desk)
+    if asset is None and not desk.endswith("-USD") and desk not in _BONDS:
+        return {"s": "error", "errmsg": "unknown_symbol"}
     kind = _kind(desk, asset.asset_class if asset is not None else None)
     price = float(asset.last_price) if asset is not None else 100.0
     pricescale = 100 if price >= 1 else 10000
@@ -223,6 +286,7 @@ def symbol_info(symbol: str) -> dict[str, Any]:
         "has_weekly_and_monthly": False,
         "supported_resolutions": RESOLUTION_NAMES,
         "volume_precision": 2,
+        "visible_plots_set": "ohlcv",
         "data_status": "pulsed",
         "format": "price",
         "execution_permission": "none",
@@ -236,7 +300,7 @@ def udf_config() -> dict[str, Any]:
         "supports_group_request": False,
         "supports_marks": True,
         "supports_search": True,
-        "supports_timescale_marks": False,
+        "supports_timescale_marks": True,
         "supports_time": True,
         "symbols_types": [
             {"name": "Stock", "value": "stock"},
@@ -307,12 +371,13 @@ def udf_history(
     resolution: str = "D",
     from_ts: int = Query(alias="from"),
     to: int = Query(...),
+    countback: int | None = Query(default=None, ge=1, le=5000),
 ) -> dict[str, Any]:
-    if to <= from_ts:
+    if to <= from_ts and not countback:
         raise HTTPException(status_code=400, detail="to must be after from")
     from atlas.api.app import live_market_gateway
 
-    return history_payload(live_market_gateway, symbol, resolution, from_ts, to)
+    return history_payload(live_market_gateway, symbol, resolution, from_ts, to, countback=countback)
 
 
 @udf_router.get("/marks")
@@ -321,7 +386,22 @@ def udf_marks(
     resolution: str = "D",
     from_ts: int = Query(alias="from"),
     to: int = Query(...),
+    layout: str = "table",
+) -> Any:
+    """Bar marks. Default is the UDF table form; ``layout=rows`` keeps the array form."""
+    from atlas.api.app import live_market_gateway
+
+    rows = marks_payload(live_market_gateway, symbol, resolution, from_ts, to)
+    return rows if layout == "rows" else to_table(rows, MARK_KEYS)
+
+
+@udf_router.get("/timescale_marks")
+def udf_timescale_marks(
+    symbol: str = Query(min_length=1),
+    resolution: str = "D",
+    from_ts: int = Query(alias="from"),
+    to: int = Query(...),
 ) -> list[dict[str, Any]]:
     from atlas.api.app import live_market_gateway
 
-    return marks_payload(live_market_gateway, symbol, resolution, from_ts, to)
+    return timescale_marks_payload(live_market_gateway, symbol, resolution, from_ts, to)

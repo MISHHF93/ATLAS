@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { LiveChartEngine, type LiveCandlePoint } from "./LiveChartEngine";
+import { freshness } from "./lwTime";
+import { TvProvenance } from "./TvFrame";
 
 const RESOLUTION: Record<string, string> = {
   "1m": "1",
@@ -160,9 +162,16 @@ export function AtlasUdfTape({
       {note ? (
         <p style={{ margin: "8px 0 0", color: "#94A3B8", fontSize: "12px" }}>{note}</p>
       ) : null}
-      <p style={{ margin: "6px 0 0", color: "#64748B", fontSize: "11px" }}>
-        {origin ? `${origin} · ` : ""}execution_permission none · closed bars only
-      </p>
+      {(() => {
+        const last = candles.length ? Math.floor(Date.parse(candles[candles.length - 1].timestamp) / 1000) : null;
+        const fresh = freshness(last, RESOLUTION_SECONDS[timeframe] ?? 60);
+        return (
+          <p data-freshness={fresh.stale ? "stale" : "fresh"} style={{ margin: "6px 0 0", color: fresh.stale ? "#E69F00" : "#64748B", fontSize: "11px" }}>
+            <TvProvenance kind="atlas" /> {origin ? `${origin} · ` : ""}{fresh.label}{fresh.stale ? " · stale" : ""} · execution_permission none · closed bars only ·
+            rendered with <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer" style={{ color: "#64748B" }}>TradingView Lightweight Charts™</a>
+          </p>
+        );
+      })()}
       <div
         id="tv_chart_container"
         data-udf-url="/api/udf"

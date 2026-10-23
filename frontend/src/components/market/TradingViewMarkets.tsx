@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { TvFrame, TvProvenance } from "./TvFrame";
 
 type MarketPane = {
   id: string;
@@ -109,19 +110,9 @@ export function TradingViewMarkets() {
         ? spec.widgets.map((pane) => (
             <section key={pane.id} className="clean-card" style={{ marginTop: "12px" }}>
               <div style={{ fontSize: "11px", color: "#94A3B8", lineHeight: 1.45, marginBottom: "6px" }}>
-                {pane.note} execution_permission {pane.execution_permission}
+                <TvProvenance kind="tradingview" /> {pane.note} execution_permission {pane.execution_permission}
               </div>
-              <iframe
-                title={pane.title}
-                src={pane.embed_url}
-                style={{
-                  width: "100%",
-                  height: pane.height ?? 540,
-                  border: 0,
-                  borderRadius: "6px",
-                  background: "#0B0F17",
-                }}
-              />
+              <TvFrame title={pane.title} src={pane.embed_url} pageUrl={pane.page_url} height={pane.height ?? 540} />
               <a
                 href={pane.page_url}
                 target="_blank"
