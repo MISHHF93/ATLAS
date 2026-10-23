@@ -8,6 +8,15 @@ ATLAS is specialized to operate seamlessly across **two distinct, synchronized t
 
 The workspace is `C:\Users\borah\ATLAS`. The founder retains 100% ownership of source code, strategy logic, model artifacts, and signing keys; an infrastructure operator receives zero order discretion or ownership transfer.
 
+
+> **Status correction (2026-10-23, branch `atlas-fix-1`).** The platform map below describes the original
+> workbench catalogue. The UI now uses six sections (Home / Trade / Money / Research / Compliance / Settings);
+> the old URLs still resolve by redirect (see `docs/reshape-decisions.md`). Items that are *not* implemented
+> despite older wording: the visual automation scanner (`/api/automation/visual-scan`) and the
+> "perfect-trader" model endpoints are **retired and answer 410 Gone**; live trading, live money movement and
+> customer custody are **disabled** (paper/simulation only); A–Z "Implemented" labels mean code exists with
+> tests, not production readiness. Full findings: `docs/broken-code-audit.md`.
+
 ---
 
 ## Complete Platform Map (16 Domain Workbenches & 19 Live Routes)

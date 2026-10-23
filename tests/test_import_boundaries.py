@@ -97,7 +97,7 @@ def test_retired_advanced_ml_cannot_break_core_api_even_with_old_opt_in(tmp_path
         "client = TestClient(app)\n"
         "assert client.get('/api/health').json() == {'status': 'ok', 'trading': 'disabled'}\n"
         "response = client.post('/api/advanced-ml/transformer/forecast', json={})\n"
-        "assert response.status_code == 503\n"
+        "assert response.status_code == 410\n"
         "assert response.json()['detail']['state'] == 'retired'\n"
         "assert client.get('/api/research/experimental-status').json()['state'] == 'retired'\n"
         "assert 'atlas.api.advanced_ml' not in sys.modules\n",

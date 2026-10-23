@@ -558,7 +558,7 @@ def test_visual_automation_scan_endpoint() -> None:
 
     client = TestClient(app)
     res_get = client.get("/api/automation/visual-scan?symbol=NVDA")
-    assert res_get.status_code == 503
+    assert res_get.status_code == 410
     data_get = res_get.json()["detail"]
     assert data_get["status"] == "retired"
     assert data_get["execution_permission"] == "none"
@@ -568,7 +568,7 @@ def test_visual_automation_scan_endpoint() -> None:
         "/api/automation/visual-scan",
         json={"symbol": "BTC-USD", "trigger_dispatch": True},
     )
-    assert res_post.status_code == 503
+    assert res_post.status_code == 410
     data_post = res_post.json()["detail"]
     assert data_post == data_get
     assert "automation_coverage_pct" not in res_post.text

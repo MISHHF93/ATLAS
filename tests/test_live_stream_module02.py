@@ -318,7 +318,7 @@ def test_perfect_trader_whale_ml_and_auto_submit():
         client.post("/api/ml/perfect-trader/auto-submit", json={"action": "scan_multi_asset", "symbol": "BTC-USD"}),
     ]
     for response in responses:
-        assert response.status_code == 503
+        assert response.status_code == 410
         detail = response.json()["detail"]
         assert detail["status"] == "retired"
         assert detail["execution_permission"] == "none"
