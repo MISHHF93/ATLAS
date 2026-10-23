@@ -30,3 +30,18 @@ def test_writes_and_unknown_views_are_unreachable(client):
     assert client.get("/api/founder/data/payments/approve_transfer").status_code == 404
     assert client.get("/api/founder/data/os/system").status_code == 404
     assert client.post("/api/founder/data/payments/summary").status_code == 405
+
+
+def test_status_reports_seeded_data(client):
+    j = client.get("/api/founder/data/status").json()
+    assert j["available"] is True and j["demo"] is True and j["execution_permission"] == "none"
+
+
+def test_status_reports_empty_when_unseeded(tmp_path, monkeypatch):
+    monkeypatch.setenv("ATLAS_FOUNDER_VAR", str(tmp_path / "empty"))
+    founder_data.reset_cache()
+    try:
+        j = TestClient(app).get("/api/founder/data/status").json()
+        assert j["available"] is False and "seed-demo" in j["hint"]
+    finally:
+        founder_data.reset_cache()
