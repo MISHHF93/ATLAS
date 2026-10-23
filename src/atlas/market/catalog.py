@@ -35,7 +35,7 @@ class DataCapability(Enum):
 
 
 @dataclass(frozen=True)
-class InstrumentDefinition(Record):
+class InstrumentDefinition:
     """The canonical definition of a financial instrument."""
     symbol: Text
     asset_class: AssetClass
@@ -46,7 +46,7 @@ class InstrumentDefinition(Record):
     lot_size: float = 1.0
     is_tradable: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
-    execution_permission: Literal["none"] = "none"
+    execution_permission: str = "none"
 
 
 class InstrumentCatalog:

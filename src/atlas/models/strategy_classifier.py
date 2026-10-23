@@ -53,7 +53,13 @@ class StrategyClassifier:
 
     def load_model(self, path: str) -> None:
         """Load a trained XGBoost model or calibrated wrapper from disk."""
-        self.model = joblib.load(path)
+        try:
+            # Attempt to load as a joblib object (for calibrated wrappers)
+            self.model = joblib.load(path)
+        except Exception:
+            # Fallback to raw XGBoost Booster
+            self.model = xgb.Booster()
+            self.model.load_model(path)
 
     def predict(
         self, 

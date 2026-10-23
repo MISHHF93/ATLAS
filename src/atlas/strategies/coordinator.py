@@ -13,19 +13,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Literal, Optional, List
+from typing import Literal, Optional, List, TYPE_CHECKING
 import pandas as pd
 
 from atlas.features.zones import ZoneEngine, ZoneType, PriceZone
 from atlas.strategies.snapback import SnapbackDetector, SnapbackSetup, SnapbackState
 from atlas.models.strategy_classifier import StrategyClassifier, StrategyPrediction
 from atlas.features.pa_integration import PriceActionFeatureExtractor
-from atlas.research.memory import MarketMemoryEngine
 from atlas.models.schemas import Record, Text
+
+if TYPE_CHECKING:
+    from atlas.research.memory import MarketMemoryEngine
 
 
 @dataclass
-class RankedOpportunity(Record):
+class RankedOpportunity:
     """A structural opportunity ranked by its expected value and probability."""
     symbol: Text
     opportunity_id: Text
@@ -37,7 +39,7 @@ class RankedOpportunity(Record):
     setup_details: dict[str, Any]
     recommended_action: str
     evaluated_at: datetime
-    execution_permission: Literal["none"] = "none"
+    execution_permission: str = "none"
 
 
 class OpportunityCoordinator:

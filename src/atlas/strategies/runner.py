@@ -22,19 +22,19 @@ from atlas.strategies.snapback import SnapbackDetector
 
 class AtlasStrategyRunner:
     """
-    The top-level orchestrator that executes the Price Action Framework 
+    The top-level orchestrator that executes the Price Action Framework
     and submits authorized requests to the ActionableControlPlaneEngine.
     """
 
     def __init__(
-        self, 
+        self,
         control_plane: ActionableControlPlaneEngine,
         classifier: StrategyClassifier,
-        feature_extractor: PriceActionFeatureExtractor
+        feature_extractor: PriceActionFeatureExtractor,
+        memory_engine: MarketMemoryEngine
     ):
         self.control_plane = control_plane
-        self.coordinator = OpportunityCoordinator(classifier, feature_extractor)
-        
+        self.coordinator = OpportunityCoordinator(classifier, feature_extractor, memory_engine)
     def on_market_update(
         self, 
         symbol: str, 

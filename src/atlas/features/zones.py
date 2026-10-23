@@ -31,8 +31,8 @@ class ZoneDirection(Enum):
     NEUTRAL = auto()
 
 
-@dataclass(frozen=True)
-class ZoneBoundary(NamedTuple):
+@dataclass(frozen=False)
+class ZoneBoundary:
     high: float
     low: float
     
@@ -178,7 +178,9 @@ class ZoneEngine:
                 direction=ZoneDirection.BULLISH,
                 boundary=ZoneBoundary(c2['close'], c1['low']),
                 start_time=c1['timestamp'],
-                end_time=c2['timestamp']
+                end_time=c2['timestamp'],
+                metadata={},
+                execution_permission="none"
             )
             
         # Bearish Anchor
@@ -190,7 +192,9 @@ class ZoneEngine:
                 direction=ZoneDirection.BEARISH,
                 boundary=ZoneBoundary(c1['high'], c2['close']),
                 start_time=c1['timestamp'],
-                end_time=c2['timestamp']
+                end_time=c2['timestamp'],
+                metadata={},
+                execution_permission="none"
             )
             
         return None

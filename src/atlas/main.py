@@ -61,10 +61,9 @@ class AtlasSystem:
         self.runner = AtlasStrategyRunner(
             control_plane=self.control_plane,
             classifier=self.classifier,
-            feature_extractor=self.extractor
+            feature_extractor=self.extractor,
+            memory_engine=self.memory
         )
-        # Inject coordinator into runner for full pipeline
-        self.runner.coordinator = self.coordinator
 
         # 6. Market Data Gateway
         self.gateway = LiveMarketDataGateway(
@@ -111,7 +110,7 @@ class AtlasSystem:
         import numpy as np
         
         now = datetime.now(timezone.utc)
-        times = pd.date_range(end=now, periods=30, freq='H', tz='UTC')
+        times = pd.date_range(end=now, periods=30, freq='h', tz='UTC')
         return pd.DataFrame({
             'timestamp': times,
             'open': np.random.uniform(100, 110, 30),
