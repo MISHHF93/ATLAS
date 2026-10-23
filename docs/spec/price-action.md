@@ -147,6 +147,37 @@ All fixtures are seeded synthetic data and labelled as such.
   - **Founder Safe stop:** checked on every bar with realized plus floating paper P&L against the founder limits (2% daily, 10% static drawdown, never looser). A trip engages the shared Safe stop, flattens paper positions and switches off. An engaged Safe stop blocks approval.
   - Every decision, refusal, exit, feed error and trip goes to the hash-chained audit log.
   - With the empty registry every candidate abstains with `no_validated_model`; the loop still runs and records the reasons.
-  - **Finding:** with the real founder rulebook the control plane currently rejects any proposal with `default_deny_unconfigured:max_holding_seconds` (the founder rulebook sets no holding limit). The authorized path is exercised only in a test with a labelled test-only rulebook copy. Setting a holding limit is an owner policy decision and was not changed.
+  - **Holding limit (owner decision, 2026-10-23):** Masharai chose `max_holding_seconds = 86400` (1 day). It lives in `config/founder/risk_policy.yaml` (`position_limits.max_holding_seconds`), the sha256 pin `risk_policy.yaml.sha256` was re-generated, and `build_founder_rulebook` reads it from the pinned policy only (missing or failed pin => None => the control plane default-denies entries, fail closed). Before this, every proposal was rejected with `default_deny_unconfigured:max_holding_seconds`. The autopilot force-closes a paper position at the close of the first bar ending >= 1 day after fill (outcome `max_holding`). Tests use the real founder rulebook with the labelled test-only constant-probability model fixture; with the empty registry the autopilot still abstains (`no_validated_model`).
 - **`models/shadow.ShadowCollector`** (append-only JSONL, `ATLAS_SHADOW_PATH`, default `var/shadow/…`): records every live candidate with its decision and reasons, then resolves the outcome with the same replay rule, including abstentions (counterfactual). `weekly()` aggregates per ISO week; `registry_record(week)` returns the fields for `ModelRegistry.record_shadow_week`, or `None` when nothing was scored. `champion_brier` uses the prior weeks' base rate; `lift_bps` is proposed minus all-candidates mean realized bps. Uncomputable fields stay `None`.
 - API and MCP: see `docs/api-and-mcp.md`.
+
+## Slice 5: prior-day range reversal detector and technique selector
+
+### `prior_day_range_reversal` (`price_action/prior_day.py`)
+
+- **Timeframe and levels.** 15m bars, single timeframe. The levels are:
+  - the prior session's high/low;
+  - the swing high/low, which is the first older session high/low beyond that range, found by scanning back up to 20 sessions;
+  - an optional outer level beyond the swing.
+- **Direction.** Shorts are taken only at the upper two levels and longs only at the lower two.
+- **Opening-extreme variant.** When the first bar's range exceeds half of the prior range, the first bar's high/low replaces the range levels, and the prior high/low becomes a swing candidate.
+- **C1/C2/C3.**
+  - C1 touches a level, within the configured tick/ATR tolerance.
+  - C2 confirms with an opposite-colour close inside the level, within `c2_window` bars.
+  - C3 is a stop entry beyond C2's extreme.
+- **Orders, stop and targets.**
+  - The candidate is emitted at C2's close as a resting stop order, because a live stop must rest before the cross.
+  - The detector records `C3_TRIGGERED` or `EXPIRED` afterwards.
+  - The stop sits beyond the farther of the level and the C1 extreme, plus a buffer.
+  - The target is the opposite range level, and the swing level is the second target. Both are configurable.
+- **Engineering.** The detector is causal, has batch/stream parity, and supports snapshot/restore. Its states are listed in `PDR_STATES`.
+- **Replay.** The replay supports `entry_type="stop"`. A stop fills when price crosses the entry, at the worse of entry and open, and a gap through the stop or target is `gap_skipped`.
+- **Autopilot caveat.** The autopilot maps a gap-skipped stop to `unfilled`. It still books the control-plane position at `entry_reference` even when the replay gap-fills at the open, which is a known small inaccuracy.
+
+### Technique selector (`atlas.models.technique_selector`, `atlas.research.technique_selection`)
+
+- **Context.** `ContextTracker` computes causal context per bar: regime, volatility, time of day, levels, gap and opening range. The same code is used in research and live.
+- **Choice.** `TechniqueSelector` uses one classifier per technique to choose the candidate with the highest positive EV after cost, and abstains otherwise.
+- **Output path.** Its output can only reach trading as `selector_logit`, scored by a `predict()` registry model (`selector_registered_model`). The EV gate and the control plane then still decide.
+- **Registration.** No selector is registered. On 2026-10-23 real 15m data it failed the gates: it did not beat always-abstain or best-single-technique after costs, and its DSR was about 0. See `evidence/technique-selector-2026-10-23.md`.
+- **Range-break hypothesis.** "Break of range level reaches swing level" is tested as a measurable hypothesis (`range_break_hypothesis`). The result is mixed and not established: crypto shows no support, and ETH reverts. It is not used as a rule.

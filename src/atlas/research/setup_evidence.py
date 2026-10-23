@@ -33,7 +33,7 @@ EPS = 1e-6
 
 def load_bars(path: Path) -> tuple[list[Bar], dict[str, Any]]:
     d = json.loads(path.read_text())
-    dur = 3600 if d["interval"] == "1h" else 86400
+    dur = {"15m": 900, "1h": 3600}.get(d["interval"], 86400)
     fetched = datetime.fromisoformat(d["fetched_at"]).timestamp()
     bars, last = [], None
     for t, o, h, l, c, v in d["bars"]:

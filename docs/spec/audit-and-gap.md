@@ -31,3 +31,4 @@ Statuses used: **implemented+tested**, **partial**, **missing**, **duplicated**.
 | Frontend overlays | `LiveChartEngine`, `SecondBars` | partial → **added** | `/research/price-action` |
 | NL research | `mcp/trading/research.py` | partial | — |
 | Security | env-name config, no secrets in repo | partial | API-key scopes not audited in this slice. |
+| Technique selection | `models/technique_selector.py`, PDR detector | **added (research)** | Not registered: failed real-data gates 2026-10-23 |
