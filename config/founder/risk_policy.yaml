@@ -91,6 +91,7 @@ position_limits:
   max_orders_per_minute: 10
   max_open_orders: 25
   price_collar_pct: 2.0
+  max_holding_seconds: 86400     # 1 day; owner decision 2026-10-23 (forced paper close after 1 day)
   issuer_netting_by: ISIN
   symbol_allowlist:
     min_adv_usd: 5000000

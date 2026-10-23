@@ -67,23 +67,35 @@ def test_empty_registry_runs_and_abstains_with_reasons(tmp_path):
     assert ap.tick(END)["bars"] == 0                              # bars are consumed once
 
 
-def test_real_founder_rulebook_rejects_proposals_until_holding_limit_configured(tmp_path):
+def test_real_founder_rulebook_authorizes_paper_order(tmp_path):
+    """REAL pinned founder rulebook (max_holding_seconds=86400, owner decision 2026-10-23) + the labelled TEST-ONLY
+    constant-probability model fixture: the control plane approves, a paper order is placed, the target exit is booked."""
     ap = _ap(tmp_path, registry=synthetic_setup_registry(0.6), model_version="synthetic-setup-v1"); _on(ap)
-    (d,) = [x for x in ap.tick(END)["decisions"] if x["detector"].startswith("orb")]
-    assert d["decision"] == "proposal_rejected" and "default_deny_unconfigured:max_holding_seconds" in d["reasons"]
-    assert len(ap.cp.order_history) == 1 and ap.connector.receipts == []
-    rec = ap.shadow.registry_record(iso_week(BARS[0].end))
-    assert rec is not None and rec["n"] == 1 and rec["brier"] == pytest.approx(0.16)
-
-
-def test_authorized_paper_order_path(tmp_path):
-    """TEST-ONLY rulebook copy with a holding limit, to exercise the authorized -> paper fill -> booked exit path."""
-    ap = _ap(tmp_path, registry=synthetic_setup_registry(0.6), model_version="synthetic-setup-v1"); _on(ap)
-    ap.cp.open_rulebook = ap.cp.open_rulebook.model_copy(update={"max_holding_seconds": 86400.0})
+    assert ap.cp.open_rulebook.max_holding_seconds == 86400
     (d,) = [x for x in ap.tick(END)["decisions"] if x["detector"].startswith("orb")]
     assert d["decision"] == "proposal_authorized", d
     assert ap.connector.receipts[0]["execution_mode"] == "paper"
     assert ap.cp.current_equity_usd > Decimal("100000")             # target hit -> paper gain booked
+    assert not any(p.status == "open" for p in ap.cp.open_positions)
+    rec = ap.shadow.registry_record(iso_week(BARS[0].end))
+    assert rec is not None and rec["n"] == 1 and rec["brier"] == pytest.approx(0.16)
+
+
+def test_real_founder_rulebook_force_closes_after_one_day(tmp_path):
+    """SYNTHETIC bars that fill and then drift between stop (101) and target (107) for 30 h. The replay bar-count
+    timeout is widened (test-only) so the only exit can be the founder 1-day holding limit."""
+    from atlas.features.price_action.replay import ReplayConfig
+    drift = [B(O + 3 * 3600, 103.2, 103.5, 102.5, 103.1)] + [B(O + h * 3600, 103.1, 103.8, 102.6, 103.4) for h in range(4, 34)]
+    bars = _orb_long_bars() + drift
+    ap = _ap(tmp_path, registry=synthetic_setup_registry(0.6), model_version="synthetic-setup-v1", bars=bars); _on(ap)
+    ap.rcfg = ReplayConfig(cost_bps=0.0, max_hold_bars=10_000)
+    (d,) = [x for x in ap.tick(O + 40 * 3600)["decisions"] if x["detector"].startswith("orb")]
+    assert d["decision"] == "proposal_authorized", d
+    assert ap.connector.receipts and ap.connector.receipts[0]["execution_mode"] == "paper"
+    (r,) = ap.shadow.records()
+    res = r["resolution"]
+    assert res["outcome"] == "max_holding", res
+    assert res["exit_at"] == O + 26 * 3600     # fill bar starts O+3h; the bar ending at fill+24h triggers the close
     assert not any(p.status == "open" for p in ap.cp.open_positions)
 
 

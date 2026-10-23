@@ -30,7 +30,7 @@ from atlas.features.price_action import PRESETS, EngineConfig, PriceActionEngine
 from atlas.features.price_action.bars import Bar
 from atlas.features.price_action.detectors import Candidate
 from atlas.features.price_action.proposals import candidate_to_signal, evaluate
-from atlas.features.price_action.replay import ReplayConfig, ReplayTrade, _step_trade, trade_cost
+from atlas.features.price_action.replay import ReplayConfig, ReplayTrade, _step_trade, trade_cost, try_fill
 from atlas.governance.audit import AuditLog
 from atlas.models.shadow import ShadowCollector
 from atlas.risk.state_store import StateStore
@@ -186,12 +186,24 @@ class SetupAutopilot:
         elif ctx.get("position_id"):
             self.cp.close_position(ctx["position_id"], exit_price=t.entry, reason="entry_unfilled_cancelled", now=ts)
 
+    def _force_close_if_held_too_long(self, t: ReplayTrade, b: Bar) -> None:
+        """Founder rulebook max_holding_seconds (owner decision 2026-10-23: 86400 s): force-close at bar close."""
+        limit = getattr(self.cp.open_rulebook, "max_holding_seconds", None)
+        if limit is None or t.filled_at is None or b.end - t.filled_at < float(limit):
+            return
+        risk = abs(t.entry - t.stop)
+        pnl = (b.close - t.entry) if t.direction == "long" else (t.entry - b.close)
+        t.exit_at, t.exit_price, t.outcome = b.start, b.close, "max_holding"
+        t.r_multiple = (pnl - trade_cost(t, self.rcfg)) / risk if risk > 0 else None
+
     def _manage(self, sym: str, b: Bar, ts: datetime) -> None:
         nxt = []
         for t, held, ctx in self.live:
             if ctx["symbol"] != sym:
                 nxt.append((t, held, ctx)); continue
             _step_trade(t, b, self.rcfg, held + 1)
+            if t.exit_at is None:
+                self._force_close_if_held_too_long(t, b)
             if t.exit_at is None:
                 nxt.append((t, held + 1, ctx))
             else:
@@ -201,13 +213,15 @@ class SetupAutopilot:
         for t, age, ctx in self.waiting:
             if ctx["symbol"] != sym:
                 wait.append((t, age, ctx)); continue
-            if (b.low <= t.entry) if t.direction == "long" else (b.high >= t.entry):
-                t.filled_at, t.outcome = b.start, "open"
+            if try_fill(t, b):
                 _step_trade(t, b, self.rcfg, 0)
                 if t.exit_at is None:
                     self.live.append((t, 0, ctx))
                 else:
                     self._resolve(t, ctx, ts)
+            elif t.outcome == "gap_skipped":
+                t.outcome = "unfilled"                       # stop order cancelled: gapped beyond stop/target
+                self._resolve(t, ctx, ts)
             elif age + 1 < self.rcfg.entry_window:
                 wait.append((t, age + 1, ctx))
             else:
@@ -237,7 +251,7 @@ class SetupAutopilot:
                 rec.update(decision="proposal_rejected", reasons=list(d.violations) or ["rejected_by_control_plane"],
                            order_id=d.order_id)
         t = ReplayTrade(c.candidate_id, c.detector, c.direction, c.detected_at, c.entry_reference,
-                        c.proposed_stop, c.proposed_target)
+                        c.proposed_stop, c.proposed_target, entry_type=c.entry_type)
         self.waiting.append((t, 0, ctx))     # every candidate is tracked; only authorized ones carry a position
         if self.shadow is not None:
             self.shadow.observe(candidate=c, decision=rec["decision"], reasons=rec["reasons"],

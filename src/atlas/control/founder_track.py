@@ -27,20 +27,23 @@ def founder_policy_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "config" / "founder"
 
 
-def _policy_limits(config_dir: Path) -> tuple[Decimal, Decimal, str]:
+def _policy_limits(config_dir: Path) -> tuple[Decimal, Decimal, str, float | None]:
     try:
         from atlas.control.policy import load_all
 
         cfg = load_all(config_dir)
         ll = cfg.risk.loss_limits
+        hold = cfg.risk.position_limits.max_holding_seconds
         return (Decimal(str(ll.daily_pct)) / 100, Decimal(str(ll.max_drawdown_pct)) / 100,
-                f"config/founder/risk_policy.yaml@v{cfg.risk.version}")
+                f"config/founder/risk_policy.yaml@v{cfg.risk.version}", float(hold) if hold else None)
     except Exception:  # noqa: BLE001  fail closed to the owner's documented defaults
-        return FOUNDER_DEFAULT_DAILY_LOSS_FRACTION, FOUNDER_DEFAULT_MAX_DRAWDOWN_FRACTION, "builtin-founder-defaults"
+        return FOUNDER_DEFAULT_DAILY_LOSS_FRACTION, FOUNDER_DEFAULT_MAX_DRAWDOWN_FRACTION, "builtin-founder-defaults", None
 
 
 def build_founder_rulebook(config_dir: str | Path | None = None) -> TradingRuleBook:
-    daily, mdd, ref = _policy_limits(Path(config_dir) if config_dir else founder_policy_dir())
+    # Holding limit comes ONLY from the pinned policy (owner decision 2026-10-23: 86400 s). If the policy is
+    # missing or fails its pin it stays None, so the control plane default-denies entries (fail closed).
+    daily, mdd, ref, hold = _policy_limits(Path(config_dir) if config_dir else founder_policy_dir())
     # The founder track may only be TIGHTER than the owner's defaults, never looser.
     daily = min(daily, FOUNDER_DEFAULT_DAILY_LOSS_FRACTION)
     mdd = min(mdd, FOUNDER_DEFAULT_MAX_DRAWDOWN_FRACTION)
@@ -63,7 +66,7 @@ def build_founder_rulebook(config_dir: str | Path | None = None) -> TradingRuleB
         require_commercial_license=True,
         max_data_age_seconds=3600.0,
         allowed_sessions=frozenset({"regular_open", "continuous_24_7"}),
-        max_holding_seconds=None,
+        max_holding_seconds=hold,
         forbid_funding_window_entry=True,
     )
 
