@@ -39,6 +39,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from atlas.api.founder import router as founder_router
+from atlas.api.founder_data import router as founder_data_router
 from atlas.market.fixtures import candle_page
 from atlas.market.schemas import CandlePage
 
@@ -58,6 +59,7 @@ app.include_router(catalog_router)
 app.include_router(udf_router)
 app.include_router(vertical_slice_router)
 app.include_router(founder_router)
+app.include_router(founder_data_router)
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",
