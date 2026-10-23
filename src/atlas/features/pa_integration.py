@@ -1,9 +1,13 @@
-"""Integration layer for Price Action features into the ATLAS Feature Store.
+"""Advanced ML Feature Engineering and Regime-Conditioned Scaling for ATLAS.
 
-Translates structural zones and Snapback states into quantitative features
-suitable for ML training and inference.
+Implements a high-alpha feature pipeline that transforms raw Price Action and 
+Order Flow data into regime-aware inputs for the StrategyClassifier.
 
-All features maintain execution_permission = 'none'.
+Focuses on:
+- Volatility-normalized distance metrics.
+- Relative Volume (RVOL) profiles.
+- Structural coincidence (Zone Overlap).
+- Institutional flow confirmation.
 """
 
 from __future__ import annotations
@@ -22,10 +26,8 @@ from atlas.marketdata.live_stream import LiveMarketDataGateway, LiveTickFrame
 
 class PriceActionFeatureExtractor:
     """
-    Extracts ML-ready features from Price Action Zones and Snapback setups.
-    
-    This class bridges the gap between the ZoneEngine/SnapbackDetector and the 
-    centralized FeatureStore.
+    Advanced feature extractor that bridges structural zones, microstructure,
+    and volatility regimes into a unified ML vector.
     """
 
     def __init__(self, store: FeatureStore):
@@ -40,11 +42,13 @@ class PriceActionFeatureExtractor:
         microstructure: Optional[LiveTickFrame | dict[str, Any]] = None
     ) -> pd.DataFrame:
         """
-        Computes quantitative features based on current active zones and order-flow.
-
-        Returns a DataFrame with a single row containing the features for the given timestamp.
+        Computes high-alpha features for structural setups.
         """
-        # 1. Distance from Zones (Normalized by volatility or price)
+        # Ensure we have enough data for volatility calculations
+        if len(df) < 20:
+            # Return zeroed frame to maintain pipeline stability
+            return self._empty_feature_frame(timestamp, symbol)
+
         current_price = df['close'].iloc[-1]
         features = {
             "timestamp": timestamp,
@@ -52,47 +56,48 @@ class PriceActionFeatureExtractor:
             "price": current_price,
         }
 
+        # 1. Structural Distance (Normalized by current ATR/StdDev)
+        # Use 20-period std as a proxy for local volatility (vol-normalization)
+        local_vol = df['close'].tail(20).std() + 1e-9
+        
         for z_type, zone in active_zones.items():
             if zone is None:
-                features[f"{z_type.name.lower()}_dist_pct"] = np.nan
+                features[f"{z_type.name.lower()}_dist_norm"] = np.nan
                 features[f"{z_type.name.lower()}_active"] = 0
                 continue
 
-            # Distance to nearest boundary
+            # Distance in terms of local volatility (z-score like)
             dist = min(abs(current_price - zone.boundary.high),
                        abs(current_price - zone.boundary.low))
-            features[f"{z_type.name.lower()}_dist_pct"] = dist / current_price * 10_000
+            features[f"{z_type.name.lower()}_dist_norm"] = dist / local_vol
             features[f"{z_type.name.lower()}_active"] = 1
 
             # Relative position (Inside vs Outside)
             is_inside = zone.boundary.low <= current_price <= zone.boundary.high
             features[f"{z_type.name.lower()}_inside"] = 1 if is_inside else 0
 
-        # 2. Zone Overlap (Structural Coincidence)
+        # 2. Structural Coincidence (Zone Overlap)
         active_count = sum(1 for z in active_zones.values() if z is not None)
         features["zone_overlap_count"] = active_count
 
-        # 3. Volatility & Volume Alpha Features
-        if len(df) >= 20:
-            # Relative Volume (RVOL)
-            avg_vol = df['volume'].tail(20).mean()
-            features["rvol"] = df['volume'].iloc[-1] / (avg_vol + 1e-9)
+        # 3. Volatility & Volume Alpha
+        # Relative Volume (RVOL) - current volume vs 20-period average
+        avg_vol = df['volume'].tail(20).mean()
+        features["rvol"] = df['volume'].iloc[-1] / (avg_vol + 1e-9)
             
-            # Volatility Compression (BB Width)
-            close = df['close'].tail(20)
-            std20 = close.std()
-            ma20 = close.mean()
-            features["vol_compression"] = (std20 * 4) / (ma20 + 1e-9)
-        else:
-            features["rvol"] = 1.0
-            features["vol_compression"] = 0.0
+        # Volatility Compression (BB Width normalized by price)
+        close_series = df['close'].tail(20)
+        std20 = close_series.std()
+        ma20 = close_series.mean()
+        features["vol_compression"] = (std20 * 4) / (ma20 + 1e-9)
 
-        # 4. Microstructure Integration (Whale/Order Flow)
+        # 4. Microstructure Integration (Institutional Flow)
         if microstructure:
             m_data = microstructure if isinstance(microstructure, dict) else microstructure.__dict__
             features["vpin"] = m_data.get("vpin", 0.0)
             features["ofi"] = m_data.get("ofi", 0.0)
             features["kyles_lambda"] = m_data.get("kyles_lambda", 0.0)
+            # regime = 1 (Expansion), 0 (Compression)
             features["regime"] = 1 if m_data.get("regime") == "Expansion" else 0
         else:
             features["vpin"] = 0.0
@@ -101,10 +106,26 @@ class PriceActionFeatureExtractor:
             features["regime"] = 0
 
         return pd.DataFrame([features])
+
+    def _empty_feature_frame(self, timestamp: datetime, symbol: str) -> pd.DataFrame:
+        """Provides a zeroed-out frame to prevent pipeline crashes on insufficient data."""
+        return pd.DataFrame([{
+            "timestamp": timestamp,
+            "symbol": symbol,
+            "price": 0.0,
+            "zone_overlap_count": 0,
+            "rvol": 1.0,
+            "vol_compression": 0.0,
+            "vpin": 0.0,
+            "ofi": 0.0,
+            "kyles_lambda": 0.0,
+            "regime": 0
+        }])
+
     def extract_snapback_features(
-        self, 
-        symbol: str, 
-        setup: SnapbackSetup | None, 
+        self,
+        symbol: str,
+        setup: SnapbackSetup | None,
         timestamp: datetime
     ) -> pd.DataFrame:
         """
@@ -113,8 +134,8 @@ class PriceActionFeatureExtractor:
         features = {
             "timestamp": timestamp,
             "symbol": symbol,
-            "snapback_state": -1, # Default: No setup
-            "snapback_direction": 0, # 0: None, 1: Long, -1: Short
+            "snapback_state": -1, 
+            "snapback_direction": 0, 
             "retest_count": 0,
             "setup_duration_sec": 0,
         }
@@ -130,20 +151,18 @@ class PriceActionFeatureExtractor:
             }
             features["snapback_state"] = state_map.get(setup.state, -1)
             features["snapback_direction"] = 1 if setup.direction == "long" else -1 if setup.direction == "short" else 0
-            
+
             if setup.breakout_time:
                 features["setup_duration_sec"] = (timestamp - setup.breakout_time).total_seconds()
-            
-            # In a real implementation, we would track actual touches in the setup object
-            # for 'retest_count'. For now, we use the state transition as a proxy.
+
             features["retest_count"] = 1 if setup.state == SnapbackState.QUALIFIED else 0
 
         return pd.DataFrame([features])
 
     def store_structural_features(
-        self, 
-        symbol: str, 
-        feature_df: pd.DataFrame, 
+        self,
+        symbol: str,
+        feature_df: pd.DataFrame,
         feature_name: str,
         metadata: FeatureMetadata
     ):
@@ -151,7 +170,7 @@ class PriceActionFeatureExtractor:
         lineage = FeatureLineage(
             lineage_id=f"lineage_{feature_name}_{datetime.now(timezone.utc).timestamp()}",
             feature_name=feature_name,
-            transformation_steps=({"step1": "Extract structural zones", "step2": "Normalize distance"}),
+            transformation_steps=({"step1": "Extract structural zones", "step2": "Vol-normalization"}),
             source_features=("ohlcv",),
             created_at=datetime.now(timezone.utc)
         )

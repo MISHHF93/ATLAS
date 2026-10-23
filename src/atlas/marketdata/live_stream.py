@@ -17,7 +17,7 @@ import collections
 import math
 import asyncio
 from collections.abc import AsyncIterator, Callable
-from atlas.marketdata.microstructure import estimate_kyles_lambda
+from atlas.market import catalog
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Deque, Literal
