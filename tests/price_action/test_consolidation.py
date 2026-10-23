@@ -63,3 +63,47 @@ def test_legacy_price_zone_adapts_to_lifecycle_zone():
     z = pz.to_lifecycle_zone(3600)
     assert (z.lower_bound, z.upper_bound, z.direction, z.zone_type) == (99.0, 102.0, "bullish", "legacy_opening")
     assert z.height == 3.0 and z.midpoint == 100.5 and z.source_event == "z1"
+
+
+def _syn_df(n=40, seed=3):
+    """Synthetic fixture (tests only)."""
+    import numpy as np
+    import pandas as pd
+    rng = np.random.default_rng(seed)
+    c = 100 + np.cumsum(rng.normal(0, 0.5, n)); c[-1] = c[-2] + 6
+    o = np.r_[c[0], c[:-1]]
+    ts = pd.date_range("2026-01-05 14:30", periods=n, freq="h", tz="UTC")
+    return pd.DataFrame({"timestamp": ts, "open": o, "high": np.maximum(o, c) + 0.3, "low": np.minimum(o, c) - 0.3, "close": c})
+
+
+def test_zone_engine_facade_matches_dual_band_detector_and_builds_all_boxes():
+    from atlas.features.price_action.detectors import DualBollingerDetector
+    from atlas.features.price_action.engine import PriceActionEngine
+    from atlas.features.price_action.zones import Zone
+    from atlas.features.zones import ZoneDirection, ZoneEngine, ZoneType, _bars_from_df
+
+    df = _syn_df()
+    eng = ZoneEngine("spy")
+    zs = eng.update_zones(df, session_start=df["timestamp"].iloc[0].to_pydatetime(), event_time=df["timestamp"].iloc[5].to_pydatetime())
+    bo = zs[ZoneType.BREAKOUT]
+    pa = PriceActionEngine("SPY", 3600)
+    last = [e for b in _bars_from_df(df) for e in pa.update(b) if isinstance(e, Zone) and e.zone_type == "dual_band_breakout"]
+    assert bo is not None and bo.direction is ZoneDirection.BULLISH
+    assert last and last[-1].formed_at == int(df["timestamp"].iloc[-1].timestamp())
+    assert (last[-1].lower_bound, last[-1].upper_bound) == (bo.boundary.low, bo.boundary.high)
+    op = zs[ZoneType.OPENING]
+    assert op.boundary.high == df["high"].iloc[0] and op.execution_permission == "none"
+    assert zs[ZoneType.EVENT].boundary.low == df["low"].iloc[5]
+    assert op.to_lifecycle_zone(3600).zone_type == "legacy_opening"
+
+
+def test_zone_engine_anchor_rule_unchanged_vs_frozen_reference():
+    from atlas.features.zones import ZoneEngine
+    from tests.price_action.legacy_reference import legacy_anchor_box
+
+    df = _syn_df(60, seed=9)
+    for k in range(3, len(df) + 1):
+        new, old = ZoneEngine("SPY").detect_anchor_box(df.iloc[:k]), legacy_anchor_box(df.iloc[:k])
+        assert (new is None) == (old is None)
+        if new:
+            assert (new.zone_id, new.direction.name, new.boundary.high, new.boundary.low) == old

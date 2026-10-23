@@ -151,3 +151,15 @@ def udf_atr(rows: list[tuple[int, float, float, float, float, float]], index: in
         prev_close = rows[cursor - 1][4]
         spans.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
     return sum(spans) / len(spans) if spans else 0.0
+
+
+def legacy_anchor_box(df):
+    """Frozen pre-rewrite ZoneEngine.detect_anchor_box rule -> (zone_id, direction, high, low) or None."""
+    if len(df) < 3:
+        return None
+    c1, c2 = df.iloc[-2], df.iloc[-1]
+    if c1['low'] < c2['low'] and c2['close'] > c2['open']:
+        return (f"anchor_bull_{c2['timestamp']}", "BULLISH", c2['close'], c1['low'])
+    if c1['high'] > c2['high'] and c2['close'] < c2['open']:
+        return (f"anchor_bear_{c2['timestamp']}", "BEARISH", c1['high'], c2['close'])
+    return None
