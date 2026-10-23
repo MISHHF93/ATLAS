@@ -1,5 +1,7 @@
 # Current State — ATLAS Institutional Prop Trading & Stock Quant Platform
 
+> **Superseded snapshot (checked 2026-10-23).** This page describes the 2026-10-21 state, before the six-section IA, the price-action engine, predict()/EV gate, replay, setup autopilot, API keys/MCP and the 2026-10-23 real-data evidence. For current status see [../README.md](../README.md) (docs index), [../spec/audit-and-gap.md](../spec/audit-and-gap.md) and the root workbook `ATLAS Platform Master Roadmap & Technical Specifications (A-Z).xlsx`. Polygon/Databento are still not configured; everything is paper only.
+
 Verified in `C:\Users\borah\ATLAS-main` on **2026-10-21**. The operating plan is [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
 
 ATLAS is a dual-track research and paper desk: a deterministic Python control plane (`src/atlas/`) and a Next.js terminal (`frontend/`). The shell is six primary destinations (Desk, Markets, Trade, Risk, Research, Data). Older routes still exist. Public crypto and equity candles load when Coinbase or Yahoo answer. Otherwise the chart stays on the labeled fixture. The whale policy trains on those candles for both books and cannot send an order.

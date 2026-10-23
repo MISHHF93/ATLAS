@@ -2393,8 +2393,14 @@ def evaluate_whale_order_flow(payload: dict[str, object]) -> dict[str, object]:
         "wf07_hawkes": hawkes,
         "wf08_rl_policy": rl,
     }
+    state["input_source"] = "sample_inputs"
+    state["live_wf_telemetry_source"] = "sample_inputs"
+    state["sample_inputs_note"] = (
+        "Demo only: WF-01..WF-08 are computed from hard-coded sample inputs (plus your whale_shares/urgency_kappa), "
+        "not market data. No signal is validated; nothing is sent to the control plane."
+    )
     state["message"] = (
-        f"Whale ML (WF-01..WF-08) evaluated on {sym}: Kyle Lambda={kyle['lambda_coeff']}, "
+        f"[sample inputs] Whale ML (WF-01..WF-08) demo for {sym}: Kyle Lambda={kyle['lambda_coeff']}, "
         f"VPIN={vpin['vpin']}, OFI={ofi['ofi_weighted']}, Hawkes={hawkes['current_intensity_lambda']}, "
         f"Almgren-Chriss Slice[1]={ac_sched['child_order_slices'][0]} sh (execution_permission=none)"
     )
@@ -2413,8 +2419,11 @@ def trigger_prop_saas_vertical(payload: dict[str, object]) -> dict[str, object]:
     state = build_master_roadmap_state(symbol="SPY", scenario_index=0)
     for v in state["b2b_saas_verticals"]:
         if v["vertical_id"] == vid:
-            v["live_telemetry"] = f"Verified ({action}) at {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')} · 100% Compliant"
-    state["message"] = f"Prop Firm B2B SaaS Vertical {vid} ({action}) executed deterministically (execution_permission=none)."
+            v["live_telemetry"] = (
+                f"Action '{action}' recorded at {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}; "
+                "concept vertical (Planned), nothing verified or executed"
+            )
+    state["message"] = f"Prop Firm B2B SaaS Vertical {vid} ({action}) recorded; the vertical is Planned, nothing was executed (execution_permission=none)."
     control_engine.audit_log.append(
         f"{datetime.now(timezone.utc).isoformat()} | saas_vertical_action | vertical={vid} action={action}"
     )

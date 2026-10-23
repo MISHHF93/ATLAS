@@ -120,7 +120,7 @@ All fixtures are seeded synthetic data and labelled as such.
 
 ## Slice 3: real-data evidence and the zone engine rewrite
 
-- **Data.** `scripts/fetch_public_history.py` pulls free public bars into `var/evidence_cache/`, which is never committed:
+- **Data.** `scripts/fetch_public_history.py` pulls free public bars into `var/evidence_cache/`, which is never committed. Run it with `--15m` to fill `var/evidence_cache_15m/` for the slice-5 selector evidence. The 1h/1d sources are:
   - Yahoo chart API, 1h (730 days) and 1d (since inception), for SPY, QQQ and IWM;
   - Binance `data-api.binance.vision` 1h klines (2 years) for BTCUSDT and ETHUSDT.
 - **Evaluation.** `scripts/run_setup_evidence.py` runs `atlas.research.setup_evidence`:

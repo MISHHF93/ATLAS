@@ -28,11 +28,20 @@ def test_build_100_feature_matrix_completeness() -> None:
         feat = features[idx - 1]
         assert feat["feature_id"] == f"F-{idx:03d}"
         assert feat["feature_number"] == idx
-        assert feat["status"] == "ACTIVE"
+        assert feat["status"] in {"Implemented", "Partial", "Planned"}
+        assert feat["live_telemetry"] == "Not measured"
+        assert feat["evidence"]
 
     for cat_id in range(1, 11):
         cat_rows = [f for f in features if f["category_number"] == cat_id]
         assert len(cat_rows) == 10
+
+    counts = matrix["status_counts"]
+    assert sum(counts.values()) == 100
+    assert counts["Planned"] > 0 and counts["Partial"] > 0
+    # F-001 uses a caller-supplied score (no camera) and FIX is not built.
+    assert features[0]["status"] == "Partial"
+    assert features[39]["status"] == "Planned"
 
 
 def test_webcam_proctoring_engine_features_1_to_10() -> None:
@@ -106,6 +115,9 @@ def test_hundred_features_and_proctoring_api_endpoints(tmp_path: Path) -> None:
     assert payload["total_features"] == 100
     assert payload["filtered_count"] == 100
     assert payload["execution_permission"] == "none"
+    first = payload["features"][0]
+    assert first["status"] in {"Implemented", "Partial", "Planned"}
+    assert first["evidence"] and first["live_telemetry"] == "Not measured"
 
     cat1_res = client.get("/api/features-100?category_id=1")
     assert cat1_res.status_code == 200

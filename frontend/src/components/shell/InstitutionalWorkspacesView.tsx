@@ -8,8 +8,8 @@ import {
 } from "../market/LiveChartEngine";
 import { fetchLibraryQuotes, libraryQuoteSymbols } from "../../lib/libraryQuotes";
 import { loadMarketBars } from "../../lib/marketBars";
+import { useFeatures100 } from "../../lib/features100";
 import {
-  HUNDRED_FEATURES_LIST,
   PROCTORING_SCENARIO_PRESETS,
   TEN_CATEGORIES_META,
   type ProctoringScenarioPreset,
@@ -380,6 +380,7 @@ export function InstitutionalWorkspacesView({
   const [selectedFeatureCategory, setSelectedFeatureCategory] = useState<number>(1);
   const [featureRealmFilter, setFeatureRealmFilter] = useState<"all" | "Open-Market" | "Prop Competition">("all");
   const [featureSearch, setFeatureSearch] = useState<string>("");
+  const features100 = useFeatures100(currentRoute === "/data/features-100", API);
   const [lifecycleStep, setLifecycleStep] = useState<1 | 2 | 3 | 4>(2);
   const [challengePhaseIdx, setChallengePhaseIdx] = useState<0 | 1 | 2>(0);
 
@@ -774,7 +775,7 @@ export function InstitutionalWorkspacesView({
       route: "/research/walk-forward",
       status: "AUTOMATED",
       latencyMs: 1.5,
-      summary: "Continuously verifies DSR >= 0.95 (0.995) and ECE <= 0.035 (0.021) across CB-01..CB-06 with auto_promoted=False.",
+      summary: "Gate thresholds DSR >= 0.95 and ECE <= 0.035 across CB-01..CB-06 with auto_promoted=False. No benchmark run is recorded.",
       manualStepsEliminated: 2,
     },
     {
@@ -2519,7 +2520,7 @@ export function InstitutionalWorkspacesView({
           const activeCategoryMeta =
             TEN_CATEGORIES_META.find((c) => c.id === selectedFeatureCategory) ?? TEN_CATEGORIES_META[0];
           const page = pages[activeCategoryMeta.id] ?? pages[1];
-          const filteredFeatures = HUNDRED_FEATURES_LIST.filter((f) => {
+          const filteredFeatures = features100.rows.filter((f) => {
             const matchesCategory = featureSearch.trim().length > 0 ? true : f.categoryId === selectedFeatureCategory;
             const matchesRealm = featureRealmFilter === "all" || f.realm === "Both" || f.realm === featureRealmFilter;
             const q = featureSearch.trim().toLowerCase();
@@ -2536,8 +2537,16 @@ export function InstitutionalWorkspacesView({
                   <div>
                     <h2 className="clean-card-title">Capability map</h2>
                     <p className="clean-card-subtitle">
-                      These 100 rows are names for desk jobs. A row is not a live feed, and it is not finished work. Open the page that actually runs.
+                      These 100 rows are names for desk jobs. A row is not a live feed. The status comes from the backend (Implemented, Partial or Planned). Open the page that actually runs.
                     </p>
+                    {features100.phase === "loading" && (
+                      <p className="clean-card-subtitle" role="status">Loading the feature map from /api/features-100…</p>
+                    )}
+                    {features100.phase === "error" && (
+                      <p className="clean-card-subtitle" role="alert" style={{ color: "#F87171" }}>
+                        Could not load /api/features-100 ({features100.error}). No rows are shown.
+                      </p>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                     {(["all", "Open-Market", "Prop Competition"] as const).map((rlm) => (
@@ -2608,7 +2617,10 @@ export function InstitutionalWorkspacesView({
                       return (
                         <tr key={feat.featureId}>
                           <td className="mono-cell">{feat.featureId}</td>
-                          <td style={{ fontWeight: 600 }}>{feat.name}</td>
+                          <td style={{ fontWeight: 600 }} title={feat.evidence}>
+                            {feat.name}
+                            <span style={{ marginLeft: 8, fontSize: "10.5px", fontWeight: 500, color: "#94A3B8" }}>{feat.status}</span>
+                          </td>
                           <td>{feat.realm}</td>
                           <td>
                             <button type="button" className="btn btn-outline btn-sm" onClick={() => handleNavigateRoute(dest.route)}>

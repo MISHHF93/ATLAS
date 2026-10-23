@@ -228,7 +228,7 @@ def compute_challenger_model_benchmark(track: str = "both") -> dict[str, Any]:
       - Direct-vs-Recursive Multi-Horizon Stability Gate (h in {1h, 2h, 4h, 1D})
 
     All challenger benchmarks enforce acceptance_time <= as_of, execution_permission = "none",
-    and auto_promoted = False.
+    and auto_promoted = False. No benchmark run is recorded: every metric is None (not evaluated).
     """
     benchmarks = [
         {
@@ -237,15 +237,16 @@ def compute_challenger_model_benchmark(track: str = "both") -> dict[str, Any]:
             "architecture": "Scratch Depth-2 Gradient Boosted Decision Trees",
             "subsystem": "src/atlas/models/training.py",
             "track": "Both",
-            "purged_wf_sharpe": 2.14,
-            "deflated_sharpe_dsr": 0.982,
-            "prop_loss_l_theta": 0.0118,
-            "brier_score": 0.142,
-            "ece_calibration": 0.021,
-            "horizon_gate": "Direct > Recursive (+14.2 bps IC)",
-            "promotion_gate": "PASS (Human Sign-Off Required)",
+            "purged_wf_sharpe": None,
+            "deflated_sharpe_dsr": None,
+            "prop_loss_l_theta": None,
+            "brier_score": None,
+            "ece_calibration": None,
+            "horizon_gate": "not evaluated",
+            "promotion_gate": "NOT EVALUATED (no benchmark run recorded)",
+            "evidence": "none: metrics are None until a recorded walk-forward run exists (illustrative figures removed 2026-10-23)",
             "priority": "P0",
-            "status": "Implemented",
+            "status": "Experimental",
         },
         {
             "benchmark_id": "CB-02",
@@ -253,15 +254,16 @@ def compute_challenger_model_benchmark(track: str = "both") -> dict[str, Any]:
             "architecture": "Regime-Conditioned Additive Decision Stump Ensemble",
             "subsystem": "src/atlas/models/challengers.py",
             "track": "Both",
-            "purged_wf_sharpe": 1.89,
-            "deflated_sharpe_dsr": 0.964,
-            "prop_loss_l_theta": 0.0134,
-            "brier_score": 0.156,
-            "ece_calibration": 0.026,
-            "horizon_gate": "Direct Stable (1h/4h)",
-            "promotion_gate": "PASS (Champion Alias Active)",
+            "purged_wf_sharpe": None,
+            "deflated_sharpe_dsr": None,
+            "prop_loss_l_theta": None,
+            "brier_score": None,
+            "ece_calibration": None,
+            "horizon_gate": "not evaluated",
+            "promotion_gate": "NOT EVALUATED (no benchmark run recorded)",
+            "evidence": "none: metrics are None until a recorded walk-forward run exists (illustrative figures removed 2026-10-23)",
             "priority": "P0",
-            "status": "Implemented",
+            "status": "Experimental",
         },
         {
             "benchmark_id": "CB-03",
@@ -269,15 +271,16 @@ def compute_challenger_model_benchmark(track: str = "both") -> dict[str, Any]:
             "architecture": "L2-Penalized Cross-Sectional Linear Return Model",
             "subsystem": "src/atlas/models/training.py",
             "track": "Open-Market Stock",
-            "purged_wf_sharpe": 1.68,
-            "deflated_sharpe_dsr": 0.951,
-            "prop_loss_l_theta": 0.0149,
-            "brier_score": 0.168,
-            "ece_calibration": 0.029,
-            "horizon_gate": "Direct Stable (1h/1D)",
-            "promotion_gate": "PASS (Baseline Challenger)",
+            "purged_wf_sharpe": None,
+            "deflated_sharpe_dsr": None,
+            "prop_loss_l_theta": None,
+            "brier_score": None,
+            "ece_calibration": None,
+            "horizon_gate": "not evaluated",
+            "promotion_gate": "NOT EVALUATED (no benchmark run recorded)",
+            "evidence": "none: metrics are None until a recorded walk-forward run exists (illustrative figures removed 2026-10-23)",
             "priority": "P1",
-            "status": "Implemented",
+            "status": "Experimental",
         },
         {
             "benchmark_id": "CB-04",
@@ -285,15 +288,16 @@ def compute_challenger_model_benchmark(track: str = "both") -> dict[str, Any]:
             "architecture": "Tick OFI + VPIN + Book Shannon Entropy Spread GBDT",
             "subsystem": "src/atlas/models/microstructure_gbdt.py",
             "track": "Both",
-            "purged_wf_sharpe": 2.31,
-            "deflated_sharpe_dsr": 0.991,
-            "prop_loss_l_theta": 0.0104,
-            "brier_score": 0.131,
-            "ece_calibration": 0.018,
-            "horizon_gate": "Direct Micro-Horizon (15m/1h)",
-            "promotion_gate": "PASS (Shadow Challenger)",
+            "purged_wf_sharpe": None,
+            "deflated_sharpe_dsr": None,
+            "prop_loss_l_theta": None,
+            "brier_score": None,
+            "ece_calibration": None,
+            "horizon_gate": "not evaluated",
+            "promotion_gate": "NOT EVALUATED (no benchmark run recorded)",
+            "evidence": "none: metrics are None until a recorded walk-forward run exists (illustrative figures removed 2026-10-23)",
             "priority": "P0",
-            "status": "Implemented",
+            "status": "Experimental",
         },
         {
             "benchmark_id": "CB-05",
@@ -301,15 +305,16 @@ def compute_challenger_model_benchmark(track: str = "both") -> dict[str, Any]:
             "architecture": "Closed-Loop Anti-Gravity Self-Training Ensemble (Triple-Barrier + Meta-Label)",
             "subsystem": "src/atlas/models/self_training.py",
             "track": "Both",
-            "purged_wf_sharpe": 2.46,
-            "deflated_sharpe_dsr": 0.995,
-            "prop_loss_l_theta": 0.0092,
-            "brier_score": 0.124,
-            "ece_calibration": 0.015,
-            "horizon_gate": "Direct Multi-Horizon (15m/1h/4h/1D)",
-            "promotion_gate": "PASS (Awaiting Founder Approval)",
+            "purged_wf_sharpe": None,
+            "deflated_sharpe_dsr": None,
+            "prop_loss_l_theta": None,
+            "brier_score": None,
+            "ece_calibration": None,
+            "horizon_gate": "not evaluated",
+            "promotion_gate": "NOT EVALUATED (no benchmark run recorded)",
+            "evidence": "none: metrics are None until a recorded walk-forward run exists (illustrative figures removed 2026-10-23)",
             "priority": "P0",
-            "status": "Implemented",
+            "status": "Experimental",
         },
         {
             "benchmark_id": "CB-06",
@@ -317,13 +322,14 @@ def compute_challenger_model_benchmark(track: str = "both") -> dict[str, Any]:
             "architecture": "Apache-2.0 Zero-Shot Time-Series Foundation Challenger Gate",
             "subsystem": "src/atlas/models/adapters.py",
             "track": "Both",
-            "purged_wf_sharpe": 1.74,
-            "deflated_sharpe_dsr": 0.958,
-            "prop_loss_l_theta": 0.0141,
-            "brier_score": 0.159,
-            "ece_calibration": 0.027,
-            "horizon_gate": "Zero-Shot Fan (t+1h..t+4h)",
-            "promotion_gate": "GATED (License Archive Check Required)",
+            "purged_wf_sharpe": None,
+            "deflated_sharpe_dsr": None,
+            "prop_loss_l_theta": None,
+            "brier_score": None,
+            "ece_calibration": None,
+            "horizon_gate": "not evaluated",
+            "promotion_gate": "NOT EVALUATED (no benchmark run recorded)",
+            "evidence": "none: metrics are None until a recorded walk-forward run exists (illustrative figures removed 2026-10-23)",
             "priority": "P1",
             "status": "Planned",
         },
@@ -401,10 +407,13 @@ def compute_b2b_saas_pricing_quote(
 
 
 def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> dict[str, Any]:
-    """Builds the complete Master Roadmap & Technical Specifications (A-Z) live payload."""
+    """Builds the Master Roadmap & Technical Specifications (A-Z) payload.
+
+    Statuses follow the 2026-10-23 verification. WF telemetry is computed on sample inputs, not market data.
+    """
     now = datetime.now(timezone.utc).isoformat()
 
-    # Live mathematical evaluation of WF-01 through WF-08
+    # WF-01..WF-08 evaluated on HARD-CODED SAMPLE INPUTS (illustrative, not market data).
     wf01 = compute_kyles_lambda([0.12, -0.05, 0.18, 0.24, -0.08, 0.31], [85.0, -40.0, 120.0, 165.0, -55.0, 210.0])
     wf02 = compute_vpin([640.0, 720.0, 810.0, 590.0, 910.0], [410.0, 380.0, 420.0, 460.0, 350.0])
     wf03 = compute_top5_depth_delta_ofi([240.0, 190.0, 150.0, 110.0, 95.0], [110.0, 125.0, 130.0, 105.0, 90.0])
@@ -422,34 +431,35 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
     challenger_benchmarks = compute_challenger_model_benchmark(track="both")
     b2b_pricing_quote = compute_b2b_saas_pricing_quote()
 
-    # TAB 1: Platform Roadmap (A-Z) — All 26 Subsystems (with Challenger Benchmark Upgrades on M, P, Q, Z)
+    # TAB 1: Platform Roadmap (A-Z). Statuses verified against code 2026-10-23 (see the root workbook,
+    # 'Changelog & Legend'): Implemented+tested / Partial / Experimental. Paper/simulation only.
     roadmap_az = [
-        {"letter": "A", "domain": "Allocation & Portfolio Construction", "path": "src/atlas/portfolio", "spec": "Mean-variance, Kelly fractional, HRP risk parity", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P0"},
-        {"letter": "B", "domain": "Benchmark & Market Calendars", "path": "src/atlas/market", "spec": "NYSE/Nasdaq auction calendars, 24/7 crypto funding cycles", "track": "Both", "status": "Implemented", "gate": "Deterministic Gate", "priority": "P1"},
-        {"letter": "C", "domain": "Control Plane & Circuit Breakers", "path": "src/atlas/control", "spec": "ActionableControlPlaneEngine, kill switch, auto-flatten", "track": "Both", "status": "Implemented", "gate": "Deterministic Gate", "priority": "P0"},
-        {"letter": "D", "domain": "Data Lakehouse & PIT Engine", "path": "src/atlas/warehouse", "spec": "DuckDB, BigQuery, Parquet ZSTD, acceptance_time <= as_of", "track": "Both", "status": "Implemented", "gate": "PIT Check", "priority": "P0"},
-        {"letter": "E", "domain": "Execution Routing & OMS/EMS", "path": "src/atlas/execution", "spec": "Interactive Brokers, Alpaca, FIX protocol, Coinbase", "track": "Both", "status": "Implemented", "gate": "Latency Target", "priority": "P0"},
-        {"letter": "F", "domain": "Feature Engineering & Microstructure", "path": "src/atlas/features", "spec": "Order book imbalance, VWAP deviation, tick entropy, VPIN", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
-        {"letter": "G", "domain": "Governance, Standards & 8 Ledgers", "path": "src/atlas/governance", "spec": "ISO 42001, NIST AI RMF, IOSCO, non-custodial ledgers", "track": "Both", "status": "Implemented", "gate": "Audit Gate", "priority": "P0"},
-        {"letter": "H", "domain": "Hardware Acceleration & High-Throughput I/O", "path": "src/atlas/hardware", "spec": "Vectorized backtesting, SIMD, local GPU inference", "track": "Both", "status": "Implemented", "gate": "Latency Target", "priority": "P1"},
-        {"letter": "I", "domain": "Integrations & MCP Isolation", "path": "src/atlas/integrations", "spec": "Quarantined tools, read-only MCP, SEC EDGAR, FRED guard", "track": "Both", "status": "Implemented", "gate": "Security Scan", "priority": "P0"},
-        {"letter": "J", "domain": "Journaling & Immutable Audit Trails", "path": "src/atlas/journal", "spec": "SQLite event store, decision checkpoints, order logs", "track": "Both", "status": "Implemented", "gate": "Audit Gate", "priority": "P0"},
-        {"letter": "K", "domain": "Key Management & Secret Scrubbing", "path": "src/atlas/keys", "spec": "Signing keys, zero-leak credential masking", "track": "Both", "status": "Implemented", "gate": "Security Scan", "priority": "P0"},
-        {"letter": "L", "domain": "Liquidity Analysis & Depth Modeling", "path": "src/atlas/liquidity", "spec": "L2/L3 order book reconstruction, Kyle's Lambda impact models", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
-        {"letter": "M", "domain": "Machine Learning & Challenger Benchmarks (CB-01..06)", "path": "src/atlas/models", "spec": "GBDT, Boosted Stump, Ridge, Tick GBDT & Anti-Gravity Self-Training; DSR >= 0.95 & Prop Loss L(theta)", "track": "Both", "status": "Implemented", "gate": "Walk-Forward + DSR", "priority": "P0"},
-        {"letter": "N", "domain": "Non-Custodial Safety & Risk Bounds", "path": "src/atlas/risk", "spec": "Single-day profit consistency, trailing drawdown floors", "track": "Both", "status": "Implemented", "gate": "Deterministic Gate", "priority": "P0"},
-        {"letter": "O", "domain": "Order Types & Execution Tactics", "path": "src/atlas/execution/tactics", "spec": "Almgren-Chriss TWAP/VWAP, iceberg, ATR bracket orders", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
-        {"letter": "P", "domain": "Probability Calibration & ECE Benchmark Gate", "path": "src/atlas/calibration", "spec": "Empirical bin / Platt scaling, isotonic calibration, Brier <= 0.18 & ECE <= 0.035", "track": "Both", "status": "Implemented", "gate": "Calibration Gate", "priority": "P1"},
-        {"letter": "Q", "domain": "Quantitative Validation, Purged CV & DSR Gate", "path": "src/atlas/experiments", "spec": "Purged k-fold, embargoing, Deflated Sharpe DSR >= 0.95, Direct vs Recursive Horizon Gate", "track": "Both", "status": "Implemented", "gate": "Walk-Forward + DSR", "priority": "P0"},
-        {"letter": "R", "domain": "Regime Classification Engine", "path": "src/atlas/regime", "spec": "Causal volatility, trend, liquidity, Hawkes & macro regime tagging", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
-        {"letter": "S", "domain": "SEC EDGAR & Fundamental Ingestion", "path": "src/atlas/fundamentals", "spec": "Point-in-time XBRL parser, 10-K/10-Q filing timestamps", "track": "Open-Market Stock", "status": "Implemented", "gate": "PIT Check", "priority": "P1"},
-        {"letter": "T", "domain": "Telemetry, Observability & Health", "path": "src/atlas/telemetry", "spec": "Tick-to-trade latency, pipeline heartbeats, drop alerts", "track": "Both", "status": "Implemented", "gate": "Latency Target", "priority": "P0"},
-        {"letter": "U", "domain": "User Roles & RBAC Boundaries", "path": "src/atlas/profile", "spec": "founder_admin, researcher, monitoring; zero operator discretion", "track": "Both", "status": "Implemented", "gate": "Security Scan", "priority": "P0"},
-        {"letter": "V", "domain": "Volatility Surfaces & Derivatives", "path": "src/atlas/volatility", "spec": "Implied vol, ATR dynamic sizing, funding rate arbitrage", "track": "Prop Competition", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
-        {"letter": "W", "domain": "Whale Microstructure & Dark Pools", "path": "src/atlas/microstructure", "spec": "Large block detection, VPIN, Hawkes hidden volume clustering", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P2"},
-        {"letter": "X", "domain": "Cross-Asset Synchronization & Hedging", "path": "src/atlas/sync", "spec": "Equities vs. Crypto perpetual delta hedging & 9x9 correlation gate", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P1"},
-        {"letter": "Y", "domain": "Yield & Funding Rate Arbitrage", "path": "src/atlas/yield", "spec": "Basis trade capture, 8h perp funding & overnight repo modeling", "track": "Both", "status": "Implemented", "gate": "Pytest", "priority": "P2"},
-        {"letter": "Z", "domain": "Zero Data-Leakage Research & Challenger Sandbox", "path": "src/atlas/research", "spec": "Air-gapped research sandbox, SHA-256 frozen manifests, auto_promoted=False", "track": "Both", "status": "Implemented", "gate": "Security Scan", "priority": "P0"},
+        {"letter": "A", "domain": "Allocation & Portfolio Construction", "path": "src/atlas/portfolio", "spec": "Mean-variance, Kelly fractional, HRP risk parity", "track": "Both", "status": "Partial", "gate": "Pytest", "priority": "P0"},
+        {"letter": "B", "domain": "Benchmark & Market Calendars", "path": "src/atlas/market", "spec": "NYSE/Nasdaq auction calendars, 24/7 crypto funding cycles", "track": "Both", "status": "Partial", "gate": "Deterministic Gate", "priority": "P1"},
+        {"letter": "C", "domain": "Control Plane & Circuit Breakers", "path": "src/atlas/control", "spec": "ActionableControlPlaneEngine, kill switch, auto-flatten", "track": "Both", "status": "Implemented+tested", "gate": "Deterministic Gate", "priority": "P0"},
+        {"letter": "D", "domain": "Data Lakehouse & PIT Engine", "path": "src/atlas/warehouse", "spec": "DuckDB, BigQuery, Parquet ZSTD, acceptance_time <= as_of", "track": "Both", "status": "Partial", "gate": "PIT Check", "priority": "P0"},
+        {"letter": "E", "domain": "Execution Routing & OMS/EMS", "path": "src/atlas/execution", "spec": "Interactive Brokers, Alpaca, FIX protocol, Coinbase", "track": "Both", "status": "Partial", "gate": "Latency Target", "priority": "P0"},
+        {"letter": "F", "domain": "Feature Engineering & Microstructure", "path": "src/atlas/features", "spec": "Order book imbalance, VWAP deviation, tick entropy, VPIN", "track": "Both", "status": "Partial", "gate": "Pytest", "priority": "P1"},
+        {"letter": "G", "domain": "Governance, Standards & 8 Ledgers", "path": "src/atlas/governance", "spec": "ISO 42001, NIST AI RMF, IOSCO, non-custodial ledgers", "track": "Both", "status": "Implemented+tested", "gate": "Audit Gate", "priority": "P0"},
+        {"letter": "H", "domain": "Hardware Acceleration & High-Throughput I/O", "path": "src/atlas/hardware", "spec": "Vectorized backtesting, SIMD, local GPU inference", "track": "Both", "status": "Partial", "gate": "Latency Target", "priority": "P1"},
+        {"letter": "I", "domain": "Integrations & MCP Isolation", "path": "src/atlas/integrations", "spec": "Quarantined tools, read-only MCP, SEC EDGAR, FRED guard", "track": "Both", "status": "Implemented+tested", "gate": "Security Scan", "priority": "P0"},
+        {"letter": "J", "domain": "Journaling & Immutable Audit Trails", "path": "src/atlas/journal", "spec": "SQLite event store, decision checkpoints, order logs", "track": "Both", "status": "Implemented+tested", "gate": "Audit Gate", "priority": "P0"},
+        {"letter": "K", "domain": "Key Management & Secret Scrubbing", "path": "src/atlas/keys", "spec": "Signing keys, zero-leak credential masking", "track": "Both", "status": "Partial", "gate": "Security Scan", "priority": "P0"},
+        {"letter": "L", "domain": "Liquidity Analysis & Depth Modeling", "path": "src/atlas/liquidity", "spec": "L2/L3 order book reconstruction, Kyle's Lambda impact models", "track": "Both", "status": "Partial", "gate": "Pytest", "priority": "P1"},
+        {"letter": "M", "domain": "Machine Learning & Challenger Benchmarks (CB-01..06)", "path": "src/atlas/models", "spec": "GBDT, Boosted Stump, Ridge, Tick GBDT & Anti-Gravity Self-Training; DSR >= 0.95 & Prop Loss L(theta)", "track": "Both", "status": "Implemented+tested", "gate": "Walk-Forward + DSR", "priority": "P0"},
+        {"letter": "N", "domain": "Non-Custodial Safety & Risk Bounds", "path": "src/atlas/risk", "spec": "Single-day profit consistency, trailing drawdown floors", "track": "Both", "status": "Implemented+tested", "gate": "Deterministic Gate", "priority": "P0"},
+        {"letter": "O", "domain": "Order Types & Execution Tactics", "path": "src/atlas/execution/tactics", "spec": "Almgren-Chriss TWAP/VWAP, iceberg, ATR bracket orders", "track": "Both", "status": "Partial", "gate": "Pytest", "priority": "P1"},
+        {"letter": "P", "domain": "Probability Calibration & ECE Benchmark Gate", "path": "src/atlas/calibration", "spec": "Empirical bin / Platt scaling, isotonic calibration, Brier <= 0.18 & ECE <= 0.035", "track": "Both", "status": "Implemented+tested", "gate": "Calibration Gate", "priority": "P1"},
+        {"letter": "Q", "domain": "Quantitative Validation, Purged CV & DSR Gate", "path": "src/atlas/experiments", "spec": "Purged k-fold, embargoing, Deflated Sharpe DSR >= 0.95, Direct vs Recursive Horizon Gate", "track": "Both", "status": "Implemented+tested", "gate": "Walk-Forward + DSR", "priority": "P0"},
+        {"letter": "R", "domain": "Regime Classification Engine", "path": "src/atlas/regime", "spec": "Causal volatility, trend, liquidity, Hawkes & macro regime tagging", "track": "Both", "status": "Partial", "gate": "Pytest", "priority": "P1"},
+        {"letter": "S", "domain": "SEC EDGAR & Fundamental Ingestion", "path": "src/atlas/fundamentals", "spec": "Point-in-time XBRL parser, 10-K/10-Q filing timestamps", "track": "Open-Market Stock", "status": "Partial", "gate": "PIT Check", "priority": "P1"},
+        {"letter": "T", "domain": "Telemetry, Observability & Health", "path": "src/atlas/telemetry", "spec": "Tick-to-trade latency, pipeline heartbeats, drop alerts", "track": "Both", "status": "Partial", "gate": "Latency Target", "priority": "P0"},
+        {"letter": "U", "domain": "User Roles & RBAC Boundaries", "path": "src/atlas/profile", "spec": "founder_admin, researcher, monitoring; zero operator discretion", "track": "Both", "status": "Partial", "gate": "Security Scan", "priority": "P0"},
+        {"letter": "V", "domain": "Volatility Surfaces & Derivatives", "path": "src/atlas/volatility", "spec": "Implied vol, ATR dynamic sizing, funding rate arbitrage", "track": "Prop Competition", "status": "Experimental", "gate": "Pytest", "priority": "P1"},
+        {"letter": "W", "domain": "Whale Microstructure & Dark Pools", "path": "src/atlas/microstructure", "spec": "Large block detection, VPIN, Hawkes hidden volume clustering", "track": "Both", "status": "Experimental", "gate": "Pytest", "priority": "P2"},
+        {"letter": "X", "domain": "Cross-Asset Synchronization & Hedging", "path": "src/atlas/sync", "spec": "Equities vs. Crypto perpetual delta hedging & 9x9 correlation gate", "track": "Both", "status": "Experimental", "gate": "Pytest", "priority": "P1"},
+        {"letter": "Y", "domain": "Yield & Funding Rate Arbitrage", "path": "src/atlas/yield", "spec": "Basis trade capture, 8h perp funding & overnight repo modeling", "track": "Both", "status": "Experimental", "gate": "Pytest", "priority": "P2"},
+        {"letter": "Z", "domain": "Zero Data-Leakage Research & Challenger Sandbox", "path": "src/atlas/research", "spec": "Air-gapped research sandbox, SHA-256 frozen manifests, auto_promoted=False", "track": "Both", "status": "Partial", "gate": "Security Scan", "priority": "P0"},
     ]
 
     # TAB 4: Prop Firm B2B SaaS Verticals (SAAS-01..SAAS-12 with Custom B2B Tiered/AUM Pricing Models)
@@ -462,9 +472,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Deterministic multi-broker margin & equity monitoring, millisecond kill-switch using ATLAS Control Plane.",
             "domain_scope": "US Equities, CME Futures, FX/CFDs, 24/7 Crypto",
             "pricing_model": "Monthly B2B Retainer ($2,500/mo) + Tiered Seat ($18/$12/$8 per active trader)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": "0.8 ms Equity Check · 0 Uncaught Breaches · Est. $6,100/mo",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: concept. Paper building blocks exist (control plane, Safe stop).",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-02",
@@ -474,9 +484,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Configurable pass/fail criteria, <=35% consistency scorecards, anti-gaming algorithms powered by ATLAS walk-forward validation.",
             "domain_scope": "FX/CFDs, CME Futures, US Equities",
             "pricing_model": "4.5% Revenue Share on Gross Evaluation Fees ($1,500/mo minimum floor)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": "Consistency Gate <=35% · Min 5 Days Enforced · Est. $5,400/mo",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: concept. Competition rulebook (35% consistency, 5 min days) exists in paper.",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-03",
@@ -486,9 +496,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Account-sharing detection, toxic tick-scalping identifier, IP/behavioral fingerprinting using ATLAS ML models.",
             "domain_scope": "FX/CFDs, 24/7 Crypto",
             "pricing_model": "Tiered Volume SaaS ($2,000/mo base + $0.08 per 1,000 screened fills)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": "Sybil Cluster Score: 0.02 (Clean) · 0 Latency Arb Rings",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: no Sybil/latency-arbitrage detector implemented.",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-04",
@@ -498,9 +508,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "B-Book to A-Book smart order routing, alpha clustering utilizing ATLAS regime classification engine.",
             "domain_scope": "US Equities, FX/CFDs, 24/7 Crypto",
             "pricing_model": "AUM / Hedged Notional Basis Point Fee (0.35 bps on A-Book / Hybrid routed volume)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": f"Book Routing: {wf02['recommended_book']} (VPIN={wf02['vpin']}) · Est. $1,575/mo",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: no B-Book/A-Book router; live routing disabled.",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-05",
@@ -510,9 +520,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "ISO 42001 & IOSCO aligned tamper-proof trade audit logs backed by ATLAS Journaling & Immutable Audit Trails.",
             "domain_scope": "Global (All Asset Classes)",
             "pricing_model": "Fixed Enterprise Annual License ($18,000/yr or $1,500/mo)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": "SHA-256 Event Chain Verified · ISO 42001 / IOSCO",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: hash-chained audit log exists; not packaged.",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-06",
@@ -522,9 +532,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Execution bias detection, overtrading alerts, disciplined sizing guides leveraging ATLAS Probability Calibration.",
             "domain_scope": "US Equities, CME Futures, FX/CFDs",
             "pricing_model": "B2B2C Freemium Upsell ($29/mo Pro Trader Add-On · 60/40 Firm Split)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": "Revenge-Trading Risk: LOW · Calibrated Sizing: 0.50%",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: concept.",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-07",
@@ -534,9 +544,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Unified FIX / REST abstraction across Alpaca, IBKR, cTrader, DXtrade, Bybit, Coinbase via ATLAS Execution Routing.",
             "domain_scope": "Global (All Asset Classes)",
             "pricing_model": "Monthly B2B Retainer ($2,000/mo) + $350/mo per connected FIX/REST venue gateway",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": "6 Gateways Connected (IBKR, Alpaca, FIX, Coinbase, cTrader, Rithmic)",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: only paper adapters (Alpaca/IBKR paper, paper broker).",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-08",
@@ -546,9 +556,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Interactive real-time remaining-room HUD for web & mobile streaming from ATLAS Data Lakehouse.",
             "domain_scope": "US Equities, CME Futures, FX/CFDs, 24/7 Crypto",
             "pricing_model": "Flat Monthly White-Label Widget & WebSocket API Fee ($1,250/mo)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": "Docked Live HUD Active (18.5% Daily / 15.0% Trailing Used)",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: remaining-room view exists on paper data.",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-09",
@@ -558,9 +568,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Deterministic prop evaluation replay for strategy verification using ATLAS Zero Data-Leakage Research Sandbox.",
             "domain_scope": "US Equities, CME Futures, FX/CFDs",
             "pricing_model": "Pay-per-Compute ($6.50 / Vectorized Backtest GPU-Hour)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": "Purged Walk-Forward + Prop Rule Replay Verified · Est. $1,170/mo",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: replay harness + walk-forward evidence exist; not a product.",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-10",
@@ -570,9 +580,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Institutional flow detector protecting firm B-Book from toxic informed flow powered by ATLAS Feature Engineering (WF-01..WF-08).",
             "domain_scope": "US Equities, 24/7 Crypto",
             "pricing_model": "Premium Data Feed Subscription ($3,500/mo per asset class)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": f"Kyle Lambda={wf01['lambda_coeff']} · Hawkes={wf07['current_intensity_lambda']}",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: formula modules only; no institutional flow data.",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-11",
@@ -582,9 +592,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Purged & embargoed walk-forward challenger tournament with Deflated Sharpe Ratio (DSR >= 0.95), Prop Loss L(theta), and ECE <= 0.035 gates.",
             "domain_scope": "Global (Equities, CME Futures, Crypto Perps, FX)",
             "pricing_model": "Enterprise Research Subscription ($2,800/mo + $150 per evaluated challenger model)",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": "6 Challengers Benchmarked · Best DSR=0.995 (self_training_antigravity_v1)",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: no challenger benchmark run recorded.",
+            "status": "Planned",
         },
         {
             "vertical_id": "SAAS-12",
@@ -594,9 +604,9 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "atlas_solution": "Elastic hybrid billing: C_total = R_base + TieredSeats(1..100@$18, 101..500@$12, 501+@$8) + 0.35 bps Hedged Volume + 4.5% Eval Rev-Share.",
             "domain_scope": "Ledger 1: Non-Custodial Software Subscription Ledger",
             "pricing_model": "Elastic Hybrid: $4.5k Base + $18/$12/$8 Seat Tiers + 0.35 bps AUM + 4.5% Eval Share",
-            "phase": "Executed Directly (Live)",
-            "live_telemetry": f"250 Seats · $45M Hedged Vol -> Est. MRR ${b2b_pricing_quote['total_monthly_mrr_usd']:,.2f}/mo (${b2b_pricing_quote['annualized_arr_usd']:,.2f} ARR)",
-            "status": "ACTIVE",
+            "phase": "Planned",
+            "live_telemetry": "Not measured: pricing formula only; no customers or billing.",
+            "status": "Planned",
         },
     ]
 
@@ -611,7 +621,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "signal_criteria": "Lambda spikes indicating high price impact; pause passive market making.",
             "execution_action": "Widen spreads, skew quotes away from informed flow.",
             "subsystem": "src/atlas/liquidity/impact.py",
-            "live_metric": f"lambda={wf01['lambda_coeff']} (R²={wf01['r_squared']}) · Spike={wf01['spike_alert']}",
+            "live_metric": f"sample inputs: lambda={wf01['lambda_coeff']} (R²={wf01['r_squared']}) · Spike={wf01['spike_alert']}",
         },
         {
             "model_id": "WF-02",
@@ -622,7 +632,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "signal_criteria": "VPIN > 95th percentile threshold; impending volatility/toxicity.",
             "execution_action": "Auto-flatten inventory, route orders to A-Book.",
             "subsystem": "src/atlas/features/toxicity.py",
-            "live_metric": f"VPIN={wf02['vpin']} · Book={wf02['recommended_book']}",
+            "live_metric": f"sample inputs: VPIN={wf02['vpin']} · Book={wf02['recommended_book']}",
         },
         {
             "model_id": "WF-03",
@@ -633,7 +643,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "signal_criteria": "Extreme OFI skew (> 0.8) at top 3 levels; imminent micro-trend.",
             "execution_action": "Execute aggressive taker orders in direction of imbalance.",
             "subsystem": "src/atlas/microstructure/orderbook.py",
-            "live_metric": f"OFI={wf03['ofi_weighted']} ({wf03['direction']}) · Extreme={wf03['extreme_skew']}",
+            "live_metric": f"sample inputs: OFI={wf03['ofi_weighted']} ({wf03['direction']}) · Extreme={wf03['extreme_skew']}",
         },
         {
             "model_id": "WF-04",
@@ -644,7 +654,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "signal_criteria": "Need to liquidate/accumulate large whale inventory over time T.",
             "execution_action": "Slice into TWAP/VWAP child orders following the sinh curve.",
             "subsystem": "src/atlas/execution/tactics/optimal.py",
-            "live_metric": f"Slices={wf04['child_order_slices'][:3]}... (kappa={wf04['urgency_kappa']})",
+            "live_metric": f"sample inputs: Slices={wf04['child_order_slices'][:3]}... (kappa={wf04['urgency_kappa']})",
         },
         {
             "model_id": "WF-05",
@@ -655,7 +665,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "signal_criteria": "y_hat predicts short-term spread widening or mid-price jump.",
             "execution_action": "Cancel passive resting orders before adverse selection occurs.",
             "subsystem": "src/atlas/models/microstructure_gbdt.py",
-            "live_metric": f"y_hat=+{wf05['predicted_spread_widening_bps']} bps · Entropy={wf05['book_shannon_entropy']}",
+            "live_metric": f"sample inputs: y_hat=+{wf05['predicted_spread_widening_bps']} bps · Entropy={wf05['book_shannon_entropy']}",
         },
         {
             "model_id": "WF-06",
@@ -666,7 +676,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "signal_criteria": "Detection of large whale liquidation (Volume_whale > 5% ADV).",
             "execution_action": "Hedge/trade momentum with structural stop, close after impact.",
             "subsystem": "src/atlas/microstructure/predatory.py",
-            "live_metric": f"Whale/ADV={wf06['whale_participation_adv_pct']}% · Impact={wf06['predicted_impact_bps']} bps",
+            "live_metric": f"sample inputs: Whale/ADV={wf06['whale_participation_adv_pct']}% · Impact={wf06['predicted_impact_bps']} bps",
         },
         {
             "model_id": "WF-07",
@@ -677,7 +687,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "signal_criteria": "Clustering of iceberg order fills or hidden dark-pool prints.",
             "execution_action": "Join the hidden liquidity pool, deploy stealth post-only orders.",
             "subsystem": "src/atlas/regime/hawkes_detector.py",
-            "live_metric": f"lambda(t)={wf07['current_intensity_lambda']} · Iceberg={wf07['iceberg_clustering_detected']}",
+            "live_metric": f"sample inputs: lambda(t)={wf07['current_intensity_lambda']} · Iceberg={wf07['iceberg_clustering_detected']}",
         },
         {
             "model_id": "WF-08",
@@ -688,7 +698,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "signal_criteria": "Continuous state-action mapping for optimal order routing.",
             "execution_action": "Dynamic placement of limit vs market orders (execution_permission=none).",
             "subsystem": "src/atlas/execution/rl_agent.py",
-            "live_metric": f"Policy: {wf08['optimal_tactic']} (Reward={wf08['cumulative_reward_score']})",
+            "live_metric": f"sample inputs: Policy: {wf08['optimal_tactic']} (Reward={wf08['cumulative_reward_score']})",
         },
     ]
 
@@ -701,7 +711,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "granularity": "L1 BBO, L2 10-level Depth, SEC EDGAR PIT XBRL",
             "prop_nuances": "PDT rules, Reg-T intraday margin & SEC T+1 settlement",
             "hedging_strategy": "A-Book direct market access (Alpaca / IBKR)",
-            "subsystem": "src/atlas/marketdata/equities",
+            "subsystem": "src/atlas/marketdata/equities.py",
         },
         {
             "domain": "CME Index/Commodity Futures",
@@ -710,7 +720,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "granularity": "L3 MBO / Tick-by-Tick depth reconstruction",
             "prop_nuances": "Intraday trailing high-water-mark drawdown during open trades",
             "hedging_strategy": "Hybrid B-Book with internal cross-trader netting",
-            "subsystem": "src/atlas/marketdata/futures",
+            "subsystem": "src/atlas/marketdata/futures.py",
         },
         {
             "domain": "24/7 Crypto Spot & Perps",
@@ -719,7 +729,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "granularity": "L2 10-level Depth, Funding rate & Open Interest",
             "prop_nuances": "Funding rate bleed & high-volatility liquidation cascades",
             "hedging_strategy": "Dynamic perpetual delta hedging & basis capture",
-            "subsystem": "src/atlas/marketdata/crypto",
+            "subsystem": "src/atlas/marketdata/crypto.py",
         },
         {
             "domain": "Global FX & CFDs",
@@ -728,7 +738,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "granularity": "L1 BBO, Multi-LP L2 Depth",
             "prop_nuances": "Weekend holding bans, news-window slippage & leverage caps",
             "hedging_strategy": "B-Book internalization with VPIN-triggered A-Book exhaust",
-            "subsystem": "src/atlas/marketdata/fx",
+            "subsystem": "src/atlas/marketdata/fx.py",
         },
         {
             "domain": "Synthetic Indices",
@@ -737,7 +747,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "granularity": "Tick-by-Tick synthetic volatility step generation",
             "prop_nuances": "High-frequency gap rules & anti-latency-arbitrage guards",
             "hedging_strategy": "100% B-Book internalization with Sybil/toxic-scalp blocks",
-            "subsystem": "src/atlas/marketdata/synthetics",
+            "subsystem": "src/atlas/marketdata/synthetics.py",
         },
     ]
 
@@ -804,15 +814,15 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
         {"dimension": "Max Trailing DD", "open_market_spec": "10.0% Static Drawdown Floor", "prop_competition_spec": "8.0% Max Trailing Drawdown Floor", "deterministic_enforcement": "ActionableControlPlaneEngine"},
         {"dimension": "Per-Trade Risk Cap", "open_market_spec": "0.50% Equity Risk Cap", "prop_competition_spec": "0.50%-0.75% Per-Trade Risk Cap", "deterministic_enforcement": "Mandatory ATR/Structure Stop + VPIN Widening"},
         {"dimension": "Consistency Gate", "open_market_spec": "Unconstrained Open-Market Compounding", "prop_competition_spec": "<= 35% Single-Day Profit Consistency Gate", "deterministic_enforcement": ">= 5 Minimum Trading Days"},
-        {"dimension": "Data Feeds", "open_market_spec": "SEC EDGAR PIT XBRL, Databento / Polygon.io SIP", "prop_competition_spec": "Databento L1/L2/MBO, Coinbase Public REST", "deterministic_enforcement": "acceptance_time <= as_of (PIT Gate)"},
-        {"dimension": "Broker Routing", "open_market_spec": "Alpaca / Interactive Brokers DMA routing", "prop_competition_spec": "FIX protocol, Coinbase, cTrader, Rithmic", "deterministic_enforcement": "Zero operator discretion"},
+        {"dimension": "Data Feeds", "open_market_spec": "Public Yahoo chart bars; SEC EDGAR as-filed selector (Databento/Polygon not configured)", "prop_competition_spec": "Public Binance/Coinbase klines (Databento not configured)", "deterministic_enforcement": "acceptance_time <= as_of (PIT Gate)"},
+        {"dimension": "Broker Routing", "open_market_spec": "Alpaca / IBKR PAPER adapters (off by default)", "prop_competition_spec": "Paper broker only (no FIX/Coinbase/cTrader/Rithmic routing)", "deterministic_enforcement": "Zero operator discretion"},
         {"dimension": "Regulatory/Audit Standard", "open_market_spec": "SEC T+1 / Reg-T / XBRL Audit", "prop_competition_spec": "Prop Challenge Rulebook Verification", "deterministic_enforcement": "ISO 42001, NIST AI RMF, IOSCO & 8 Ledgers"},
     ]
 
     # TAB 3: Workbench Layers & APIs (Sheet 3)
     workbench_layers_apis = [
         {"layer": "Command Center", "route": "/", "description": "Unified executive trading desk, live chart & prop scorecard", "data_flow": "/api/platform/snapshot, /api/control/state"},
-        {"layer": "Whale ML, SaaS & A-Z Roadmap", "route": "/roadmap", "description": "All 7 Excel tabs executed directly (A-Z, WF-01..08, SAAS-01..10)", "data_flow": "/api/master-roadmap, /api/master-roadmap/evaluate-whale"},
+        {"layer": "Whale ML, SaaS & A-Z Roadmap", "route": "/roadmap", "description": "Roadmap catalogue (A-Z, WF-01..08, SAAS-01..12); statuses per root workbook, WF metrics on sample inputs", "data_flow": "/api/master-roadmap, /api/master-roadmap/evaluate-whale"},
         {"layer": "Quant & Signal Matrix", "route": "/matrix", "description": "9x4 Multi-Horizon Alpha, 9x9 Correlation, 5x5 Regime & L2 DOM", "data_flow": "/api/matrix, /api/matrix/recompute"},
         {"layer": "Live Listings", "route": "/listings", "description": "Real-time multi-asset listings & 1-click order desk routing", "data_flow": "/api/listings, /api/listings/action"},
         {"layer": "Live Charts & Market PIT", "route": "/market", "description": "Dual-mode ATLAS PIT + Forecast Fan & TradingView Live Charts", "data_flow": "/api/market/candles, /api/market/live-internet-sync"},
@@ -856,8 +866,8 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "persona_name": "Prop Firm Founder, CFO & Head of Risk",
             "primary_realm": "Both (Competition Host & Risk Control)",
             "buyer_role": "Prop Firm Founder, Head of Risk, CFO, Operations Lead",
-            "core_objective": "Host profitable prop trading competitions with 0.8ms real-time drawdown enforcement, Sybil/copy-bot ring quarantine, and elastic hybrid SaaS billing.",
-            "end_to_end_data_pipeline": "6-Gateway Multi-Broker Fill & Equity Stream -> 0.8ms HWM Drawdown & Sybil Cluster Engine (rho > 0.92, dt < 50ms) -> Deterministic Auto-Flatten & Quarantine -> Ledger 1 Non-Custodial Billing",
+            "core_objective": "Host prop trading competitions with deterministic drawdown enforcement, Sybil/copy-bot ring quarantine, and elastic hybrid SaaS billing.",
+            "end_to_end_data_pipeline": "Multi-Broker Fill & Equity Stream (planned) -> HWM Drawdown & Sybil Cluster Engine (rho > 0.92, dt < 50ms) -> Deterministic Auto-Flatten & Quarantine -> Ledger 1 Non-Custodial Billing",
             "mapped_verticals": "SAAS-01, SAAS-02, SAAS-03, SAAS-05, SAAS-12",
             "primary_route": "/control/risk-hud",
         },
@@ -878,22 +888,22 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "realm_id": "open_market",
             "title": "Realm 1: Open-Market Equities & Multi-Asset Trading",
             "stages": [
-                {"step": "1. Ingestion", "source": "Polygon.io SIP + Databento L1/L2 + SEC EDGAR XBRL", "metric": "9ms RTT · T+1 / Reg-T"},
+                {"step": "1. Ingestion", "source": "Polygon.io SIP + Databento L1/L2 + SEC EDGAR XBRL", "metric": "not configured (public Yahoo bars used)"},
                 {"step": "2. Causal PIT Gate", "source": "acceptance_time <= as_of_timestamp", "metric": "Zero Lookahead Verified"},
-                {"step": "3. Lakehouse & Features", "source": "DuckDB/Parquet + Volume Profile (VAL/POC/VAH)", "metric": "2.45M PIT Rows"},
-                {"step": "4. AI Forecast Fan", "source": "CB-06 Antigravity GBDT (t+1h / t+2h)", "metric": "DSR 0.995 · perm: none"},
-                {"step": "5. Risk & DMA Routing", "source": "3.0% Desk Limit · 0.50% Risk Cap -> Alpaca / IBKR DMA", "metric": "Unconstrained Compounding"},
+                {"step": "3. Lakehouse & Features", "source": "DuckDB/Parquet + Volume Profile (VAL/POC/VAH)", "metric": "not measured"},
+                {"step": "4. AI Forecast Fan", "source": "predict() contract; registry empty -> abstain", "metric": "no validated model · perm: none"},
+                {"step": "5. Risk & DMA Routing", "source": "3.0% Desk Limit · 0.50% Risk Cap -> Alpaca / IBKR DMA", "metric": "paper only"},
             ],
         },
         "prop_competition_realm": {
             "realm_id": "competition",
             "title": "Realm 2: Prop Trading Competitions & Evaluation Challenges",
             "stages": [
-                {"step": "1. 24/7 Competition Feed", "source": "Coinbase/CCXT Pro + CME MDP3 L3 MBO + Funding/OI", "metric": "8.4ms Tick Stream"},
-                {"step": "2. Staleness & PIT Gate", "source": "<500ms Feed Freshness Circuit Breaker", "metric": "0 Stale Fills"},
-                {"step": "3. Ring Buffer & Whale ML", "source": "5,000-Tick Deque · Top-5 OFI + Rolling VPIN + Hawkes", "metric": "VPIN 29.1% · OFI +22.8%"},
-                {"step": "4. Challenge Rule Engine", "source": "4% Daily · 8% Trailing HWM · <=35% Consistency · >=5 Days", "metric": "0.8ms Equity Check"},
-                {"step": "5. Competition Execution", "source": "Almgren-Chriss Child Slicer & Smart A/B-Book Router", "metric": "Phase 1/2 -> Funded"},
+                {"step": "1. 24/7 Competition Feed", "source": "Coinbase/CCXT Pro + CME MDP3 L3 MBO + Funding/OI", "metric": "not measured"},
+                {"step": "2. Staleness & PIT Gate", "source": "<500ms Feed Freshness Circuit Breaker", "metric": "500 ms competition / 2000 ms open-market threshold"},
+                {"step": "3. Ring Buffer & Whale ML", "source": "5,000-Tick Deque · Top-5 OFI + Rolling VPIN + Hawkes", "metric": "not measured on live data"},
+                {"step": "4. Challenge Rule Engine", "source": "4% Daily · 8% Trailing HWM · <=35% Consistency · >=5 Days", "metric": "not measured"},
+                {"step": "5. Competition Execution", "source": "Almgren-Chriss Child Slicer & Smart A/B-Book Router", "metric": "paper only"},
             ],
         },
     }
@@ -919,6 +929,8 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
         "icp_personas": icp_personas,
         "dual_realm_pipelines": dual_realm_pipelines,
         "hundred_feature_matrix": hundred_feature_matrix,
+        "live_wf_telemetry_source": "sample_inputs",
+        "live_wf_telemetry_note": "WF-01..08 values are computed from hard-coded sample inputs, not market data.",
         "live_wf_telemetry": {
             "wf01_kyles_lambda": wf01,
             "wf02_vpin": wf02,
@@ -960,7 +972,7 @@ def export_master_roadmap_csvs(output_dir: str | Path | None = None) -> dict[str
         if rows:
             fieldnames = list(rows[0].keys())
             with file_path.open("w", newline="", encoding="utf-8") as handle:
-                writer = csv.DictWriter(handle, fieldnames=fieldnames)
+                writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
                 writer.writeheader()
                 writer.writerows(rows)
         exported_paths[filename] = str(file_path)

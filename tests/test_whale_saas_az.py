@@ -18,8 +18,11 @@ def test_challenger_model_benchmark_and_b2b_pricing() -> None:
     cb_ids = [b["benchmark_id"] for b in bench["benchmarks"]]
     assert cb_ids == ["CB-01", "CB-02", "CB-03", "CB-04", "CB-05", "CB-06"]
     for item in bench["benchmarks"]:
-        assert item["deflated_sharpe_dsr"] >= 0.95
-        assert item["ece_calibration"] <= 0.035
+        # No benchmark run is recorded, so no metric may be reported (no fabricated evidence).
+        for key in ("purged_wf_sharpe", "deflated_sharpe_dsr", "prop_loss_l_theta", "brier_score", "ece_calibration"):
+            assert item[key] is None
+        assert item["promotion_gate"].startswith("NOT EVALUATED")
+        assert item["status"] in {"Experimental", "Planned"}
 
     quote = compute_b2b_saas_pricing_quote(
         active_trader_seats=250,
@@ -36,6 +39,18 @@ def test_challenger_model_benchmark_and_b2b_pricing() -> None:
     state = build_master_roadmap_state("SPY")
     assert len(state["roadmap_az"]) == 26
     assert len(state["b2b_saas_verticals"]) == 12
+    for v in state["b2b_saas_verticals"]:
+        assert v["phase"] == "Planned" and v["status"] == "Planned"
+        assert v["live_telemetry"].startswith("Not measured")
+    assert state["live_wf_telemetry_source"] == "sample_inputs"
+    assert all(w["live_metric"].startswith("sample inputs:") for w in state["whale_execution_ml"])
+    statuses = {r["status"] for r in state["roadmap_az"]}
+    assert "Implemented" not in statuses
+    assert statuses <= {"Implemented+tested", "Partial", "Experimental", "Blocked", "Planned"}
+    import json
+    blob = json.dumps(state)
+    for banned in ("Executed Directly (Live)", "0.995", "250 Seats", "0.8ms", "100% Compliant"):
+        assert banned not in blob, banned
     assert "challenger_benchmarks" in state
     assert "b2b_pricing_quote" in state
 

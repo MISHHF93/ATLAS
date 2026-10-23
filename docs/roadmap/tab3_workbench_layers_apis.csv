@@ -1,6 +1,6 @@
 layer,route,description,data_flow
 Command Center,/,"Unified executive trading desk, live chart & prop scorecard","/api/platform/snapshot, /api/control/state"
-"Whale ML, SaaS & A-Z Roadmap",/roadmap,"All 7 Excel tabs executed directly (A-Z, WF-01..08, SAAS-01..10)","/api/master-roadmap, /api/master-roadmap/evaluate-whale"
+"Whale ML, SaaS & A-Z Roadmap",/roadmap,"Roadmap catalogue (A-Z, WF-01..08, SAAS-01..12); statuses per root workbook, WF metrics on sample inputs","/api/master-roadmap, /api/master-roadmap/evaluate-whale"
 Quant & Signal Matrix,/matrix,"9x4 Multi-Horizon Alpha, 9x9 Correlation, 5x5 Regime & L2 DOM","/api/matrix, /api/matrix/recompute"
 Live Listings,/listings,Real-time multi-asset listings & 1-click order desk routing,"/api/listings, /api/listings/action"
 Live Charts & Market PIT,/market,Dual-mode ATLAS PIT + Forecast Fan & TradingView Live Charts,"/api/market/candles, /api/market/live-internet-sync"
