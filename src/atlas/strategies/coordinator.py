@@ -13,13 +13,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 import pandas as pd
 
 from atlas.features.zones import ZoneEngine, ZoneType, PriceZone
 from atlas.strategies.snapback import SnapbackDetector, SnapbackSetup, SnapbackState
 from atlas.models.strategy_classifier import StrategyClassifier, StrategyPrediction
 from atlas.features.pa_integration import PriceActionFeatureExtractor
+from atlas.research.memory import MarketMemoryEngine
 from atlas.models.schemas import Record, Text
 
 
@@ -33,7 +34,7 @@ class RankedOpportunity(Record):
     probability: float
     expected_value: float
     uncertainty: float
-    setup_details: dict[str, any]
+    setup_details: dict[str, Any]
     recommended_action: str
     evaluated_at: datetime
     execution_permission: Literal["none"] = "none"
@@ -48,10 +49,12 @@ class OpportunityCoordinator:
     def __init__(
         self, 
         classifier: StrategyClassifier, 
-        feature_extractor: PriceActionFeatureExtractor
+        feature_extractor: PriceActionFeatureExtractor,
+        memory_engine: MarketMemoryEngine
     ):
         self.classifier = classifier
         self.extractor = feature_extractor
+        self.memory = memory_engine
         # Symbol-specific state tracking
         self.zone_engines: dict[str, ZoneEngine] = {}
         self.detectors: dict[str, SnapbackDetector] = {}
@@ -107,19 +110,32 @@ class OpportunityCoordinator:
         # 4. Get probabilistic forecast from the ML Classifier
         prediction = self.classifier.predict(setup, full_features)
 
-        # 5. Construct the ranked opportunity
+        # 5. Retrieve Historical Analogues (Market Memory)
+        analogues = self.memory.find_analogues(full_features)
+        consensus_prob = self.memory.get_analogue_consensus(analogues)
+
+        # Blend Model Probability with Historical Consensus
+        # Weight: 70% Model, 30% Historical Analogue
+        blended_prob = (prediction.probability_of_success * 0.7) + (consensus_prob * 0.3)
+        
+        # Update prediction with blended probability for EV calculation
+        blended_ev = (blended_prob * 1.5) - ((1 - blended_prob) * 1.0)
+
+        # 6. Construct the ranked opportunity
         return RankedOpportunity(
             symbol=symbol,
             opportunity_id=setup.setup_id,
             strategy_name="SnapbackEntry",
             direction="long" if setup.direction == "long" else "short",
-            probability=prediction.probability_of_success,
-            expected_value=prediction.expected_value,
+            probability=blended_prob,
+            expected_value=blended_ev,
             uncertainty=prediction.uncertainty_score,
             setup_details={
                 "state": setup.state.name,
                 "box_height": opening_box.boundary.height if opening_box else 0,
                 "breakout_time": setup.breakout_time.isoformat() if setup.breakout_time else None,
+                "analogue_count": len(analogues),
+                "consensus_prob": consensus_prob
             },
             recommended_action=prediction.recommended_action,
             evaluated_at=datetime.now(timezone.utc)
