@@ -50,6 +50,7 @@ def _desk(symbol: str, resolution: str, session: str | None) -> dict[str, Any]:
     eng.run_batch(bars_from_rows(visible, bucket), now=now)
     out = _payload(eng, report.get("feed_origin"))
     out["bars_used"] = len(visible)
+    out["bars"] = [list(r) for r in visible]
     if not visible:
         out["note"] = "no confirmed bars available for this symbol"
     return out
