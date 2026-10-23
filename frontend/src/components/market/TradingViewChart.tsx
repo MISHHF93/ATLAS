@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { TvFrame, TvProvenance } from "./TvFrame";
 
 type TradingViewPane = {
   id: string;
@@ -56,16 +57,11 @@ function TradingViewPaneFrame({
 }) {
   return (
     <section style={{ minWidth: 0 }}>
-      {quiet ? null : (
-        <div style={{ fontSize: "11px", color: "#94A3B8", lineHeight: 1.45, marginBottom: "6px" }}>
-          {pane.note} execution_permission {pane.execution_permission}
-        </div>
-      )}
-      <iframe
-        title={pane.title}
-        src={pane.embed_url}
-        style={{ width: "100%", height, border: 0, borderRadius: "6px", background: "#0B0F17" }}
-      />
+      <div style={{ fontSize: "11px", color: "#94A3B8", lineHeight: 1.45, marginBottom: "6px" }}>
+        <TvProvenance kind="tradingview" />
+        {quiet ? null : <> {pane.note} execution_permission {pane.execution_permission}</>}
+      </div>
+      <TvFrame title={pane.title} src={pane.embed_url} pageUrl={pane.page_url} height={height} />
       <a
         href={pane.page_url}
         target="_blank"
@@ -179,14 +175,10 @@ export function TradingViewChart({
         <section>
           {quiet ? null : (
             <div style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "6px" }}>
-              {tape.note} execution_permission {tape.execution_permission}
+              <TvProvenance kind="tradingview" /> {tape.note} execution_permission {tape.execution_permission}
             </div>
           )}
-          <iframe
-            title="TradingView ticker tape"
-            src={tape.embed_url}
-            style={{ width: "100%", height: 74, border: 0, borderRadius: "6px", background: "#0B0F17" }}
-          />
+          <TvFrame title="TradingView ticker tape" src={tape.embed_url} pageUrl={tape.page_url} height={74} />
           <a href={tape.page_url} target="_blank" rel="noopener nofollow" style={{ color: "#38bdf8", fontSize: "11px" }}>
             Both books by TradingView
           </a>
@@ -197,26 +189,19 @@ export function TradingViewChart({
       ) : null}
       {showChart && spec && spec.available && spec.embed_url ? (
         <section style={fill ? { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" } : undefined}>
-          <iframe
+          <TvFrame
             key={`${spec.tradingview_symbol}:${spec.interval}`}
-            onLoad={() => setFrameLoaded(true)}
-            onError={() => setFailed(true)}
             title={`TradingView ${spec.tradingview_symbol} ${spec.interval}`}
             src={spec.embed_url}
-            scrolling="no"
-            style={{
-              width: "100%",
-              height: fill ? "100%" : height,
-              flex: fill ? 1 : undefined,
-              minHeight: fill ? 0 : undefined,
-              border: 0,
-              borderRadius: "6px",
-              background: "#0B0F17",
-            }}
+            pageUrl={spec.chart_page_url ?? "https://www.tradingview.com/"}
+            height={height}
+            fill={fill}
             allowFullScreen
+            onLoaded={() => setFrameLoaded(true)}
           />
           <div style={{ color: "#94A3B8", fontSize: "11px", marginTop: "4px" }}>
-            {frameLoaded ? "TradingView frame loaded · chart contents are provided by TradingView" : "Loading TradingView frame…"}
+            <TvProvenance kind="tradingview" />{" "}
+            {frameLoaded ? "Chart contents and prices are TradingView's (US stocks delayed; times in America/Toronto)" : "Loading TradingView frame…"}
           </div>
           <a
             href={spec.chart_page_url ?? "https://www.tradingview.com/"}

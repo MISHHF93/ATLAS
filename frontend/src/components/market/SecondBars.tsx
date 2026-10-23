@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { deskTimeOptions } from "./lwTime";
 import { ColorType, createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 
 export type Bar = { timestamp: string; open: number; high: number; low: number; close: number };
@@ -23,10 +24,11 @@ export function SecondBars({ symbol, bucketSeconds, intervalLabel, onOpenMinute,
     if (!host.current) return;
     const element = host.current;
     const api = createChart(element, {
+      ...deskTimeOptions,
       width: Math.max(1, element.clientWidth), height: Math.max(1, element.clientHeight),
-      layout: { background: { type: ColorType.Solid, color: "#0B0F17" }, textColor: "#A9BDCE" },
+      layout: { attributionLogo: true, background: { type: ColorType.Solid, color: "#0B0F17" }, textColor: "#A9BDCE" },
       grid: { vertLines: { color: "#182431" }, horzLines: { color: "#182431" } },
-      timeScale: { timeVisible: true, secondsVisible: bucketSeconds < 60, rightOffset: 3 },
+      timeScale: { ...deskTimeOptions.timeScale, secondsVisible: bucketSeconds < 60, rightOffset: 3 },
       rightPriceScale: { borderColor: "#263848", scaleMargins: { top: 0.12, bottom: 0.12 } },
     });
     chart.current = api;

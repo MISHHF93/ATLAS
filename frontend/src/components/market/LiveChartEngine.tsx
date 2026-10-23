@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { deskTimeOptions } from "./lwTime";
 
 export type LiveTickStreamFrame = {
   symbol: string;
@@ -389,10 +390,10 @@ export function LiveChartEngine({
     void import("lightweight-charts").then(lw => {
       if (disposed) return;
       const chart = lw.createChart(element, {
+        ...deskTimeOptions,
         width: element.clientWidth, height: chartHeight,
-        layout: { background: { type: lw.ColorType.Solid, color: "#080C14" }, textColor: "#94A3B8" },
+        layout: { attributionLogo: true, background: { type: lw.ColorType.Solid, color: "#080C14" }, textColor: "#94A3B8" },
         grid: { vertLines: { color: "#15202e" }, horzLines: { color: "#15202e" } },
-        timeScale: { timeVisible: true },
       });
       const candles = chart.addCandlestickSeries({ upColor: "#00F29D", downColor: "#FF3B69", borderVisible: false });
       const fans = ["P10", "P50", "P90"].map(title => chart.addLineSeries({ title, color: "#38BDF8", lineWidth: 1, lineStyle: lw.LineStyle.Dashed }));
