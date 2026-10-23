@@ -76,7 +76,7 @@ app.state.experimental_ml_status = {
 
 @app.api_route("/api/advanced-ml/{path:path}", methods=["GET", "POST"], include_in_schema=False)
 def unavailable_experimental_ml(path: str) -> None:
-    raise HTTPException(status_code=503, detail=app.state.experimental_ml_status)
+    raise HTTPException(status_code=410, detail=app.state.experimental_ml_status)
 
 
 @app.get("/api/research/experimental-status", include_in_schema=False)
@@ -1758,7 +1758,7 @@ def ingest_whale_signal_endpoint(payload: dict[str, object] | None = None) -> di
 
 def _retired_legacy_model() -> HTTPException:
     return HTTPException(
-        status_code=503,
+        status_code=410,
         detail={
             "status": "retired",
             "replacement": "/api/research/vertical-slice",

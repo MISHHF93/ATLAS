@@ -40,7 +40,7 @@ def test_retired_route_refuses_before_legacy_or_order_activity(monkeypatch, meth
 
     response = TestClient(api.app).request(method, path, json=payload)
 
-    assert response.status_code == 503
+    assert response.status_code == 410
     assert response.json() == {
         "detail": {
             "status": "retired",

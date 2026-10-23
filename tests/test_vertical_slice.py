@@ -846,7 +846,7 @@ def test_vertical_slice_status_exposes_scheduler_contract() -> None:
         assert experimental["execution_permission"] == "none"
         assert experimental["state"] == "retired"
         retired = client.get("/api/advanced-ml/status")
-        assert retired.status_code == 503
+        assert retired.status_code == 410
         assert retired.json()["detail"]["state"] == "retired"
         assert (
             retired.json()["detail"]["audited_path"]
