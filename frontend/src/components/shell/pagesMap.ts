@@ -1,4 +1,4 @@
-export type PageGroupId = "desk" | "trade" | "risk" | "research" | "data";
+export type PageGroupId = "desk" | "trade" | "risk" | "research" | "data" | "money";
 
 export type WorkspaceRoute =
   | "/trade/cockpit"
@@ -41,6 +41,7 @@ export const PAGE_GROUPS: Array<{ id: PageGroupId; label: string }> = [
   { id: "risk", label: "Risk" },
   { id: "research", label: "Research" },
   { id: "data", label: "Data" },
+  { id: "money", label: "Money" },
 ];
 
 export const PAGES: AtlasPage[] = [
@@ -197,6 +198,48 @@ export const PAGES: AtlasPage[] = [
     label: "Specifications",
     group: "data",
     summary: "The specification files this desk is built from. Reading them does not send an order.",
+  },
+  {
+    id: "inbox",
+    href: "/inbox",
+    label: "Action needed",
+    group: "desk",
+    summary: "Safe stop, paper approvals and checks waiting on you.",
+  },
+  {
+    id: "money",
+    href: "/money",
+    label: "Money",
+    group: "money",
+    summary: "The 8 non-custodial money ledgers and read-only balances.",
+  },
+  {
+    id: "payments",
+    href: "/payments",
+    label: "Payments",
+    group: "money",
+    summary: "Founder treasury and subscription payments (sandbox).",
+  },
+  {
+    id: "portal",
+    href: "/portal",
+    label: "Investor portal",
+    group: "money",
+    summary: "Investor wallet and fund statements, read-only.",
+  },
+  {
+    id: "tax",
+    href: "/tax",
+    label: "Tax",
+    group: "money",
+    summary: "Canadian ACB, superficial loss, BoC FX, T5008 and T1135.",
+  },
+  {
+    id: "compliance",
+    href: "/compliance",
+    label: "Compliance",
+    group: "money",
+    summary: "FINTRAC records, sanctions, privacy and Canadian venues.",
   },
 ];
 
