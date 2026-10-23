@@ -1,5 +1,6 @@
 "use client";
 
+import { ApprovalsCard } from "../../ui/pages/Console";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { FounderGate, useFounderData, useFounderStatus } from "./FounderPanel";
@@ -60,9 +61,10 @@ export function InboxView() {
           )}
         </Async>
       </Card>
+      <ApprovalsCard />
       <FounderGate status={status}>
         <div className="ux-grid" data-cols={2}>
-          <TableCard title="Paper order approvals" subtitle="Decide with atlas-owner and step-up auth" rows={pend}
+          <TableCard title="Paper order approvals (demo ledger)" subtitle="Decide with atlas-owner and step-up auth" rows={pend}
             columns={cols([["symbol", "Symbol"], ["side", "Side"], ["qty", "Qty", "num"], ["limit_price", "Limit", "money"], ["sleeve", "Sleeve"], ["expires_in_s", "Expires (s)", "num"]])}
             empty="No paper orders waiting for approval" />
           <TableCard title="Payouts awaiting two approvals" rows={payouts}
