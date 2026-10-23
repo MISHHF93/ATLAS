@@ -68,3 +68,52 @@ All fixtures are seeded synthetic data and labelled as such.
 - There is no holiday data.
 - There is no economic data feed.
 - Performance has not been evaluated on real data.
+
+## Slice 2 — prediction contract, EV gate, replay, consolidation
+
+### `atlas.models.predict.predict()` (spec 12.1)
+- Returns a `Prediction` with only the fields listed in the registered model's `validated_outputs`; everything else is `None`. `execution_permission` is always `"none"`.
+- A probability is returned only through an in-scope calibrator (`PlattCalibrator`, or `BinCalibratorAdapter` that wraps `ProbabilityCalibrator`) fitted on held-out data before the observation time. If no such calibrator exists, the prediction abstains.
+- Abstention codes:
+  - `no_validated_model`, `unknown_model`
+  - `horizon_mismatch`, `instrument_out_of_scope`
+  - `missing_features`, `feature_from_future`, `stale_data`
+  - `uncalibrated`, `calibration_unsupported`
+  - `uncertainty_unavailable`, `uncertainty_too_wide` (from the conformal half-width)
+- `DEFAULT_REGISTRY` is **empty**. No price-action setup model has been validated, so every live candidate abstains with `no_validated_model`.
+
+### `atlas.models.opportunity` (research only)
+- EV = pG − (1−p)L − C
+- break-even p = (L+C)/(G+L)
+- Kelly b = (G−C)/(L+C)
+- The fractional Kelly result is clipped at 0.
+- Research units = floor(eq·rf/((L+C)·mult)/lot)·lot.
+- Gate reasons:
+  - `costs_exceed_edge`
+  - `insufficient_edge`
+  - `probability_semantics_mismatch`
+  - `invalid_stop_target_geometry`
+- Sizing is a proposal only. `sizing_authority` = ActionableControlPlaneEngine; the founder Safe-stop still applies.
+
+### Proposals
+- The 0.5 conviction placeholder has been removed. `candidate_to_signal` raises `Abstained` unless the evaluation carries a calibrated probability; in that case conviction = the calibrated p.
+- `/api/quant/setups` returns `evaluations` for all candidates and `proposals` for non-abstained candidates only.
+
+### Replay (`price_action.replay`, `GET /api/quant/replay`)
+- Feeds bars through the same streaming `PriceActionEngine.update` used live.
+- Fill model `conservative_ohlc_v1`:
+  - **Entry:** limit at the entry reference, starting the bar after detection, held for `entry_window` bars.
+  - **Fill bar:** a stop touch counts; a target touch is ignored.
+  - **Gaps:** a gap through the stop exits at the open; a gap through the target is capped at the target.
+  - **Ambiguous bars:** a bar touching both stop and target counts as a stop.
+  - **Timeout:** exits at the close after `max_hold_bars`.
+  - **Costs:** charged per unit.
+- Output is labelled `real:<feed_origin>`, `no_data`, or (tests only) `synthetic_fixture`. It is descriptive and is not a validated performance estimate.
+
+### Consolidation
+- These legacy functions are shims over `price_action.indicators`, with behaviour verified against frozen copies in `tests/price_action/legacy_reference.py`:
+  - `pine_features` (EMA/RSI/ATR)
+  - `mcp/trading/research` (EMA/RSI/ATR)
+  - `microstructure.compute_atr`
+  - `udf._atr`
+- The legacy `features/zones` engine is kept. `PriceZone.to_lifecycle_zone()` adapts it to the lifecycle `Zone`; it has not been rewritten.

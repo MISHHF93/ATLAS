@@ -15,8 +15,8 @@ Statuses used: **implemented+tested**, **partial**, **missing**, **duplicated**.
 | Order-book imbalance | — | missing | No explicit function. |
 | Regimes | `models/regimes.py` (causal rules), `regime/hawkes_detector.classify_regime` | partial | No HMM or change-point model. |
 | ML: labels, CV, PBO, DSR, conformal | `models/quant/*` (triple_barrier, purged k-fold/walk-forward, pbo_cscv, deflated_sharpe, conformal, registry gates, costmodel) | implemented+tested | — |
-| Calibration | `calibration/` (Platt, ProbabilityCalibrator), `models/uncertainty_calibration` | partial | Not wired into a common prediction contract. |
-| Unified predict() contract + abstention | many model-specific `predict()` | missing | Recommended next slice. |
+| Calibration | `calibration/` (Platt, ProbabilityCalibrator), `models/uncertainty_calibration` | done (slice 2) | Wired via `models.predict` (PlattCalibrator, BinCalibratorAdapter). |
+| Unified predict() contract + abstention | many model-specific `predict()` | done (slice 2) | `models.predict` + `models.opportunity` EV gate; registry empty, so everything abstains until a model is validated. |
 | EV / sizing | `autopilot/sizing.fractional_kelly` | partial | No EV-after-cost gate on calibrated probability. |
 | Portfolio / ES | `portfolio/construction.py` (HRP/HERC, CVaR), `models/evaluation.expected_shortfall_95` | partial | — |
 | Execution / costs | `execution/scheduling.almgren_chriss`, `execution/tactics/optimal`, `execution/paper`, `models/quant/costmodel` | implemented+tested (paper only) | Live trading disabled. |
