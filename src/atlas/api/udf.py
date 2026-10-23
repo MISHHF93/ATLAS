@@ -150,13 +150,14 @@ def history_payload(
 
 
 def _atr(rows: list[tuple[int, float, float, float, float, float]], index: int) -> float:
+    """Mean of up to 14 true ranges ending at ``index`` (rolling simple mean; canonical TR)."""
+    from atlas.features.price_action.indicators import true_range_batch
     start = max(1, index - 13)
-    spans = []
-    for cursor in range(start, index + 1):
-        _t, _o, high, low, close, _v = rows[cursor]
-        prev_close = rows[cursor - 1][4]
-        spans.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
-    return sum(spans) / len(spans) if spans else 0.0
+    if index < start:
+        return 0.0
+    seg = rows[start - 1:index + 1]
+    tr = true_range_batch([r[2] for r in seg], [r[3] for r in seg], [r[4] for r in seg])[1:]
+    return float(sum(float(v) for v in tr) / len(tr))
 
 
 def marks_payload(gateway: Any, symbol: str, resolution: str, start: int, end: int) -> list[dict[str, Any]]:

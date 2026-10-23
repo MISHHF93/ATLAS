@@ -35,9 +35,9 @@ class EMA:
         return self.value
 
 
-def _rsi_from(g: float, l: float) -> float:
+def _rsi_from(g: float, l: float, flat: float = 50.0) -> float:
     if l == 0.0:
-        return 50.0 if g == 0.0 else 100.0
+        return flat if g == 0.0 else 100.0
     if g == 0.0:
         return 0.0
     return 100.0 - 100.0 / (1.0 + g / l)
@@ -128,7 +128,8 @@ def ema_batch(x: Sequence[float], n: int) -> list[float | None]:
     return out
 
 
-def rsi_batch(x: Sequence[float], n: int = 14) -> list[float | None]:
+def rsi_batch(x: Sequence[float], n: int = 14, *, flat_value: float = 50.0) -> list[float | None]:
+    """Wilder RSI. ``flat_value`` is returned when avg gain == avg loss == 0 (canonical 50; legacy shims pass 100)."""
     a = np.asarray(x, float)
     out: list[float | None] = [None] * len(a)
     if len(a) <= n:
@@ -136,11 +137,11 @@ def rsi_batch(x: Sequence[float], n: int = 14) -> list[float | None]:
     d = np.diff(a)
     gains, losses = np.clip(d, 0, None), np.clip(-d, 0, None)
     g, l = float(gains[:n].mean()), float(losses[:n].mean())
-    out[n] = _rsi_from(g, l)
+    out[n] = _rsi_from(g, l, flat_value)
     for i in range(n, len(d)):
         g = (g * (n - 1) + gains[i]) / n
         l = (l * (n - 1) + losses[i]) / n
-        out[i + 1] = _rsi_from(g, l)
+        out[i + 1] = _rsi_from(g, l, flat_value)
     return out
 
 
@@ -163,6 +164,15 @@ def atr_batch(h, l, c, n: int = 14) -> list[float | None]:
     for i in range(n, len(tr)):
         v = (v * (n - 1) + tr[i]) / n
         out[i] = v
+    return out
+
+
+def atr_rolling_mean_batch(h, l, c, n: int = 14) -> list[float | None]:
+    """Rolling *simple-mean* ATR (a documented variant distinct from Wilder): mean of the last n TRs, TR0 = H-L."""
+    tr = true_range_batch(h, l, c)
+    out: list[float | None] = [None] * len(tr)
+    for i in range(n - 1, len(tr)):
+        out[i] = float(tr[i + 1 - n:i + 1].mean())
     return out
 
 

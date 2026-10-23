@@ -54,6 +54,19 @@ class PriceZone(Record):
     metadata: dict[str, Any] = field(default_factory=dict)
     execution_permission: Literal["none"] = "none"
 
+    def to_lifecycle_zone(self, timeframe: int, *, max_age_seconds: int | None = None):
+        """Adapter onto the canonical ``atlas.features.price_action.Zone`` (lifecycle: touch/retest/invalidate/expire).
+
+        New code should use ``atlas.features.price_action`` directly. This legacy box engine stays as a
+        compatibility shim for its existing callers (snapback, coordinator, research trainer/backtester)."""
+        from atlas.features.price_action.zones import Zone
+        direction = {ZoneDirection.BULLISH: "bullish", ZoneDirection.BEARISH: "bearish"}.get(self.direction, "neutral")
+        formed = int(self.end_time.timestamp())
+        return Zone(instrument=self.symbol, timeframe=int(timeframe), zone_type=f"legacy_{self.zone_type.name.lower()}",
+                    direction=direction, lower_bound=float(self.boundary.low), upper_bound=float(self.boundary.high),
+                    formed_at=formed, confirmed_at=formed, source_event=self.zone_id,
+                    feature_snapshot=dict(self.metadata), max_age_seconds=max_age_seconds)
+
 
 class ZoneEngine:
     """

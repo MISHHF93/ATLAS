@@ -48,43 +48,18 @@ def _sma(xs: list[float], n: int) -> list[float | None]:
 
 
 def _ema(xs: list[float], n: int) -> list[float | None]:
-    k, out, e = 2 / (n + 1), [], None
-    for i, x in enumerate(xs):
-        if i == n - 1:
-            e = sum(xs[:n]) / n
-        elif i >= n:
-            e = x * k + e * (1 - k)
-        out.append(e)
-    return out
+    from atlas.features.price_action.indicators import ema_batch  # canonical implementation
+    return ema_batch(xs, n)
 
 
 def _rsi(xs: list[float], n: int) -> list[float | None]:
-    out: list[float | None] = [None] * len(xs)
-    if len(xs) <= n:
-        return out
-    gains = [max(xs[i] - xs[i - 1], 0.0) for i in range(1, len(xs))]
-    losses = [max(xs[i - 1] - xs[i], 0.0) for i in range(1, len(xs))]
-    ag, al = sum(gains[:n]) / n, sum(losses[:n]) / n
-    for i in range(n, len(xs)):
-        if i > n:
-            ag = (ag * (n - 1) + gains[i - 1]) / n
-            al = (al * (n - 1) + losses[i - 1]) / n
-        out[i] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
-    return out
+    from atlas.features.price_action.indicators import rsi_batch  # canonical; legacy flat value 100
+    return rsi_batch(xs, n, flat_value=100.0)
 
 
 def _atr(bars, n: int) -> list[float | None]:
-    trs = [b.high - b.low if i == 0 else max(b.high - b.low, abs(b.high - bars[i - 1].close), abs(b.low - bars[i - 1].close))
-           for i, b in enumerate(bars)]
-    out: list[float | None] = [None] * len(bars)
-    if len(bars) < n:
-        return out
-    a = sum(trs[:n]) / n
-    out[n - 1] = a
-    for i in range(n, len(bars)):
-        a = (a * (n - 1) + trs[i]) / n
-        out[i] = a
-    return out
+    from atlas.features.price_action.indicators import atr_batch  # canonical Wilder ATR
+    return atr_batch([b.high for b in bars], [b.low for b in bars], [b.close for b in bars], n)
 
 
 def compute_indicators(store, symbol: str, indicators: list[dict], lookback: int = 200, as_of: datetime | None = None) -> dict[str, Any]:

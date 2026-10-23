@@ -54,23 +54,9 @@ def vwap_bands(
 
 
 def average_true_range(highs: list[float], lows: list[float], closes: list[float], window: int = 14) -> list[float | None]:
-    count = len(closes)
-    spans: list[float] = []
-    out: list[float | None] = [None] * count
-    for index in range(count):
-        if index == 0:
-            spans.append(float(highs[index]) - float(lows[index]))
-        else:
-            spans.append(
-                max(
-                    float(highs[index]) - float(lows[index]),
-                    abs(float(highs[index]) - float(closes[index - 1])),
-                    abs(float(lows[index]) - float(closes[index - 1])),
-                )
-            )
-        if index + 1 >= window:
-            out[index] = sum(spans[index + 1 - window : index + 1]) / window
-    return _finite(out)
+    """Rolling simple-mean ATR. Shim over the canonical ``price_action.indicators.atr_rolling_mean_batch``."""
+    from atlas.features.price_action.indicators import atr_rolling_mean_batch
+    return _finite(atr_rolling_mean_batch(highs, lows, closes, window))
 
 
 def volatility_squeeze(
@@ -106,39 +92,15 @@ def volatility_squeeze(
 
 
 def _rsi(closes: list[float], period: int = 14) -> list[float | None]:
-    count = len(closes)
-    out: list[float | None] = [None] * count
-    if count <= period:
-        return out
-    gains = 0.0
-    losses = 0.0
-    for index in range(1, period + 1):
-        change = float(closes[index]) - float(closes[index - 1])
-        gains += max(0.0, change)
-        losses += max(0.0, -change)
-    average_gain = gains / period
-    average_loss = losses / period
-    out[period] = 100.0 if average_loss == 0 else 100.0 - 100.0 / (1.0 + average_gain / average_loss)
-    for index in range(period + 1, count):
-        change = float(closes[index]) - float(closes[index - 1])
-        average_gain = (average_gain * (period - 1) + max(0.0, change)) / period
-        average_loss = (average_loss * (period - 1) + max(0.0, -change)) / period
-        out[index] = 100.0 if average_loss == 0 else 100.0 - 100.0 / (1.0 + average_gain / average_loss)
-    return _finite(out)
+    """Wilder RSI shim over ``price_action.indicators.rsi_batch`` (legacy flat-series value 100 preserved)."""
+    from atlas.features.price_action.indicators import rsi_batch
+    return _finite(rsi_batch(closes, period, flat_value=100.0))
 
 
 def _ema(values: list[float], period: int) -> list[float | None]:
-    out: list[float | None] = [None] * len(values)
-    if len(values) < period:
-        return out
-    seed = sum(values[:period]) / period
-    out[period - 1] = seed
-    alpha = 2.0 / (period + 1.0)
-    previous = seed
-    for index in range(period, len(values)):
-        previous = values[index] * alpha + previous * (1.0 - alpha)
-        out[index] = previous
-    return out
+    """SMA-seeded EMA shim over ``price_action.indicators.ema_batch``."""
+    from atlas.features.price_action.indicators import ema_batch
+    return ema_batch(values, period)
 
 
 def momentum_divergence(closes: list[float], *, rsi_period: int = 14, lookback: int = 10) -> dict[str, Any]:
