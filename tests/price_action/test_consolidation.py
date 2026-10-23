@@ -59,7 +59,7 @@ def test_legacy_price_zone_adapts_to_lifecycle_zone():
 
     pz = PriceZone(zone_id="z1", symbol="SPY", zone_type=ZoneType.OPENING, direction=ZoneDirection.BULLISH,
                    boundary=ZoneBoundary(high=102.0, low=99.0), start_time=datetime(2026, 1, 5, 14, 30, tzinfo=timezone.utc),
-                   end_time=datetime(2026, 1, 5, 15, 30, tzinfo=timezone.utc))
+                   end_time=datetime(2026, 1, 5, 15, 30, tzinfo=timezone.utc), metadata={}, execution_permission="none")
     z = pz.to_lifecycle_zone(3600)
     assert (z.lower_bound, z.upper_bound, z.direction, z.zone_type) == (99.0, 102.0, "bullish", "legacy_opening")
     assert z.height == 3.0 and z.midpoint == 100.5 and z.source_event == "z1"
