@@ -108,3 +108,9 @@ New package `atlas.intel` (EXECUTION_PERMISSION="none") + `/api/intel/*` router 
   - Not comparable one-to-one with 3bdaaf38ba24 because fills and rows differ. No profitability claim; nothing promoted; execution_permission none.
 - Checks: pytest (ATLAS_FEED_DB unset, 2 threads) 1596 passed / 9 skipped; tsc clean; next build clean; pages test 5/5; vertical-text 144/144, 0 instances; prod server curl 200 for /control?tab=tracks, /api/intel/reentry and /api/intel/contracts. Screenshots in `/workspace/shots/evo3/`.
 - Open: control-plane partial close; legacy multipliers in `marketdata/futures.py` and `models/quant/multi.py`; §22 macro data; contract specs remain unverified.
+
+## Pass 10 / evo4 (2026-10-24, branch atlas-evo-4 from b299511, unmerged, not pushed)
+- Done: control-plane reduce-only partial close + real partial-fill booking in the autopilot; backtester paper realism by default; snapback detector made runnable; last contract-term duplicates removed (universe/instruments). See CHANGELOG.
+- ML: not re-run; replay labels unchanged. Latest run remains acfd9abb65cc (no challenger beats baseline; execution_permission none).
+- Verify: pytest 1605 passed / 9 skipped (ATLAS_FEED_DB unset, 2 threads); tsc ok; next build ok; route tests 5/5; local prod curl 200 + /api/health ok; screenshots /workspace/shots/evo4/.
+- Open: §22 macro data (no observations in the feed).

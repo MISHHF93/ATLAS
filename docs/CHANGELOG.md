@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-24: branch `atlas-evo-4` (from main b299511; not merged, not pushed)
+- Control plane reduce-only partial close: `close_position(position_id, exit_price, fraction=…)`. 0 < fraction ≤ 1 only (else `invalid_fraction_reduce_only`); books P&L on the closed slice, frees gross and correlated exposure, keeps the remainder open; audited `position_reduced` / `position_closed` with closed and remaining notional. No risk check changed.
+- Setup autopilot: a volume-capped partial entry now cancels the unfilled remainder through that partial close at the booked entry price (zero P&L, audit `setup_autopilot.partial_fill`), so exits book the real filled quantity. The evo3 fill-ratio exit-price approximation is removed.
+- `research/backtester.py` (`StrategyBacktester`) uses the same paper realism as replay by default (1-bar latency, trade-through entry/target limits, 10% participation, zero volume no fill, fill-weighted net P&L, `fill_ratio` on `TradeOutcome`); `realism=None` keeps the legacy model. `scripts/backtester_realism_compare.py` prints before/after.
+- Fixed `strategies/snapback.py`: `SnapbackSetup` subclassed the frozen pydantic `Record`, so the detector raised on its first bar and the backtester/coordinator snapback path could never run.
+- §6: `feeds/universe.py` FUTURES and `feeds/instruments.py` ES read tick/multiplier from `feeds/contracts.CONTRACT_TERMS` (the duplicates were there, not in `marketdata/futures.py`/`models/quant/multi.py`).
+- Before/after on real feed bars (3,000 bars each, cost_bps 0): BTCUSDT 15m 8→8 trades, +35.2 bps expectancy both; ETHUSDT 15m 6→6, +30.8 both; ES 1m 20→19 trades (1 unfilled), net +1,161→+1,101 bps; GC 1m 9→9 (1 unfilled signal that legacy had expired). Samples are tiny and say nothing about edge; on these liquid markets realism removes little.
+- ML not re-run: dataset labels come from PA replay, which did not change in this pass.
+
 ## 2026-10-24: branch `atlas-evo-3` (from main 62bf221; not merged, not pushed)
 - §13 cumulative-loss cap for re-entry. `ReentryConfig` adds `max_loss_r_per_family_day`, `max_loss_r_per_day` and `max_consecutive_losses`. They load from the new tighten-only overlay `config/risk_overlays/reentry_tighten.yaml` (2.0 R, 3.0 R, 2) via `load_reentry_config`. A looser, null, unknown or non-positive overlay value is ignored and listed in `overlay_notes`. `config/founder/risk_policy.yaml` is unchanged.
   - Feedback: replay feeds each exit's after-cost, fill-weighted R to `PriceActionEngine.record_outcome` before the bar reaches the detectors (causal). The setup autopilot feeds realized paper exits to an OMS-level governor and refuses new proposals with the audited decision `reentry_loss_cap`. `risk_view` shows the governor state.

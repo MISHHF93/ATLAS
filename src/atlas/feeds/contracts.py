@@ -2,8 +2,9 @@
 
 SINGLE SOURCE OF TRUTH for futures contract facts (mandate section 6): sizing (``control.engine``, ``risk.sizing.
 contracts_for_risk``), replay/lab/markers costs (``intel.data.SPEC`` is derived from here) and the UI
-(``/api/intel/contracts``) all read these records. Built on the existing InstrumentMaster (multiplier/tick come from
-there, never duplicated). Calendar facts are
+(``/api/intel/contracts``) all read these records. Multiplier and tick for the specced roots live ONLY in
+``CONTRACT_TERMS`` below; ``feeds.universe.FUTURES`` and ``feeds.instruments.DEFAULT_INSTRUMENTS`` read them from here
+(pass 10). Calendar facts are
 the published CME product specs as understood at writing time; ``verified`` stays False until an owner checks
 them against the exchange. Costs are explicit research *assumptions*, not broker quotes.
 """
@@ -12,7 +13,13 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 
-from .instruments import InstrumentMaster
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:   # runtime import is lazy: instruments/universe read CONTRACT_TERMS from this module
+    from .instruments import InstrumentMaster
+
+# Published CME/COMEX economic terms (unverified, see ``verified``): root -> (tick_size, multiplier).
+CONTRACT_TERMS: dict[str, tuple[float, float]] = {"GC": (0.1, 100.0), "MGC": (0.1, 10.0), "SI": (0.005, 5000.0), "ES": (0.25, 50.0)}
 
 MONTH_CODES = {"F": 1, "G": 2, "H": 3, "J": 4, "K": 5, "M": 6, "N": 7, "Q": 8, "U": 9, "V": 10, "X": 11, "Z": 12}
 
@@ -154,8 +161,8 @@ _HOURS = "CME Globex Sun-Fri 18:00-17:00 America/New_York, daily 60-min maintena
 
 
 def _spec(m: InstrumentMaster, iid, months, rule, roll, cost, gold=False):
-    i = m.get(iid)
-    return ContractSpec(iid, "COMEX" if iid in ("GC", "MGC", "SI") else "CME", float(i.multiplier), float(i.tick_size), months,
+    tick, mult = CONTRACT_TERMS[iid]
+    return ContractSpec(iid, "COMEX" if iid in ("GC", "MGC", "SI") else "CME", mult, tick, months,
                         rule, f"roll N business days before {'first notice' if iid in ('GC', 'MGC', 'SI') else 'last trade'} (approx)", roll,
                         "first_notice" if iid in ("GC", "MGC", "SI") else "last_trade", _HOURS,
                         "COMEX" if iid in ("GC", "MGC", "SI") else "CME_EQUITY", cost, gold_only=gold)
@@ -166,7 +173,8 @@ def _spec(m: InstrumentMaster, iid, months, rule, roll, cost, gold=False):
 # GC 25 (both), MGC 3.5 (was 2.5 / 3.5), SI 125 (was 125 / 75), ES 30 (was 25 / 30).
 
 
-def default_contracts(master: InstrumentMaster | None = None) -> dict[str, ContractSpec]:
+def default_contracts(master: "InstrumentMaster | None" = None) -> dict[str, ContractSpec]:
+    from .instruments import InstrumentMaster
     m = master or InstrumentMaster()
     out = {}
     for args in (("GC", "GJMQVZ", "third_last_business_day", 3, 25.0, True),

@@ -176,3 +176,31 @@ def test_oms_loss_cap_blocks_after_realized_losses(tmp_path):
     assert ds and all(d["decision"] == "reentry_loss_cap" for d in ds)
     assert ap.connector.receipts == [] and ap.cp.current_equity_usd == Decimal("100000")
     assert any(e["event"] == "setup_autopilot.decision" for e in ap.audit.entries())
+
+
+def test_partial_entry_books_real_filled_quantity(tmp_path):
+    """Section 25 + control plane partial close: a volume-capped partial entry cancels the unfilled remainder via
+    the reduce-only partial close (zero P&L) and the exit is booked on the REAL filled notional."""
+    ap = _ap(tmp_path, registry=synthetic_setup_registry(0.6), model_version="synthetic-setup-v1"); _on(ap)
+    from atlas.features.price_action.replay import try_fill as real_try_fill
+    import atlas.autopilot.setups as S
+
+    def half_fill(t, b, cfg=None, age=0):
+        ok = real_try_fill(t, b, cfg, age)
+        if ok:
+            t.fill_ratio = 0.5
+        return ok
+    S.try_fill, orig = half_fill, S.try_fill
+    try:
+        ap.tick(END)
+    finally:
+        S.try_fill = orig
+    log = " ".join(ap.cp.audit_log)
+    assert "position_reduced" in log and "reason=partial_fill_remainder_cancelled" in log
+    events = [e for e in ap.audit.entries() if e["event"] == "setup_autopilot.partial_fill"]
+    assert events and events[0]["payload"]["fill_ratio"] == 0.5 and events[0]["payload"]["control_plane"] == "reduced"
+    assert not any(p.status == "open" for p in ap.cp.open_positions)
+    full = _ap(tmp_path / "full", registry=synthetic_setup_registry(0.6), model_version="synthetic-setup-v1"); _on(full)
+    full.tick(END)
+    gain_half, gain_full = ap.cp.current_equity_usd - Decimal("100000"), full.cp.current_equity_usd - Decimal("100000")
+    assert gain_full > 0 and abs(gain_half - gain_full / 2) <= Decimal("0.02")   # real half quantity -> half the P&L

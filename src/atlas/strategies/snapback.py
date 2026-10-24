@@ -15,7 +15,7 @@ from typing import Literal, Optional
 import pandas as pd
 
 from atlas.features.zones import ZoneEngine, ZoneType, PriceZone, ZoneDirection
-from atlas.models.schemas import Record, Text
+from atlas.models.schemas import Text
 
 
 class SnapbackState(Enum):
@@ -28,8 +28,11 @@ class SnapbackState(Enum):
 
 
 @dataclass
-class SnapbackSetup(Record):
-    """Represents a tracking instance of a Snapback setup attempt."""
+class SnapbackSetup:
+    """Represents a tracking instance of a Snapback setup attempt.
+
+    A plain mutable dataclass: the detector advances it through states in place. (It previously subclassed the
+    frozen pydantic Record, so constructing/advancing it raised and the snapback path could never run.)"""
     symbol: Text
     setup_id: Text
     initial_box: PriceZone
@@ -71,7 +74,7 @@ class SnapbackDetector:
                 symbol=self.symbol,
                 setup_id=f"snapback_{opening_box.start_time.strftime('%Y%m%d%H')}",
                 initial_box=opening_box,
-                state=SnapbackState.AWAITING_BREAKOUT
+                state=SnapbackState.AWAITING_BREAKOUT,
             )
 
         setup = self.active_setup

@@ -6,6 +6,7 @@ Symbols are kept here as plain data (no import of atlas.marketdata) so the feed 
 """
 from __future__ import annotations
 
+from .contracts import CONTRACT_TERMS
 from .instruments import Instrument
 
 EQUITY_PRIORITY = ("alpaca", "polygon", "tiingo", "twelvedata", "finnhub", "tradier", "alphavantage", "yahoo")
@@ -25,13 +26,13 @@ STOCKS = (
     "SLB EOG PSX BABA TSM NVO SAP TM SONY SHEL BP"
 ).split()
 
-# CME futures the catalog/desk shows -> Yahoo continuous front month (unofficial, delayed).
+# CME futures the catalog/desk shows (GC/MGC/SI/ES terms come from feeds.contracts, the single source) -> Yahoo continuous front month (unofficial, delayed).
 FUTURES = {
-    "ES": ("E-mini S&P 500", 0.25, 50), "NQ": ("E-mini Nasdaq-100", 0.25, 20), "YM": ("E-mini Dow", 1.0, 5),
-    "RTY": ("E-mini Russell 2000", 0.1, 50), "CL": ("WTI crude oil", 0.01, 1000), "GC": ("Gold", 0.1, 100),
+    "ES": ("E-mini S&P 500", *CONTRACT_TERMS["ES"]), "NQ": ("E-mini Nasdaq-100", 0.25, 20), "YM": ("E-mini Dow", 1.0, 5),
+    "RTY": ("E-mini Russell 2000", 0.1, 50), "CL": ("WTI crude oil", 0.01, 1000), "GC": ("Gold", *CONTRACT_TERMS["GC"]),
     "MES": ("Micro E-mini S&P 500", 0.25, 5), "MNQ": ("Micro E-mini Nasdaq-100", 0.25, 2), "MYM": ("Micro E-mini Dow", 1.0, 0.5),
-    "M2K": ("Micro E-mini Russell 2000", 0.1, 5), "MCL": ("Micro WTI crude", 0.01, 100), "MGC": ("Micro gold", 0.1, 10),
-    "SI": ("Silver", 0.005, 5000), "NG": ("Henry Hub natural gas", 0.001, 10000), "ZN": ("10Y T-Note", 0.015625, 1000),
+    "M2K": ("Micro E-mini Russell 2000", 0.1, 5), "MCL": ("Micro WTI crude", 0.01, 100), "MGC": ("Micro gold", *CONTRACT_TERMS["MGC"]),
+    "SI": ("Silver", *CONTRACT_TERMS["SI"]), "NG": ("Henry Hub natural gas", 0.001, 10000), "ZN": ("10Y T-Note", 0.015625, 1000),
     "ZB": ("30Y T-Bond", 0.03125, 1000), "6E": ("Euro FX", 0.00005, 125000), "6J": ("Japanese yen", 0.0000005, 12500000),
 }
 

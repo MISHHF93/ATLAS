@@ -402,8 +402,13 @@ class ActionableControlPlaneEngine:
         fee_usd: Decimal = Decimal("0"),
         reason: str = "paper_close",
         now: datetime | None = None,
+        fraction: float = 1.0,
     ) -> dict[str, Any]:
-        """Book a paper exit for one open position. This is not a venue fill."""
+        """Book a paper exit for one open position. This is not a venue fill.
+
+        ``fraction`` < 1 is a REDUCE-ONLY partial close: it books P&L on that share of the notional, shrinks the
+        position, and frees the matching gross/correlated/sector exposure. It cannot add exposure (0 < fraction <= 1
+        is enforced) and no risk limit is consulted or relaxed; everything still open stays under the same checks."""
         ts = now or datetime.now(timezone.utc)
         rejected = {
             "status": "rejected",
@@ -415,6 +420,8 @@ class ActionableControlPlaneEngine:
             return {**rejected, "reason": "invalid_exit_price"}
         if fee_usd < 0:
             return {**rejected, "reason": "invalid_fee"}
+        if not (isinstance(fraction, (int, float)) and math.isfinite(fraction) and 0 < fraction <= 1):
+            return {**rejected, "reason": "invalid_fraction_reduce_only"}
         pos = next((p for p in self.open_positions if p.position_id == position_id and p.status == "open"), None)
         if pos is None:
             return {**rejected, "reason": "position_not_open"}
@@ -423,27 +430,36 @@ class ActionableControlPlaneEngine:
             if order.position_id == position_id and order.entry_price:
                 entry = float(order.entry_price)
                 break
+        full = fraction >= 1
+        closed_notional = pos.notional_usd if full else (pos.notional_usd * Decimal(str(fraction))).quantize(Decimal("0.01"))
+        remaining = (pos.notional_usd - closed_notional).quantize(Decimal("0.01"))
+        if not full and remaining <= 0:
+            full, closed_notional, remaining = True, pos.notional_usd, Decimal("0")
         pnl = Decimal("0")
         if entry is not None and entry > 0:
             sign = Decimal("1") if pos.side == "buy" else Decimal("-1")
-            pnl = (Decimal(str((exit_price - entry) / entry)) * pos.notional_usd * sign).quantize(Decimal("0.01"))
+            pnl = (Decimal(str((exit_price - entry) / entry)) * closed_notional * sign).quantize(Decimal("0.01"))
         net = (pnl - fee_usd).quantize(Decimal("0.01"))
         self.current_equity_usd = (self.current_equity_usd + net).quantize(Decimal("0.01"))
         if self.current_equity_usd > self.high_water_mark_usd:
             self.high_water_mark_usd = self.current_equity_usd
-        self.gross_notional_usd = max(Decimal("0"), self.gross_notional_usd - pos.notional_usd)
-        exposure_cut = (pos.notional_usd * Decimal("0.25")).quantize(Decimal("0.01"))
+        self.gross_notional_usd = max(Decimal("0"), self.gross_notional_usd - closed_notional)
+        exposure_cut = (closed_notional * Decimal("0.25")).quantize(Decimal("0.01"))
         self.correlated_exposure_usd = max(Decimal("0"), self.correlated_exposure_usd - exposure_cut)
         self.sector_exposure_usd = max(Decimal("0"), self.sector_exposure_usd - exposure_cut)
+        upd = {"status": "closed"} if full else {"notional_usd": remaining}
         self.open_positions = [
-            item.model_copy(update={"status": "closed"}) if item.position_id == position_id else item
+            item.model_copy(update=upd) if item.position_id == position_id else item
             for item in self.open_positions
         ]
         self.audit_log.append(
-            f"{ts.isoformat()} | position_closed | {position_id} | reason={reason} | paper_pnl_usd={net}"
+            f"{ts.isoformat()} | {'position_closed' if full else 'position_reduced'} | {position_id} | reason={reason} | "
+            f"closed_notional_usd={closed_notional} | remaining_notional_usd={remaining} | paper_pnl_usd={net}"
         )
         return {
-            "status": "closed",
+            "status": "closed" if full else "reduced",
+            "closed_notional_usd": float(closed_notional),
+            "remaining_notional_usd": float(remaining),
             "position_id": position_id,
             "exit_price": exit_price,
             "paper_pnl_usd": float(net),

@@ -185,11 +185,21 @@ class SetupAutopilot:
             if s.symbol == ctx.get("symbol") and t.exit_at is not None:
                 eng.record_outcome(t.detector, int(t.exit_at), weighted_r(t))
 
-    def _book_exit(self, t: ReplayTrade, ctx: dict, price: float, reason: str, ts: datetime) -> None:
+    def _book_partial_entry(self, t: ReplayTrade, ctx: dict, ts: datetime) -> None:
+        """Volume-capped partial entry: the unfilled remainder is cancelled through the control plane's reduce-only
+        partial close (at the entry price, so zero P&L) and the trade carries the REAL filled notional from here on."""
         if ctx.get("position_id") and t.fill_ratio < 1.0:
-            # The control plane books whole positions only; a volume-capped partial fill is booked as the exit price
-            # that yields exactly fill_ratio x the full-size P&L (linear P&L). Fees stay on the full notional.
-            price = t.entry + (price - t.entry) * t.fill_ratio
+            booked = next((float(o.entry_price) for o in reversed(self.cp.order_history)
+                           if o.position_id == ctx["position_id"] and o.entry_price), t.entry)   # zero-P&L cancel
+            res = self.cp.close_position(ctx["position_id"], exit_price=booked, reason="partial_fill_remainder_cancelled",
+                                         now=ts, fraction=1.0 - t.fill_ratio)
+            if res.get("status") == "reduced":
+                ctx["notional"] = Decimal(str(res["remaining_notional_usd"]))
+                ctx["fill_ratio"] = t.fill_ratio
+            self.audit.append("setup_autopilot.partial_fill", {"position_id": ctx["position_id"], "fill_ratio": t.fill_ratio,
+                              "control_plane": res.get("status"), "filled_notional_usd": float(ctx["notional"])}, actor="setup_autopilot")
+
+    def _book_exit(self, t: ReplayTrade, ctx: dict, price: float, reason: str, ts: datetime) -> None:
         if ctx.get("position_id"):
             fee = (ctx["notional"] * Decimal(str(self.rcfg.cost_bps)) * Decimal("0.0001")).quantize(Decimal("0.01"))
             res = self.cp.close_position(ctx["position_id"], exit_price=price, fee_usd=fee, reason=reason, now=ts)
@@ -238,6 +248,7 @@ class SetupAutopilot:
             if ctx["symbol"] != sym:
                 wait.append((t, age, ctx)); continue
             if try_fill(t, b, self.rcfg, age):
+                self._book_partial_entry(t, ctx, ts)
                 _step_trade(t, b, self.rcfg, 0)
                 if t.exit_at is None:
                     self.live.append((t, 0, ctx))

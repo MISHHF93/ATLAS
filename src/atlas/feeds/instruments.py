@@ -45,13 +45,16 @@ def _etf(sym, desc):
                       sanity_providers=("yahoo", "alpaca"), description=desc)
 
 
+from .contracts import CONTRACT_TERMS as _CT  # noqa: E402  single source for futures terms
+_ES_TICK, _ES_MULT = _CT["ES"]
+
 DEFAULT_INSTRUMENTS = {i.id: i for i in (
     _crypto("BTCUSDT", "BTC", 0.01), _crypto("ETHUSDT", "ETH", 0.01),
     _etf("SPY", "SPDR S&P 500 ETF"), _etf("QQQ", "Invesco QQQ Trust"), _etf("IWM", "iShares Russell 2000 ETF"),
     Instrument("EUR_USD", "fx", "OTC", "USD", "UTC", "fx_24x5", 0.00001, 1,
                provider_symbols={"oanda": "EUR_USD", "twelvedata": "EUR/USD", "yahoo": "EURUSD=X"},
                provider_priority=("oanda", "twelvedata", "yahoo"), description="EUR/USD spot FX"),
-    Instrument("ES", "future", "XCME", "USD", "America/Chicago", "cme_globex", 0.25, 1, 50,
+    Instrument("ES", "future", "XCME", "USD", "America/Chicago", "cme_globex", _ES_TICK, 1, _ES_MULT,
                provider_symbols={"databento": "ES.c.0", "yahoo": "ES=F"}, provider_priority=("databento", "yahoo"),
                description="E-mini S&P 500 continuous front month"),
 )}

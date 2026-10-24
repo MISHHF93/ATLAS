@@ -20,6 +20,9 @@ from atlas.strategies.snapback import SnapbackDetector, SnapbackState
 from atlas.strategies.coordinator import OpportunityCoordinator
 from atlas.models.strategy_classifier import StrategyClassifier
 from atlas.features.pa_integration import PriceActionFeatureExtractor
+from atlas.features.price_action.replay import ReplayConfig, paper_replay_config
+
+_LEGACY = object()
 
 
 @dataclass
@@ -33,8 +36,9 @@ class TradeOutcome:
     exit_price: float
     exit_time: datetime
     outcome: Literal["win", "loss", "expired"]
-    pnl_bps: float
+    pnl_bps: float          # fill-ratio weighted, net of cost_bps
     duration_sec: float
+    fill_ratio: float = 1.0
 
 
 class StrategyBacktester:
@@ -45,9 +49,15 @@ class StrategyBacktester:
     exact state transitions of the Snapback detector.
     """
 
-    def __init__(self, classifier: StrategyClassifier, extractor: PriceActionFeatureExtractor):
+    def __init__(self, classifier: StrategyClassifier, extractor: PriceActionFeatureExtractor,
+                 realism: ReplayConfig | None | object = _LEGACY):
+        """realism: defaults to the same paper realism as replay/the ML dataset/the autopilot (PAPER_REALISM:
+        1-bar latency, trade-through limit fills, 10% volume-capped partial fills). Pass None for the legacy
+        optimistic model (instant fill at the confirmation close, touch exits, no volume check)."""
         self.classifier = classifier
         self.extractor = extractor
+        self.realism: ReplayConfig | None = paper_replay_config() if realism is _LEGACY else realism  # type: ignore[assignment]
+        self.unfilled = 0
 
     def run_backtest(
         self, 
@@ -97,7 +107,10 @@ class StrategyBacktester:
                     take_profit = entry_price - (reward_risk_ratio * (stop_loss - entry_price))
                 
                 # Simulate the trade until hit SL, TP, or end of data
-                outcome = self._simulate_trade(df.iloc[i+1:], entry_price, stop_loss, take_profit, current_ts)
+                if self.realism is None:
+                    outcome = self._simulate_trade(df.iloc[i+1:], entry_price, stop_loss, take_profit, current_ts)
+                else:
+                    outcome = self._simulate_realistic(df.iloc[i+1:], entry_price, stop_loss, take_profit, current_ts)
                 if outcome:
                     outcomes.append(outcome)
                 
@@ -140,8 +153,50 @@ class StrategyBacktester:
         
         return None # Expired
 
-    def _create_outcome(self, price, ts, status, entry, stop, target, start) -> TradeOutcome:
+    def _simulate_realistic(self, remaining_df: pd.DataFrame, entry: float, stop: float, target: float,
+                            start_time: datetime) -> TradeOutcome | None:
+        """Paper realism: a limit at the confirmation close is working `latency_bars` bars after detection for
+        `entry_window` bars and fills only when price trades through it (or touches, if limit_fill="touch");
+        the fill takes at most max_participation of that bar's volume (zero/unknown volume -> no fill); targets
+        are limits needing trade-through; stops are checked from the fill bar (conservative); P&L is weighted
+        by the fill ratio and net of cost_bps."""
+        cfg = self.realism
+        assert cfg is not None
+        long = target > entry
+        rows = list(remaining_df.itertuples(index=False))
+        lat = max(0, int(cfg.latency_bars))
+        thru = cfg.limit_fill == "trade_through"
+        fill_i, ratio = None, 1.0
+        for k in range(max(0, lat - 1), min(len(rows), max(0, lat - 1) + max(1, int(cfg.entry_window)))):
+            r = rows[k]
+            touched = (r.low < entry if thru else r.low <= entry) if long else (r.high > entry if thru else r.high >= entry)
+            if not touched:
+                continue
+            if cfg.max_participation is not None and cfg.order_qty:
+                vol = float(getattr(r, "volume", 0.0) or 0.0)
+                if not np.isfinite(vol) or vol <= 0:
+                    continue          # nothing traded we could take
+                ratio = min(1.0, vol * float(cfg.max_participation) / float(cfg.order_qty))
+            fill_i = k
+            break
+        if fill_i is None:
+            self.unfilled += 1
+            return None
+        for k in range(fill_i, len(rows)):
+            r = rows[k]
+            if (r.low <= stop) if long else (r.high >= stop):
+                return self._create_outcome(stop, r.timestamp, "loss", entry, stop, target, start_time, ratio)
+            if k == fill_i:
+                continue      # no target exit on the bar we were filled on (intra-bar order unknown)
+            hit = (r.high > target if thru else r.high >= target) if long else (r.low < target if thru else r.low <= target)
+            if hit:
+                return self._create_outcome(target, r.timestamp, "win", entry, stop, target, start_time, ratio)
+        return None
+
+    def _create_outcome(self, price, ts, status, entry, stop, target, start, fill_ratio: float = 1.0) -> TradeOutcome:
         pnl = (price - entry) / entry if target > entry else (entry - price) / entry
+        if self.realism is not None:
+            pnl = (pnl - float(self.realism.cost_bps) / 10_000) * fill_ratio
         return TradeOutcome(
             setup_id="backtest_setup",
             symbol="BACKTEST",
@@ -152,7 +207,8 @@ class StrategyBacktester:
             exit_time=ts,
             outcome=status,
             pnl_bps=pnl * 10_000,
-            duration_sec=(ts - start).total_seconds()
+            duration_sec=(ts - start).total_seconds(),
+            fill_ratio=fill_ratio,
         )
 
     def evaluate_performance(self, outcomes: List[TradeOutcome]) -> Dict[str, Any]:
