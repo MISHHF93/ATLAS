@@ -75,6 +75,9 @@ app.include_router(agent_router)
 from atlas.api.console import console_router  # noqa: E402
 
 app.include_router(console_router)
+from atlas.api.feeds_api import router as feeds_router  # noqa: E402
+
+app.include_router(feeds_router)
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",
@@ -969,6 +972,8 @@ def connector_action_endpoint(payload: ConnectorActionPayload) -> dict[str, obje
     }
 
 
+# Static listing metadata only. Prices/changes/freshness are NEVER stored here: get_live_listings() overlays the latest
+# ATLAS feed quote (source + Toronto time + status) on every request; with no stored print the price is None/no_data.
 _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
     {
         "instrument_id": "open:spy-etf:v1",
@@ -977,14 +982,14 @@ _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
         "track": "open_market",
         "venue": "NYSE Arca · Regular Session",
         "asset_class": "us_equity_etf",
-        "price": "584.90",
-        "change_24h_pct": 0.48,
-        "volume_24h_usd": "21450000000.00",
-        "spread_bps": 1.2,
-        "regime": "low_vol | trending_up",
+        "price": None,
+        "change_24h_pct": None,
+        "volume_24h_usd": None,
+        "spread_bps": None,
+        "regime": None,
         "pit_status": "verified",
-        "freshness_seconds": 2,
-        "model_signal": "LONG (+14.0 bps expected)",
+        "freshness_seconds": None,
+        "model_signal": None,
         "enabled": True,
     },
     {
@@ -994,14 +999,14 @@ _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
         "track": "open_market",
         "venue": "Nasdaq Global Select · XNAS",
         "asset_class": "us_equity_sec",
-        "price": "141.80",
-        "change_24h_pct": 2.84,
-        "volume_24h_usd": "34200000000.00",
-        "spread_bps": 1.5,
-        "regime": "normal_vol | trending_up",
+        "price": None,
+        "change_24h_pct": None,
+        "volume_24h_usd": None,
+        "spread_bps": None,
+        "regime": None,
         "pit_status": "verified",
-        "freshness_seconds": 2,
-        "model_signal": "LONG (+24.5 bps expected)",
+        "freshness_seconds": None,
+        "model_signal": None,
         "enabled": True,
     },
     {
@@ -1011,14 +1016,14 @@ _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
         "track": "open_market",
         "venue": "Nasdaq Global Select · XNAS",
         "asset_class": "us_equity_sec",
-        "price": "234.15",
-        "change_24h_pct": 0.92,
-        "volume_24h_usd": "8420000000.00",
-        "spread_bps": 1.6,
-        "regime": "normal_vol | mean_reverting",
+        "price": None,
+        "change_24h_pct": None,
+        "volume_24h_usd": None,
+        "spread_bps": None,
+        "regime": None,
         "pit_status": "verified",
-        "freshness_seconds": 3,
-        "model_signal": "LONG (+9.4 bps expected)",
+        "freshness_seconds": None,
+        "model_signal": None,
         "enabled": True,
     },
     {
@@ -1028,14 +1033,14 @@ _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
         "track": "open_market",
         "venue": "Nasdaq Global Select · XNAS",
         "asset_class": "us_equity_sec",
-        "price": "428.50",
-        "change_24h_pct": 0.74,
-        "volume_24h_usd": "7150000000.00",
-        "spread_bps": 1.4,
-        "regime": "low_vol | trending_up",
+        "price": None,
+        "change_24h_pct": None,
+        "volume_24h_usd": None,
+        "spread_bps": None,
+        "regime": None,
         "pit_status": "verified",
-        "freshness_seconds": 3,
-        "model_signal": "LONG (+12.8 bps expected)",
+        "freshness_seconds": None,
+        "model_signal": None,
         "enabled": True,
     },
     {
@@ -1045,14 +1050,14 @@ _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
         "track": "open_market",
         "venue": "Nasdaq · Regular Session",
         "asset_class": "us_equity_etf",
-        "price": "496.35",
-        "change_24h_pct": 0.67,
-        "volume_24h_usd": "12840000000.00",
-        "spread_bps": 1.4,
-        "regime": "normal_vol | trending_up",
+        "price": None,
+        "change_24h_pct": None,
+        "volume_24h_usd": None,
+        "spread_bps": None,
+        "regime": None,
         "pit_status": "verified",
-        "freshness_seconds": 3,
-        "model_signal": "LONG (+16.5 bps expected)",
+        "freshness_seconds": None,
+        "model_signal": None,
         "enabled": True,
     },
     {
@@ -1062,14 +1067,14 @@ _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
         "track": "open_market",
         "venue": "Nasdaq Global Select · XNAS",
         "asset_class": "us_equity_sec",
-        "price": "258.40",
-        "change_24h_pct": -1.18,
-        "volume_24h_usd": "16900000000.00",
-        "spread_bps": 2.4,
-        "regime": "high_vol | mean_reverting",
+        "price": None,
+        "change_24h_pct": None,
+        "volume_24h_usd": None,
+        "spread_bps": None,
+        "regime": None,
         "pit_status": "verified",
-        "freshness_seconds": 4,
-        "model_signal": "SHORT (-19.2 bps expected)",
+        "freshness_seconds": None,
+        "model_signal": None,
         "enabled": True,
     },
     {
@@ -1079,14 +1084,14 @@ _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
         "track": "competition",
         "venue": "Prop Competition 24/7 Venue",
         "asset_class": "crypto_perp",
-        "price": "67840.75",
-        "change_24h_pct": 1.42,
-        "volume_24h_usd": "1482500000.00",
-        "spread_bps": 3.5,
-        "regime": "normal_vol | trending_up",
+        "price": None,
+        "change_24h_pct": None,
+        "volume_24h_usd": None,
+        "spread_bps": None,
+        "regime": None,
         "pit_status": "verified",
-        "freshness_seconds": 4,
-        "model_signal": "LONG (+22.8 bps expected)",
+        "freshness_seconds": None,
+        "model_signal": None,
         "enabled": True,
     },
     {
@@ -1096,14 +1101,14 @@ _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
         "track": "competition",
         "venue": "Prop Competition 24/7 Venue",
         "asset_class": "crypto_perp",
-        "price": "2642.80",
-        "change_24h_pct": 2.15,
-        "volume_24h_usd": "694100000.00",
-        "spread_bps": 4.2,
-        "regime": "normal_vol | trending_up",
+        "price": None,
+        "change_24h_pct": None,
+        "volume_24h_usd": None,
+        "spread_bps": None,
+        "regime": None,
         "pit_status": "verified",
-        "freshness_seconds": 5,
-        "model_signal": "LONG (+18.4 bps expected)",
+        "freshness_seconds": None,
+        "model_signal": None,
         "enabled": True,
     },
     {
@@ -1113,14 +1118,14 @@ _LIVE_LISTINGS_STATE: list[dict[str, object]] = [
         "track": "competition",
         "venue": "Prop Competition 24/7 Venue",
         "asset_class": "crypto_perp",
-        "price": "168.45",
-        "change_24h_pct": 3.64,
-        "volume_24h_usd": "312800000.00",
-        "spread_bps": 5.8,
-        "regime": "high_vol | trending_up",
+        "price": None,
+        "change_24h_pct": None,
+        "volume_24h_usd": None,
+        "spread_bps": None,
+        "regime": None,
         "pit_status": "verified",
-        "freshness_seconds": 6,
-        "model_signal": "LONG (+26.1 bps expected)",
+        "freshness_seconds": None,
+        "model_signal": None,
         "enabled": True,
     },
 ]
@@ -1263,9 +1268,26 @@ class PlatformConfigPayload(BaseModel):
     sec_edgar_rate_limit_rps: int = 10
 
 
+def _with_feed_quotes(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Overlay the ATLAS feed quote on each row: price/change/source/status/Toronto time. No feed print -> price None."""
+    from atlas.api.feeds_api import feed_quotes
+    if os.environ.get("ATLAS_DISABLE_FEED_QUOTES") == "1":
+        q = {}
+    else:
+        q = feed_quotes([str(r["symbol"]) for r in rows])
+    out = []
+    for r in rows:
+        v = q.get(str(r["symbol"])) or {"status": "no_data", "price": None, "source": None}
+        out.append({**r, "price": None if v.get("price") is None else f"{v['price']:.8g}" if v["price"] < 1 else f"{v['price']:.2f}",
+                    "change_24h_pct": v.get("change_pct"), "quote_source": v.get("source"), "quote_status": v["status"],
+                    "quote_time": v.get("observed_at_toronto"), "quote_epoch": v.get("observed_at"),
+                    "freshness_seconds": v.get("age_seconds"), "feed_instrument": v.get("instrument")})
+    return out
+
+
 @app.get("/api/listings", include_in_schema=False)
 def get_live_listings() -> dict[str, object]:
-    return {"listings": list(_LIVE_LISTINGS_STATE)}
+    return {"listings": _with_feed_quotes(list(_LIVE_LISTINGS_STATE))}
 
 
 @app.post("/api/listings/action", include_in_schema=False)
@@ -1279,31 +1301,31 @@ def listing_action_endpoint(payload: ListingActionPayload) -> dict[str, object]:
             "track": payload.track,
             "venue": "Crypto Perp 24/7 Venue" if payload.track == "competition" else "NYSE / Nasdaq Session",
             "asset_class": "crypto_perp" if payload.track == "competition" else "us_equity_etf",
-            "price": payload.price,
-            "change_24h_pct": 0.85,
-            "volume_24h_usd": "125000000.00",
-            "spread_bps": 3.0,
-            "regime": "normal_vol | trending_up",
-            "pit_status": "verified",
-            "freshness_seconds": 1,
-            "model_signal": "LONG (+15.0 bps expected)",
+            "price": None,  # the client-supplied price is ignored: quotes come from the ATLAS feed only
+            "change_24h_pct": None,
+            "volume_24h_usd": None,
+            "spread_bps": None,
+            "regime": None,
+            "pit_status": "unverified",
+            "freshness_seconds": None,
+            "model_signal": None,
             "enabled": True,
         }
         _LIVE_LISTINGS_STATE.append(new_item)
         control_engine.audit_log.append(f"{now} | listing_added | id={payload.instrument_id} symbol={payload.symbol}")
-        return {"status": "ok", "listings": list(_LIVE_LISTINGS_STATE), "message": f"Added live listing {payload.symbol}"}
+        return {"status": "ok", "listings": _with_feed_quotes(list(_LIVE_LISTINGS_STATE)), "message": f"Added live listing {payload.symbol}"}
 
     for item in _LIVE_LISTINGS_STATE:
         if item["instrument_id"] == payload.instrument_id:
             if payload.action == "toggle_enabled":
                 item["enabled"] = not bool(item["enabled"])
             elif payload.action == "refresh_quote":
-                item["freshness_seconds"] = 1
+                pass  # quotes are re-read from the feed store below; nothing is faked here
             control_engine.audit_log.append(
                 f"{now} | listing_{payload.action} | id={payload.instrument_id} enabled={item['enabled']}"
             )
-            return {"status": "ok", "listings": list(_LIVE_LISTINGS_STATE), "message": f"Updated {item['symbol']}"}
-    return {"status": "ok", "listings": list(_LIVE_LISTINGS_STATE), "message": "Listings synchronized"}
+            return {"status": "ok", "listings": _with_feed_quotes(list(_LIVE_LISTINGS_STATE)), "message": f"Updated {item['symbol']}"}
+    return {"status": "ok", "listings": _with_feed_quotes(list(_LIVE_LISTINGS_STATE)), "message": "Listings synchronized"}
 
 
 @app.get("/api/sync", include_in_schema=False)
@@ -1976,6 +1998,20 @@ def live_internet_market_sync(payload: LiveInternetSyncPayload) -> dict[str, obj
     live_candles: list[dict[str, str]] = []
     feed_source = "coinbase_exchange_public_internet_api"
     data_mode = "observed"
+    try:  # ATLAS feed store first (backfill + live ingest); legacy paths below only when the feed has nothing
+        from atlas.api.feeds_api import _feed as _atlas_feed
+        from atlas.feeds.universe import resolve as _resolve
+        _f = _atlas_feed()
+        _iid = _resolve(symbol)
+        if _f is not None and _iid:
+            for _b in _f.store.bars(_iid, "1h")[-8:]:
+                live_candles.append({"open_time": datetime.fromtimestamp(_b.event_time, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+                                     "open": f"{_b.open:.2f}", "high": f"{_b.high:.2f}", "low": f"{_b.low:.2f}",
+                                     "close": f"{_b.close:.2f}", "volume": f"{_b.volume:.2f}"})
+            if live_candles:
+                feed_source = f"atlas_feed:{_f.store.bars(_iid, '1h')[-1].provider}"
+    except Exception:
+        live_candles = []
 
     stock_bases: dict[str, tuple[float, float]] = {
         "SPY": (581.40, 0.70),
@@ -1986,7 +2022,9 @@ def live_internet_market_sync(payload: LiveInternetSyncPayload) -> dict[str, obj
         "TSLA": (254.80, 0.72),
     }
 
-    if symbol in stock_bases:
+    if live_candles:
+        pass
+    elif symbol in stock_bases:
         feed_source = "synthesized_demo_bars"
         data_mode = "synthetic"
         base_px, step_px = stock_bases[symbol]
@@ -2045,10 +2083,6 @@ def live_internet_market_sync(payload: LiveInternetSyncPayload) -> dict[str, obj
             )
 
     latest_close = live_candles[-1]["close"]
-    for item in _LIVE_LISTINGS_STATE:
-        if item["symbol"] == symbol:
-            item["price"] = latest_close
-            item["freshness_seconds"] = 1
 
     bundle = build_frozen_benchmark_dataset(track="competition", anchor=now)
     regime_state = classify_regime(

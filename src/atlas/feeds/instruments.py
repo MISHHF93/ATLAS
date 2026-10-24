@@ -57,9 +57,15 @@ DEFAULT_INSTRUMENTS = {i.id: i for i in (
 )}
 
 
+def _default_universe() -> dict:
+    """The original research instruments plus every symbol the UI lists (atlas.feeds.universe)."""
+    from .universe import ui_instruments
+    return {**ui_instruments(), **DEFAULT_INSTRUMENTS}
+
+
 class InstrumentMaster:
     def __init__(self, instruments: dict | None = None):
-        self._by_id = dict(instruments or DEFAULT_INSTRUMENTS)
+        self._by_id = dict(instruments or _default_universe())
 
     @classmethod
     def load(cls, path: str | Path | None = None):

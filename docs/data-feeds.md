@@ -87,3 +87,66 @@ Crypto cross-check over 7 days of 1h bars (median bps): okx ~0.5, kraken ~1–2.
 | [tmx](data-providers/tmx.md) | documented_stub | equity, etf, future, option | none (keyless) |
 
 Status meanings: `working` = live-tested keyless; `interface_fixture_tested` = adapter complete, unit-tested with labelled SYNTHETIC fixtures, activates only when its env vars are set; `documented_stub` = manifest + docs only. Unit tests (`tests/feeds`) never touch the network.
+
+## Live quotes in the UI (atlas-data-2, 2026-10-23)
+
+Every price the UI shows comes from the ATLAS feed store. Each price is shown with three things: the source provider, the observation time in Toronto, and a status. If the feed has no print for a symbol, the UI shows "—" and the status `no_data`. There are no fixture or fallback numbers.
+
+**Universe** (`atlas.feeds.universe`):
+- 218 UI symbols: 43 ETFs, about 123 US stocks, 34 crypto, and 18 CME futures.
+- `resolve()` maps UI aliases to feed instruments: `BTC-USD` → `BTCUSDT`, and `ES1!` → `ES`.
+- Crypto is the Binance `<BASE>USDT` spot pair, cross-checked against Coinbase `<BASE>-USD` and Kraken.
+- Futures are Yahoo continuous front-month quotes. They are unofficial and delayed until Databento is keyed.
+- These symbols are intentionally `no_data`:
+  - catalog placeholders (`PERP###-USD`, `EQ####`)
+  - private companies (SpaceX, OpenAI, Stripe)
+
+**Backfill:**
+- Run `python scripts/backfill_feeds.py --ui-universe --intervals 1d,15m,1m --no-cross-check`.
+- Yahoo 1d now requests `range=10y`. With `range=max`, Yahoo silently returned monthly bars.
+
+**Live ingest:** `python scripts/run_live_ingest.py` writes its PID to `var/feeds/live_ingest.pid`. It runs four feeds:
+- Binance combined `kline_1m` websocket: every update goes to `last_quotes`, and confirmed klines go to 1m bars.
+- Coinbase `ticker` websocket.
+- Kraken v2 `ticker` websocket.
+- Yahoo v7 spark polling: 20 symbols per request at 1 request per second, every 30s while a session is open and every 15 min while it is closed.
+
+`upsert_quotes` is idempotent: an older print, a repeated print or a zero price never replaces the stored one. The store runs in WAL mode, and reads are serialised, because the ingest process writes while the API reads.
+
+**Status** (`atlas.feeds.status.classify`):
+
+| Status | Meaning |
+|---|---|
+| `live` | A real-time provider (Binance, Coinbase, Kraken, Alpaca and similar) printed within 120s (180s for futures and FX) while the market is open. |
+| `delayed` | Yahoo printed within 30 min while the market is open. |
+| `market_closed` | The session is closed, by calendar or holiday, and the print is at or after the last session close minus 30 min. |
+| `stale` | Anything older than the limits above, for example a missed session. |
+| `no_data` | No print in the store. |
+
+The calendars are:
+- XNYS via `exchange_calendars`, with a built-in holiday fallback.
+- CME Globex: Sunday 18:00 to Friday 17:00 ET, with the daily 17:00–18:00 break.
+- FX: 24x5.
+- Crypto: 24x7.
+
+**API:**
+- `GET /api/feeds/quotes?symbols=…`
+- `GET /api/feeds/health`: per-symbol provider, status, last price and time, lag, last bar and flags, plus the live-ingest PID.
+- `GET /api/feeds/stream`: SSE `quotes` events. Each stream ends after 50s, under the 60s timeout of the Node bridge, and EventSource reconnects.
+- `/api/listings`, `/api/catalog/search|snapshot|quotes` overlay the feed quote and expose `quote_source`, `quote_status` and `quote_time`. Catalog microstructure columns stay labelled `analytics_source: synthetic_fixture`.
+
+**UI:**
+- `useFeedQuotes` (initial GET plus SSE) feeds `QuotePrice` (`data-quote-price`) and `QuoteMeta` (`data-quote-status`, `data-quote-source`, Toronto time).
+- The feed health panel is in Settings > Connectors.
+- `frontend/scripts/quote_crawl.mjs` crawls the pages and fails if any visible price has no status, or shows a number without a source.
+
+**Artifacts:**
+- `scripts/load_evidence_cache.py` loads `var/evidence_cache/*.json` and `var/evidence_cache_15m/*.json` into the store as yahoo/binance bars. These are the orphaned public-history caches used by the evidence scripts. Re-running the loader inserts nothing.
+- These are not feed data and are intentionally not loaded:
+  - `var/models` (ML, owned by atlas-ml)
+  - `state.sqlite`, `audit.sqlite` and `vertical_slice.sqlite3` (control-plane, audit and paper state)
+
+**Known gaps:**
+- There is no FX universe yet. The UI lists none.
+- Equities in the live session are `delayed` (Yahoo) until Alpaca or Polygon keys are set.
+- Crypto prices come from USDT pairs, labelled as such. Coinbase USD prints can be 0.1% different.

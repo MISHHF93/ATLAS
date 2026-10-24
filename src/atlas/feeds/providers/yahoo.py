@@ -3,7 +3,7 @@ from __future__ import annotations
 from ..core import Capabilities, ProviderAdapter, ProviderError
 
 IV = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "60m", "1d": "1d"}
-RANGE = {"1m": "7d", "5m": "60d", "15m": "60d", "1h": "730d", "1d": "max"}
+RANGE = {"1m": "7d", "5m": "60d", "15m": "60d", "1h": "730d", "1d": "10y"}  # range=max silently downgrades 1d to monthly bars
 
 
 class YahooAdapter(ProviderAdapter):

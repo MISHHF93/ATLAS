@@ -4,6 +4,11 @@ export type LibraryQuote = {
   change_pct: number | null;
   feed_origin: string;
   delayed: boolean;
+  // ATLAS feed status fields (/api/catalog/quotes): live | delayed | market_closed | stale | no_data, source, Toronto time.
+  status?: "live" | "delayed" | "market_closed" | "stale" | "no_data";
+  source?: string | null;
+  observed_at?: string | null;
+  observed_at_toronto?: string | null;
   execution_permission: "none";
 };
 

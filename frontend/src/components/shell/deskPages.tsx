@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { loadMarketBars, type MarketBar, type MarketBarsResponse } from "../../lib/marketBars";
 import { LiveModelLockPanel } from "../market/LiveModelLockPanel";
 import { ObserverHealthPanel } from "../market/ObserverHealthPanel";
+import { FeedHealthPanel } from "../market/FeedHealthPanel";
 
 type PositionRow = {
   position_id: string;
@@ -1040,6 +1041,7 @@ export function ConnectorsPage() {
         </div>
       </div>
       <PipelinePath />
+      <FeedHealthPanel />
       <div className="clean-card-header">
         <div>
           <h2 className="clean-card-title">Connector records</h2>

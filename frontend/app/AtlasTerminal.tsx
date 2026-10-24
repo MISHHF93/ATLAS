@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useFeedQuotes, type FeedQuote, type QuoteStatus } from "../src/lib/feedQuotes";
+import { QuoteChange, QuoteMeta, QuotePrice } from "../src/components/market/QuoteBadge";
 import { TradingViewChart } from "../src/components/market/TradingViewChart";
 import { ATLAS_TAGLINE, AtlasLogo } from "../src/components/shell/AtlasLogo";
 import { InstitutionalWorkspacesView, type SubPageRouteId } from "../src/components/shell/InstitutionalWorkspacesView";
@@ -929,15 +931,20 @@ export type LiveListing = {
   track: "competition" | "open_market";
   venue: string;
   asset_class: string;
-  price: string;
-  change_24h_pct: number;
-  volume_24h_usd: string;
-  spread_bps: number;
-  regime: string;
+  // Market fields are null until the ATLAS feed has a stored print (never a hardcoded sample number).
+  price: string | null;
+  change_24h_pct: number | null;
+  volume_24h_usd: string | null;
+  spread_bps: number | null;
+  regime: string | null;
   pit_status: string;
-  freshness_seconds: number;
-  model_signal: string;
+  freshness_seconds: number | null;
+  model_signal: string | null;
   enabled: boolean;
+  quote_source?: string | null;
+  quote_status?: QuoteStatus;
+  quote_time?: string | null;
+  quote_epoch?: number | null;
 };
 
 export type SyncPipeline = {
@@ -976,6 +983,7 @@ export type PlatformConfig = {
   updated_at: string;
 };
 
+// Metadata only (symbols to show before /api/listings answers). Prices come from the ATLAS feed via useFeedQuotes.
 const DEFAULT_LISTINGS: LiveListing[] = [
   {
     instrument_id: "open:spy-etf:v1",
@@ -984,14 +992,14 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     track: "open_market",
     venue: "NYSE Arca · Regular Session",
     asset_class: "us_equity_etf",
-    price: "584.90",
-    change_24h_pct: 0.48,
-    volume_24h_usd: "21450000000.00",
-    spread_bps: 1.2,
-    regime: "low_vol | trending_up",
+    price: null,
+    change_24h_pct: null,
+    volume_24h_usd: null,
+    spread_bps: null,
+    regime: null,
     pit_status: "verified",
-    freshness_seconds: 2,
-    model_signal: "LONG (+14.0 bps expected)",
+    freshness_seconds: null,
+    model_signal: null,
     enabled: true,
   },
   {
@@ -1001,14 +1009,14 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     track: "open_market",
     venue: "Nasdaq Global Select · XNAS",
     asset_class: "us_equity_sec",
-    price: "141.80",
-    change_24h_pct: 2.84,
-    volume_24h_usd: "34200000000.00",
-    spread_bps: 1.5,
-    regime: "normal_vol | trending_up",
+    price: null,
+    change_24h_pct: null,
+    volume_24h_usd: null,
+    spread_bps: null,
+    regime: null,
     pit_status: "verified",
-    freshness_seconds: 2,
-    model_signal: "LONG (+24.5 bps expected)",
+    freshness_seconds: null,
+    model_signal: null,
     enabled: true,
   },
   {
@@ -1018,14 +1026,14 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     track: "open_market",
     venue: "Nasdaq Global Select · XNAS",
     asset_class: "us_equity_sec",
-    price: "234.15",
-    change_24h_pct: 0.92,
-    volume_24h_usd: "8420000000.00",
-    spread_bps: 1.6,
-    regime: "normal_vol | mean_reverting",
+    price: null,
+    change_24h_pct: null,
+    volume_24h_usd: null,
+    spread_bps: null,
+    regime: null,
     pit_status: "verified",
-    freshness_seconds: 3,
-    model_signal: "LONG (+9.4 bps expected)",
+    freshness_seconds: null,
+    model_signal: null,
     enabled: true,
   },
   {
@@ -1035,14 +1043,14 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     track: "open_market",
     venue: "Nasdaq Global Select · XNAS",
     asset_class: "us_equity_sec",
-    price: "428.50",
-    change_24h_pct: 0.74,
-    volume_24h_usd: "7150000000.00",
-    spread_bps: 1.4,
-    regime: "low_vol | trending_up",
+    price: null,
+    change_24h_pct: null,
+    volume_24h_usd: null,
+    spread_bps: null,
+    regime: null,
     pit_status: "verified",
-    freshness_seconds: 3,
-    model_signal: "LONG (+12.8 bps expected)",
+    freshness_seconds: null,
+    model_signal: null,
     enabled: true,
   },
   {
@@ -1052,14 +1060,14 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     track: "open_market",
     venue: "Nasdaq · Regular Session",
     asset_class: "us_equity_etf",
-    price: "496.35",
-    change_24h_pct: 0.67,
-    volume_24h_usd: "12840000000.00",
-    spread_bps: 1.4,
-    regime: "normal_vol | trending_up",
+    price: null,
+    change_24h_pct: null,
+    volume_24h_usd: null,
+    spread_bps: null,
+    regime: null,
     pit_status: "verified",
-    freshness_seconds: 3,
-    model_signal: "LONG (+16.5 bps expected)",
+    freshness_seconds: null,
+    model_signal: null,
     enabled: true,
   },
   {
@@ -1069,14 +1077,14 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     track: "open_market",
     venue: "Nasdaq Global Select · XNAS",
     asset_class: "us_equity_sec",
-    price: "258.40",
-    change_24h_pct: -1.18,
-    volume_24h_usd: "16900000000.00",
-    spread_bps: 2.4,
-    regime: "high_vol | mean_reverting",
+    price: null,
+    change_24h_pct: null,
+    volume_24h_usd: null,
+    spread_bps: null,
+    regime: null,
     pit_status: "verified",
-    freshness_seconds: 4,
-    model_signal: "SHORT (-19.2 bps expected)",
+    freshness_seconds: null,
+    model_signal: null,
     enabled: true,
   },
   {
@@ -1086,14 +1094,14 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     track: "competition",
     venue: "Prop Competition 24/7 Venue",
     asset_class: "crypto_perp",
-    price: "67840.75",
-    change_24h_pct: 1.42,
-    volume_24h_usd: "1482500000.00",
-    spread_bps: 3.5,
-    regime: "normal_vol | trending_up",
+    price: null,
+    change_24h_pct: null,
+    volume_24h_usd: null,
+    spread_bps: null,
+    regime: null,
     pit_status: "verified",
-    freshness_seconds: 4,
-    model_signal: "LONG (+22.8 bps expected)",
+    freshness_seconds: null,
+    model_signal: null,
     enabled: true,
   },
   {
@@ -1103,14 +1111,14 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     track: "competition",
     venue: "Prop Competition 24/7 Venue",
     asset_class: "crypto_perp",
-    price: "2642.80",
-    change_24h_pct: 2.15,
-    volume_24h_usd: "694100000.00",
-    spread_bps: 4.2,
-    regime: "normal_vol | trending_up",
+    price: null,
+    change_24h_pct: null,
+    volume_24h_usd: null,
+    spread_bps: null,
+    regime: null,
     pit_status: "verified",
-    freshness_seconds: 5,
-    model_signal: "LONG (+18.4 bps expected)",
+    freshness_seconds: null,
+    model_signal: null,
     enabled: true,
   },
   {
@@ -1120,14 +1128,14 @@ const DEFAULT_LISTINGS: LiveListing[] = [
     track: "competition",
     venue: "Prop Competition 24/7 Venue",
     asset_class: "crypto_perp",
-    price: "168.45",
-    change_24h_pct: 3.64,
-    volume_24h_usd: "312800000.00",
-    spread_bps: 5.8,
-    regime: "high_vol | trending_up",
+    price: null,
+    change_24h_pct: null,
+    volume_24h_usd: null,
+    spread_bps: null,
+    regime: null,
     pit_status: "verified",
-    freshness_seconds: 6,
-    model_signal: "LONG (+26.1 bps expected)",
+    freshness_seconds: null,
+    model_signal: null,
     enabled: true,
   },
 ];
@@ -2257,6 +2265,17 @@ export function AtlasTerminal({
     "Founder profile active · 100% IP & signing authority retained · Non-custodial"
   );
   const [listingsList, setListingsList] = useState<LiveListing[]>(DEFAULT_LISTINGS);
+  const listingFeedQuotes = useFeedQuotes(listingsList.map((item) => item.symbol));
+  const listingQuote = (item: LiveListing): FeedQuote =>
+    listingFeedQuotes[item.symbol] ?? {
+      symbol: item.symbol,
+      price: item.price === null || item.price === undefined ? null : Number(item.price),
+      change_pct: item.change_24h_pct ?? null,
+      source: item.quote_source ?? null,
+      observed_at: item.quote_epoch ?? null,
+      observed_at_toronto: item.quote_time ?? null,
+      status: item.quote_status ?? "no_data",
+    };
   const [listingTrackFilter, setListingTrackFilter] = useState<"all" | "competition" | "open_market">("all");
   const [newListingSymbol, setNewListingSymbol] = useState("AVAX-USD");
   const [newListingName, setNewListingName] = useState("Avalanche Perpetual Swap");
@@ -2616,14 +2635,14 @@ export function AtlasTerminal({
           track: newListingTrack,
           venue: newListingTrack === "competition" ? "Crypto Perp 24/7 Venue" : "NYSE / Nasdaq Session",
           asset_class: newListingTrack === "competition" ? "crypto_perp" : "us_equity_etf",
-          price: newListingPrice,
-          change_24h_pct: 1.15,
-          volume_24h_usd: "145000000.00",
-          spread_bps: 3.2,
-          regime: "normal_vol | trending_up",
-          pit_status: "verified",
-          freshness_seconds: 1,
-          model_signal: "LONG (+15.2 bps expected)",
+          price: null,
+          change_24h_pct: null,
+          volume_24h_usd: null,
+          spread_bps: null,
+          regime: null,
+          pit_status: "unverified",
+          freshness_seconds: null,
+          model_signal: null,
           enabled: true,
         },
       ]);
@@ -2635,7 +2654,6 @@ export function AtlasTerminal({
             ? {
                 ...item,
                 enabled: action === "toggle_enabled" ? !item.enabled : item.enabled,
-                freshness_seconds: action === "refresh_quote" ? 1 : item.freshness_seconds,
               }
             : item
         )
@@ -3838,8 +3856,9 @@ export function AtlasTerminal({
             <div className="telemetry-pill">
               <span className="telemetry-pill-label">{effectivePage.symbol}</span>
               <span className="telemetry-pill-value">
-                ${latest ? formatPrice(latest.close) : "584.90"}
+                <QuotePrice quote={listingFeedQuotes[effectivePage.symbol]} />
               </span>
+              <QuoteMeta quote={listingFeedQuotes[effectivePage.symbol]} compact />
               <span className={`badge ${priceDelta >= 0 ? "badge-emerald" : "badge-danger"}`}>
                 {priceDelta >= 0 ? "+" : ""}
                 {priceDeltaPct.toFixed(2)}%
@@ -3933,11 +3952,13 @@ export function AtlasTerminal({
               }}
             >
               <span className="ticker-sym">{item.symbol}</span>
-              <span className="ticker-px">${formatPrice(item.price)}</span>
-              <span className={`ticker-chg ${item.change_24h_pct >= 0 ? "up" : "down"}`}>
-                {item.change_24h_pct >= 0 ? "+" : ""}
-                {item.change_24h_pct.toFixed(2)}%
+              <span className="ticker-px">
+                <QuotePrice quote={listingQuote(item)} />
               </span>
+              <span className="ticker-chg">
+                <QuoteChange quote={listingQuote(item)} />
+              </span>
+              <QuoteMeta quote={listingQuote(item)} compact />
               <span className="badge badge-slate" style={{ fontSize: "9px", padding: "1px 5px" }}>
                 {item.track === "open_market" ? "STOCK" : "PERP"}
               </span>
@@ -4189,7 +4210,7 @@ export function AtlasTerminal({
                           <tr>
                             <th>Symbol / ID</th>
                             <th>Track & Venue</th>
-                            <th>Live Price</th>
+                            <th>Price · status · source · Toronto time</th>
                             <th>24h Change</th>
                             <th>Spread</th>
                             <th>Causal Regime</th>
@@ -4217,18 +4238,18 @@ export function AtlasTerminal({
                                   </div>
                                 </td>
                                 <td className="mono-cell" style={{ fontWeight: 700 }}>
-                                  ${formatPrice(item.price)}
+                                  <QuotePrice quote={listingQuote(item)} />
+                                  <div>
+                                    <QuoteMeta quote={listingQuote(item)} />
+                                  </div>
                                 </td>
                                 <td>
-                                  <span className={`badge ${item.change_24h_pct >= 0 ? "badge-emerald" : "badge-danger"}`}>
-                                    {item.change_24h_pct >= 0 ? "+" : ""}
-                                    {item.change_24h_pct.toFixed(2)}%
-                                  </span>
+                                  <QuoteChange quote={listingQuote(item)} />
                                 </td>
-                                <td className="mono-cell">{item.spread_bps.toFixed(1)} bps</td>
-                                <td className="mono-cell">{item.regime}</td>
-                                <td className="mono-cell" style={{ color: "var(--accent-emerald)" }}>
-                                  {item.model_signal}
+                                <td className="mono-cell">{item.spread_bps === null ? "—" : `${item.spread_bps.toFixed(1)} bps`}</td>
+                                <td className="mono-cell">{item.regime ?? "—"}</td>
+                                <td className="mono-cell" style={{ color: "var(--text-muted)" }}>
+                                  {item.model_signal ?? "not evaluated"}
                                 </td>
                                 <td>
                                   <div className="btn-row">
@@ -5164,7 +5185,10 @@ export function AtlasTerminal({
                                 </span>
                               </td>
                               <td className="mono-cell" style={{ fontWeight: 700 }}>
-                                ${formatPrice(row.price)}
+                                <QuotePrice quote={listingFeedQuotes[row.symbol]} />
+                                <div>
+                                  <QuoteMeta quote={listingFeedQuotes[row.symbol]} compact />
+                                </div>
                               </td>
                               <td>
                                 <span
@@ -6012,14 +6036,11 @@ export function AtlasTerminal({
                         onClick={() => handleLiveInternetSync(item.symbol)}
                       >
                         <span>{item.symbol}</span>
-                        <span style={{ opacity: 0.85, fontFamily: "var(--font-mono)" }}>${formatPrice(item.price)}</span>
-                        <span
-                          className={`badge ${item.change_24h_pct >= 0 ? "badge-emerald" : "badge-danger"}`}
-                          style={{ padding: "1px 5px", fontSize: "9px" }}
-                        >
-                          {item.change_24h_pct >= 0 ? "+" : ""}
-                          {item.change_24h_pct}%
+                        <span style={{ opacity: 0.85, fontFamily: "var(--font-mono)" }}>
+                          <QuotePrice quote={listingQuote(item)} />
                         </span>
+                        <QuoteChange quote={listingQuote(item)} />
+                        <QuoteMeta quote={listingQuote(item)} compact />
                       </button>
                     ))}
                   </div>

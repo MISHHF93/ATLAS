@@ -58,5 +58,5 @@ def test_quote_route_stays_off_under_pytest_and_does_not_rewrite_the_directory()
     after = client.get("/api/catalog/search", params={"q": "NVDA", "limit": 5}).json()
     assert next(item for item in after["results"] if item["symbol"] == "NVDA")["last_price"] == stored
     disney = client.get("/api/catalog/search", params={"q": "DIS", "limit": 5}).json()
-    assert next(item for item in disney["results"] if item["symbol"] == "DIS")["last_price"] == 0
+    assert next(item for item in disney["results"] if item["symbol"] == "DIS")["last_price"] in (0, None)
     assert after["is_live"] is False
