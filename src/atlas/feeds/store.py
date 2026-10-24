@@ -23,6 +23,9 @@ CREATE INDEX IF NOT EXISTS ix_rev_lookup ON bar_revisions(instrument, interval, 
 CREATE TABLE IF NOT EXISTS observations (
   provider TEXT, series TEXT, date TEXT, realtime_start TEXT, value REAL, receipt_time INTEGER,
   PRIMARY KEY (provider, series, date, realtime_start));
+CREATE TABLE IF NOT EXISTS last_quotes (
+  instrument TEXT NOT NULL, provider TEXT NOT NULL, price REAL NOT NULL, event_time REAL NOT NULL, receipt_time REAL NOT NULL,
+  prev_close REAL, kind TEXT, provider_symbol TEXT, PRIMARY KEY (instrument, provider));
 CREATE TABLE IF NOT EXISTS ingest_log (
   ts INTEGER, provider TEXT, instrument TEXT, interval TEXT, received INTEGER, inserted INTEGER, revised INTEGER, note TEXT);
 """
@@ -33,7 +36,11 @@ class FeedStore:
         self.path = str(path)
         if self.path != ":memory:":
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
-        self._db = sqlite3.connect(self.path, check_same_thread=False)
+        self._db = sqlite3.connect(self.path, check_same_thread=False, timeout=30)
+        if self.path != ":memory:":
+            # The live-ingest process writes while the API process reads: WAL + busy timeout, no reader blocking.
+            self._db.execute("PRAGMA journal_mode=WAL")
+            self._db.execute("PRAGMA busy_timeout=30000")
         self._db.executescript(SCHEMA)
         self._lock = threading.Lock()
 
@@ -64,6 +71,50 @@ class FeedStore:
                 self._db.execute("INSERT INTO ingest_log VALUES (?,?,?,?,?,?,?,?)",
                                  (last.receipt_time, last.provider, last.instrument, last.interval, rec, ins, rev, note))
         return {"received": rec, "inserted": ins, "revised": rev}
+
+    def upsert_quotes(self, rows: Iterable[dict]) -> int:
+        """Latest print per (instrument, provider) from a live stream/poll. Idempotent: an older or identical print never
+        replaces a newer one. ``kind`` = trade | ticker | kline | spark | bar_close."""
+        n = 0
+        with self._lock, self._db:
+            for r in rows:
+                if not (r.get("price") and r["price"] > 0):
+                    continue
+                cur = self._db.execute("SELECT event_time, price FROM last_quotes WHERE instrument=? AND provider=?",
+                                       (r["instrument"], r["provider"])).fetchone()
+                if cur is not None and (cur[0] > r["event_time"] or (cur[0] == r["event_time"] and cur[1] == r["price"])):
+                    continue
+                self._db.execute("INSERT OR REPLACE INTO last_quotes VALUES (?,?,?,?,?,?,?,?)",
+                                 (r["instrument"], r["provider"], float(r["price"]), float(r["event_time"]), float(r["receipt_time"]),
+                                  r.get("prev_close"), r.get("kind", ""), r.get("provider_symbol", "")))
+                n += 1
+        return n
+
+    def last_quotes(self, instrument: str | None = None) -> list[dict]:
+        q = "SELECT instrument,provider,price,event_time,receipt_time,prev_close,kind,provider_symbol FROM last_quotes"
+        rows = self._db.execute(q + (" WHERE instrument=?" if instrument else ""), (instrument,) if instrument else ()).fetchall()
+        keys = ("instrument", "provider", "price", "event_time", "receipt_time", "prev_close", "kind", "provider_symbol")
+        return [dict(zip(keys, r)) for r in rows]
+
+    def latest_bar(self, instrument: str, intervals: Sequence[str] = ("1m", "5m", "15m", "1h", "1d")) -> FeedBar | None:
+        """Most recent bar (confirmed or forming) across providers, ranked by when its last price was known
+        (min(bar_end, receipt_time)); the finest interval wins ties."""
+        best = None
+        for iv in intervals:
+            r = self._db.execute(
+                "SELECT provider,instrument,interval,event_time,open,high,low,close,volume,receipt_time,confirmed,provider_symbol "
+                "FROM bar_revisions WHERE instrument=? AND interval=? ORDER BY event_time DESC, receipt_time DESC LIMIT 1",
+                (instrument, iv)).fetchone()
+            if r:
+                b = FeedBar(r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[0], r[9], bool(r[10]), r[11] or "")
+                if best is None or min(b.bar_end, b.receipt_time) > min(best.bar_end, best.receipt_time):
+                    best = b
+        return best
+
+    def daily_closes(self, instrument: str, limit: int = 3) -> list[tuple[int, float]]:
+        rows = self._db.execute("SELECT event_time, close FROM bar_revisions WHERE instrument=? AND interval='1d' "
+                                "GROUP BY event_time ORDER BY event_time DESC LIMIT ?", (instrument, limit)).fetchall()
+        return [(int(t), float(c)) for t, c in rows]
 
     def ingest_observations(self, obs: Iterable[FeedObservation]) -> int:
         with self._lock, self._db:

@@ -14,7 +14,8 @@ from datetime import datetime, timezone
 
 from atlas.feeds import get_feed
 
-DAYS = {"15m": {"crypto": 180, "etf": 59}, "1h": {"crypto": 730, "etf": 720}}
+DAYS = {"15m": {"crypto": 180, "etf": 59}, "1h": {"crypto": 730, "etf": 720}, "1d": {"crypto": 1095, "etf": 1095},
+        "1m": {"crypto": 2, "etf": 6}}
 
 
 def iso(t):
@@ -27,6 +28,8 @@ def main():
     ap.add_argument("--intervals", default="15m,1h")
     ap.add_argument("--days", type=int)
     ap.add_argument("--db")
+    ap.add_argument("--ui-universe", action="store_true", help="every symbol the UI lists (atlas.feeds.universe)")
+    ap.add_argument("--asset-classes", default="", help="filter, e.g. crypto or equity,etf,future")
     ap.add_argument("--no-cross-check", action="store_true")
     ap.add_argument("--health", action="store_true")
     a = ap.parse_args()
@@ -35,20 +38,31 @@ def main():
         print(json.dumps(feed.health(), indent=1, default=str)); return
     now = int(time.time())
     report = []
-    for inst_id in a.instruments.split(","):
+    ids = a.instruments.split(",")
+    if a.ui_universe:
+        from atlas.feeds.universe import ui_instruments
+        ids = list(ui_instruments())
+    if a.asset_classes:
+        ids = [i for i in ids if feed.instruments.get(i).asset_class in a.asset_classes.split(",")]
+    for inst_id in ids:
         inst = feed.instruments.get(inst_id)
         for iv in a.intervals.split(","):
-            days = a.days or DAYS.get(iv, {}).get(inst.asset_class if inst.asset_class == "crypto" else "etf", 30)
-            start = now - days * 86400
-            r = feed.backfill(inst_id, iv, start, now)
-            cc = {} if a.no_cross_check else feed.cross_check(inst_id, iv, max(start, now - 7 * 86400), now)
-            bars = feed.bars(inst_id, iv, start, now + 1)
-            q = feed.quality(inst_id, iv, int(time.time()))
-            report.append({"instrument": inst_id, "interval": iv, "provider": r["provider"], "inserted": r.get("inserted"),
-                           "revised": r.get("revised"), "failover_errors": r.get("errors"), "gap_fills": len(r["gap_fills"]),
-                           "bars": len(bars), "first": iso(bars[0].event_time) if bars else None,
-                           "last_closed_bar_end": iso(bars[-1].bar_end) if bars else None, "age_seconds": q.age_seconds,
-                           "gaps_in_window": len(q.gaps), "flags": list(q.flags), "cross_check": cc})
+          try:
+              days = a.days or DAYS.get(iv, {}).get(inst.asset_class if inst.asset_class == "crypto" else "etf", 30)
+              start = now - days * 86400
+              r = feed.backfill(inst_id, iv, start, now)
+              cc = {} if a.no_cross_check else feed.cross_check(inst_id, iv, max(start, now - 7 * 86400), now)
+              bars = feed.bars(inst_id, iv, start, now + 1)
+              q = feed.quality(inst_id, iv, int(time.time()))
+              report.append({"instrument": inst_id, "interval": iv, "provider": r["provider"], "inserted": r.get("inserted"),
+                             "revised": r.get("revised"), "failover_errors": r.get("errors"), "gap_fills": len(r["gap_fills"]),
+                             "bars": len(bars), "first": iso(bars[0].event_time) if bars else None,
+                             "last_closed_bar_end": iso(bars[-1].bar_end) if bars else None, "age_seconds": q.age_seconds,
+                             "gaps_in_window": len(q.gaps), "flags": list(q.flags), "cross_check": cc})
+              print(json.dumps(report[-1], default=str), flush=True)
+          except Exception as e:  # noqa: BLE001 - one bad symbol must not stop the universe backfill
+            report.append({"instrument": inst_id, "interval": iv, "provider": None, "bars": 0, "first": None,
+                           "last_closed_bar_end": None, "age_seconds": None, "flags": [f"error:{e!r}"[:160]]})
             print(json.dumps(report[-1], default=str), flush=True)
     print("\n| instrument | tf | provider | bars | first (UTC) | last closed bar end (UTC) | age s | flags |")
     print("|---|---|---|---|---|---|---|---|")

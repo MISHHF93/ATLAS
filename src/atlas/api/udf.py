@@ -118,7 +118,8 @@ def udf_feed_bars(gateway: Any, symbol: str, bucket_seconds: int) -> dict[str, A
     see the same bars.
     """
     interval = FEED_INTERVALS.get(int(bucket_seconds))
-    instrument = FEED_ALIASES.get(symbol.upper(), symbol.upper())
+    from atlas.feeds.universe import resolve
+    instrument = FEED_ALIASES.get(symbol.upper()) or resolve(symbol) or symbol.upper()
     feed = _feed() if interval else None
     if feed is not None and instrument in feed.instruments:
         now = int(datetime.now(timezone.utc).timestamp())
