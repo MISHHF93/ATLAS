@@ -11,11 +11,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--generations", type=int, default=3)
     ap.add_argument("--seed", type=int, default=11)
-    ap.add_argument("--universe", choices=("default", "extended", "evo6"), default="default")
+    ap.add_argument("--universe", choices=("default", "extended", "evo6", "evo7", "evo7_1h"), default="default")
     a = ap.parse_args()
     from atlas.feeds.feed import get_feed
     from atlas.ml import evolution as E
-    data, meta = (E.build_population_data(get_feed(), E.UNIVERSE_EVO6, variant=E.EVO6_VARIANT, detectors=E.EVO6_DETECTORS) if a.universe == "evo6" else
+    data, meta = (E.build_population_data(get_feed(), {"evo6": E.UNIVERSE_EVO6, "evo7": E.UNIVERSE_EVO7, "evo7_1h": E.UNIVERSE_EVO7_1H}[a.universe], variant=E.EVO6_VARIANT, detectors=E.EVO6_DETECTORS) if a.universe.startswith("evo") else
         E.build_population_data(get_feed(), E.UNIVERSE_EXTENDED if a.universe == "extended" else E.UNIVERSE))
     if not len(data):
         print(json.dumps({"status": "no_data", "meta": meta}))

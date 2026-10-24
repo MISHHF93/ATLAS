@@ -80,6 +80,13 @@ UNIVERSE_EXTENDED = UNIVERSE + [(i, "1h") for i in ("BTCUSDT", "ETHUSDT", "SPY",
 # prior_day_range_reversal on 4h (crypto, derived from closed 1h bars) with ATR-scaled stops. Gross CI still spans 0.
 UNIVERSE_EVO6 = [(i, "4h") for i in ("BTCUSDT", "ETHUSDT")]
 EVO6_VARIANT, EVO6_DETECTORS = "atr2_rr2", ("prior_day_range_reversal",)
+# evo7: PDR meta-label filter on the widened crypto universe (BTC/ETH 1h feed bars from 2024-10; alts 1h derived from
+# 15m feed bars from 2026-04), 4h and 1h. Same variant/detector as evo6; see docs/research/evo7-reversal-probe.md.
+EVO7_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT",
+                "LTCUSDT", "BCHUSDT", "ATOMUSDT", "UNIUSDT", "AAVEUSDT", "ETCUSDT", "XLMUSDT", "FILUSDT", "APTUSDT", "ARBUSDT",
+                "SUIUSDT", "NEARUSDT", "OPUSDT", "INJUSDT", "TIAUSDT", "SEIUSDT", "FETUSDT", "RENDERUSDT", "ALGOUSDT", "WIFUSDT")
+UNIVERSE_EVO7 = [(i, "4h") for i in EVO7_SYMBOLS]
+UNIVERSE_EVO7_1H = [(i, "1h") for i in EVO7_SYMBOLS]
 N_FOLDS = 5
 EMBARGO = 86400
 TIME_FEATS = ("hod_sin", "hod_cos", "dow_sin", "dow_cos")

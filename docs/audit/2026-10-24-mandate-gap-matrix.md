@@ -69,6 +69,12 @@ so "existing" means "found", not "audited".
 | Retire 15m orb_retest | Done as research-retired, reversible, documented reason |
 | ML on gross-positive variant (PDR 4h) | Done; no challenger beats baseline |
 
+## Pass 13 / evo7 additions
+| Item | Status |
+|---|---|
+| PDR probe: more symbols/history, limit/partial/time-stop/HTF filters, maker-assumed costs | Done (research); 0/540 pass, PBO 0.109 |
+| ML meta-label on reversal candidates (4h, 1h) | Done; 4h no champion; 1h fragile research champion, no execution |
+
 ## Streamline pass 1 (atlas-unify-1)
 | Item | Status |
 |---|---|

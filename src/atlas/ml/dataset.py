@@ -57,22 +57,28 @@ class SeriesData:
         return h.hexdigest()
 
 
-def resample_4h(sd: SeriesData) -> SeriesData:
-    """UTC 4h buckets from closed 1h bars; a bucket is emitted only when all four 1h bars are present."""
+def resample_buckets(sd: SeriesData, secs: int, label: str) -> SeriesData:
+    """UTC ``secs`` buckets from closed bars; a bucket is emitted only when every sub-bar is present."""
+    k = secs // sd.bars[0].duration if sd.bars else 1
     out, cur = [], []
 
     def flush() -> None:
-        if len(cur) == 4:
-            out.append(Bar(cur[0].start // 14400 * 14400, 14400, cur[0].open, max(x.high for x in cur),
+        if len(cur) == k:
+            out.append(Bar(cur[0].start // secs * secs, secs, cur[0].open, max(x.high for x in cur),
                            min(x.low for x in cur), cur[-1].close, sum(x.volume for x in cur)))
 
     for b in sd.bars:
-        if cur and b.start // 14400 != cur[0].start // 14400:
+        if cur and b.start // secs != cur[0].start // secs:
             flush()
             cur = []
         cur.append(b)
     flush()
-    return SeriesData(sd.instrument, "4h", sd.asset_class, out, sd.providers + ["derived:1h->4h"])
+    return SeriesData(sd.instrument, label, sd.asset_class, out, sd.providers + [f"derived:{sd.interval}->{label}"])
+
+
+def resample_4h(sd: SeriesData) -> SeriesData:
+    """UTC 4h buckets from closed 1h bars; a bucket is emitted only when all four 1h bars are present."""
+    return resample_buckets(sd, 14400, "4h")
 
 
 def load_series(feed, instrument: str, interval: str, as_of: int | None = None, start: int | None = None) -> SeriesData:
@@ -83,6 +89,11 @@ def load_series(feed, instrument: str, interval: str, as_of: int | None = None, 
         return sd
     fb = feed.bars(instrument, interval, start, None, as_of=as_of, confirmed_only=True) if start is not None \
         else feed.bars(instrument, interval, as_of=as_of)
+    if interval == "1h" and not fb:
+        inst0 = feed.instruments.get(instrument)
+        if inst0 is not None and inst0.asset_class == "crypto":   # evo7: crypto alts carry only 15m; derive complete UTC hours
+            sd15 = load_series(feed, instrument, "15m", as_of=as_of, start=start)
+            return resample_buckets(sd15, 3600, "1h") if sd15.bars else sd15
     dur = DUR[interval]
     bars, last = [], None
     for b in fb:

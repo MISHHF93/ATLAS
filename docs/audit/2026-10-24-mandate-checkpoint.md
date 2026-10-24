@@ -146,3 +146,7 @@ New package `atlas.intel` (EXECUTION_PERMISSION="none") + `/api/intel/*` router 
 ## Streamline pass 1 / unify-1 (2026-10-24, branch atlas-unify-1 from 61e03df)
 - Done: repo audit (docs/audit/2026-10-24-repo-streamline.md); AI as one node (`atlas.ai.node` + `/api/ai/*`, one advisory guard over every AI path); 8 scripts made side-effect-free on `--help`, setup_evidence recursion fixed; 3 dead files + 5 unused deps removed; one `brier`.
 - Next pass: duplicate docs (two CHANGELOGs), remaining duplicate helpers, oversized modules.
+
+## Pass 13 / evo7 (2026-10-24, branch atlas-evo-7)
+- Probe: 540 trials, 0 pass, PBO 0.109, DSR 0 for the top cells. Core 4h walk-forward OOS net +0.039 R [-0.109, +0.186]. Alts and 1h are negative.
+- ML: 4h run 489861863694 has no champion. 1h run 432dba69a77e is a fragile research champion (Brier skill +0.0009). execution_permission none. Markers come from 432dba69a77e.

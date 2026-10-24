@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-24: branch `atlas-evo-7` (PDR reversal probe)
+- `research/reversal_probe.py` + `scripts/run_reversal_probe.py`:
+  - limit entries, partial targets, time stops, and closed-bar HTF/volatility filters;
+  - a labelled `maker_assumed` cost model;
+  - 540 trials over BTC/ETH, 28 alts and SPY/QQQ/IWM, with CIs, DSR, PBO and purged walk-forward.
+- Result: 0/540 pass, PBO 0.109. Core 4h OOS net +0.039 R, CI spans 0. Alts and 1h are negative. See `docs/research/evo7-reversal-probe.md`.
+- `ml/dataset.resample_buckets`: crypto 1h derived from complete 15m hours when no feed bars exist.
+- ML: `--universe evo7|evo7_1h` (30 crypto).
+  - 4h run 489861863694: no challenger beats baseline.
+  - 1h run 432dba69a77e: research champion, EV +0.019 R vs take-all -0.170 R, Brier skill +0.0009. Fragile: the edge comes from the last fold.
+  - execution_permission none. Markers come from 432dba69a77e. See `docs/ml/evo7-reversal-probe.md`.
+
 ## 2026-10-24: branch `atlas-unify-1` (streamline pass 1, AI as one node)
 - AI node: `atlas.ai.node` (one registry of 14 AI/ML/LLM components, uniform statuses, audit trail) + `atlas.ai.http` (`/api/ai/*`; `/api/ai/{ml,research,intel,advanced-ml,agent}/*` alias the legacy paths). One middleware forces `execution_permission: none` on every AI JSON response (old and new paths); the control plane stays the sole authorizer. Docs: `docs/architecture/AI_NODE.md`.
 - Fixed 5 scripts failing `--help`; fixed RecursionError in `setup_evidence.load_datasets` legacy JSON branch.
