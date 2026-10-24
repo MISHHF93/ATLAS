@@ -18,6 +18,15 @@ Formulas
   running sum >= threshold, threshold = (mean daily volume or dollar volume over the prior 20 completed UTC days)/k.
   Until 20 days of history exist no bar is produced (warmup). OHLC from the source bars' O/H/L/C. Gated unavailable
   if the source has no volume.
+- kagi(rev="atr"|float): reversal amount r = causal ATR(14) at the source bar (or fixed). Using source closes, a
+  line extends while price makes new extremes in its direction; when the close retraces >= r from the line's extreme,
+  the line is complete and emitted (open = line start, close = extreme, high/low = line range), and a new line starts
+  at the extreme in the opposite direction. The live (unfinished) line is never emitted. completed_at = end of the
+  source bar whose close confirmed the reversal.
+- point_figure(box="atr"|float, reversal=3): box size b = causal ATR(14) frozen when a column starts (or fixed).
+  Using source closes, an X column extends by whole boxes while close >= top + b; it completes when close <= top - 3b
+  (O columns mirror this). Only completed columns are emitted (open = column start level, close = last filled box,
+  direction +1 for X, -1 for O); the live column is never emitted. completed_at = end of the reversing source bar.
 - tick_bars: need trade-level prints. The feed stores bars only, so this returns [] with availability "unavailable".
 """
 from __future__ import annotations
@@ -27,7 +36,7 @@ from typing import Literal, Sequence
 
 from atlas.features.price_action.bars import Bar
 
-BAR_TYPES = ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "tick")
+BAR_TYPES = ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "kagi_atr", "pnf_atr", "tick")
 
 
 @dataclass(frozen=True)
@@ -155,6 +164,85 @@ def threshold_bars(bars: Sequence[Bar], kind: Literal["volume", "dollar"] = "vol
     return out
 
 
+def kagi(bars: Sequence[Bar], rev: float | Literal["atr"] = "atr") -> list[AltBar]:
+    atr = _atr_series(bars) if rev == "atr" else None
+    out: list[AltBar] = []
+    anchor = None
+    d = 0
+    seg_start = ext = lo = hi = 0.0
+    seg_t = 0
+    n = 0
+    for i, b in enumerate(bars):
+        r = atr[i] if atr else float(rev)  # type: ignore[index,arg-type]
+        c = b.close
+        if anchor is None:
+            anchor, seg_t = c, b.start
+            continue
+        if not r or r <= 0:
+            continue
+        if d == 0:
+            if abs(c - anchor) >= r:
+                d = 1 if c > anchor else -1
+                seg_start, ext, lo, hi, n = anchor, c, min(anchor, c), max(anchor, c), 1
+            continue
+        n += 1
+        lo, hi = min(lo, c), max(hi, c)
+        if (d > 0 and c > ext) or (d < 0 and c < ext):
+            ext = c
+        elif (d > 0 and c <= ext - r) or (d < 0 and c >= ext + r):
+            out.append(AltBar("kagi_atr" if rev == "atr" else "kagi", seg_t, b.end, seg_start, max(seg_start, ext), min(seg_start, ext), ext, 0.0, d, n))
+            seg_start, seg_t, d = ext, b.start, -d
+            ext, lo, hi, n = c, min(seg_start, c), max(seg_start, c), 1
+    return out
+
+
+def point_figure(bars: Sequence[Bar], box: float | Literal["atr"] = "atr", reversal: int = 3) -> list[AltBar]:
+    atr = _atr_series(bars) if box == "atr" else None
+    kind = "pnf_atr" if box == "atr" else "pnf"
+    out: list[AltBar] = []
+    anchor = None
+    d = 0
+    bs = start_lvl = last = 0.0
+    col_t = 0
+    n = 0
+    for i, b in enumerate(bars):
+        size = atr[i] if atr else float(box)  # type: ignore[index,arg-type]
+        c = b.close
+        if anchor is None:
+            anchor, col_t = c, b.start
+            continue
+        if d == 0:
+            if not size or size <= 0:
+                continue
+            k = int(abs(c - anchor) // size)
+            if k >= 1:
+                d, bs, start_lvl, n = (1 if c > anchor else -1), size, anchor, 1
+                last = anchor + d * k * size
+            continue
+        n += 1
+        if d > 0:
+            k = int((c - last) // bs) if c > last else 0
+            if k >= 1:
+                last += k * bs
+            elif c <= last - reversal * bs:
+                out.append(AltBar(kind, col_t, b.end, start_lvl, last, start_lvl, last, 0.0, 1, n))
+                nb = size if size and size > 0 else bs
+                start_lvl, col_t, d, n = last - bs, b.start, -1, 1
+                bs = nb
+                last = start_lvl - int((start_lvl - c) // bs) * bs
+        else:
+            k = int((last - c) // bs) if c < last else 0
+            if k >= 1:
+                last -= k * bs
+            elif c >= last + reversal * bs:
+                out.append(AltBar(kind, col_t, b.end, start_lvl, start_lvl, last, last, 0.0, -1, n))
+                nb = size if size and size > 0 else bs
+                start_lvl, col_t, d, n = last + bs, b.start, 1, 1
+                bs = nb
+                last = start_lvl + int((c - start_lvl) // bs) * bs
+    return out
+
+
 def tick_bars(bars: Sequence[Bar], trades: Sequence | None = None, n: int = 500) -> list[AltBar]:
     """Gated: requires trade prints, which the ATLAS feed does not store. Never approximated from bars."""
     return []
@@ -181,6 +269,10 @@ def build(kind: str, bars: Sequence[Bar]) -> list[AltBar]:
         return range_bars(bars, "atr")
     if kind in ("volume", "dollar"):
         return threshold_bars(bars, kind)  # type: ignore[arg-type]
+    if kind == "kagi_atr":
+        return kagi(bars, "atr")
+    if kind == "pnf_atr":
+        return point_figure(bars, "atr")
     if kind == "tick":
         return tick_bars(bars)
     if kind == "time":

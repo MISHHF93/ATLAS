@@ -40,7 +40,7 @@ def from_replay(res, tf: int, cost_per_unit: float = 0.0) -> list[dict[str, Any]
         if not reasons:
             cls, risk = ("ml_suggested" if prob is not None else "rule_only"), "authorized_for_control_plane"
         elif _model_absent(reasons):
-            cls, risk = "rule_only", "rejected: " + ",".join(map(str, reasons))
+            cls, risk = "rule_only", "gate abstained, no validated model (not a risk rejection): " + ",".join(map(str, reasons))
         else:
             cls, risk = "risk_rejected", "rejected: " + ",".join(map(str, reasons))
         t = by_c.get(c.candidate_id)
@@ -80,3 +80,26 @@ def from_evolution(inst: str, interval: str, path=None) -> tuple[list[dict[str, 
                     "class": "ml_suggested" if take else "ml_skip", "outcome": r["outcome"], "r": r["r"]})
     return out, {"run_id": run["run_id"], "genome": best.get("genome_id"), "no_model_beats_baseline": run.get("no_model_beats_baseline"),
                  "decision": run.get("decision")}
+
+
+CLASS_ORDER = ("ml_suggested", "ml_skip", "rule_only", "risk_rejected")
+
+
+def class_summary(markers: list[dict[str, Any]], n_rule_candidates: int, has_oos: bool) -> dict[str, dict[str, Any]]:
+    """Per-category legend data. ``applicable`` is False when that category could not occur for this chart, so the UI
+    shows "n/a" with the reason instead of a misleading zero."""
+    counts = {k: 0 for k in CLASS_ORDER}
+    for m in markers:
+        counts[m["class"]] = counts.get(m["class"], 0) + 1
+    out: dict[str, dict[str, Any]] = {}
+    for k in ("ml_suggested", "ml_skip"):
+        out[k] = {"count": counts[k], "applicable": has_oos,
+                  "note": "out-of-sample predictions from the evolution champion" if has_oos
+                  else "no out-of-sample ML predictions for this symbol/timeframe"}
+    out["rule_only"] = {"count": counts["rule_only"], "applicable": n_rule_candidates > 0,
+                        "note": "rule setups the gate abstained on because no validated model exists" if n_rule_candidates
+                        else "no rule candidates in this window"}
+    out["risk_rejected"] = {"count": counts["risk_rejected"], "applicable": n_rule_candidates > 0,
+                            "note": (f"rejected on geometry or costs, out of {n_rule_candidates} rule candidates checked (the edge check needs a validated model)"
+                                     if n_rule_candidates else "no rule candidates in this window")}
+    return out

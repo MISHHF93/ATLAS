@@ -54,4 +54,21 @@ def test_markers_causal_anchor_and_never_ml_authorized():
     m = from_replay(res, 900)[0]
     assert m["time"] == 900 and m["outcome"] == "not_filled"
     assert m["probability"] is None and m["probability_label"].startswith("uncalibrated")
-    assert m["risk_status"].startswith("rejected")
+    assert m["risk_status"].startswith(("rejected", "gate abstained")) and "authorized" not in m["risk_status"]
+
+
+def test_marker_class_summary_marks_inapplicable_categories():
+    from atlas.intel.markers import class_summary
+    ms = [{"class": "rule_only", "source": "candidate_engine"}] * 3
+    cs = class_summary(ms, 3, has_oos=False)
+    assert cs["rule_only"] == {**cs["rule_only"], "count": 3, "applicable": True}
+    assert cs["risk_rejected"]["count"] == 0 and "out of 3" in cs["risk_rejected"]["note"]
+    assert not cs["ml_suggested"]["applicable"] and not cs["ml_skip"]["applicable"]
+    assert not class_summary([], 0, False)["risk_rejected"]["applicable"]
+
+
+def test_rule_only_risk_status_is_not_called_a_rejection():
+    import inspect
+    from atlas.intel import markers
+    src = inspect.getsource(markers.from_replay)
+    assert '"rule_only", "rejected' not in src and "not a risk rejection" in src

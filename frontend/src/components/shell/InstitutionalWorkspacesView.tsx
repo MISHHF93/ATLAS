@@ -589,68 +589,8 @@ export function InstitutionalWorkspacesView({
     };
   }, [activeSymbol]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const resolvePath = (path: string): SubPageRouteId | null => {
-      const allRoutes: SubPageRouteId[] = [
-        "/trade/cockpit",
-        "/trade/depth-dom",
-        "/trade/blotter",
-        "/trade/journal",
-        "/control/risk-hud",
-        "/control/rulebook",
-        "/control/surveillance",
-        "/control/proctoring",
-        "/control/dealing-desk",
-        "/research/central-node",
-        "/research/walk-forward",
-        "/research/microstructure",
-        "/research/registry",
-        "/data/lakehouse",
-        "/data/pipelines",
-        "/data/governance",
-        "/data/features-100",
-      ];
-      if (allRoutes.includes(path as SubPageRouteId)) {
-        return path as SubPageRouteId;
-      }
-      const legacyMap: Record<string, SubPageRouteId> = {
-        "/trade": "/trade/cockpit",
-        "/market": "/trade/cockpit",
-        "/control": "/control/risk-hud",
-        "/rules": "/control/rulebook",
-        "/configurations": "/control/rulebook",
-        "/settings": "/control/rulebook",
-        "/profile": "/control/risk-hud",
-        "/research": "/research/central-node",
-        "/experiments": "/research/walk-forward",
-        "/models": "/research/registry",
-        "/matrix": "/research/microstructure",
-        "/data": "/data/lakehouse",
-        "/warehouse": "/data/lakehouse",
-        "/connectors": "/data/pipelines",
-        "/integrations": "/data/pipelines",
-        "/sync": "/data/pipelines",
-        "/governance": "/data/governance",
-        "/roadmap": "/data/features-100",
-      };
-      return legacyMap[path] ?? null;
-    };
-
-    const matchedOnMount = resolvePath(window.location.pathname);
-    if (matchedOnMount) {
-      setCurrentRoute(matchedOnMount);
-    }
-
-    const onPopState = () => {
-      const matched = resolvePath(window.location.pathname);
-      if (matched) {
-        setCurrentRoute(matched);
-      }
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  // The workspace view comes only from `initialRoute` (set by each hub tab in app/*/page.tsx). Legacy paths are
+  // 308-redirected by next.config before render, so no pathname-based mapping is needed here.
 
   useEffect(() => {
     let cancelled = false;

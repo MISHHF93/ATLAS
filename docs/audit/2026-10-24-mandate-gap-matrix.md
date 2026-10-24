@@ -10,7 +10,7 @@ so "existing" means "found", not "audited".
 | 5 | Provider-neutral market data | partial | `feeds/core.py` (adapter base, reconnect, backoff), `feeds/providers/*`, `marketdata/quality.py`, `marketdata/data_rights.py` (entitlements), `marketdata/pit/calendars.py`. Gap detection is in `tests/test_stream_gaps.py`. No unified capability-tier registry |
 | 6 | Instrument specs | partial | `marketdata/futures.py`, `models/quant/multi.py` multipliers; no single `ContractSpec` (rolls/expiry) contract |
 | 7 | Market structure engine | **new** | `features/price_action/structure.py`: causal swings HH/HL/LH/LL, BOS, CHoCH, breakout success/fail, compression/expansion, with event records. Impulse/retrace not separated yet |
-| 8 | Zone registry + interaction SM | partial | `levels.py` (LiquidityLevelRegistry, LevelInteractionEngine), `zones.py` Zone. Missing fields: confluence_ids, breakout/rejection counts, provenance; MA/VWAP/psych/supply-demand zone types |
+| 8 | Zone registry + interaction SM | partial (pass 8: `levels.py` Level has confluence_ids + provenance) | `levels.py` (LiquidityLevelRegistry, LevelInteractionEngine), `zones.py` Zone. Missing fields: confluence_ids, breakout/rejection counts, provenance; MA/VWAP/psych/supply-demand zone types |
 | 9 | Four-Box | implemented (research; Event disabled) — pass 5 `intel/fourbox.py`, /research?tab=zones (moved from /research/lab?tab=fourbox 2026-10-24); | Opening/ORB `detectors.ORBRetestDetector`, Breakout `DualBollingerDetector`, Anchor `WickReversalDetector`, Event `events.event_zone` (no verified calendar data; disabled) |
 | 10 | Snapback | partial | `strategies/snapback.py`, `suite.py`, stop alternatives in `docs/research/levels-2026-10-24.md`; trailing/partial/time exits not tested |
 | 11 | Gold session models | **new** + existing | `gold_models.py` (Early Bird, range-bound to open, ORB alignment overlap math, Asian context; gold-only; 08:20–08:50 default); `suite.GoldBox` |
@@ -32,7 +32,7 @@ so "existing" means "found", not "audited".
 | 30–31 | Charting / UI | partial | `/research` Levels & sweeps tab; new structure/gold-session/indicator overlays **not wired** on this branch |
 | 32 | Grounded assistant | implemented (retrieval + evidence IDs; LLM off) — pass 5 `intel/assistant.py`; | `ai/assistant/{tools,guard,store,providers}.py` |
 | 33 | Market memory | partial (pass 5 `intel/memory.py` overlaps `research/memory.py`; consolidate) | `research/memory.py`, `ledgers/`, `journal/` |
-| 34–35 | Security/obs | partial | `keys/api_keys.py` rate limit, `ops/health.py`; no correlation IDs found |
+| 34–35 | Security/obs | partial (pass 8: correlation IDs exist, `ops/correlation.py`, header x-correlation-id, JSON request logs) | `keys/api_keys.py` rate limit, `ops/health.py` |
 | 36 | Tests | partial | 57+ test modules; new `tests/price_action/test_mandate_full1.py` |
 | 37–41 | DoD / process | not met | see checkpoint |
 
@@ -47,6 +47,16 @@ so "existing" means "found", not "audited".
 |---|---|
 | Governed ML evolution loop (genes incl. bar type, purged WF, lineage, champion/challenger, no auto-promotion) | Done (branch atlas-evo-1); no model beats baseline |
 | Opportunity markers on Levels and desk charts (classes, tooltip, toggle, disclaimer, historical outcomes) | Done; TradingView widget itself cannot take markers |
-| Alt bars HA/Renko/range/volume/dollar; tick gated; Kagi/P&F | Done; tick unavailable (no trade prints); Kagi/P&F not built |
+| Alt bars HA/Renko/range/volume/dollar; tick gated; Kagi/P&F | Done; tick unavailable (no trade prints); Kagi/P&F added in pass 8 |
 | snapback/orb zero trades | Explained: timeframe_mismatch on 15m |
 | Weekend "live" freshness on daily data; memory merge | Fixed |
+
+## Pass 8 / evo2 (branch atlas-evo-2 from main 727975f)
+| Item | Status |
+|---|---|
+| Marker categories: accurate per-class counts, n/a when a class cannot occur, rule-only not labelled a rejection | Done |
+| Kagi (ATR reversal) and Point & Figure (ATR box, 3-box reversal) builders, genes, chart switcher | Done; causal, prefix-invariance tested |
+| Evolution generation with the new bar types (run 3bdaaf38ba24) | Done; no model beats baseline |
+| Legacy pathname map in InstitutionalWorkspacesView | Removed (it overrode tab views on hub paths) |
+| Re-verified rows: §8 confluence/provenance exist; §34–35 correlation IDs exist | Matrix corrected |
+| Still open: §13 reentry cumulative-loss cap (not in `ReentryGovernor`), §6 single ContractSpec, §22 macro data, §25 partial fills/latency in PA replay | Not done |

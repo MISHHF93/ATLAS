@@ -220,7 +220,7 @@ def evolution_run(generations: int = Query(3, ge=1, le=6), seed: int = Query(11)
 # ---- chart opportunity markers ----
 @router.get("/markers")
 def markers(symbol: str = Query("GC"), tf: str = Query("15m"), limit: int = Query(400, ge=1, le=2000)) -> dict[str, Any]:
-    from atlas.intel.markers import DISCLAIMER, from_evolution, from_replay
+    from atlas.intel.markers import DISCLAIMER, class_summary, from_evolution, from_replay
     sym = symbol.upper(); bars = _bars(sym, tf)
     if not bars:
         return _wrap(bars, {"status": "no_data", "markers": [], "disclaimer": DISCLAIMER})
@@ -229,10 +229,9 @@ def markers(symbol: str = Query("GC"), tf: str = Query("15m"), limit: int = Quer
     ml, ml_meta = from_evolution(sym, tf)
     t0 = bars[0].start
     allm = sorted([m for m in mk + ml if m["time"] >= t0], key=lambda m: m["time"])[-limit:]
-    counts: dict[str, int] = {}
-    for m in allm:
-        counts[m["class"]] = counts.get(m["class"], 0) + 1
-    return _wrap(bars, {"status": "ok", "symbol": sym, "tf": tf, "markers": allm, "counts": counts, "evolution": ml_meta,
+    classes = class_summary(allm, sum(1 for m in allm if m["source"] == "candidate_engine"), any(m["source"] == "evolution_oos" for m in allm))
+    counts = {k: v["count"] for k, v in classes.items()}
+    return _wrap(bars, {"status": "ok", "symbol": sym, "tf": tf, "markers": allm, "counts": counts, "classes": classes, "evolution": ml_meta,
                         "disclaimer": DISCLAIMER, "anchoring": "time = start of the confirmation bar (detected_at - tf); price = real entry reference"})
 
 

@@ -4,7 +4,7 @@ Population genome = {model, features, regime, bar_type}:
   model     logit | ridge | hgb | xgb | lgbm           (ml.train.make_model; xgb/lgbm are challengers)
   features  full | no_setup | no_signed | no_time | bar_only        (ablations of ml.dataset.FEATURES)
   regime    none | vol_conditioned  (adds low/high rv_pctile_480 flags and their interaction with the signed features)
-  bar_type  time | heikin_ashi | renko_atr | range_atr | volume | dollar   (features.representations; tick is gated)
+  bar_type  time | heikin_ashi | renko_atr | range_atr | volume | dollar | kagi_atr | pnf_atr   (features.representations; tick is gated)
 
 Fair comparison: ONE dataset (ml.dataset rows = real-price replay of the existing setup library: entries, exits,
 costs and labels are always on real time bars) and ONE set of purged + embargoed walk-forward folds
@@ -46,7 +46,7 @@ GENES: dict[str, tuple[str, ...]] = {
     "model": ("logit", "ridge", "hgb", "xgb", "lgbm"),
     "features": ("full", "no_setup", "no_signed", "no_time", "bar_only"),
     "regime": ("none", "vol_conditioned"),
-    "bar_type": ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar"),
+    "bar_type": ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "kagi_atr", "pnf_atr"),
 }
 SEEDS = [
     {"model": "hgb", "features": "full", "regime": "none", "bar_type": "time"},
@@ -60,6 +60,8 @@ SEEDS = [
     {"model": "hgb", "features": "full", "regime": "none", "bar_type": "range_atr"},
     {"model": "hgb", "features": "full", "regime": "none", "bar_type": "volume"},
     {"model": "hgb", "features": "full", "regime": "none", "bar_type": "dollar"},
+    {"model": "hgb", "features": "full", "regime": "none", "bar_type": "kagi_atr"},
+    {"model": "hgb", "features": "full", "regime": "none", "bar_type": "pnf_atr"},
     {"model": "logit", "features": "no_setup", "regime": "none", "bar_type": "time"},
 ]
 UNIVERSE = [(i, "15m") for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM")]

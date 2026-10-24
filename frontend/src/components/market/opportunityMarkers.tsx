@@ -10,18 +10,20 @@ import type { IChartApi, SeriesMarker, UTCTimestamp } from "lightweight-charts";
 export type OppMarker = { id: string; source: string; strategy: string; direction: string; time: number; detected_at: number; price: number;
   stop: number; target: number; probability: number | null; probability_label: string; uncertainty: string | null; ev_r: number | null;
   model_version: string; risk_status: string; class: "ml_suggested" | "ml_skip" | "rule_only" | "risk_rejected"; outcome: string; r: number | null };
-export type MarkerPayload = { status: string; markers: OppMarker[]; counts?: Record<string, number>; disclaimer: string;
+export type MarkerPayload = { status: string; markers: OppMarker[]; counts?: Record<string, number>;
+  classes?: Record<string, { count: number; applicable: boolean; note: string }>; disclaimer: string;
   evolution?: { run_id: string; genome: string; no_model_beats_baseline: boolean } | null };
 
 export const MARKER_CLASSES: Record<OppMarker["class"], { label: string; color: string; shape: "arrowUp" | "circle" | "square" }> = {
-  ml_suggested: { label: "ML-suggested (out-of-sample)", color: "#0072B2", shape: "arrowUp" },
-  rule_only: { label: "Rule only (no validated model)", color: "#E69F00", shape: "arrowUp" },
-  risk_rejected: { label: "Rejected by the risk gate", color: "#999999", shape: "circle" },
-  ml_skip: { label: "ML says skip", color: "#666666", shape: "square" },
+  ml_suggested: { label: "ML take (out-of-sample)", color: "#0072B2", shape: "arrowUp" },
+  ml_skip: { label: "ML skip (out-of-sample)", color: "#666666", shape: "square" },
+  rule_only: { label: "Rule setup, no model verdict", color: "#E69F00", shape: "arrowUp" },
+  risk_rejected: { label: "Gate rejected (geometry/costs)", color: "#999999", shape: "circle" },
 };
 export const DISPLAY_TYPES = [
   { id: "candles", label: "Candles" }, { id: "heikin_ashi", label: "Heikin-Ashi" }, { id: "renko_atr", label: "Renko (ATR)" },
-  { id: "range_atr", label: "Range (ATR)" }, { id: "volume", label: "Volume bars" },
+  { id: "range_atr", label: "Range (ATR)" }, { id: "kagi_atr", label: "Kagi (ATR)" }, { id: "pnf_atr", label: "Point & Figure (ATR, 3-box)" },
+  { id: "volume", label: "Volume bars" },
 ] as const;
 export type DisplayType = (typeof DISPLAY_TYPES)[number]["id"];
 
@@ -131,10 +133,16 @@ export function MarkerControls({ on, setOn, show, setShow, payload, error, displ
       ) : null}
       <fieldset className="ux-chips"><legend className="ux-muted">Opportunity markers</legend>
         <label className="ux-chip"><input type="checkbox" checked={on} onChange={(e) => setOn(e.target.checked)} /> Show markers</label>
-        {on ? (Object.keys(MARKER_CLASSES) as OppMarker["class"][]).map((k) => (
-          <label key={k} className="ux-chip"><input type="checkbox" checked={show[k] !== false} onChange={(e) => setShow({ ...show, [k]: e.target.checked })} />
-            <span className="ux-swatch" style={{ background: MARKER_CLASSES[k].color }} aria-hidden /> {MARKER_CLASSES[k].label} ({payload?.counts?.[k] ?? 0})</label>
-        )) : null}
+        {on ? (Object.keys(MARKER_CLASSES) as OppMarker["class"][]).map((k) => {
+          const c = payload?.classes?.[k];
+          const na = c ? !c.applicable : false;
+          const n = c ? c.count : payload?.counts?.[k];
+          return (
+            <label key={k} className="ux-chip" title={c?.note} style={na ? { opacity: 0.6 } : undefined}>
+              <input type="checkbox" disabled={na} checked={!na && show[k] !== false} onChange={(e) => setShow({ ...show, [k]: e.target.checked })} />
+              <span className="ux-swatch" style={{ background: MARKER_CLASSES[k].color }} aria-hidden /> {MARKER_CLASSES[k].label} ({na ? "n/a" : n ?? "…"})</label>
+          );
+        }) : null}
       </fieldset>
       {on ? <p className="ux-muted" style={{ fontSize: 12, margin: 0 }}>
         Research signal, paper only, not advice. Markers sit on the bar that confirmed the setup; past markers show their real outcome.

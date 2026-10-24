@@ -88,3 +88,14 @@ New package `atlas.intel` (EXECUTION_PERMISSION="none") + `/api/intel/*` router 
   - Tick bars need trade prints.
   - The desk TradingView widget can't take ATLAS markers, so the markers are on an ATLAS feed chart under it.
   - The legacy LiveChartEngine is unchanged.
+
+## Pass 8 / evo2 (2026-10-24, branch atlas-evo-2 from 727975f, unmerged, not pushed)
+- Evolution run 3bdaaf38ba24. Same data hash as d6a35224ceef (11,249 rows; BTCUSDT, ETHUSDT, SPY, QQQ, IWM 15m); 26 genomes, 3 generations, seed 11.
+  - Decision: **no_challenger_beats_baseline**. Take-all EV -0.70 R. Best overall is unchanged: hgb + renko_atr, fitness -0.034, EV -0.0109 R, BSS +0.0069.
+  - Kagi: best hgb/no_setup/vol_conditioned, fitness -0.053, EV -0.0133 R, BSS -0.010.
+  - P&F: hgb/full, fitness -0.065, EV -0.0166 R, BSS +0.002.
+  - No profitability claim. Nothing promoted; execution_permission none.
+- Markers after refresh:
+  - GC 15m: 126 rule setups (gate abstained, no validated model), gate-rejected 0 of 126 checked; ML take/skip n/a.
+  - BTCUSDT 15m: 1 ML take, 586 ML skip, 13 rule setups, 0 gate-rejected.
+- Checks: pytest 1585 passed / 9 skipped (ATLAS_FEED_DB unset, 2 threads); tsc clean; next build clean; pages test 5/5; prod server: 36 canonical URLs 200, 43 redirects 308; vertical-text 144/144, 0 instances. Screenshots in `/workspace/shots/evo2/`.

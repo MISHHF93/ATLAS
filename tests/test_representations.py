@@ -2,7 +2,7 @@ import math
 import random
 
 from atlas.features.price_action.bars import Bar
-from atlas.features.representations import availability, build, heikin_ashi, renko, rep_features, threshold_bars
+from atlas.features.representations import availability, build, heikin_ashi, kagi, point_figure, renko, rep_features, threshold_bars
 
 
 def _bars(n=3000, seed=1, vol=True):
@@ -38,7 +38,7 @@ def test_no_lookahead_prefix_invariance():
     full = _bars(3000)
     cut = full[:2000]
     T = cut[-1].end
-    for kind in ("heikin_ashi", "renko_atr", "range_atr", "volume", "dollar"):
+    for kind in ("heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "kagi_atr", "pnf_atr"):
         a = [x for x in build(kind, full) if x.completed_at <= T]
         b = build(kind, cut)
         assert a == b, kind
@@ -74,3 +74,31 @@ def test_daily_bar_not_live_on_weekend():
     assert freshness(fri_close, fri_close + 28 * 3600, 86400, "atlas_feed")["label"] == "historical"
     assert freshness(fri_close, fri_close + 2 * 3600, 86400, "atlas_feed")["label"] == "delayed"
     assert freshness(fri_close, fri_close + 60, 60, "atlas_feed")["label"] == "live"
+
+
+def _closes(cs):
+    return [Bar(i * 60, 60, c, c, c, c, 1) for i, c in enumerate(cs)]
+
+
+def test_kagi_fixed_reversal_emits_only_completed_lines():
+    k = kagi(_closes([100, 101, 103, 104, 102.9, 102, 101, 103.5]), 1.0)
+    # up line 100->104 completes when 102.9 <= 104-1; down line 104->101 completes at 103.5 >= 101+1 (+2.5)
+    assert [(x.direction, x.open, x.close) for x in k] == [(1, 100, 104), (-1, 104, 101)]
+    assert k[0].completed_at == 5 * 60 and k[1].completed_at == 8 * 60
+    assert kagi(_closes([100, 100.5, 100.2]), 1.0) == []          # no line completes without a reversal
+
+
+def test_point_figure_three_box_reversal():
+    p = point_figure(_closes([100, 101, 102.2, 103.1, 101.0, 100.0, 99.0, 102.5]), 1.0)
+    # X column 100->103 completes at 100.0 (<= 103-3); O column 102->99 completes at 102.5 (>= 99+3)
+    assert [(x.direction, x.open, x.close) for x in p] == [(1, 100, 103), (-1, 102, 99)]
+    assert p[0].completed_at == 6 * 60
+    assert point_figure(_closes([100, 101, 102, 101]), 1.0) == []  # 1-box pullback is not a reversal
+
+
+def test_kagi_pnf_in_bar_types_and_availability():
+    from atlas.features.representations import BAR_TYPES
+    from atlas.ml.evolution import GENES
+    for k in ("kagi_atr", "pnf_atr"):
+        assert k in BAR_TYPES and k in GENES["bar_type"]
+        assert availability(_bars(50))[k]["available"]

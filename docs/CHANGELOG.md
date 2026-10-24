@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-24: branch `atlas-evo-2` (from main 727975f; not merged, not pushed)
+- Chart opportunity markers: categories are now accurate per class.
+  - Rule-only markers no longer say "rejected"; their risk status reads "gate abstained, no validated model (not a risk rejection)".
+  - `/api/intel/markers` returns `classes` with count, `applicable` and a note per category. The legend shows "n/a" (disabled, with the reason on hover) for categories that cannot occur on that chart, e.g. ML take/skip where there are no out-of-sample predictions.
+  - "Gate rejected (geometry/costs)" now states that its count is out of N rule candidates checked, and that the edge check needs a validated model.
+  - Labels: ML take / ML skip (out-of-sample), Rule setup with no model verdict, Gate rejected (geometry/costs).
+- New causal bar types `kagi_atr` and `pnf_atr` (3-box reversal, ATR box frozen per column) in `features/representations`. Only completed lines/columns are emitted. Prefix-invariance (no-lookahead) tests and fixed-size worked examples were added.
+- Both are in the evolution `bar_type` gene and seeds, and in the chart bar-type switcher (Levels chart, desk chart).
+- Evolution run 3bdaaf38ba24 (same data snapshot and seed as d6a35224ceef): **no challenger beats baseline**. Best kagi genome fitness -0.053, best P&F -0.065; both are below renko (-0.034) and time bars (-0.039). Nothing was promoted, and execution_permission stays none.
+- Removed the dead pathname-to-workspace map in `InstitutionalWorkspacesView.tsx`. Legacy paths 308 before render. On canonical hub paths it overrode the tab's workspace view (e.g. `/settings` → rulebook, `/data?tab=reserve` → lakehouse).
+- Gap matrix re-audited (pass 8).
+
 ## 2026-10-24: branch `atlas-routes-1` (from main 8cabd13; not merged, not pushed)
 - Consolidated pages that did the same job under different names. Audit: `docs/audit/2026-10-24-route-consolidation.md`.
   - Risk & positions: the "Positions" tab (former `/trade/blotter`, `/control/dealing-desk`) is merged into "Account & positions". It keeps the exposure, recorded-decision and stop-protection figures and the full positions table, with one Flatten button.
