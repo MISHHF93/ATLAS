@@ -45,7 +45,7 @@ with sync_playwright() as p:
                 dialogs[0] += 1; d.dismiss()
             pg.on("dialog", on_dialog)
             pg.goto(BASE + r, wait_until="load", timeout=45000); pg.wait_for_timeout(2000)
-            if pg.url.replace(BASE, "").split("?")[0].rstrip("/") != r.rstrip("/"):
+            if pg.url.replace(BASE, "").rstrip("/").replace("/?", "?") != r.rstrip("/").replace("/?", "?"):
                 pg.close(); continue  # alias redirect; its target is crawled itself
             n = min(pg.locator(CONTROLS).count(), MAX)
             for i in range(n):
