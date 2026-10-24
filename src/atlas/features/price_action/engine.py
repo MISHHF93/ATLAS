@@ -27,6 +27,7 @@ class EngineConfig:
     wick: WickConfig = field(default_factory=WickConfig)
     atr_n: int = 14
     pdr: PriorDayRangeConfig | None = None      # prior-day range reversal; off unless configured (needs a session)
+    suite: Any = None                           # levels.SuiteConfig: SFP / gold Snapback / gold ORB (all off by default)
 
 
 class PriceActionEngine:
@@ -38,6 +39,9 @@ class PriceActionEngine:
             self.detectors.insert(0, ORBRetestDetector(instrument, timeframe, self.cfg.session, self.cfg.orb))
             if self.cfg.pdr is not None:
                 self.detectors.append(PriorDayRangeReversalDetector(instrument, timeframe, self.cfg.session, self.cfg.pdr))
+        if self.cfg.suite is not None:
+            from atlas.features.price_action.suite import LevelSuiteDetector
+            self.detectors.append(LevelSuiteDetector(instrument, timeframe, self.cfg.suite))
         self._features = StreamingFeatures(self.cfg.atr_n)
         self.last_start: int | None = None
         self.refused: list[tuple[int, str]] = []
