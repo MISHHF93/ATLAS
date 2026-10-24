@@ -37,6 +37,14 @@ GATES = {"min_oos": 200, "min_dsr": 0.95, "max_pbo": 0.5, "min_shadow_weeks": 4}
 
 
 def make_model(kind: str):
+    if kind == "xgb":          # challenger only (installed; benchmarked in research, never default)
+        from xgboost import XGBClassifier
+        return XGBClassifier(n_estimators=200, max_depth=3, learning_rate=0.05, subsample=0.8, colsample_bytree=0.8,
+                             min_child_weight=10, reg_lambda=1.0, n_jobs=2, random_state=SEED, verbosity=0)
+    if kind == "lgbm":         # challenger only
+        from lightgbm import LGBMClassifier
+        return LGBMClassifier(n_estimators=200, num_leaves=15, learning_rate=0.05, min_child_samples=40, subsample=0.8,
+                              subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0, n_jobs=2, random_state=SEED, verbose=-1)
     if kind == "logit":
         return make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), LogisticRegression(C=0.05, max_iter=2000))
     return HistGradientBoostingClassifier(max_iter=200, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf=40,
@@ -91,18 +99,18 @@ def _payoffs(df: pd.DataFrame) -> tuple[dict[str, float], dict[str, float]]:
     return w, l
 
 
-def fit_meta(df: pd.DataFrame, idx: np.ndarray, kind: str) -> MetaModel | None:
+def fit_meta(df: pd.DataFrame, idx: np.ndarray, kind: str, features: tuple[str, ...] = FEATURES) -> MetaModel | None:
     t, e = df.t.to_numpy(np.int64), df.exit_at.to_numpy(np.int64)
     fit, cal, conf = inner_split(t, e, idx, embargo=EMBARGO)
     if len(fit) < 60 or len(cal) < 20 or len(conf) < 20 or df.y.iloc[fit].nunique() < 2:
         return None
-    X = df[list(FEATURES)].to_numpy(float)
+    X = df[list(features)].to_numpy(float)
     m = make_model(kind).fit(X[fit], df.y.to_numpy()[fit])
     c = fit_calibrator(m.predict_proba(X[cal])[:, 1], df.y.to_numpy()[cal], fitted_through=int(e[cal].max()))
     pc = c(m.predict_proba(X[conf])[:, 1])
     cf = fit_conformal(pc, df.y.to_numpy()[conf], ALPHA)
     w, l = _payoffs(df.iloc[np.concatenate([fit, cal])])
-    return MetaModel(kind, m, c, cf, w, l, FEATURES, float(df.y.iloc[idx].mean()))
+    return MetaModel(kind, m, c, cf, w, l, tuple(features), float(df.y.iloc[idx].mean()))
 
 
 def evaluate_group(df: pd.DataFrame, n_folds: int = 5) -> dict[str, Any]:

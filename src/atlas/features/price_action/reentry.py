@@ -33,6 +33,6 @@ class ReentryGovernor:
         return True, ""
 
     def record(self, family: str, level_id: str, day: str, ts: int) -> None:
-        self._lvl[(level_id, day)] = self._lvl.get((family, level_id, day), 0) + 1
+        self._lvl[(family, level_id, day)] = self._lvl.get((family, level_id, day), 0) + 1
         self._day[(family, day)] = self._day.get((family, day), 0) + 1
         self._last[family] = ts
