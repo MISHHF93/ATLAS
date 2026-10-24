@@ -80,7 +80,11 @@ def evaluate_candidate(candidate: Any, prediction: Prediction, *, cost_per_unit:
     loss = abs(candidate.entry_reference - candidate.proposed_stop)
     ev = OpportunityEvaluation(candidate.candidate_id, None, gain, loss, float(cost_per_unit))
     r = ev.abstention_reason
-    if gain <= 0 or loss <= 0:
+    d = getattr(candidate, "direction", None)
+    sign = 1 if d == "long" else -1 if d == "short" else 0
+    wrong_side = sign != 0 and ((candidate.proposed_target - candidate.entry_reference) * sign <= 0
+                                or (candidate.entry_reference - candidate.proposed_stop) * sign <= 0)
+    if gain <= 0 or loss <= 0 or wrong_side:
         r.append(BAD_GEOMETRY)
         return ev
     if prediction.abstained:

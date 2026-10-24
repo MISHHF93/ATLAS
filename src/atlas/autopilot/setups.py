@@ -59,7 +59,8 @@ class PaperConnector:
             raise PermissionError("paper connector only accepts control-plane-authorized orders")
         rec = {"venue": "paper", "order_id": decision.order_id, "position_id": decision.position_id,
                "tactic": tactic, "limit_price": reference_price, "accepted_at": executed_at.isoformat(),
-               "execution_mode": "paper", "execution_permission": "none"}
+               "execution_mode": "paper", "execution_permission": "none",
+               "correlation_id": getattr(decision, "correlation_id", None)}
         self.receipts.append(rec)
         return rec
 
@@ -97,6 +98,8 @@ class SetupAutopilot:
         self.last_close: dict[str, float] = {}
         self.day: str | None = None
         self.decisions: list[dict[str, Any]] = []
+        self.drift = None            # optional atlas.models.serving.DriftGuard
+        self._same_bar: list = []    # candidates emitted on the current bar (conflict check)
         self._lock = threading.RLock()
         self._thread: threading.Thread | None = None
 
@@ -229,17 +232,32 @@ class SetupAutopilot:
         self.waiting = wait
 
     def _decide(self, c: Candidate, ts: datetime) -> dict[str, Any]:
+        from atlas.ops.correlation import bind, current
+        if current() == "-":
+            with bind():          # every decision is traceable end-to-end, even outside an HTTP request
+                return self._decide_inner(c, ts)
+        return self._decide_inner(c, ts)
+
+    def _decide_inner(self, c: Candidate, ts: datetime) -> dict[str, Any]:
         cost = trade_cost(ReplayTrade("", "", c.direction, 0, c.entry_reference, c.proposed_stop, c.proposed_target), self.rcfg)
-        pred, ev = evaluate(c, model_version=self.model_version, registry=self.registry, cost_per_unit=cost)
+        from atlas.models.serving import serve
+        from atlas.ops.correlation import current
+        pred, ev, sd = serve(c, model_version=self.model_version, registry=self.registry, cost_per_unit=cost,
+                             drift=self.drift, same_bar=self._same_bar)
+        cid = current()
         rec: dict[str, Any] = {"candidate_id": c.candidate_id, "instrument": c.instrument, "detector": c.detector,
                                "direction": c.direction, "detected_at": c.detected_at,
                                "probability": ev.probability, "expected_value_r": ev.expected_value_r,
-                               "model_version": getattr(pred, "model_version", None)}
-        ctx: dict[str, Any] = {"symbol": c.instrument, "position_id": None, "notional": Decimal("0")}
-        if ev.abstained:
-            rec.update(decision="abstain", reasons=list(ev.abstention_reason))
+                               "model_version": getattr(pred, "model_version", None),
+                               "serving_status": sd.status, "correlation_id": None if cid == "-" else cid}
+        ctx: dict[str, Any] = {"symbol": c.instrument, "position_id": None, "notional": Decimal("0"),
+                               "correlation_id": rec["correlation_id"]}
+        if sd.status != "TRADE_CANDIDATE":
+            rec.update(decision="abstain", reasons=list(sd.reasons))
         else:
             sig = candidate_to_signal(c, ev)
+            if rec["correlation_id"]:
+                sig = sig.model_copy(update={"telemetry": {**sig.telemetry, "correlation_id": rec["correlation_id"]}})
             rep = self.cp.ingest_whale_policy_signal(sig, track="open_market", execution_connector=self.connector,
                                                      require_connector=True, now=ts, data_age_ms=0.0)
             d = rep.decision
@@ -293,9 +311,9 @@ class SetupAutopilot:
                         self._halt(why, ts)
                         out["halted"] = why
                         return {**out, "state": "halted"}
-                    for ev in eng.update(b, now=int(now)):
-                        if isinstance(ev, Candidate):
-                            out["decisions"].append(self._decide(ev, ts))
+                    self._same_bar = [ev for ev in eng.update(b, now=int(now)) if isinstance(ev, Candidate)]
+                    for ev in self._same_bar:
+                        out["decisions"].append(self._decide(ev, ts))
             self.store.set("setup_autopilot.last_tick", {"at": now, "bars": out["bars"]})
             return {**out, "state": "on"}
 

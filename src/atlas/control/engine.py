@@ -24,6 +24,12 @@ from atlas.control.rules import (
     evaluate_trading_rules,
 )
 from atlas.models.schemas import Record, Text
+from atlas.ops.correlation import current as _correlation_id
+
+
+def _cid() -> str | None:
+    c = _correlation_id()
+    return None if c == "-" else c
 
 
 class ActionableOrderRequest(Record):
@@ -66,6 +72,7 @@ class ActionableOrderDecision(Record):
     quantity: Decimal | None = None
     execution_mode: Literal["paper"] = "paper"
     rule_evaluation: RuleEvaluationReport
+    correlation_id: Text | None = Field(default_factory=_cid)
 
 
 class BracketOrderIntakeReport(Record):
@@ -87,6 +94,7 @@ class BracketOrderIntakeReport(Record):
     decision: ActionableOrderDecision
     connector_receipt: dict[str, Any] | None = None
     execution_permission: Literal["none"] = "none"
+    correlation_id: Text | None = Field(default_factory=_cid)
 
 
 class ActionableControlState(Record):

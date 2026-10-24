@@ -110,3 +110,11 @@ def ml_explain(version: str, detector: str | None = None, reasons: str = "", k: 
     hits = [h for h in index().search(q, k + 10)
             if not h["path"].startswith(str(R.root())) or f"/{version}/" in h["path"]][:k]
     return {"version": version, "summary": text, "query": q, "citations": hits}
+
+
+@ml_router.get("/serving")
+def ml_serving() -> dict[str, Any]:
+    """Unified catalog over var/ml/registry, var/models/<kind> (quant) and the in-memory serving registry."""
+    from atlas.models.serving import catalog
+    qroot = Path(os.environ.get("ATLAS_MODELS_ROOT", REPO / "var" / "models"))
+    return catalog(quant_root=qroot)

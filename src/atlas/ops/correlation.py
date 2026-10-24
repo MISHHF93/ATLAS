@@ -35,3 +35,17 @@ def install(app) -> None:
             return resp
         finally:
             correlation_id.reset(tok)
+
+
+from contextlib import contextmanager as _cm
+
+
+@_cm
+def bind(cid: str | None = None):
+    """Bind a correlation id for a non-HTTP flow (replay journey, autopilot tick). Yields the id."""
+    cid = cid or uuid.uuid4().hex[:16]
+    tok = correlation_id.set(cid)
+    try:
+        yield cid
+    finally:
+        correlation_id.reset(tok)
