@@ -181,7 +181,8 @@ def freshness(last_end: int | None, now: int, bucket: int, origin: Any) -> dict[
         label = "unavailable"
     elif any(k in o for k in ("fixture", "synthetic", "simulat")):
         label = "simulated"
-    elif now - last_end <= 2 * bucket:
+    elif now - last_end <= min(2 * bucket, 3600):
+        # capped: a daily/4h bar that closed many hours ago (e.g. Friday's close read on Saturday) is not "live"
         label = "live"
     elif now - last_end <= 86400:
         label = "delayed"

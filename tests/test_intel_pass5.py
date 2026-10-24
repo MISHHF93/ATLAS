@@ -112,7 +112,7 @@ def test_assistant_grounded_and_llm_disabled(monkeypatch, tmp_path):
 
 
 def test_memory_no_lookahead_and_attribution_sums():
-    from atlas.intel.memory import analogues, attribution, build_memory
+    from atlas.research.memory import analogues, attribution, build_memory
     tr = [ReplayTrade(f"c{i}", "sfp" if i % 2 else "orb", "long", 1000 * i, 1, 0, 2, exit_at=1000 * i + 500,
                       outcome="target" if i % 3 else "stop", r_multiple=1.0 if i % 3 else -1.0, features={"x": float(i)}) for i in range(30)]
     mem = build_memory(tr, [{"t": 0, "label": "range/low"}])

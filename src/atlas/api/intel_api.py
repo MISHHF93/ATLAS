@@ -122,7 +122,7 @@ def assistant(q: str = Query(min_length=2, max_length=400), k: int = Query(5, ge
 # ---- memory / attribution / governance ----
 @router.get("/memory")
 def memory(symbol: str = Query("GC"), tf: str = Query("15m"), k: int = Query(5, ge=1, le=20)) -> dict[str, Any]:
-    from atlas.intel.memory import analogues, attribution, build_memory, governance
+    from atlas.research.memory import analogues, attribution, build_memory, governance
     from atlas.intel.regime import classify
     sym = symbol.upper(); bars = _bars(sym, tf)
     gov = governance()
