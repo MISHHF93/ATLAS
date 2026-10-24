@@ -6,6 +6,7 @@ import { ColorType, createChart, type IChartApi, type SeriesMarker, type UTCTime
 import { deskTimeOptions } from "./lwTime";
 import { TvProvenance } from "./TvFrame";
 import { FreshBadge, type Fresh } from "../../ui/FreshBadge";
+import { MarkerControls, altToCandles, attachMarkerTooltip, toSeriesMarkers, useAltBars, useMarkers, type DisplayType } from "./opportunityMarkers";
 export { FreshBadge };
 
 type Level = { id: string; source_type: string; kind: string; price: number; available_ts: number; expires_ts: number | null; state: string; touch_count: number; label: string };
@@ -51,6 +52,12 @@ export function LevelsView() {
   const [on, setOn] = useState<Record<string, boolean>>({ prior: true, session: false, swing: false, equal: false, box: true, sma: false, trend: false, donchian: false, structure: false });
   const [pick, setPick] = useState<Cand | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  const [mOn, setMOn] = useState(true);
+  const [mShow, setMShow] = useState<Record<string, boolean>>({});
+  const [display, setDisplay] = useState<DisplayType>("candles");
+  const tfq = query.resolution === "60" ? "1h" : `${query.resolution}m`;
+  const mk = useMarkers(query.symbol, tfq, mOn);
+  const alt = useAltBars(query.symbol, tfq, display);
 
   useEffect(() => {
     const q = new URLSearchParams({ symbol: query.symbol, resolution: query.resolution });
@@ -78,7 +85,9 @@ export function LevelsView() {
     });
     const candles = chart.addCandlestickSeries({ upColor: "#009E73", downColor: "#D55E00", borderVisible: false, wickUpColor: "#009E73", wickDownColor: "#D55E00" });
     const bars = data.bars;
-    candles.setData(bars.map(r => ({ time: r[0] as UTCTimestamp, open: r[1], high: r[2], low: r[3], close: r[4] })));
+    const dur0 = (bars[1]?.[0] - bars[0]?.[0]) || 60;
+    const altOk = display !== "candles" && alt?.status === "ok" && alt.bars.length > 0;
+    candles.setData(altOk ? altToCandles(alt!.bars.filter(a => a.completed_at - dur0 >= bars[0][0]), dur0) : bars.map(r => ({ time: r[0] as UTCTimestamp, open: r[1], high: r[2], low: r[3], close: r[4] })));
     const lastT = bars[bars.length - 1][0];
     const segment = (from: number, to: number, value: number, color: string) => {
       const pts = bars.filter(r => r[0] >= from && r[0] <= to).map(r => r[0] as UTCTimestamp);
@@ -107,6 +116,7 @@ export function LevelsView() {
       }
     }
     const times = new Set(bars.map(r => r[0]));
+    const oppMs = mOn && mk.data?.markers ? mk.data.markers : [];
     const dur = (bars[1]?.[0] - bars[0]?.[0]) || 0;
     const smarks: SeriesMarker<UTCTimestamp>[] = on.structure && ov ? ov.structure
       .filter(e => e.kind === "bos" || e.kind === "choch")
@@ -114,7 +124,7 @@ export function LevelsView() {
       .filter(x => times.has(x.t))
       .map(({ t, e }) => ({ time: t as UTCTimestamp, position: e.direction === "bearish" || e.direction === "down" ? "aboveBar" : "belowBar",
         shape: "circle", color: IND.structure.color, text: e.kind.toUpperCase() })) : [];
-    const marks: SeriesMarker<UTCTimestamp>[] = data.candidates.filter(c => times.has(c.detected_at - (bars[1]?.[0] - bars[0]?.[0] || 0)) || times.has(c.detected_at)).map(c => ({
+    const marks: SeriesMarker<UTCTimestamp>[] = oppMs.length ? toSeriesMarkers(oppMs, times, mShow) : mOn ? [] : data.candidates.filter(c => times.has(c.detected_at - (bars[1]?.[0] - bars[0]?.[0] || 0)) || times.has(c.detected_at)).map(c => ({
       time: (times.has(c.detected_at) ? c.detected_at : c.detected_at - (bars[1][0] - bars[0][0])) as UTCTimestamp,
       position: c.direction === "short" ? "aboveBar" : "belowBar", shape: c.direction === "short" ? "arrowDown" : "arrowUp",
       color: c.direction === "short" ? "#D55E00" : "#009E73", text: c.detector.replace("gold_", "").replace("_reversal", ""),
@@ -123,10 +133,11 @@ export function LevelsView() {
     marks.sort((a, b) => (a.time as number) - (b.time as number));
     candles.setMarkers(marks);
     chart.timeScale().fitContent();
+    const untip = attachMarkerTooltip(chart, el, () => oppMs.filter(m => mShow[m.class] !== false));
     const ro = new ResizeObserver(() => chart.applyOptions({ width: Math.max(1, el.clientWidth), height: Math.max(1, el.clientHeight || 380) }));
     ro.observe(el);
-    return () => { ro.disconnect(); chart.remove(); };
-  }, [data, on]);
+    return () => { untip(); ro.disconnect(); chart.remove(); };
+  }, [data, on, mOn, mShow, mk.data, display, alt]);
 
   const evs = pick ? data?.events.filter(e => JSON.stringify(pick).includes(`"${e.level_id}"`)) ?? [] : [];
   return (
@@ -149,6 +160,8 @@ export function LevelsView() {
               <span className="ux-swatch" style={{ background: g.color }} aria-hidden /> {g.label}</label>
           ))}
         </fieldset>
+        <MarkerControls on={mOn} setOn={setMOn} show={mShow} setShow={setMShow} payload={mk.data} error={mk.error} display={display} setDisplay={setDisplay}
+          altStatus={display === "candles" ? null : alt?.status === "ok" ? "Alternative bars are display only and drawn when each one completed; fills and P&L use real candles." : alt ? `This bar type is unavailable: ${alt.reason ?? "no data"}.` : "Loading bars…"} />
         {error ? <ErrorState title="Could not load levels" detail={error} onRetry={() => setQuery({ ...query, n: query.n + 1 })} /> : null}
         {data ? (
           <p className="ux-muted">

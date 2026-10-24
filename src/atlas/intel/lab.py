@@ -60,6 +60,22 @@ def _variant_engine(inst: str, bars, toggles: dict[str, bool], daily) -> EngineC
     return EngineConfig(suite=sc)
 
 
+GOLD_TOGGLES = ("gold_snapback", "gold_orb_breakout")
+
+
+def gold_alignment(tf: int, boxes=None) -> dict[str, Any]:
+    """Gold opening boxes are built from bars that tile the box exactly; a timeframe that does not divide the box
+    start/length can never build one (the detector then reports INSUFFICIENT_DATA, by design)."""
+    boxes = boxes if boxes is not None else SuiteConfig().gold.boxes
+    bad = []
+    for bx in boxes:
+        s = bx.start.hour * 3600 + bx.start.minute * 60
+        e = bx.end.hour * 3600 + bx.end.minute * 60
+        if s % tf or (e - s) % tf or e - s < tf:
+            bad.append(f"{bx.name} {bx.start:%H:%M}-{bx.end:%H:%M} NY is not tiled by {tf // 60}m bars")
+    return {"aligned": not bad, "problems": bad}
+
+
 def run_experiment(inst: str, bars, *, daily=(), variants: dict[str, dict[str, bool]] | None = None, seed: int = 7,
                    n_boot: int = 2000, data_label: str = "real:atlas_feed", record: bool = True, name: str = "") -> dict[str, Any]:
     variants = variants or DEFAULT_VARIANTS
@@ -87,7 +103,16 @@ def run_experiment(inst: str, bars, *, daily=(), variants: dict[str, dict[str, b
         for k in COST_MULTS:
             rk = [t.r_multiple + (1.0 - k) * trade_cost(t, rc) / abs(t.entry - t.stop) for t in done if abs(t.entry - t.stop) > 0]
             sens.append({"cost_mult": k, "mean_r": float(np.mean(rk)) if rk else None, "n": len(rk)})
-        per[vname] = {"toggles": tog, "n_trades": int(len(r)), "n_candidates": len(res.candidates),
+        zr = None
+        if any(tog.get(g) for g in GOLD_TOGGLES) and not len(r):
+            ga = gold_alignment(tf)
+            if not ga["aligned"]:
+                zr = "timeframe_mismatch: " + "; ".join(ga["problems"]) + " (run gold variants on 1m)"
+            elif not res.candidates:
+                zr = "no_setups: boxes buildable but no breakout/retest occurred in this sample"
+        elif not len(r):
+            zr = "no_setups" if not res.candidates else "candidates_not_filled_or_unresolved"
+        per[vname] = {"toggles": tog, "zero_trade_reason": zr, "refused": res.refused, "n_trades": int(len(r)), "n_candidates": len(res.candidates),
                       "mean_r": float(r.mean()) if len(r) else None,
                       "win_rate": float((r > 0).mean()) if len(r) else None,
                       "sharpe_per_trade": float(r.mean() / r.std(ddof=1)) if len(r) > 2 and r.std(ddof=1) > 0 else None,

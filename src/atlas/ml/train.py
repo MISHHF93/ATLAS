@@ -45,6 +45,8 @@ def make_model(kind: str):
         from lightgbm import LGBMClassifier
         return LGBMClassifier(n_estimators=200, num_leaves=15, learning_rate=0.05, min_child_samples=40, subsample=0.8,
                               subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0, n_jobs=2, random_state=SEED, verbose=-1)
+    if kind == "ridge":        # strongly L2-penalised logistic (ridge-classifier analogue with probabilities)
+        return make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), LogisticRegression(C=0.005, max_iter=2000))
     if kind == "logit":
         return make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), LogisticRegression(C=0.05, max_iter=2000))
     return HistGradientBoostingClassifier(max_iter=200, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf=40,
