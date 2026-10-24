@@ -140,5 +140,5 @@ New package `atlas.intel` (EXECUTION_PERMISSION="none") + `/api/intel/*` router 
 - Done: ATR-stop / R-target / cost-filter replay options; 5 setup variants over 15m/1h/4h on 5 symbols with realistic fills, purged walk-forward, DSR, PBO, bootstrap CIs; 16 toggleable research specs; orb_retest 15m research-retired (reversible).
 - Evidence: 0/230 configs pass the gates; PBO 0.06. Only PDR 4h crypto is gross-positive (+0.07 R, CI spans 0), net about 0.
 - ML: evo6 labels (457 rows) AUC 0.485 vs shuffled 0.481; run de86779da75c and extended f8e7de55c108: no challenger beats baseline. Markers from f8e7de55c108. Nothing promoted.
-- Verify: pytest 1619 passed / 9 skipped; tsc ok; next build ok; route tests 5/5; vertical-text 144/144, 0 instances; local prod curl 200; screenshots /workspace/shots/evo6/.
+- Verify: pytest 1639 passed (after rebase on d0afcf4) / 9 skipped; tsc ok; next build ok; route tests 5/5; vertical-text 144/144, 0 instances; local prod curl 200; screenshots /workspace/shots/evo6/.
 - Next pass: more 4h history (crypto 1h starts 2024-10) and futures/ETF 4h; new entry logic for breakout/wick families (parameters alone do not create gross edge).
