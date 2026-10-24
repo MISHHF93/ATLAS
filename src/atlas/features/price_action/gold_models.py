@@ -56,7 +56,13 @@ def window_range(bars: Sequence[Bar], start: int, end: int, now: int, max_missin
 
 
 def session_day_ranges(instrument: str, bars: Sequence[Bar], day_ny: datetime, now: int,
-                       cfg: GoldSessionConfig | None = None, atr: float | None = None) -> dict:
+                       cfg: GoldSessionConfig | None = None, atr: float | None = None,
+                       atr_basis: str | None = None) -> dict:
+    """``atr`` normalises every *_atr field. It must be a session-scale ATR (contract: ATR(14) of 15m bars, known
+    before the window starts; see ``session_atr``) and ``atr_basis`` names it. A 1m ATR inflates ratios ~4x and is
+    rejected via ``atr_basis="1m"``."""
+    if atr_basis is not None and atr_basis.startswith("1m"):
+        raise ValueError("gold session ratios need a session-scale ATR (15m), not 1m")
     if not is_gold(instrument):
         return {"status": "NOT_APPLICABLE", "reason": "gold-only model"}
     cfg = cfg or GoldSessionConfig()
@@ -66,7 +72,8 @@ def session_day_ranges(instrument: str, bars: Sequence[Bar], day_ny: datetime, n
     pre = window_range(bars, _ts(day_ny, cfg.premarket_orb[0]), _ts(day_ny, cfg.premarket_orb[1]), now)
     opn = window_range(bars, _ts(day_ny, cfg.opening_orb[0]), _ts(day_ny, cfg.opening_orb[1]), now)
     cons = window_range(bars, _ts(day_ny, cfg.pre_open_consolidation[0]), _ts(day_ny, cfg.pre_open_consolidation[1]), now)
-    out: dict = {"status": "OK", "asian": asian, "early": early, "premarket_orb": pre, "opening_orb": opn}
+    out: dict = {"status": "OK", "asian": asian, "early": early, "premarket_orb": pre, "opening_orb": opn,
+                 "atr": atr, "atr_basis": atr_basis or ("unspecified" if atr else None)}
     if asian and atr:
         out["asian_context"] = {"range_atr": asian["height"] / max(atr, EPS),
                                 "return": asian["close"] / asian["open"] - 1.0,
@@ -95,3 +102,12 @@ def orb_alignment(a: dict, b: dict) -> dict:
             "relative_width": b["height"] / max(a["height"], EPS),
             "shared_resistance": abs(a["high"] - b["high"]) <= 0.1 * max(a["height"], b["height"], EPS),
             "shared_support": abs(a["low"] - b["low"]) <= 0.1 * max(a["height"], b["height"], EPS)}
+
+
+def session_atr(bars15: Sequence[Bar], before: int, n: int = 14) -> float | None:
+    """Causal ATR(n) of 15m bars that ended at or before ``before`` (simple mean of true range)."""
+    w = [b for b in bars15 if b.end <= before][-(n + 1):]
+    if len(w) < n + 1:
+        return None
+    tr = [max(b.high - b.low, abs(b.high - p.close), abs(b.low - p.close)) for p, b in zip(w, w[1:])]
+    return sum(tr) / len(tr)

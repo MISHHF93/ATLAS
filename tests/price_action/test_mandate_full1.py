@@ -139,3 +139,15 @@ def test_window_gap_tolerance_reports_coverage():
     assert window_range(bars, 0, 6000, 6000) is None
     r = window_range(bars, 0, 6000, 6000, max_missing_frac=0.05)
     assert r["n"] == 97 and r["coverage"] == pytest.approx(0.97)
+
+
+def test_range_atr_requires_session_scale_basis():
+    import pytest as _pt
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo as _Z
+    from atlas.features.price_action.gold_models import session_atr, session_day_ranges
+    from atlas.features.price_action.bars import Bar as _B
+    with _pt.raises(ValueError):
+        session_day_ranges("GC", [], _dt(2026, 10, 20, tzinfo=_Z("America/New_York")), 0, atr=1.0, atr_basis="1m_atr14")
+    bars = [_B(i * 900, 900, 100, 101 + (i % 2), 99, 100, 1) for i in range(20)]
+    assert session_atr(bars, 20 * 900) == _pt.approx(2.5) and session_atr(bars, 5 * 900) is None

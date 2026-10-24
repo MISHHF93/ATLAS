@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from atlas.feeds.feed import get_feed
 from atlas.features.price_action.indicators import atr_batch
 from atlas.features.price_action.structure import analyze_structure
-from atlas.features.price_action.gold_models import session_day_ranges
+from atlas.features.price_action.gold_models import _ts, session_atr, session_day_ranges
 sys.path.insert(0, "scripts")
 from run_level_research import load
 
@@ -17,12 +17,13 @@ for inst in ("GC", "ES", "BTCUSDT"):
     out[inst] = {"bars": len(bars), "events": dict(Counter(e.kind for e in ev)),
                  "sample": ev[-1].to_dict() if ev else None}
 b1 = load(feed, "GC", "1m", 60); NY = ZoneInfo("America/New_York")
-atr = atr_batch([b.high for b in b1], [b.low for b in b1], [b.close for b in b1], 14)
+b15 = load(feed, "GC", "15m", 900)
 days = sorted({datetime.fromtimestamp(b.start, NY).date() for b in b1})
 gd = []
 for d in days:
     dt = datetime(d.year, d.month, d.day, tzinfo=NY)
-    r = session_day_ranges("GC", b1, dt, b1[-1].end, atr=atr[-1])
+    atr15 = session_atr(b15, _ts(dt, "18:00", prev_day=True))   # 15m ATR known before the Asian window opens
+    r = session_day_ranges("GC", b1, dt, b1[-1].end, atr=atr15, atr_basis="15m_atr14_pre_asian")
     gd.append({"day": str(d), "opening_orb": r.get("opening_orb"), "orb_alignment": r.get("orb_alignment"),
                "insufficient": r.get("insufficient"),
                "coverage": {k: (r.get(k) or {}).get("coverage") for k in ("asian", "early", "premarket_orb", "opening_orb")},
