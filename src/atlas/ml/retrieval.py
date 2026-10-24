@@ -17,7 +17,7 @@ TOKEN = re.compile(r"[a-z0-9]+(?:[._-][a-z0-9]+)*")
 STOP = frozenset("a an and are as at be by for from has have in is it its of on or that the this to was were will with not no "
                  "we our you your can may if then than so but into each per all any".split())
 K1, B = 1.5, 0.75
-EXTS = {".md", ".txt", ".csv"}
+EXTS = {".md", ".txt", ".csv", ".json"}
 
 
 def tokenize(text: str) -> list[str]:
