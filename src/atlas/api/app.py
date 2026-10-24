@@ -81,6 +81,9 @@ app.include_router(console_router)
 from atlas.api.feeds_api import router as feeds_router  # noqa: E402
 
 app.include_router(feeds_router)
+from atlas.api.intel_api import router as intel_router  # noqa: E402
+
+app.include_router(intel_router, prefix="/api/intel")
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",

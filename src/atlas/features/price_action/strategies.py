@@ -33,7 +33,8 @@ STRATEGIES: tuple[StrategySpec, ...] = (
     StrategySpec("sfp", "sfp", ("sfp_reversal",), "all", False, "implemented", "Swing failure pattern at potential liquidity reference levels"),
     StrategySpec("gold_snapback", "snapback", ("gold_snapback",), "gold futures (GC, MGC)", False, "implemented", "Gold opening-box breakout -> retest -> continuation"),
     StrategySpec("gold_orb_breakout", "orb", ("gold_orb_breakout",), "gold futures (GC, MGC)", False, "implemented", "Gold opening-box accepted breakout"),
-    StrategySpec("four_box", "box", (), "all", False, "reserved", "Four-Box levels (not implemented: no definition/data in repo)"),
+    StrategySpec("four_box", "box", ("orb_retest", "dual_bollinger", "wick_reversal"), "all", False, "reserved",
+                 "Four-Box research view (atlas.intel.fourbox): Opening=orb_retest, Breakout=dual_bollinger, Anchor=wick_reversal; Event box disabled (no verified event calendar). Not a suite toggle."),
 )
 BY_ID = {s.id: s for s in STRATEGIES}
 
