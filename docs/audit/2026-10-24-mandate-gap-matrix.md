@@ -21,7 +21,7 @@ so "existing" means "found", not "audited".
 | 19 | Continuation vs reversal | existing | `resolve()` in unified candidate (per spec docs) |
 | 20 | Microstructure | partial (bar tier only; higher tiers gated) — pass 5 `intel/microstructure.py`; | `microstructure/orderbook.py`, `features/microstructure.py`, `features/toxicity.py`, whale modules. No L2 data in feed → disabled |
 | 21 | Regime | implemented (causal classifier + strategy-by-regime) — pass 5 `intel/regime.py`; | `regime/hawkes_detector.py`, `models/quant` regime models |
-| 22 | Cross-asset/macro | missing | no timestamp-correct macro dataset |
+| 22 | Cross-asset/macro | existing (evo5, partial) | Keyless FRED (DGS10, DGS2, VIXCLS, DTWEXBGS, CPIAUCNS) in feed `observations` with conservative availability dates; `ml/context.py` joins them causally (no-lookahead tests). Limits: latest vintage only (no ALFRED key), so revisions are approximated by lags; no cross-asset correlations/futures curve yet |
 | 23 | Unified candidate | existing (partial) | `detectors.Candidate`, `proposals.py`; full field list not verified |
 | 24 | Research lab | implemented — pass 5 `intel/lab.py` (DSR/PBO/bootstrap/cost/report ids); | `experiments/`, `research/`, DSR/PBO in `models/quant/metrics.py` |
 | 25 | Backtest/replay | existing (evo3) | PA replay latency/trade-through/participation now default for lab, intel API, ML dataset and autopilot (`PAPER_REALISM`); `PaperBroker` opt-in `ExecRealism`. Pass 10: control plane `close_position(fraction=)` reduce-only partial close (audited `position_reduced`); autopilot books the real filled quantity by cancelling the unfilled remainder at zero P&L; `research/backtester.py` uses `PAPER_REALISM` by default (`realism=None` = legacy) |
@@ -40,7 +40,7 @@ so "existing" means "found", not "audited".
 - No L2/L3 or aggressor-flagged trades in the feed → OBI/TI/VPIN/Kyle cannot run on real data (code is gated).
 - No verified economic calendar → Event Box disabled.
 - 1m gold history ≈ 5 trading days; no 5m; 15m cannot tile 08:20–08:50.
-- No macro dataset for §22.
+- §22: macro now present (keyless FRED, release-lagged). True vintages need a FRED key.
 
 ## Pass 6 / evo1 additions
 | Item | Status |
@@ -59,4 +59,4 @@ so "existing" means "found", not "audited".
 | Evolution generation with the new bar types (run 3bdaaf38ba24) | Done; no model beats baseline |
 | Legacy pathname map in InstitutionalWorkspacesView | Removed (it overrode tab views on hub paths) |
 | Re-verified rows: §8 confluence/provenance exist; §34–35 correlation IDs exist | Matrix corrected |
-| Closed in evo3: §13 cumulative-loss cap, §6 single contract source, §25 realism in PA replay paths. Pass 10 closed: multiplier duplicates (universe/instruments), control-plane partial close, backtester realism, snapback runnable. Still open: §22 macro data (feed `observations` table is empty) | Partly done |
+| Closed in evo3: §13 cumulative-loss cap, §6 single contract source, §25 realism in PA replay paths. Pass 10 closed: multiplier duplicates (universe/instruments), control-plane partial close, backtester realism, snapback runnable. Pass 11 closed: §22 macro dataset (FRED, release-lagged) + HTF/macro context gene + ML diagnosis (docs/ml/evo5-diagnosis.md). Still open: ALFRED vintages (needs key), primary-strategy edge (negative gross R; founder decision) | Partly done |

@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-10-24: branch `atlas-evo-5` (from main 771863a; not merged, not pushed)
+- §22 macro data: `feeds/providers/fred_public.py` reads keyless FRED `fredgraph.csv` (DGS10, DGS2, VIXCLS, DTWEXBGS, CPIAUCNS, chosen because they are rarely or never revised). Every value gets a conservative availability date as `realtime_start`:
+  - daily series: next business day + 1 day
+  - H.10 dollar index: + 10 days
+  - CPI: first day of M+2
+
+  Values are stored through `FeedStore.ingest_observations` (`scripts/fetch_fred_public.py`).
+- `ml/context.py`:
+  - HTF features come from closed UTC-day and 4h buckets of the series itself: d1 returns, trend in ATR, daily ATR, position in the prior-day range, 4h return and trend, and risk relative to the daily ATR.
+  - Macro features (10y level and 20d change, 2s10s, VIX level and z-score, 20d USD return, CPI YoY) are joined only from 00:00 UTC of the availability date. With no observations they are NaN, and the genome is gated as unavailable.
+- Evolution adds the gene `context` (none|htf|macro|htf_macro) with 4 seeds. Old genomes default to `context=none`. `--universe extended` adds 1h bars for the same 5 symbols.
+- `scripts/ml_diagnose.py` and `docs/ml/evo5-diagnosis.md`: why nothing beats baseline.
+  - The primary setups lose before costs (gross −0.24 R), costs are about 0.48 R median, and the meta-label AUC is about 0.53.
+  - The shuffled-label check shows no leakage.
+  - Fixed the biased permutation importance from the scratch analysis (calibrated base vs raw permuted score).
+- Evolution:
+  - 44f40efd9e65 (default, 9,531 rows) and 30721a3ccb32 (extended, 15,157 rows): **no challenger beats baseline**.
+  - On extended data, HTF context improves hgb fitness from −0.027 to −0.008, but EV stays negative.
+  - Nothing promoted; execution_permission none. Chart markers now come from 30721a3ccb32.
+- `ml/features.py`: `dt.dayofweek` → `dt.day_of_week` (pandas deprecation).
+
 ## 2026-10-24: branch `atlas-evo-4` (from main b299511; not merged, not pushed)
 - Control plane reduce-only partial close: `close_position(position_id, exit_price, fraction=…)`. 0 < fraction ≤ 1 only (else `invalid_fraction_reduce_only`); books P&L on the closed slice, frees gross and correlated exposure, keeps the remainder open; audited `position_reduced` / `position_closed` with closed and remaining notional. No risk check changed.
 - Setup autopilot: a volume-capped partial entry now cancels the unfilled remainder through that partial close at the booked entry price (zero P&L, audit `setup_autopilot.partial_fill`), so exits book the real filled quantity. The evo3 fill-ratio exit-price approximation is removed.

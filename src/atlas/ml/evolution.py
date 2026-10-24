@@ -1,10 +1,11 @@
 """Governed model-evolution loop (research only; execution_permission "none"; never auto-promotes).
 
-Population genome = {model, features, regime, bar_type}:
+Population genome = {model, features, regime, bar_type, context}:
   model     logit | ridge | hgb | xgb | lgbm           (ml.train.make_model; xgb/lgbm are challengers)
   features  full | no_setup | no_signed | no_time | bar_only        (ablations of ml.dataset.FEATURES)
   regime    none | vol_conditioned  (adds low/high rv_pctile_480 flags and their interaction with the signed features)
   bar_type  time | heikin_ashi | renko_atr | range_atr | volume | dollar | kagi_atr | pnf_atr   (features.representations; tick is gated)
+  context   none | htf | macro | htf_macro   (ml.context: closed 1d/4h buckets; section-22 FRED macro gated on availability date)
 
 Fair comparison: ONE dataset (ml.dataset rows = real-price replay of the existing setup library: entries, exits,
 costs and labels are always on real time bars) and ONE set of purged + embargoed walk-forward folds
@@ -47,6 +48,7 @@ GENES: dict[str, tuple[str, ...]] = {
     "features": ("full", "no_setup", "no_signed", "no_time", "bar_only"),
     "regime": ("none", "vol_conditioned"),
     "bar_type": ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "kagi_atr", "pnf_atr"),
+    "context": ("none", "htf", "macro", "htf_macro"),
 }
 SEEDS = [
     {"model": "hgb", "features": "full", "regime": "none", "bar_type": "time"},
@@ -64,7 +66,16 @@ SEEDS = [
     {"model": "hgb", "features": "full", "regime": "none", "bar_type": "pnf_atr"},
     {"model": "logit", "features": "no_setup", "regime": "none", "bar_type": "time"},
 ]
+SEEDS += [
+    {"model": "hgb", "features": "full", "regime": "none", "bar_type": "time", "context": "htf"},
+    {"model": "hgb", "features": "full", "regime": "none", "bar_type": "time", "context": "macro"},
+    {"model": "hgb", "features": "full", "regime": "none", "bar_type": "time", "context": "htf_macro"},
+    {"model": "logit", "features": "full", "regime": "none", "bar_type": "time", "context": "htf_macro"},
+]
+DEFAULTS = {"context": "none"}
 UNIVERSE = [(i, "15m") for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM")]
+# Extended pooled universe (opt-in): 1h history back to 2023/24 (lower cost per R) + 15m crypto alts.
+UNIVERSE_EXTENDED = UNIVERSE + [(i, "1h") for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM")]
 N_FOLDS = 5
 EMBARGO = 86400
 TIME_FEATS = ("hod_sin", "hod_cos", "dow_sin", "dow_cos")
@@ -72,10 +83,11 @@ SIGNED_X = tuple(f"{s}_x_dir" for s in SIGNED)
 
 
 def gid(g: dict[str, str]) -> str:
-    return "|".join(f"{k}={g[k]}" for k in GENES)
+    return "|".join(f"{k}={g.get(k, DEFAULTS.get(k))}" for k in GENES)
 
 
 def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, as_of: int | None = None) -> tuple[pd.DataFrame, dict]:
+    from atlas.ml.context import htf_frame
     frames, meta = [], {"series": [], "bar_type_availability": {}}
     for inst, iv in universe:
         sd = load_series(feed, inst, iv, as_of=as_of)
@@ -91,6 +103,8 @@ def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, 
             rf = rep_features(sd.bars, bt)
             rf.columns = [f"{bt}:{c}" for c in rf.columns]
             df = df.join(rf, on="t")
+        df = df.join(htf_frame(sd.bars), on="t")
+        df["risk_d1atr"] = df.risk_bps / df.d1_atr_bps
         frames.append(df)
     if not frames:
         return pd.DataFrame(), meta
@@ -101,12 +115,25 @@ def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, 
     data["reg_hi"], data["reg_lo"] = hi, lo
     for s in SIGNED_X:
         data[f"{s}_x_hi"] = data[s] * hi
+    data = add_macro(data, getattr(feed, "store", None), meta)
     h = hashlib.sha256(pd.util.hash_pandas_object(data[["t", "instrument", "candidate_id", "r"]], index=False).values.tobytes())
     meta["data_hash"], meta["n_rows"] = h.hexdigest(), len(data)
     return data, meta
 
 
+def add_macro(data: pd.DataFrame, store, meta: dict) -> pd.DataFrame:
+    """Join section-22 macro as known at each detection time (detection-bar end); all-NaN if no observations."""
+    from atlas.ml.context import MACRO_FEATURES, macro_frame
+    dur = data.interval.map({"15m": 900, "1h": 3600}).fillna(0).astype(int)
+    end = data.t + dur
+    mf = macro_frame(store, end) if store is not None else pd.DataFrame(index=pd.Index([], name="t"), columns=list(MACRO_FEATURES))
+    data = data.join(mf.reindex(end.to_numpy()).reset_index(drop=True).set_axis(data.index))
+    meta["macro_coverage"] = {c: float(data[c].notna().mean()) for c in MACRO_FEATURES}
+    return data
+
+
 def feature_list(g: dict[str, str]) -> tuple[str, ...]:
+    from atlas.ml.context import HTF_FEATURES, MACRO_FEATURES
     f = list(FEATURES)
     if g["features"] == "no_setup":
         f = [c for c in f if c not in SETUP_FEATURES]
@@ -120,6 +147,11 @@ def feature_list(g: dict[str, str]) -> tuple[str, ...]:
         f += ["reg_hi", "reg_lo"] + [f"{s}_x_hi" for s in SIGNED_X]
     if g["bar_type"] != "time":
         f += [f"{g['bar_type']}:{c}" for c in REP_FEATURES]
+    ctx = g.get("context", "none")
+    if ctx in ("htf", "htf_macro"):
+        f += list(HTF_FEATURES)
+    if ctx in ("macro", "htf_macro"):
+        f += list(MACRO_FEATURES)
     return tuple(f)
 
 
@@ -181,7 +213,7 @@ def evolve(data: pd.DataFrame, meta: dict, generations: int = 3, seed: int = 11,
     rng = random.Random(seed)
     fs = folds(data, n_folds)
     seen: dict[str, dict] = {}
-    pop = [(dict(s), None, "seed") for s in (seeds or SEEDS)]
+    pop = [({**DEFAULTS, **s}, None, "seed") for s in (seeds or SEEDS)]
     for gen in range(generations):
         for g, parent, mut in pop:
             k = gid(g)

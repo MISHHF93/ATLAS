@@ -67,7 +67,7 @@ def bar_features(bars: Sequence[Bar]) -> pd.DataFrame:
     ts = pd.to_datetime(df.start, unit="s", utc=True)
     hod = ts.dt.hour + ts.dt.minute / 60
     f["hod_sin"], f["hod_cos"] = np.sin(2 * math.pi * hod / 24).values, np.cos(2 * math.pi * hod / 24).values
-    f["dow_sin"], f["dow_cos"] = np.sin(2 * math.pi * ts.dt.dayofweek / 7).values, np.cos(2 * math.pi * ts.dt.dayofweek / 7).values
+    f["dow_sin"], f["dow_cos"] = np.sin(2 * math.pi * ts.dt.day_of_week / 7).values, np.cos(2 * math.pi * ts.dt.day_of_week / 7).values
     rv = pd.Series(f["rv_64"].values)
     f["rv_pctile_480"] = rv.rolling(480, min_periods=100).rank(pct=True).values   # vol regime (causal rank)
     f["trend_sign"] = np.sign(ema20 - ema50).values
