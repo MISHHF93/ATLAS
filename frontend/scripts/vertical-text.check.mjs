@@ -10,9 +10,22 @@ const base = (args.find((a) => /^https?:/.test(a)) ?? "http://127.0.0.1:3000").r
 const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const shots = opt("--shots"); const jsonOut = opt("--json");
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
-export const PAGES = { overview: "/", inbox: "/inbox", "trade-chart": "/trade", "trade-markets": "/trade?tab=markets", "trade-depth": "/trade?tab=depth",
-  risk: "/control", autopilot: "/autopilot", research: "/research", models: "/research/evidence", money: "/money",
-  compliance: "/compliance", settings: "/settings", docs: "/docs", data: "/data" };
+// Every page and every non-default tab, read from the one page registry (src/components/shell/pagesMap.ts),
+// so new pages are covered automatically. Falls back to nothing silently = never: an empty list fails the run.
+export function pagesFromRegistry(file = new URL("../src/components/shell/pagesMap.ts", import.meta.url)) {
+  const src = fs.readFileSync(file, "utf8");
+  const body = src.slice(src.indexOf("export const PAGES"));
+  const out = {};
+  for (const blk of body.split(/\n  \{\n    id: /).slice(1)) {
+    const id = /^"([^"]+)"/.exec(blk)?.[1]; const href = /href: "([^"]+)"/.exec(blk)?.[1];
+    if (!id || !href) continue;
+    out[id] = href;
+    const tabsAt = blk.indexOf("tabs: [");
+    if (tabsAt >= 0) [...blk.slice(tabsAt).matchAll(/\{ id: "([\w-]+)", label/g)].slice(1).forEach((m) => { out[`${id}-${m[1]}`] = `${href}?tab=${m[1]}`; });
+  }
+  return out;
+}
+export const PAGES = pagesFromRegistry();
 const WIDTHS = [1440, 1024, 768, 390];
 
 function scan() {
@@ -48,11 +61,17 @@ function scan() {
 }
 
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
-const report = []; let total = 0;
+const report = []; let total = 0; let loadFails = 0;
+if (!Object.keys(PAGES).length) { console.error("vertical-text: no pages parsed from pagesMap.ts"); process.exit(2); }
 for (const [name, url] of Object.entries(PAGES)) for (const w of WIDTHS) {
   const page = await browser.newPage({ viewport: { width: w, height: 900 } });
-  try { await page.goto(base + url, { waitUntil: "load", timeout: 45000 }); } catch {}
+  let loadErr = "";
+  try { const resp = await page.goto(base + url, { waitUntil: "load", timeout: 45000 }); if (!resp || resp.status() >= 400) loadErr = `HTTP ${resp?.status() ?? "none"}`; }
+  catch (e) { loadErr = String(e?.message ?? e).split("\n")[0]; }
   await page.waitForTimeout(3500);
+  const textLen = loadErr ? 0 : await page.evaluate(() => (document.body?.innerText ?? "").trim().length);
+  if (!loadErr && textLen < 50) loadErr = `page rendered only ${textLen} chars of text`;
+  if (loadErr) { loadFails++; report.push({ page: name, width: w, count: null, error: loadErr }); console.log(`LOAD ${name.padEnd(14)} ${String(w).padStart(4)}  ${loadErr}`); await page.close(); continue; }
   // Open every <details> so collapsed content is checked too.
   await page.evaluate(() => document.querySelectorAll("details").forEach((d) => { d.open = true; }));
   await page.waitForTimeout(400);
@@ -75,5 +94,6 @@ for (const [name, url] of Object.entries(PAGES)) for (const w of WIDTHS) {
 }
 await browser.close();
 if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(report, null, 2));
-console.log(`\nvertical-text: ${total} instance(s) across ${report.filter((r) => r.count).length} page/width combos`);
-process.exit(total ? 1 : 0);
+const checked = report.filter((r) => r.count !== null).length;
+console.log(`\nvertical-text: checked ${checked}/${report.length} page/width combos (${Object.keys(PAGES).length} pages x ${WIDTHS.length} widths); ${total} instance(s) in ${report.filter((r) => r.count).length} combos; ${loadFails} failed to load`);
+process.exit(loadFails ? 2 : total ? 1 : 0);
