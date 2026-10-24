@@ -34,3 +34,14 @@ Checks: pytest 1526 passed / 9 skipped (with ATLAS_FEED_DB unset; with it set, `
 
 Not done: (2) zone registry fields and the instrument contract spec; (3) ML registry merge, prediction contract, abstention statuses and drift; (4) partial fills, latency and intrabar replay; (5) E2E journey; (6) curtain-menu merge and asset-card redesign. No metric labels exist yet outside Levels.
 Known defect: `asian_context.range_atr` in the evidence uses the 1m ATR, so the ratios (18–67) are not comparable to the 15m ATR.
+
+## Pass 3 (2026-10-24, atlas-full-1, unmerged, not pushed)
+
+Done: (3) unified serving path + 6 statuses + drift; (5) E2E replay journey with correlation ids end to end; (4) latency / trade-through / partial fills (worst-case intrabar was already in place: ambiguous bars resolve to stop); (2) contract specs + zone evidence fields + round-number levels; (6) partial: platform-wide freshness chip (header + curtain), shared FreshBadge. range_atr unit mismatch fixed (now 4.3–11.0).
+
+Evidence (deterministic replay, atlas-feed GC 15m, 3825 bars 2026-08-26..10-23 UTC; not a profitability claim):
+- Baseline: 126 candidates, 123 filled, 35 target / 88 stop, mean R +0.137. 1-bar latency: 103 filled, mean R −0.499. Trade-through limits: mean R +0.088. Both: −0.546. (`/workspace/shots/full1/replay_realism.json`)
+- ML (logistic + Platt, chronological split): test n=29, Brier 0.219 vs base-rate 0.215 (skill −0.018), AUC 0.42. No skill; status research_only_not_promoted.
+- E2E OOS segment: 21 LOW_CONFIDENCE, 2 UNFAVORABLE_COSTS, 6 TRADE_CANDIDATE → all 6 rejected by the control plane (stop_distance_too_tight + insufficient_remaining_room_for_one_lot: one GC contract ≈ $400k notional exceeds the cap). 0 paper receipts. Dev segment abstains with calibration_unsupported (leak guard). Correlation ids present on every record.
+
+Not done: MA/VWAP zone types; curtain section restructuring / asset-card redesign; freshness labels inside every individual card (only header/curtain + Levels); SVG→PNG render of the journey chart (headless render timed out); holidays in contract expiry calc.
