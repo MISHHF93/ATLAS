@@ -52,14 +52,15 @@ def drift_for_group(g: pd.DataFrame, oos: pd.DataFrame | None, window_s: int = D
 
 
 def shadow_step(collector, man: dict, model, rows: pd.DataFrame) -> dict[str, int]:
-    """Observe open (unresolved) setups detected after the calibrator's fit window; resolve closed ones."""
+    """Observe only *open* (unresolved) setups detected after the calibrator's fit window, so every shadow
+    record is a genuine forward prediction made before the outcome existed; resolve them on later runs."""
     seen = {r["candidate_id"]: r for r in collector.records()}
     obs = res = 0
     elig = man["status"] == "eligible"
     fresh = rows[rows.t > int(man.get("fitted_through") or 0)]
     for _, r in fresh.iterrows():
         cid = r.candidate_id
-        if cid not in seen and model is not None:
+        if cid not in seen and r.y < 0 and model is not None:
             d = model.decide(pd.DataFrame([r]))
             take = bool(d["take"][0])
             reasons = [] if elig else ["model_not_eligible"]
@@ -71,7 +72,7 @@ def shadow_step(collector, man: dict, model, rows: pd.DataFrame) -> dict[str, in
                               model_version=man["version"], data_label="atlas-feed")
             obs += 1
             seen[cid] = {"status": "observed"}
-        if r.y >= 0 and cid in seen and seen[cid].get("outcome") is None and seen[cid].get("status") != "resolved":
+        if r.y >= 0 and cid in seen and not seen[cid].get("resolution") and seen[cid].get("status") != "resolved":
             collector.resolve(cid, outcome=r.outcome, r_multiple=float(r.r), exit_at=int(r.exit_at))
             seen[cid] = {"status": "resolved", "outcome": r.outcome}
             res += 1
