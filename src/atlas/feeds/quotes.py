@@ -33,7 +33,11 @@ def _change_ref(store: FeedStore, inst, price_time: float, prev_close_hint: floa
     return None
 
 
-def quote(store: FeedStore, master: InstrumentMaster, symbol: str, now: float | None = None) -> dict:
+_UNSET = object()
+
+
+def quote(store: FeedStore, master: InstrumentMaster, symbol: str, now: float | None = None, bar=_UNSET) -> dict:
+    """``bar``: the instrument's latest_bar() if the caller already read it (avoids a second lookup)."""
     now = now or _time.time()
     iid = resolve(symbol) or symbol.upper()
     base = {"symbol": symbol, "instrument": iid, "price": None, "change_pct": None, "source": None, "kind": None,
@@ -45,7 +49,8 @@ def quote(store: FeedStore, master: InstrumentMaster, symbol: str, now: float | 
     cands = []
     for q in store.last_quotes(iid):
         cands.append((min(q["event_time"], q["receipt_time"]), q["provider"], q["price"], q["kind"], q.get("prev_close")))
-    bar = store.latest_bar(iid)
+    if bar is _UNSET:
+        bar = store.latest_bar(iid)
     if bar is not None:
         bt = min(bar.bar_end, bar.receipt_time)
         if inst.session == "us_equity_rth" and not nyse_open(bt):

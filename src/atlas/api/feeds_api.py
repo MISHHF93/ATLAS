@@ -79,20 +79,31 @@ def _bar_label(bar, now: float) -> str:
     return toronto(min(bar.bar_end, now))
 
 
-@router.get("/api/feeds/health")
-def api_feed_health(symbols: str | None = Query(default=None)) -> dict[str, Any]:
-    from atlas.feeds.status import toronto
+HEALTH_TTL_SECONDS = 5.0
+_health_cache: dict[str | None, tuple[float, dict]] = {}
+
+
+def feed_health(symbols: str | None = None) -> dict[str, Any]:
+    from atlas.feeds.quotes import quote
+    from atlas.feeds.status import NO_DATA, toronto
+    from atlas.feeds.universe import resolve
     now = time.time()
     feed = _feed()
     rows = []
-    q = feed_quotes(_symbols(symbols), now)
-    for sym, v in q.items():
+    for sym in _symbols(symbols):
         last_bar = None
-        if feed is not None and v.get("instrument"):
-            b = feed.store.latest_bar(v["instrument"])
-            last_bar = b
+        if feed is None:
+            v = feed_quotes([sym], now)[sym]
+        else:
+            iid = resolve(sym) or sym.upper()
+            try:
+                feed.instruments.get(iid)
+                last_bar = feed.store.latest_bar(iid)  # read once, shared with the quote
+            except KeyError:
+                pass
+            v = quote(feed.store, feed.instruments, sym, now, bar=last_bar)
         flags = []
-        if v["status"] in ("stale", "no_data"):
+        if v["status"] in ("stale", NO_DATA):
             flags.append(v["status"])
         if v.get("source") == "yahoo":
             flags.append("unofficial_delayed_source")
@@ -109,6 +120,17 @@ def api_feed_health(symbols: str | None = Query(default=None)) -> dict[str, Any]
     providers = feed.registry.snapshot() if feed is not None else []
     return {"as_of": now, "as_of_toronto": toronto(now), "timezone": "America/Toronto", "store_present": feed is not None,
             "live_ingest": _live_ingest_state(), "status_counts": counts, "symbols": rows, "providers": providers}
+
+
+@router.get("/api/feeds/health")
+def api_feed_health(symbols: str | None = Query(default=None), fresh: bool = Query(default=False)) -> dict[str, Any]:
+    """Cached for HEALTH_TTL_SECONDS (dashboards poll it); ``fresh=true`` bypasses the cache."""
+    hit = _health_cache.get(symbols)
+    if not fresh and hit and time.monotonic() - hit[0] < HEALTH_TTL_SECONDS and "PYTEST_CURRENT_TEST" not in os.environ:
+        return hit[1]
+    out = feed_health(symbols)
+    _health_cache[symbols] = (time.monotonic(), out)
+    return out
 
 
 @router.get("/api/feeds/stream")

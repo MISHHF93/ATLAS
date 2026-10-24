@@ -31,6 +31,16 @@ CREATE TABLE IF NOT EXISTS ingest_log (
 """
 
 
+# Indexes added after the first release. Applied by ``migrate()`` on open; ``CREATE INDEX IF NOT EXISTS`` is idempotent
+# and safe on a live store (it takes the write lock once; concurrent writers wait on busy_timeout, WAL readers continue).
+# ix_rev_latest lets latest_bar()/bars() read "newest bar for instrument+interval" by an index seek instead of sorting
+# every revision of the series in a temp B-tree (the cause of the ~41 s /api/feeds/health on a 1.7M-revision store).
+MIGRATIONS = (
+    ("ix_rev_latest", "CREATE INDEX IF NOT EXISTS ix_rev_latest ON bar_revisions(instrument, interval, event_time, receipt_time)"),
+)
+REQUIRED_INDEXES = ("ix_rev_lookup",) + tuple(n for n, _ in MIGRATIONS)
+
+
 class FeedStore:
     def __init__(self, path: str | Path = "var/feeds/atlas_feed.sqlite"):
         self.path = str(path)
@@ -41,8 +51,28 @@ class FeedStore:
             # The live-ingest process writes while the API process reads: WAL + busy timeout, no reader blocking.
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA busy_timeout=30000")
+            self._db.execute("PRAGMA synchronous=NORMAL")
         self._db.executescript(SCHEMA)
         self._lock = threading.RLock()  # also serialises reads: one sqlite connection is shared by the API threadpool
+        self.migrate()
+
+    def migrate(self) -> list[str]:
+        """Create any missing post-release indexes. Never raises on a busy store (retried on next open)."""
+        have = {r[0] for r in self._db.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+        done = []
+        for name, sql in MIGRATIONS:
+            if name in have:
+                continue
+            try:
+                with self._lock, self._db:
+                    self._db.execute(sql)
+                done.append(name)
+            except sqlite3.OperationalError:  # locked past busy_timeout: leave it for the next start
+                pass
+        return done
+
+    def indexes(self) -> set[str]:
+        return {r[0] for r in self._fetchall("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='bar_revisions'")}
 
     # ---- ingest ----
     def _fetchall(self, sql: str, params=()):
