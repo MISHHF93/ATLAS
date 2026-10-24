@@ -32,7 +32,7 @@ from atlas.features.price_action.detectors import Candidate, Transition
 from atlas.features.price_action.htf import DailyBias, FourHour
 from atlas.features.price_action.levels import (PRIORITY, priority_of, InteractionConfig, LevelEvent, LevelInteractionEngine,
                                                 LiquidityLevelRegistry, PriceLevel, RegistryConfig)
-from atlas.features.price_action.reentry import ReentryConfig, ReentryGovernor
+from atlas.features.price_action.reentry import ReentryConfig, ReentryGovernor, load_reentry_config
 from atlas.features.price_action.zones import Zone
 
 NY = ZoneInfo("America/New_York")
@@ -97,7 +97,7 @@ class SuiteConfig:
     interaction: InteractionConfig = field(default_factory=InteractionConfig)
     sfp: SFPConfig = field(default_factory=SFPConfig)
     gold: GoldConfig = field(default_factory=GoldConfig)
-    reentry: ReentryConfig = field(default_factory=ReentryConfig)
+    reentry: ReentryConfig = field(default_factory=load_reentry_config)   # code defaults + tighten-only overlay
     htf_filter: bool = False           # True -> candidates against a bullish/bearish daily bias become NO_TRADE(HTF_CONFLICT)
     cost_price: float = 0.0            # round-trip cost estimate in price units used for the net-RR gate
     daily: tuple = ()                  # (open_ts, high, low, close) completed provider daily bars for HTF bias
@@ -140,6 +140,16 @@ class LevelSuiteDetector:
     def _day(self, ts: int) -> str:
         s = self.cal.session_of(ts)
         return s[0].isoformat() if s else datetime.fromtimestamp(ts, timezone.utc).date().isoformat()
+
+    FAMILY_OF = {"sfp_reversal": "sfp", "gold_orb_breakout": "orb", "gold_snapback": "snapback"}
+
+    def record_outcome(self, detector: str, ts: int, r: float | None) -> bool:
+        """Paper outcome feedback (section 13): the governor's cumulative-loss caps count realized R per trading day."""
+        fam = self.FAMILY_OF.get(detector)
+        if fam is None:
+            return False
+        self.gov.record_outcome(fam, self._day(ts), r)
+        return True
 
     def _no_trade(self, family: str, reason: str, at: int, **kw: Any) -> None:
         self.no_trades.append({"family": family, "reason": reason, "at": at, **kw})

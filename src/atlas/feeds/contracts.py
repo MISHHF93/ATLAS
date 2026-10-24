@@ -1,6 +1,9 @@
 """Instrument contract specs (futures): multiplier, tick, expiry cycle, roll rule, hours, cost assumptions.
 
-Built on the existing InstrumentMaster (multiplier/tick come from there, never duplicated). Calendar facts are
+SINGLE SOURCE OF TRUTH for futures contract facts (mandate section 6): sizing (``control.engine``, ``risk.sizing.
+contracts_for_risk``), replay/lab/markers costs (``intel.data.SPEC`` is derived from here) and the UI
+(``/api/intel/contracts``) all read these records. Built on the existing InstrumentMaster (multiplier/tick come from
+there, never duplicated). Calendar facts are
 the published CME product specs as understood at writing time; ``verified`` stays False until an owner checks
 them against the exchange. Costs are explicit research *assumptions*, not broker quotes.
 """
@@ -31,6 +34,22 @@ class ContractSpec:
     cost_source: str = "research_assumption"
     verified: bool = False
     gold_only: bool = False
+    hold_bars: int = 96             # research replay max hold (15m bars = 24h)
+
+    @property
+    def suite_calendar(self) -> str:
+        """TradingCalendar code used by the level suite / replay (COMEX, CMES)."""
+        return _XC.get(self.calendar, self.calendar)
+
+    @property
+    def field_status(self) -> dict:
+        """Honest provenance per field. Nothing is marked verified until an owner checks it against the exchange."""
+        v = "verified" if self.verified else "unverified"
+        return {"multiplier": f"published CME spec, {v}", "tick_size": f"published CME spec, {v}",
+                "contract_months": f"published listing cycle, {v}", "expiry_rule": f"approximation of the exchange rule, {v}",
+                "roll_rule": "ATLAS research convention (not an exchange fact)",
+                "trading_hours": f"summary, {v}; holidays from exchange_calendars when installed",
+                "cost_per_contract_rt_usd": "research assumption (commission + fees + ~1 tick slippage), not a broker quote"}
 
     @property
     def tick_value(self) -> float:
@@ -45,7 +64,8 @@ class ContractSpec:
         return price * self.multiplier * qty
 
     def as_dict(self) -> dict:
-        return {**asdict(self), "tick_value": self.tick_value, "cost_price_units": self.cost_price_units}
+        return {**asdict(self), "tick_value": self.tick_value, "cost_price_units": self.cost_price_units,
+                "suite_calendar": self.suite_calendar, "field_status": self.field_status}
 
 
 _XC = {"COMEX": "COMEX", "CME_EQUITY": "CMES", "CMES": "CMES", "NYMEX": "NYMEX"}
@@ -141,17 +161,27 @@ def _spec(m: InstrumentMaster, iid, months, rule, roll, cost, gold=False):
                         "COMEX" if iid in ("GC", "MGC", "SI") else "CME_EQUITY", cost, gold_only=gold)
 
 
+# Round-trip cost assumptions (USD per contract). Consolidated in pass 9 from two copies that disagreed
+# (feeds.contracts vs intel.data.SPEC); the HIGHER (more conservative) value of each pair was kept:
+# GC 25 (both), MGC 3.5 (was 2.5 / 3.5), SI 125 (was 125 / 75), ES 30 (was 25 / 30).
+
+
 def default_contracts(master: InstrumentMaster | None = None) -> dict[str, ContractSpec]:
     m = master or InstrumentMaster()
     out = {}
     for args in (("GC", "GJMQVZ", "third_last_business_day", 3, 25.0, True),
-                 ("MGC", "GJMQVZ", "third_last_business_day", 3, 2.5, True),
+                 ("MGC", "GJMQVZ", "third_last_business_day", 3, 3.5, True),
                  ("SI", "HKNUZ", "third_last_business_day", 3, 125.0),
-                 ("ES", "HMUZ", "third_friday", 8, 25.0)):
+                 ("ES", "HMUZ", "third_friday", 8, 30.0)):
         if args[0] in m:
             out[args[0]] = _spec(m, *args)
     return out
 
 
+@lru_cache(maxsize=1)
+def _defaults_cached() -> dict[str, ContractSpec]:
+    return default_contracts()
+
+
 def contract_for(iid: str) -> ContractSpec | None:
-    return default_contracts().get(iid)
+    return _defaults_cached().get(iid)

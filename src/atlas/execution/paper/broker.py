@@ -42,10 +42,23 @@ class Fill:
     ts: str | None = None  # ISO timestamp (set by broker clock if any)
 
 
+@dataclass(frozen=True)
+class ExecRealism:
+    """Optional paper execution realism (mandate section 25), same models as the bar replay:
+    - ``latency_updates``: price updates an order must wait before it can fill (market orders also wait);
+    - ``trade_through``: a resting limit fills only when price trades strictly beyond it (touch is not enough);
+    - ``max_participation``: a fill may take at most this fraction of the update's volume; the rest stays working.
+      Unknown or zero volume -> no fill (conservative)."""
+    latency_updates: int = 1
+    trade_through: bool = True
+    max_participation: float | None = 0.10
+
+
 @dataclass
 class OpenOrder:
     order_id: str
-    intent: OrderIntent
+    intent: OrderIntent          # qty here is the REMAINING qty after partial fills
+    age: int = 0
 
 
 @dataclass
@@ -63,6 +76,7 @@ class PaperBroker:
     peak_equity: float | None = None
     fill_listeners: list[Callable[[Fill], None]] = field(default_factory=list)
     clock: Callable[[], object] | None = None  # returns tz-aware datetime for fill timestamps
+    realism: ExecRealism | None = None          # None keeps the original immediate/touch/full-fill behaviour
     _ids: itertools.count = field(default_factory=lambda: itertools.count(1))
 
     def __post_init__(self) -> None:
@@ -145,7 +159,9 @@ class PaperBroker:
         oid = f"paper-{next(self._ids)}"
         ref = intent.reference_price
         assert ref is not None
-        if intent.order_type == "market" or self._marketable(intent, ref):
+        if self.realism is not None and self.realism.latency_updates > 0:
+            self.open_orders[oid] = OpenOrder(oid, intent)      # decision + routing delay: nothing fills at submit
+        elif intent.order_type == "market" or self._marketable(intent, ref):
             self._fill(oid, intent, ref)
         else:
             self.open_orders[oid] = OpenOrder(oid, intent)
@@ -156,14 +172,37 @@ class PaperBroker:
         lp = intent.limit_price
         return lp is not None and ((intent.side == "buy" and lp >= price) or (intent.side == "sell" and lp <= price))
 
-    def on_price(self, symbol: str, price: float) -> list[Fill]:
-        """Feed a new market price: marks positions and fills crossing resting limits."""
+    def on_price(self, symbol: str, price: float, volume: float | None = None) -> list[Fill]:
+        """Feed a new market price (and optionally the traded volume since the last update): marks positions and
+        fills working orders. With ``realism``: latency, trade-through limits and volume-capped partial fills."""
         self.mark(symbol, price)
         out = []
+        r = self.realism
         for oid, oo in list(self.open_orders.items()):
-            if oo.intent.symbol == symbol and self._marketable(oo.intent, price):
+            it = oo.intent
+            if it.symbol != symbol:
+                continue
+            oo.age += 1
+            if r is not None and oo.age < r.latency_updates:
+                continue
+            if it.order_type == "limit":
+                lp = it.limit_price
+                strict = r is not None and r.trade_through
+                ok = (price < lp if it.side == "buy" else price > lp) if strict else self._marketable(it, price)
+                if not ok:
+                    continue
+            qty = it.qty
+            if r is not None and r.max_participation:
+                cap = max(0.0, volume or 0.0) * r.max_participation
+                if cap <= 0:
+                    continue
+                qty = min(qty, cap)
+            if qty >= it.qty - 1e-12:
                 del self.open_orders[oid]
-                out.append(self._fill(oid, oo.intent, price))
+                out.append(self._fill(oid, it, price))
+            else:
+                out.append(self._fill(oid, it.model_copy(update={"qty": qty}), price))
+                oo.intent = it.model_copy(update={"qty": it.qty - qty})
         return out
 
     def _fill(self, oid: str, intent: OrderIntent, ref: float) -> Fill:

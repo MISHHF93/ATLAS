@@ -10,10 +10,20 @@ from atlas.features.price_action.bars import Bar
 
 TF_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1d": 86400}
 
-# instrument: (calendar, tick, cost_per_unit, cost_bps, hold_bars)  -- same research assumptions as run_level_research
-SPEC = {"GC": ("COMEX", 0.1, 0.25, 0.0, 96), "MGC": ("COMEX", 0.1, 0.35, 0.0, 96), "SI": ("COMEX", 0.005, 0.015, 0.0, 96),
-        "ES": ("CMES", 0.25, 0.6, 0.0, 96), "BTCUSDT": ("crypto", 0.01, 0.0, 24.0, 96), "ETHUSDT": ("crypto", 0.01, 0.0, 24.0, 96),
-        "SPY": ("XNYS", 0.01, 0.01, 4.0, 26)}
+# instrument: (calendar, tick, cost_per_unit, cost_bps, hold_bars).
+# Futures rows are DERIVED from atlas.feeds.contracts (the single contract-spec source); only non-futures
+# research assumptions live here.
+_NON_FUTURES = {"BTCUSDT": ("crypto", 0.01, 0.0, 24.0, 96), "ETHUSDT": ("crypto", 0.01, 0.0, 24.0, 96),
+                "SPY": ("XNYS", 0.01, 0.01, 4.0, 26)}
+
+
+def _build_spec() -> dict[str, tuple]:
+    from atlas.feeds.contracts import default_contracts
+    fut = {k: (c.suite_calendar, c.tick_size, c.cost_price_units, 0.0, c.hold_bars) for k, c in default_contracts().items()}
+    return {**fut, **_NON_FUTURES}
+
+
+SPEC = _build_spec()
 
 
 def load_bars(feed, inst: str, iv: str = "15m") -> list[Bar]:

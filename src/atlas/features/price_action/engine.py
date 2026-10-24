@@ -66,6 +66,10 @@ class PriceActionEngine:
         self.events += out
         return out
 
+    def record_outcome(self, detector: str, ts: int, r: float | None) -> bool:
+        """Forward a resolved paper trade outcome to detectors that govern re-entry on realized results."""
+        return any([d.record_outcome(detector, ts, r) for d in self.detectors if hasattr(d, "record_outcome")])
+
     def update(self, bar: Bar, now: int | None = None) -> list[Any]:
         """Live path. `now` defaults to bar_end (replay clock)."""
         if not self._admit(bar, bar.end if now is None else now):

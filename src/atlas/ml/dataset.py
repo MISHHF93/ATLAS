@@ -20,7 +20,7 @@ import pandas as pd
 from atlas.features.price_action.bars import Bar
 from atlas.features.price_action.engine import EngineConfig
 from atlas.features.price_action.prior_day import PriorDayRangeConfig
-from atlas.features.price_action.replay import ReplayConfig, replay, trade_cost
+from atlas.features.price_action.replay import ReplayConfig, paper_replay_config, replay, trade_cost
 from atlas.features.price_action.sessions import US_EQUITY_RTH, SessionSpec
 from atlas.ml.costs import VENUE_COSTS, venue_for
 from atlas.ml.features import BAR_FEATURES, bar_features
@@ -84,7 +84,7 @@ def build_rows(sd: SeriesData, include_open: bool = False) -> pd.DataFrame:
         return pd.DataFrame()
     vc = VENUE_COSTS[venue_for(sd.asset_class)]
     session = UTC_DAY if sd.asset_class == "crypto" else US_EQUITY_RTH
-    cfg = ReplayConfig(entry_window=3, max_hold_bars=max_hold_bars(sd.interval, sd.asset_class),
+    cfg = paper_replay_config(entry_window=3, max_hold_bars=max_hold_bars(sd.interval, sd.asset_class),   # section 25 realism
                        cost_per_unit=vc["cost_per_unit"], cost_bps=vc["cost_bps"], zone_rule="zone_entry_v1")
     res = replay(sd.instrument, sd.bars[0].duration, sd.bars, engine_cfg=EngineConfig(session=session, pdr=PriorDayRangeConfig()),
                  cfg=cfg, data_label="atlas-feed")

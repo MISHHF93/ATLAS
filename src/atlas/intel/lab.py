@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 
 from atlas.features.price_action.engine import EngineConfig
-from atlas.features.price_action.replay import ReplayConfig, replay, trade_cost
+from atlas.features.price_action.replay import ReplayConfig, paper_replay_config, replay, trade_cost
 from atlas.features.price_action.suite import StrategyToggles, SuiteConfig
 
 from .data import SPEC, bars_hash, stable_hash
@@ -82,7 +82,7 @@ def run_experiment(inst: str, bars, *, daily=(), variants: dict[str, dict[str, b
     if not bars:
         return {"status": "no_data", "instrument": inst, "note": "no confirmed bars available"}
     _, _, cpu, cbps, hold = SPEC.get(inst, ("crypto", 0.01, 0.0, 0.0, 96))
-    rc = ReplayConfig(entry_window=3, max_hold_bars=hold, cost_per_unit=cpu, cost_bps=cbps)
+    rc = paper_replay_config(entry_window=3, max_hold_bars=hold, cost_per_unit=cpu, cost_bps=cbps)   # section 25 realism
     tf = bars[0].duration
     code = _code_sha()
     report_id = stable_hash({"bars": bars_hash(bars), "inst": inst, "tf": tf, "variants": variants, "rc": asdict(rc),

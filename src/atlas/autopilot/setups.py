@@ -30,7 +30,8 @@ from atlas.features.price_action import PRESETS, EngineConfig, PriceActionEngine
 from atlas.features.price_action.bars import Bar
 from atlas.features.price_action.detectors import Candidate
 from atlas.features.price_action.proposals import candidate_to_signal, evaluate
-from atlas.features.price_action.replay import ReplayConfig, ReplayTrade, _step_trade, trade_cost, try_fill
+from atlas.features.price_action.reentry import ReentryGovernor, load_reentry_config
+from atlas.features.price_action.replay import ReplayConfig, ReplayTrade, _step_trade, paper_replay_config, trade_cost, try_fill, weighted_r
 from atlas.governance.audit import AuditLog
 from atlas.models.shadow import ShadowCollector
 from atlas.risk.state_store import StateStore
@@ -81,7 +82,10 @@ class SetupAutopilot:
         self.safe_stop = safe_stop if safe_stop is not None else new_safe_stop()
         self.shadow = shadow
         self.registry, self.model_version, self.expected_owner = registry, model_version, expected_owner
-        self.rcfg = replay_cfg or ReplayConfig(cost_bps=cost_bps)
+        # section 25: latency, trade-through limits and volume-capped partial fills are on by default for paper
+        self.rcfg = replay_cfg or paper_replay_config(cost_bps=cost_bps)
+        # section 13: realized paper outcomes feed a tighten-only cumulative-loss governor (per detector, per UTC day)
+        self.loss_gov = ReentryGovernor(load_reentry_config())
         self.rulebook = build_founder_rulebook(founder_config_dir)
         cp = ActionableControlPlaneEngine(safe_stop=self.safe_stop)
         # A clean paper account under the founder rulebook (the engine's demo book is not used here).
@@ -148,7 +152,8 @@ class SetupAutopilot:
                 "daily_loss_fraction": float(daily), "drawdown_fraction": float(dd),
                 "daily_limit": float(self.rulebook.max_daily_loss_fraction),
                 "drawdown_limit": float(self.rulebook.max_drawdown_fraction),
-                "safe_stop_engaged": self.safe_stop.engaged, "safe_stop_reason": self.safe_stop.reason}
+                "safe_stop_engaged": self.safe_stop.engaged, "safe_stop_reason": self.safe_stop.reason,
+                "reentry_loss_governor": self.loss_gov.state(self.day or "")}
 
     def _safety(self, ts: datetime) -> str | None:
         if self.safe_stop.engaged:
@@ -175,7 +180,16 @@ class SetupAutopilot:
         self.switch_off("setup_autopilot", reason)
 
     # ---- bookkeeping -------------------------------------------------------------------------------------
+    def engines_feedback(self, t: ReplayTrade, ctx: dict) -> None:
+        for s, eng in self.engines.items():
+            if s.symbol == ctx.get("symbol") and t.exit_at is not None:
+                eng.record_outcome(t.detector, int(t.exit_at), weighted_r(t))
+
     def _book_exit(self, t: ReplayTrade, ctx: dict, price: float, reason: str, ts: datetime) -> None:
+        if ctx.get("position_id") and t.fill_ratio < 1.0:
+            # The control plane books whole positions only; a volume-capped partial fill is booked as the exit price
+            # that yields exactly fill_ratio x the full-size P&L (linear P&L). Fees stay on the full notional.
+            price = t.entry + (price - t.entry) * t.fill_ratio
         if ctx.get("position_id"):
             fee = (ctx["notional"] * Decimal(str(self.rcfg.cost_bps)) * Decimal("0.0001")).quantize(Decimal("0.01"))
             res = self.cp.close_position(ctx["position_id"], exit_price=price, fee_usd=fee, reason=reason, now=ts)
@@ -185,6 +199,9 @@ class SetupAutopilot:
                                                              "exit_price": price, "result": res.get("status")}, actor="setup_autopilot")
 
     def _resolve(self, t: ReplayTrade, ctx: dict, ts: datetime) -> None:
+        if t.r_multiple is not None and t.outcome != "unfilled":
+            self.loss_gov.record_outcome(t.detector, ts.date().isoformat(), weighted_r(t))
+            self.engines_feedback(t, ctx)
         if self.shadow is not None:
             self.shadow.resolve(t.candidate_id, outcome=t.outcome, r_multiple=t.r_multiple, exit_at=t.exit_at,
                                 ambiguous=t.ambiguous)
@@ -243,6 +260,14 @@ class SetupAutopilot:
         return self._decide_inner(c, ts)
 
     def _decide_inner(self, c: Candidate, ts: datetime) -> dict[str, Any]:
+        ok, why = self.loss_gov.allow(c.detector, c.candidate_id, ts.date().isoformat(), int(c.detected_at))
+        if not ok and why in ("daily loss cap", "family loss cap", "consecutive losses"):
+            rec = {"candidate_id": c.candidate_id, "instrument": c.instrument, "detector": c.detector, "direction": c.direction,
+                   "detected_at": c.detected_at, "decision": "reentry_loss_cap", "reasons": [f"REENTRY_LIMIT:{why}"],
+                   "probability": None, "expected_value_r": None, "model_version": None, "serving_status": "blocked"}
+            self.audit.append("setup_autopilot.decision", rec, actor="setup_autopilot")
+            self.decisions = (self.decisions + [rec])[-200:]
+            return rec
         cost = trade_cost(ReplayTrade("", "", c.direction, 0, c.entry_reference, c.proposed_stop, c.proposed_target), self.rcfg)
         from atlas.models.serving import serve
         from atlas.ops.correlation import current
@@ -274,6 +299,10 @@ class SetupAutopilot:
                            order_id=d.order_id)
         t = ReplayTrade(c.candidate_id, c.detector, c.direction, c.detected_at, c.entry_reference,
                         c.proposed_stop, c.proposed_target, entry_type=c.entry_type)
+        if ctx["notional"] > 0 and c.entry_reference > 0:     # participation cap uses the real paper order size
+            from atlas.feeds.contracts import contract_for
+            spec = contract_for(c.instrument)
+            t.order_qty = float(ctx["notional"]) / (c.entry_reference * (spec.multiplier if spec else 1.0))
         self.waiting.append((t, 0, ctx))     # every candidate is tracked; only authorized ones carry a position
         if self.shadow is not None:
             self.shadow.observe(candidate=c, decision=rec["decision"], reasons=rec["reasons"],

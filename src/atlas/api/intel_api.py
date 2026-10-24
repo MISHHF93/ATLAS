@@ -33,11 +33,11 @@ def _replay_all(sym: str, tf: str, bars):
     key = ("replay", sym, tf, bars[-1].start if bars else None, len(bars))
     if key in _CACHE:
         return _CACHE[key]
-    from atlas.features.price_action.replay import ReplayConfig, replay
+    from atlas.features.price_action.replay import paper_replay_config, replay
     from atlas.intel.lab import _variant_engine
     _, _, cpu, cbps, hold = SPEC.get(sym, ("crypto", 0.01, 0.0, 0.0, 96))
     res = replay(sym, bars[0].duration, bars, engine_cfg=_variant_engine(sym, bars, {"sfp": True, "gold_snapback": True, "gold_orb_breakout": True}, _daily(sym)),
-                 cfg=ReplayConfig(entry_window=3, max_hold_bars=hold, cost_per_unit=cpu, cost_bps=cbps), data_label="real:atlas_feed")
+                 cfg=paper_replay_config(entry_window=3, max_hold_bars=hold, cost_per_unit=cpu, cost_bps=cbps), data_label="real:atlas_feed")
     if len(_CACHE) > 32:
         _CACHE.clear()
     _CACHE[key] = res
@@ -158,6 +158,33 @@ def fourbox(symbol: str = Query("GC"), tf: str = Query("15m")) -> dict[str, Any]
     if sym in ("GC", "MGC", "SI"):
         out["session_note"] = "metals use the US equity RTH open as the opening box (approximation)"
     return _wrap(bars, out)
+
+
+# ---- contract specs (single source: atlas.feeds.contracts) ----
+@router.get("/contracts")
+def contracts() -> dict[str, Any]:
+    from atlas.feeds.contracts import default_contracts, front_contract
+    today = date.today()
+    rows = []
+    for c in default_contracts().values():
+        code, lt, roll = front_contract(c, today)
+        rows.append({**c.as_dict(), "front": code, "last_trade": lt.isoformat(), "roll_date": roll.isoformat()})
+    return {"contracts": rows, "source": "atlas.feeds.contracts (used by sizing, replay costs and this view)",
+            "all_verified": all(r["verified"] for r in rows), "execution_permission": EXECUTION_PERMISSION}
+
+
+# ---- governed re-entry (tighten-only loss caps) ----
+@router.get("/reentry")
+def reentry() -> dict[str, Any]:
+    from dataclasses import asdict
+    from atlas.features.price_action.reentry import DEFAULT_OVERLAY, ReentryConfig, load_reentry_config
+    eff, base = load_reentry_config(), ReentryConfig()
+    keys = [k for k in asdict(base) if k != "overlay_notes"]
+    rows = [{"rule": k, "code_default": getattr(base, k), "effective": getattr(eff, k),
+             "tightened": getattr(eff, k) != getattr(base, k)} for k in keys]
+    return {"rows": rows, "overlay": str(DEFAULT_OVERLAY.relative_to(DEFAULT_OVERLAY.parents[2])), "notes": list(eff.overlay_notes),
+            "feedback": "Paper trade outcomes (after-cost R, weighted by fill ratio) are fed back on exit; caps reset each trading day",
+            "tighten_only": True, "execution_permission": EXECUTION_PERMISSION}
 
 
 # ---- holidays ----

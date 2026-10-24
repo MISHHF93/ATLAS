@@ -264,10 +264,39 @@ export function PortfolioRiskView() {
 type Tracks = WithFresh & { rows: { field: string; competition: string; open_market: string; differs: boolean }[]; active_track: string; note: string;
   probes: { id: string; why: string; competition: R; open_market: R }[] };
 
+type ContractRow = { instrument_id: string; exchange: string; multiplier: number; tick_size: number; tick_value: number;
+  cost_per_contract_rt_usd: number; cost_source: string; verified: boolean; front: string; roll_date: string };
+type Contracts = { contracts: ContractRow[]; source: string; all_verified: boolean };
+type Reentry = { rows: { rule: string; code_default: number | null; effective: number | null; tightened: boolean }[];
+  overlay: string; notes: string[]; feedback: string };
+const RULE_LABEL: Record<string, string> = { per_level: "Entries per level per day", per_day: "Entries per setup family per day",
+  cooldown_s: "Cooldown between entries (s)", max_loss_r_per_family_day: "Max loss per family per day (R)",
+  max_loss_r_per_day: "Max loss per day, all families (R)", max_consecutive_losses: "Max consecutive losses per family" };
+
 export function TracksView() {
   const s = useApi<Tracks>("/api/intel/tracks", 120000);
+  const re = useApi<Reentry>("/api/intel/reentry", 120000);
+  const ct = useApi<Contracts>("/api/intel/contracts", 300000);
   return (
     <div className="ux-layout">
+      <Card title="Re-entry loss caps" subtitle="Tighten-only overlay on the deterministic re-entry rules. Realized paper results feed these caps; a looser value is ignored.">
+        <Async state={re} label="Loading re-entry caps">
+          {(d) => <><DataTable rows={d.rows.map((r) => ({ rule: RULE_LABEL[r.rule] ?? r.rule, base: r.code_default ?? "none", eff: r.effective ?? "none", t: r.tightened })) as unknown as R[]}
+            columns={[{ key: "rule", label: "Rule" }, { key: "eff", label: "Effective" }, { key: "base", label: "Code default" },
+              { key: "t", label: "", render: (r) => r.t ? <Badge tone="info">tightened</Badge> : null }]} />
+            <p className="ux-muted">{d.feedback}. Overlay: {d.overlay}.{d.notes.length ? ` Ignored: ${d.notes.join("; ")}` : ""}</p></>}
+        </Async>
+      </Card>
+      <Card title="Contract specs" subtitle="One source for sizing, replay costs and this view. Costs are research assumptions.">
+        <Async state={ct} label="Loading contract specs">
+          {(d) => <><DataTable rows={d.contracts.map((c) => ({ c: c.instrument_id, front: c.front, tv: `$${c.tick_value} / ${c.tick_size}`,
+              mult: c.multiplier, cost: `$${c.cost_per_contract_rt_usd}`, roll: c.roll_date, v: c.verified })) as unknown as R[]}
+            columns={[{ key: "c", label: "Contract" }, { key: "front", label: "Front" }, { key: "mult", label: "Multiplier" }, { key: "tv", label: "Tick value / size" },
+              { key: "cost", label: "Round-trip cost" }, { key: "roll", label: "Roll" },
+              { key: "v", label: "", render: (r) => r.v ? <Badge tone="good">verified</Badge> : <Badge tone="warn">unverified</Badge> }]} />
+            {!d.all_verified && <p className="ux-muted">Unverified specs come from published exchange pages and have not been confirmed by a broker.</p>}</>}
+        </Async>
+      </Card>
       <Card title="Competition vs open market rulebooks" span={2} subtitle="Rule configuration, not market data (no freshness label applies). Each track has its own rulebook; the control plane picks it from the ticket's track.">
         <Async state={s} label="Loading rulebooks">
           {(d) => <><p>Active track: <Badge tone="info">{d.active_track}</Badge></p>

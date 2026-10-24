@@ -6,6 +6,8 @@ The paper fill model is deliberately conservative, because OHLC bars cannot show
 - On the fill bar, a stop touch counts as a stop-out and a target touch is ignored.
 - Afterwards, an open beyond the stop exits at the open (the gap is taken in full). An open beyond the target exits
   at the target (no gap gain). A bar that touches both stop and target is counted as a stop (``ambiguous`` += 1).
+- Optional realism (``PAPER_REALISM``): order latency in bars, trade-through limit fills, volume-capped partial fills.
+- Resolved outcomes are fed back to the engine (``record_outcome``) so the re-entry governor's loss caps apply.
 - Exit at the close after ``max_hold_bars``. ``cost_per_unit`` (round trip, price units) is charged on every fill.
 Results are research evidence only and carry the caller's ``data_label``. Nothing is submitted.
 """
@@ -38,6 +40,7 @@ class ReplayTrade:
     features: dict[str, Any] = field(default_factory=dict)
     entry_type: str = "limit"          # "stop": fills when price crosses entry, at max(entry, open) (long) / min (short)
     fill_ratio: float = 1.0            # filled qty / order qty (volume-capped partial fill; remainder cancelled)
+    order_qty: float | None = None     # per-trade order size (overrides ReplayConfig.order_qty for the participation cap)
 
 
 @dataclass
@@ -52,6 +55,16 @@ class ReplayConfig:
     limit_fill: str = "touch"          # "touch" | "trade_through": limit fills only if price trades strictly beyond it
     order_qty: float | None = None     # with max_participation: volume-capped partial fill on the first fill bar
     max_participation: float | None = None   # fraction of the fill bar's volume we may take; volume<=0 -> no fill
+
+
+# Paper realism used by the research lab, chart markers, the ML dataset and the paper setup autopilot (section 25):
+# the order is working one bar after detection, a limit fills only when price trades strictly through it, and a fill
+# may take at most 10% of the fill bar's volume (1-unit research orders; bars with zero/unknown volume do not fill).
+PAPER_REALISM = {"latency_bars": 1, "limit_fill": "trade_through", "order_qty": 1.0, "max_participation": 0.10}
+
+
+def paper_replay_config(**kw: Any) -> "ReplayConfig":
+    return ReplayConfig(**{**PAPER_REALISM, **kw})
 
 
 def weighted_r(t: "ReplayTrade") -> float | None:
@@ -118,11 +131,12 @@ def try_fill(t: "ReplayTrade", b: Bar, cfg: "ReplayConfig | None" = None, age: i
         return False
     elif not ((b.low <= t.entry) if long else (b.high >= t.entry)):
         return False
-    if cfg is not None and cfg.order_qty and cfg.max_participation:
+    qty = (t.order_qty or (cfg.order_qty if cfg is not None else None))
+    if cfg is not None and qty and cfg.max_participation:
         cap = max(0.0, b.volume) * cfg.max_participation
         if cap <= 0:
             return False                          # unknown/zero volume: assume no fill (conservative)
-        t.fill_ratio = min(1.0, cap / cfg.order_qty)
+        t.fill_ratio = min(1.0, cap / qty)
     t.filled_at, t.outcome = b.start, "open"
     return True
 
@@ -172,6 +186,8 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
             _step_trade(t, b, cfg, held + 1)
             if t.exit_at is None:
                 nxt_live.append((t, held + 1))
+            else:
+                eng.record_outcome(t.detector, t.exit_at, weighted_r(t))   # section 13 feedback, before detection
         live = nxt_live
         nxt_wait = []
         for t, age in waiting:
@@ -179,6 +195,8 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
                 _step_trade(t, b, cfg, 0)
                 if t.exit_at is None:
                     live.append((t, 0))
+                else:
+                    eng.record_outcome(t.detector, t.exit_at, weighted_r(t))
             elif t.outcome == "gap_skipped":
                 pass
             elif age + 1 < cfg.entry_window + cfg.latency_bars:
@@ -218,6 +236,7 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
                             max(1, sum(t.filled_at is not None for t in trades))),
         "total_weighted_r": sum(weighted_r(t) for t in done) if done else None,
         "fill_model": "conservative_ohlc_v1",
+        "reentry_refusals": sum(1 for d in eng.detectors for n in getattr(d, "no_trades", []) if n.get("reason") == "REENTRY_LIMIT"),
     }
     return res
 

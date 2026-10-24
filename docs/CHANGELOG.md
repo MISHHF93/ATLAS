@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-24: branch `atlas-evo-3` (from main 62bf221; not merged, not pushed)
+- §13 cumulative-loss cap for re-entry. `ReentryConfig` adds `max_loss_r_per_family_day`, `max_loss_r_per_day` and `max_consecutive_losses`. They load from the new tighten-only overlay `config/risk_overlays/reentry_tighten.yaml` (2.0 R, 3.0 R, 2) via `load_reentry_config`. A looser, null, unknown or non-positive overlay value is ignored and listed in `overlay_notes`. `config/founder/risk_policy.yaml` is unchanged.
+  - Feedback: replay feeds each exit's after-cost, fill-weighted R to `PriceActionEngine.record_outcome` before the bar reaches the detectors (causal). The setup autopilot feeds realized paper exits to an OMS-level governor and refuses new proposals with the audited decision `reentry_loss_cap`. `risk_view` shows the governor state.
+- §6 one contract-spec source. `feeds/contracts.py` is the source. `intel.data.SPEC` futures rows and `scripts/run_level_research.py` now derive from it. The new `risk.sizing.contracts_for_risk` sizes from it. Where two duplicates disagreed, the more conservative cost was kept: MGC $3.5 RT (was 2.5 in contracts), ES $30 (was 25), SI price-unit cost 0.025 (was 0.015 in intel). Every spec is still flagged `verified: false`.
+- §25 paper realism by default. `PAPER_REALISM` / `paper_replay_config` (1-bar latency, trade-through limits, 10% participation; zero or unknown volume does not fill) is now used by the intel lab, `/api/intel` replays, the ML dataset and the setup autopilot. The autopilot sets the real order quantity per trade. A partial fill is booked as the exit price that gives fill_ratio × full P&L, because the control plane closes whole positions only (documented limitation).
+  - `PaperBroker` gains opt-in `ExecRealism` (latency in price updates, trade-through, volume-capped partials with the remainder left working). The default is unchanged.
+- API `/api/intel/contracts` and `/api/intel/reentry`. Risk → Track rules now shows "Re-entry loss caps" and "Contract specs" cards.
+- ML labels changed (realism in the dataset), so evolution was re-run: run acfd9abb65cc, **no challenger beats baseline** (details in the checkpoint, pass 9). Nothing promoted; execution_permission none.
+
 ## 2026-10-24: branch `atlas-evo-2` (from main 727975f; not merged, not pushed)
 - Chart opportunity markers: categories are now accurate per class.
   - Rule-only markers no longer say "rejected"; their risk status reads "gate abstained, no validated model (not a risk rejection)".

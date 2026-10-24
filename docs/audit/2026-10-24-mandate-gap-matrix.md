@@ -8,14 +8,14 @@ so "existing" means "found", not "audited".
 |---|---|---|---|
 | 2–4 | Platform scope / architecture | partial | FastAPI `src/atlas/api/app.py`, Next.js `frontend/app/*`, feeds `src/atlas/feeds/` |
 | 5 | Provider-neutral market data | partial | `feeds/core.py` (adapter base, reconnect, backoff), `feeds/providers/*`, `marketdata/quality.py`, `marketdata/data_rights.py` (entitlements), `marketdata/pit/calendars.py`. Gap detection is in `tests/test_stream_gaps.py`. No unified capability-tier registry |
-| 6 | Instrument specs | partial | `marketdata/futures.py`, `models/quant/multi.py` multipliers; no single `ContractSpec` (rolls/expiry) contract |
+| 6 | Instrument specs | existing (evo3) | `feeds/contracts.py` is the one source (rolls/expiry/costs, `verified:false` flags); intel SPEC, level research script and `risk.sizing.contracts_for_risk` derive from it; `/api/intel/contracts`. `marketdata/futures.py` / `models/quant/multi.py` multipliers not yet migrated |
 | 7 | Market structure engine | **new** | `features/price_action/structure.py`: causal swings HH/HL/LH/LL, BOS, CHoCH, breakout success/fail, compression/expansion, with event records. Impulse/retrace not separated yet |
 | 8 | Zone registry + interaction SM | partial (pass 8: `levels.py` Level has confluence_ids + provenance) | `levels.py` (LiquidityLevelRegistry, LevelInteractionEngine), `zones.py` Zone. Missing fields: confluence_ids, breakout/rejection counts, provenance; MA/VWAP/psych/supply-demand zone types |
 | 9 | Four-Box | implemented (research; Event disabled) — pass 5 `intel/fourbox.py`, /research?tab=zones (moved from /research/lab?tab=fourbox 2026-10-24); | Opening/ORB `detectors.ORBRetestDetector`, Breakout `DualBollingerDetector`, Anchor `WickReversalDetector`, Event `events.event_zone` (no verified calendar data; disabled) |
 | 10 | Snapback | partial | `strategies/snapback.py`, `suite.py`, stop alternatives in `docs/research/levels-2026-10-24.md`; trailing/partial/time exits not tested |
 | 11 | Gold session models | **new** + existing | `gold_models.py` (Early Bird, range-bound to open, ORB alignment overlap math, Asian context; gold-only; 08:20–08:50 default); `suite.GoldBox` |
 | 12 | SFP states | existing | `suite.py` SFP (BREAKOUT_ACCEPTED/FAILED/SWEEP_RECLAIMED/UNRESOLVED per audit) |
-| 13 | Reentry | existing | `reentry.py` ReentryGovernor (max attempts, cooldown; per-level bug fixed earlier). Cumulative-loss cap not verified |
+| 13 | Reentry | existing (evo3) | ReentryGovernor + tighten-only loss caps (family/day R, all-family day R, consecutive losses) from `config/risk_overlays/reentry_tighten.yaml`; outcomes fed back causally in replay and at the autopilot OMS; tested |
 | 14–15 | Indicators + math | **new** + existing | `indicators.py` (EMA/RSI/ATR/BB/VWAP) + `library.py` (SMA, slope, MACD, ADX/DMI, ROC, momentum, log-ret, RV, Donchian, AVWAP, RVOL, anatomy, doji/engulfing/displacement, trend band, HTF mapping, fib, overlap, normalized distance, OBI, TI, Kyle λ, Hawkes, VPIN, EV, p_BE, sizing, wᵀμ/wᵀΣw, VaR/CVaR, Brier, log loss, reliability, IS). Almgren-Chriss existing `execution/scheduling.py`. Chart overlays for new ones: missing |
 | 16–18 | Unified ML | existing (partial) | `ml/` (registry, selector, calibration, cv purged WF, drift), `models/quant/*` (lgbm, DSR, PBO, registry rollback). Two ML trees exist (`ml/` and `models/`) — overlap not reconciled. Full prediction contract/abstention set not verified |
 | 19 | Continuation vs reversal | existing | `resolve()` in unified candidate (per spec docs) |
@@ -24,7 +24,7 @@ so "existing" means "found", not "audited".
 | 22 | Cross-asset/macro | missing | no timestamp-correct macro dataset |
 | 23 | Unified candidate | existing (partial) | `detectors.Candidate`, `proposals.py`; full field list not verified |
 | 24 | Research lab | implemented — pass 5 `intel/lab.py` (DSR/PBO/bootstrap/cost/report ids); | `experiments/`, `research/`, DSR/PBO in `models/quant/metrics.py` |
-| 25 | Backtest/replay | partial | `price_action/replay.py` (conservative_ohlc_v1), `research/backtester.py`; partial fills/latency not in PA replay |
+| 25 | Backtest/replay | existing (evo3) | PA replay latency/trade-through/participation now default for lab, intel API, ML dataset and autopilot (`PAPER_REALISM`); `PaperBroker` opt-in `ExecRealism`. Limitation: control plane books partials as equivalent-P&L exit price; `research/backtester.py` unchanged |
 | 26 | Portfolio | implemented (VaR/CVaR/stress; unpriced positions listed) — pass 5 `intel/portfolio.py`; | `portfolio/construction.py` (CVaR) |
 | 27 | OMS/paper | existing | `execution/paper`, `risk/killswitch.py`, `risk/reconcile.py` |
 | 28 | Control plane | existing | `control/engine.py`, `control/rules.py` (not modified) |
@@ -59,4 +59,4 @@ so "existing" means "found", not "audited".
 | Evolution generation with the new bar types (run 3bdaaf38ba24) | Done; no model beats baseline |
 | Legacy pathname map in InstitutionalWorkspacesView | Removed (it overrode tab views on hub paths) |
 | Re-verified rows: §8 confluence/provenance exist; §34–35 correlation IDs exist | Matrix corrected |
-| Still open: §13 reentry cumulative-loss cap (not in `ReentryGovernor`), §6 single ContractSpec, §22 macro data, §25 partial fills/latency in PA replay | Not done |
+| Closed in evo3: §13 cumulative-loss cap, §6 single contract source, §25 realism in PA replay paths. Still open: §22 macro data; legacy multipliers in `marketdata/futures.py`/`models/quant/multi.py`; partial-close in the control plane | Partly done |

@@ -24,10 +24,7 @@ from atlas.features.price_action.suite import GoldBox, GoldConfig, SFPConfig, St
 from atlas.ml.selector import _stats, build_rows, evaluate
 
 FAM = {"sfp_reversal": "sfp", "gold_snapback": "snapback", "gold_orb_breakout": "orb"}
-# instrument: (calendar, tick, cost_per_unit, cost_bps, hold_bars)
-SPEC = {"GC": ("COMEX", 0.1, 0.25, 0.0, 96), "MGC": ("COMEX", 0.1, 0.35, 0.0, 96), "SI": ("COMEX", 0.005, 0.015, 0.0, 96),
-        "ES": ("CMES", 0.25, 0.6, 0.0, 96), "BTCUSDT": ("crypto", 0.01, 0.0, 24.0, 96), "ETHUSDT": ("crypto", 0.01, 0.0, 24.0, 96),
-        "SPY": ("XNYS", 0.01, 0.01, 4.0, 26)}
+from atlas.intel.data import SPEC  # noqa: E402  single source: futures rows derive from atlas.feeds.contracts
 
 
 def load(feed, inst, iv, dur):

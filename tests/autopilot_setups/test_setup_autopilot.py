@@ -9,6 +9,7 @@ import pytest
 from atlas.autopilot.control import StepUpRequired
 from atlas.autopilot.setups import SetupAutopilot, Stream
 from atlas.control.setup_autopilot_approval import approve_request
+from atlas.features.price_action.replay import ReplayConfig
 from atlas.models.shadow import ShadowCollector, iso_week
 from atlas.risk.safe_stop import new_safe_stop
 from tests.price_action.test_price_action import O, _orb_long_bars
@@ -24,6 +25,9 @@ def _approve(ap, rid, actor, verified):
 
 
 def _ap(tmp_path, registry=None, model_version=None, bars=BARS, **kw):
+    # These SYNTHETIC bars carry no volume, so the section-25 paper realism default would (correctly) never fill.
+    # The legacy idealized fill model is pinned here to keep exercising the decision/booking path.
+    kw.setdefault("replay_cfg", ReplayConfig(cost_bps=0.0))
     return SetupAutopilot(lambda s, tf: list(bars), [Stream("SPY", 3600, "us_equity_rth")],
                           shadow=ShadowCollector(tmp_path / "shadow.jsonl"), registry=registry,
                           model_version=model_version, cost_bps=0.0, **kw)
@@ -146,3 +150,29 @@ def test_owner_cli_approval_switches_on_through_shared_state(tmp_path):
     assert not ap.is_on()
     assert run(base + ["setup-autopilot-approve", rid], prompt=lambda: (PW, totp(secret, _t.time())), out=out.append) == 0
     assert ap.is_on()
+
+
+def test_paper_realism_is_default_and_zero_volume_never_fills(tmp_path):
+    """Section 25: with no replay_cfg the autopilot uses latency + trade-through + participation. Zero-volume
+    SYNTHETIC bars therefore never fill: no paper P&L is invented."""
+    ap = SetupAutopilot(lambda s, tf: list(BARS), [Stream("SPY", 3600, "us_equity_rth")],
+                        shadow=ShadowCollector(tmp_path / "shadow.jsonl"), registry=synthetic_setup_registry(0.6),
+                        model_version="synthetic-setup-v1", cost_bps=0.0)
+    assert ap.rcfg.latency_bars == 1 and ap.rcfg.limit_fill == "trade_through"
+    _on(ap)
+    ap.tick(END)
+    assert ap.cp.current_equity_usd == Decimal("100000")
+    assert "reentry_loss_governor" in ap.risk_view()
+
+
+def test_oms_loss_cap_blocks_after_realized_losses(tmp_path):
+    """Section 13 at the OMS: realized paper losses for the day (fed via record_outcome) refuse new proposals."""
+    from datetime import datetime, timezone
+    ap = _ap(tmp_path, registry=synthetic_setup_registry(0.6), model_version="synthetic-setup-v1"); _on(ap)
+    day = datetime.fromtimestamp(BARS[0].end, tz=timezone.utc).date().isoformat()
+    for fam in ("a", "b", "c"):
+        ap.loss_gov.record_outcome(fam, day, -1.1)
+    ds = ap.tick(END)["decisions"]
+    assert ds and all(d["decision"] == "reentry_loss_cap" for d in ds)
+    assert ap.connector.receipts == [] and ap.cp.current_equity_usd == Decimal("100000")
+    assert any(e["event"] == "setup_autopilot.decision" for e in ap.audit.entries())

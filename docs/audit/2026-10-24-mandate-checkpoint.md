@@ -99,3 +99,12 @@ New package `atlas.intel` (EXECUTION_PERMISSION="none") + `/api/intel/*` router 
   - GC 15m: 126 rule setups (gate abstained, no validated model), gate-rejected 0 of 126 checked; ML take/skip n/a.
   - BTCUSDT 15m: 1 ML take, 586 ML skip, 13 rule setups, 0 gate-rejected.
 - Checks: pytest 1585 passed / 9 skipped (ATLAS_FEED_DB unset, 2 threads); tsc clean; next build clean; pages test 5/5; prod server: 36 canonical URLs 200, 43 redirects 308; vertical-text 144/144, 0 instances. Screenshots in `/workspace/shots/evo2/`.
+
+## Pass 9 / evo3 (2026-10-24, branch atlas-evo-3 from 62bf221, unmerged, not pushed)
+- Done: §13 tighten-only re-entry loss caps with causal outcome feedback (replay + autopilot OMS); §6 one contract-spec source; §25 paper realism default in every PA replay caller, plus opt-in PaperBroker realism. See CHANGELOG.
+- Evolution re-run because labels changed: run acfd9abb65cc (same feed DB, 3 generations, seed 11), 9,531 rows (was 11,249: realism leaves unfilled setups out).
+  - Decision: **no_challenger_beats_baseline**. Take-all EV -0.92 R (was -0.70 R under idealized fills).
+  - Best: lgbm/no_setup/time, fitness -0.021, EV +0.0001 R (effectively zero), BSS -0.011. Renko best now -0.035 (was -0.034).
+  - Not comparable one-to-one with 3bdaaf38ba24 because fills and rows differ. No profitability claim; nothing promoted; execution_permission none.
+- Checks: pytest (ATLAS_FEED_DB unset, 2 threads) 1596 passed / 9 skipped; tsc clean; next build clean; pages test 5/5; vertical-text 144/144, 0 instances; prod server curl 200 for /control?tab=tracks, /api/intel/reentry and /api/intel/contracts. Screenshots in `/workspace/shots/evo3/`.
+- Open: control-plane partial close; legacy multipliers in `marketdata/futures.py` and `models/quant/multi.py`; §22 macro data; contract specs remain unverified.

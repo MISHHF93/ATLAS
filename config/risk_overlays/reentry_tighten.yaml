@@ -1,0 +1,10 @@
+# Tighten-only overlay for governed re-entry (mandate section 13).
+# Loaded by atlas.features.price_action.reentry.load_reentry_config. It is NOT the founder risk policy
+# (config/founder/risk_policy.yaml is never read or changed by this file).
+# Each value is applied only if it is TIGHTER than the code default in ReentryConfig; looser values are ignored
+# and listed in overlay_notes. Removing this file can only remove these extra caps, never loosen the code defaults.
+# Units: R = after-cost R multiple of the paper trade (weighted by fill ratio).
+reentry:
+  max_loss_r_per_family_day: 2.0   # stop a family (sfp / orb / snapback / detector) for the day after -2R realized
+  max_loss_r_per_day: 3.0          # stop the instrument for the day after -3R realized across families
+  max_consecutive_losses: 2        # stop a family for the day after 2 losing trades in a row

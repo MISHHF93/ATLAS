@@ -22,3 +22,20 @@ def vol_target_qty(sleeve_budget_base: float, target_vol: float, forecast_vol: f
     qty = notional / (price * fx)
     return {"qty": qty, "notional_base": notional, "caps": caps, "binding": min(caps, key=caps.get),
             "regime_mult": rm, "screener_mult": sm, "forecast_vol": fv}
+
+
+def contracts_for_risk(instrument_id: str, risk_usd: float, entry: float, stop: float) -> dict:
+    """Whole futures contracts for a fixed dollar risk, using the single contract-spec source (feeds.contracts).
+    Per-contract risk = |entry - stop| x multiplier + round-trip cost assumption. Rounds DOWN; 0 means do not trade."""
+    from atlas.feeds.contracts import contract_for
+    spec = contract_for(instrument_id)
+    if spec is None:
+        return {"contracts": 0, "reason": "no_contract_spec"}
+    dist = abs(entry - stop)
+    if not dist > 0 or not risk_usd > 0:
+        return {"contracts": 0, "reason": "invalid inputs"}
+    per = dist * spec.multiplier + spec.cost_per_contract_rt_usd
+    n = int(risk_usd // per)
+    return {"contracts": n, "risk_per_contract_usd": per, "risk_used_usd": n * per, "multiplier": spec.multiplier,
+            "cost_per_contract_rt_usd": spec.cost_per_contract_rt_usd, "spec_verified": spec.verified,
+            "reason": "" if n else "one contract exceeds the risk budget"}
