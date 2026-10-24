@@ -108,6 +108,8 @@ export const PAGES: AtlasPage[] = [
         summary: "Candle patterns and order-flow measurements for the current symbol." },
       { id: "zones", label: "Price zones", aliases: ["/research/price-action"],
         summary: "Opening ranges, breakout-and-retest setups and wick zones. Setups are ideas, not trades." },
+      { id: "levels", label: "Levels & sweeps", aliases: ["/research/levels"],
+        summary: "Prior-day, session and swing levels, sweeps and reclaims, gold opening boxes, and the strategy switches. Research only." },
       { id: "forecasts", label: "Forecast ledger", workspaceRoute: "/research/prediction-ledger", aliases: ["/research/prediction-ledger"],
         summary: "Every recorded forecast, the data it used, and how it turned out." },
     ],
