@@ -3261,9 +3261,9 @@ body {
 .institutional-shell > .atlas-app-nav, .institutional-shell > .clean-top-bar { flex-shrink: 0; }
 .institutional-shell > .clean-top-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; flex-wrap: wrap; border-bottom: 1px solid #1e2638; }
 .institutional-shell .clean-brand, .institutional-shell .clean-top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.institutional-shell > .clean-main-scroll { min-width: 0; overflow-wrap: anywhere; }
+.institutional-shell > .clean-main-scroll { min-width: 0; overflow-wrap: break-word; }
 @media (max-width: 700px) {
-  .clean-card { min-width: 0; overflow-wrap: anywhere; }
+  .clean-card { min-width: 0; overflow-wrap: break-word; }
   .clean-card-header { flex-wrap: wrap; }
   .clean-card-header > div { min-width: 0; }
   .clean-card:has(table) { overflow-x: auto; }
@@ -3288,7 +3288,7 @@ body {
 .selected-market-viewer .desk-chart-frame:not(.is-realtime) .desk-tv-picture { flex: 0 0 auto; height: clamp(28rem, 60dvh, 44rem); }
 
 /* ---- UX-4: scannable asset cards (Markets + Trading desk) ---- */
-.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; margin-bottom: 18px; }
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; margin-bottom: 18px; }
 .asset-card { background: #121722; border: 1px solid rgba(255,255,255,0.10); border-radius: 10px; display: flex; flex-direction: column; min-width: 0; transition: border-color .2s; }
 .asset-card:hover { border-color: rgba(0,200,255,0.45); }
 .asset-card.is-selected { border-color: #00C8FF; box-shadow: 0 0 0 1px #00C8FF inset; }
@@ -3343,3 +3343,16 @@ body {
 .watch-row-chg { font: 600 13px var(--font-mono, monospace); text-align: right; white-space: nowrap; }
 .watch-row-meta { grid-column: 1 / -1; min-width: 0; margin-top: 2px; }
 .watch-row-meta .quote-meta { font-size: 11.5px !important; white-space: normal !important; flex-wrap: wrap; }
+
+/* UX-4 anti-vertical-text: tables keep their columns and scroll sideways instead of stacking letters. */
+.clean-table th, .data-table th, .clean-table td, .data-table td { white-space: nowrap; }
+.clean-table td.wrap, .data-table td.wrap { white-space: normal; min-width: 18ch; }
+.clean-table, .data-table { min-width: max-content; }
+:is(div, section, article):has(> table.clean-table, > table.data-table) { overflow-x: auto; max-width: 100%; }
+.clean-card { min-width: 0; }
+/* Labels inside cards truncate with a tooltip rather than breaking per character. */
+.clean-kpi-label, .clean-meta-tag, .badge { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* Docs: prose tables keep readable column widths and scroll sideways on phones; long doc index no longer pushes content off-screen. */
+.docs-body { min-width: 0; overflow-x: auto; }
+.docs-body table th, .docs-body table td { min-width: 14ch; vertical-align: top; }
+@media (max-width: 700px) { .docs-index { max-height: 40vh; overflow-y: auto; } }
