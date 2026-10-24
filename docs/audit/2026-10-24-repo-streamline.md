@@ -93,3 +93,13 @@ Removed / consolidated:
 - 5 unused deps dropped from pyproject + requirements (databento, polygon-api-client, ccxt, polars, aiohttp).
 
 Deferred (behaviour-sensitive or not identical): other same-name pairs listed above are distinct objects; physical move of `atlas.models`/`atlas.ml`/`atlas.intel` under `atlas.ai` left for later passes.
+
+## Pass 2 outcome (atlas-unify-2)
+- **Duplicate helpers: verdict is homonyms, not duplicates.** Each pair has a different signature and different semantics, so merging them would change results:
+  - `bars_frame`: `models.quant.features` returns close/volume indexed by ts; `ml.features` returns full OHLCV with start/end columns.
+  - `purged_walk_forward`: `models.quant.cv` is a split generator over timestamps; `research.vertical_slice` is a full candidate-comparison study over FeatureRows.
+  - `FeatureStore`: `marketdata.pit.featurestore` is a SQLite point-in-time store; `features.feature_store` is a DuckDB/Parquet versioned store.
+  - `compute_hawkes_intensity`: `whale_saas_az` already delegates to `marketdata.microstructure`, so it is a thin adapter.
+  - `symbol_info`: `feeds.udf` uses the AtlasFeed instrument registry; `api.udf` uses the desk asset catalog.
+  - No change was made. The pairs are recorded here so they are not re-flagged.
+- **Untested packages now covered** by `tests/test_untested_packages.py` (8 tests): experiments, fundamentals, main (import only, no start), lifecycle and backlog_tracker. `integrations` is left to the integrations worker.
