@@ -8,6 +8,7 @@ import type { AtlasPage } from "../components/shell/pagesMap";
 import { pageIcon } from "./icons";
 import { ADVANCED, HEADER_LINKS, SECTIONS, activeTab, breadcrumbs, findPage, pageCommands, pageTitle, type Command } from "./nav";
 import { useApi } from "./primitives";
+import { DataFreshnessChip } from "./FreshBadge";
 
 
 /* ------------------------------------------------------------ Safe stop */
@@ -116,6 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <AtlasLogo size={22} wordmark />
             </a>
             <span className="ux-paper" title="Paper trading only. No order on this platform reaches a live venue.">PAPER</span>
+            <DataFreshnessChip compact />
           </div>
           <nav className="ux-tabs" aria-label="Main sections">
             <ul>
@@ -202,6 +204,7 @@ function Curtain({ open, refEl, activeHref, onClose }: {
       <div className="ux-curtain__inner">
         <div className="ux-curtain__top">
           <h2 className="ux-curtain__title">All pages</h2>
+          {open ? <DataFreshnessChip /> : null}
           <span className="ux-curtain__hint">Tip: press <kbd className="ux-kbd">⌘K</kbd> to jump anywhere</span>
           <button type="button" className="ux-icon-btn" aria-label="Close menu" onClick={() => onClose(true)}><X size={18} aria-hidden /></button>
         </div>

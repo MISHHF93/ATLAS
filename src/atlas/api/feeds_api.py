@@ -155,3 +155,33 @@ async def api_feed_stream(symbols: str | None = Query(default=None), max_seconds
         yield "event: end\ndata: {}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.get("/api/feeds/freshness")
+def api_feed_freshness() -> dict[str, Any]:
+    """Platform-wide data-freshness label for the header chip: per-symbol labels from the shared quant.freshness rule
+    (live / delayed / historical / simulated / unavailable, never upgraded) and the label of the newest bar."""
+    from atlas.api.quant import freshness
+    from atlas.feeds.universe import resolve
+    now = int(time.time())
+    feed = _feed()
+    rows: list[dict[str, Any]] = []
+    for sym in _symbols(None):
+        b = None
+        if feed is not None:
+            try:
+                b = feed.store.latest_bar(resolve(sym) or sym.upper())
+            except Exception:   # noqa: BLE001 - unknown instrument or empty store: reported as unavailable
+                b = None
+        # a still-forming bar proves nothing about "now": use its start (conservative, never upgraded)
+        end = None if b is None else int(b.bar_end if b.bar_end <= now else b.event_time)
+        # "live" only when a bar closed within 2 minutes, whatever its interval (a 1d bar is never "live" here)
+        f = freshness(end, now, 60, getattr(b, "provider", None) if b else "none")
+        f["interval"] = getattr(b, "interval", None)
+        rows.append({"symbol": sym, **f})
+    counts: dict[str, int] = {}
+    for r in rows:
+        counts[r["label"]] = counts.get(r["label"], 0) + 1
+    newest = max((r for r in rows if r["last_bar_end"] is not None), key=lambda r: r["last_bar_end"], default=None)
+    return {"computed_at": now, "store_present": feed is not None, "counts": counts,
+            "newest": newest or freshness(None, now, 0, "none"), "symbols": rows}

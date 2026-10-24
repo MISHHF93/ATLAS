@@ -5,6 +5,8 @@ import { Card, DataTable, EmptyState, ErrorState } from "../../ui/primitives";
 import { ColorType, createChart, type IChartApi, type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
 import { deskTimeOptions } from "./lwTime";
 import { TvProvenance } from "./TvFrame";
+import { FreshBadge, type Fresh } from "../../ui/FreshBadge";
+export { FreshBadge };
 
 type Level = { id: string; source_type: string; kind: string; price: number; available_ts: number; expires_ts: number | null; state: string; touch_count: number; label: string };
 type LevelEvent = { level_id: string; event_id: string; kind: string; at: number; side: number; post_accept: boolean; extreme: number; detail: string };
@@ -16,7 +18,6 @@ type Payload = {
   candidates: Cand[]; no_trades: Record<string, unknown>[]; htf: Record<string, unknown>; strategies: Strategy[]; bars: number[][];
   bars_used: number; feed_origin: unknown; data_gaps: Record<string, string>; overlays?: Overlays;
 };
-type Fresh = { label: "live" | "delayed" | "historical" | "simulated" | "unavailable"; last_bar_end: number | null; age_s: number | null; source: string };
 type SEvent = { event_id: string; kind: string; direction: string; event_ts: number; confirmation_ts: number; reference_price: number };
 type Win = { high: number; low: number; coverage: number; n: number; expected: number } | null;
 type GoldDay = { day: string; asian: Win; early: Win; premarket_orb: Win; opening_orb: Win; orb_alignment?: { overlap_ratio: number } | null; insufficient?: string[] | null };
@@ -30,11 +31,6 @@ const IND: Record<string, { label: string; color: string; keys: string[] }> = {
   structure: { label: "Structure (BOS / CHoCH)", color: "#F0E442", keys: [] },
 };
 
-export function FreshBadge({ f }: { f?: Fresh | null }) {
-  const label = f?.label ?? "unavailable";
-  const age = f?.age_s == null ? "" : f.age_s < 3600 ? ` · ${Math.round(f.age_s / 60)} min old` : ` · ${Math.round(f.age_s / 3600)} h old`;
-  return <span className="ux-chip" data-fresh={label} title={f?.source ?? ""}>{label}{age}</span>;
-}
 
 // Okabe-Ito colourblind-safe palette
 const GROUPS: Record<string, { label: string; color: string; match: (s: string) => boolean }> = {

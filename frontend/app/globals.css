@@ -3356,3 +3356,11 @@ body {
 .docs-body { min-width: 0; overflow-x: auto; }
 .docs-body table th, .docs-body table td { min-width: 14ch; vertical-align: top; }
 @media (max-width: 700px) { .docs-index { max-height: 40vh; overflow-y: auto; } }
+
+/* Shared data-freshness labels (FreshBadge / DataFreshnessChip); text always carries the label, colour is secondary */
+.ux-chip[data-fresh="live"] { border-color: #009E73; }
+.ux-chip[data-fresh="delayed"] { border-color: #E69F00; }
+.ux-chip[data-fresh="historical"], .ux-chip[data-fresh="unavailable"] { border-color: #999999; }
+.ux-chip[data-fresh="simulated"] { border-color: #CC79A7; border-style: dashed; }
+.ux-header__left .ux-chip[data-fresh] { white-space: nowrap; font-size: 11px; }
+@media (max-width: 520px) { .ux-header__left .ux-chip[data-fresh] { display: none; } }
