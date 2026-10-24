@@ -26,6 +26,7 @@ export function TradingViewMarkets() {
   const [spec, setSpec] = useState<MarketsSpec | null>(null);
   const [typed, setTyped] = useState("");
   const [failed, setFailed] = useState(false);
+  const [active, setActive] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -58,10 +59,14 @@ export function TradingViewMarkets() {
   return (
     <section style={{ marginBottom: "18px" }}>
       <div className="clean-card" style={{ marginBottom: "12px" }}>
-        <div style={{ fontSize: "13px", fontWeight: 700, color: "#F8FAFC", marginBottom: "6px" }}>
+        <div style={{ fontSize: "15px", fontWeight: 700, color: "#F8FAFC", marginBottom: "4px" }}>
           TradingView catalog
         </div>
-        <div style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.5, marginBottom: "10px" }}>
+        <div style={{ fontSize: "13px", color: "#A8B3C4", lineHeight: 1.5, marginBottom: "10px" }}>
+          Screeners, heatmaps, calendars and news from TradingView. Pick one to load it; they never feed the model.
+        </div>
+        <details style={{ fontSize: "13px", color: "#94A3B8", lineHeight: 1.5, marginBottom: "10px" }}>
+          <summary style={{ cursor: "pointer" }}>About these widgets</summary>
           This page calls TradingView&apos;s iframe catalog: stock, crypto, and forex screeners, the three
           heatmaps, the economic calendar, forex cross rates and heat map, US hot lists, market overview,
           market quotes, a static ticker strip, and top stories. US stock widgets are delayed. Forex and
@@ -69,7 +74,7 @@ export function TradingViewMarkets() {
           the desk only when that widget documents a chart link. Seasonal Chart, World Market Summary,
           Market Summary, Economic Map, and Ticker Tag are Web Components outside the iframe registry, so
           they are not embedded. execution_permission none
-        </div>
+        </details>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -106,10 +111,19 @@ export function TradingViewMarkets() {
       {!spec && !failed ? (
         <div style={{ color: "#94A3B8", fontSize: "12px", padding: "8px 2px" }}>Loading the TradingView catalog</div>
       ) : null}
+      {spec ? (
+        <div className="seg" role="tablist" aria-label="TradingView widgets" style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" }}>
+          {spec.widgets.map((pane) => (
+            <button key={pane.id} type="button" role="tab" aria-selected={active === pane.id} className={`clean-tf-btn ${active === pane.id ? "active" : ""}`} style={{ padding: "6px 12px", fontSize: "13px" }} onClick={() => setActive(active === pane.id ? null : pane.id)}>
+              {pane.title}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {spec
-        ? spec.widgets.map((pane) => (
-            <section key={pane.id} className="clean-card" style={{ marginTop: "12px" }}>
-              <div style={{ fontSize: "11px", color: "#94A3B8", lineHeight: 1.45, marginBottom: "6px" }}>
+        ? spec.widgets.filter((pane) => pane.id === active).map((pane) => (
+            <section key={pane.id} className="clean-card" style={{ marginTop: "12px" }} role="tabpanel">
+              <div style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.45, marginBottom: "6px" }}>
                 <TvProvenance kind="tradingview" /> {pane.note} execution_permission {pane.execution_permission}
               </div>
               <TvFrame title={pane.title} src={pane.embed_url} pageUrl={pane.page_url} height={pane.height ?? 540} />
@@ -117,7 +131,7 @@ export function TradingViewMarkets() {
                 href={pane.page_url}
                 target="_blank"
                 rel="noopener nofollow"
-                style={{ display: "inline-block", marginTop: "6px", color: "#38bdf8", fontSize: "11px" }}
+                style={{ display: "inline-block", marginTop: "6px", color: "#38bdf8", fontSize: "12px" }}
               >
                 {pane.title} by TradingView
               </a>

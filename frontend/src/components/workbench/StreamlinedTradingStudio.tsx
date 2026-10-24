@@ -1662,7 +1662,7 @@ export function StreamlinedTradingStudio() {
                 marginBottom: "6px",
               }}
             >
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--c-muted)", letterSpacing: "0.05em" }}>
+              <span style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--c-muted)", letterSpacing: "0.03em" }}>
                 {catalogTotal == null
                   ? "Symbols"
                   : `Showing ${catalogListings.length.toLocaleString()} of ${catalogTotal.toLocaleString()}`}
@@ -1730,7 +1730,7 @@ export function StreamlinedTradingStudio() {
                   border: "1px solid var(--c-border)",
                   background: on ? "var(--c-accent)" : "var(--c-surface)",
                   color: on ? "var(--c-bg)" : "var(--c-muted)",
-                  fontSize: "10.5px",
+                  fontSize: "12px",
                   fontWeight: 700,
                   cursor: "pointer",
                 }}
@@ -1743,18 +1743,20 @@ export function StreamlinedTradingStudio() {
           </div>
           <AssetMarkLegend />
 
-          <div style={{ fontSize: "10.5px", color: "var(--c-muted)", lineHeight: 1.4 }}>
-            {universeCounts ? `Directory ${universeCounts.total_assets.toLocaleString()}. ` : ""}
+          <details style={{ fontSize: "12px", color: "var(--c-muted)", lineHeight: 1.45 }}>
+            <summary style={{ cursor: "pointer", fontSize: "12.5px" }}>
+              {universeCounts ? `Directory ${universeCounts.total_assets.toLocaleString()} · ` : ""}About these prices
+            </summary>
             {catalogNotice}
             {" "}
             Prices on this page are public last prints when a feed answers. Yahoo stock and futures prints can be delayed. Unlisted names stay without a quote.
-          </div>
+          </details>
 
           {/* Real-Time Ticker List */}
           <div
             ref={catalogListRef}
             onScroll={onCatalogScroll}
-            style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, minHeight: 0, overflowY: "auto" }}
+            style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minHeight: 0, maxHeight: "max(360px, calc(100vh - 300px))", overflowY: "auto" }}
           >
             {catalogListings.map((item) => {
               const isSelected = item.symbol === selectedSymbol;
@@ -1765,77 +1767,33 @@ export function StreamlinedTradingStudio() {
                   type="button"
                   onClick={() => handleSelectSymbol(item.symbol)}
                   title={`${markLabel(mark)} · ${item.name} · ${item.exchange} · VPIN ${(item.vpin * 100).toFixed(1)}% · ${item.regime}`}
-                  style={{
-                    textAlign: "left",
-                    padding: "6px 8px",
-                    borderRadius: "6px",
-                    border: isSelected ? "1px solid #00C8FF" : "1px solid transparent",
-                    background: isSelected ? "rgba(0, 200, 255, 0.1)" : "transparent",
-                    cursor: "pointer",
-                    display: "grid",
-                    gridTemplateColumns: "1fr auto auto",
-                    gap: "8px",
-                    alignItems: "center",
-                  }}
+                  className={`watch-row${isSelected ? " is-selected" : ""}`}
+                  aria-pressed={isSelected}
+                  data-asset-row={item.symbol}
                 >
-                  <span style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                  <span className="watch-row-sym">
                     <GuideIcon name={mark} color={markColor(mark)} />
-                    <span style={{ minWidth: 0 }}>
-                    <strong
-                      style={{
-                        display: "block",
-                        fontSize: "12px",
-                        color: "var(--c-text)",
-                        fontFamily: "var(--font-mono, monospace)",
-                      }}
-                    >
-                      {item.symbol}
-                    </strong>
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: "10.5px",
-                        color: "var(--c-muted)",
-                        lineHeight: 1.3,
-                        overflowWrap: "anywhere",
-                      }}
-                    >
-                      {item.name}
-                    </span>
-                    </span>
+                    <strong>{item.symbol}</strong>
                   </span>
                   {item.exchange === "UNLISTED" ? (
-                    <span style={{ gridColumn: "2 / span 2", fontSize: "11px", color: "var(--c-muted)" }}>Not listed</span>
+                    <span className="watch-row-price is-empty">Not listed</span>
                   ) : item.last_price <= 0 ? (
-                    <span style={{ gridColumn: "2 / span 2", fontSize: "11px", color: "var(--c-muted)" }}>No quote</span>
+                    <span className="watch-row-price is-empty">No quote</span>
                   ) : (
-                    <>
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          fontFamily: "var(--font-mono, monospace)",
-                          color: item.change_pct >= 0 ? "var(--c-good)" : "var(--c-bad)",
-                        }}
-                      >
-                        {(item.change_pct ?? 0) >= 0 ? "+" : ""}
-                        {(item.change_pct ?? 0).toFixed(2)}%
-                      </span>
-                      <span
-                        data-quote-price={String(item.last_price)}
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          fontFamily: "var(--font-mono, monospace)",
-                          color: "var(--c-text-2)",
-                        }}
-                      >
-                        {item.last_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                      <span style={{ gridColumn: "2 / span 2" }}>
-                        <QuoteMeta quote={itemQuote(item)} compact />
-                      </span>
-                    </>
+                    <span className="watch-row-price" data-quote-price={String(item.last_price)}>
+                      {item.last_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
                   )}
+                  <span className="watch-row-name">{item.name}</span>
+                  {item.exchange !== "UNLISTED" && item.last_price > 0 ? (
+                    <span className="watch-row-chg" style={{ color: (item.change_pct ?? 0) >= 0 ? "var(--c-good)" : "var(--c-bad)" }}>
+                      {(item.change_pct ?? 0) >= 0 ? "+" : ""}
+                      {(item.change_pct ?? 0).toFixed(2)}%
+                    </span>
+                  ) : <span />}
+                  {item.exchange !== "UNLISTED" && item.last_price > 0 ? (
+                    <span className="watch-row-meta"><QuoteMeta quote={itemQuote(item)} compact /></span>
+                  ) : null}
                 </button>
               );
             })}

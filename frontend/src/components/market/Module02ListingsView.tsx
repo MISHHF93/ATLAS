@@ -8,14 +8,14 @@ import {
   type ClientRoleId,
 } from "../../context/RoleContext";
 import { AtlasLogo } from "../shell/AtlasLogo";
-import { AssetMarkLegend, GuideIcon, markColor, markForSymbol } from "../shell/guideIcons";
+import { AssetMarkLegend, GuideIcon, markColor } from "../shell/guideIcons";
 import { type LiveCandlePoint } from "./LiveChartEngine";
 import { TradingViewStockInfo } from "./TradingViewChart";
 import { DeskChart } from "./DeskChart";
 import { TradingViewMarkets } from "./TradingViewMarkets";
 import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 import { useFeedQuotes } from "../../lib/feedQuotes";
-import { QuoteChange, QuoteMeta, QuotePrice } from "./QuoteBadge";
+import { AssetCard, AssetTable } from "./AssetCard";
 
 export interface Module02ListingPacket {
   symbol: string;
@@ -233,6 +233,8 @@ function Module02InnerWorkbench() {
   useEffect(() => {
     void pollModule02Stream();
   }, []);
+  const [catalogView, setCatalogView] = useState<"cards" | "list">("cards");
+  const [infoOpen, setInfoOpen] = useState(false);
   const [streamPaused, setStreamPaused] = useState<boolean>(false);
   const [ringBufferSize, setRingBufferSize] = useState<number>(64);
   const [killSwitchEngaged, setKillSwitchEngaged] = useState<boolean>(false);
@@ -520,6 +522,134 @@ function Module02InnerWorkbench() {
       </header>
 
       <div className="clean-main-scroll" style={{ padding: "18px 24px" }}>
+        {/* Asset catalog first: the cards are the page's main job. */}
+        <div className="asset-toolbar">
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className={`clean-tf-btn ${trackFilter === "all" ? "active" : ""}`}
+              style={{ padding: "7px 14px", fontSize: "13px" }}
+              onClick={() => setTrackFilter("all")}
+            >
+              <GuideIcon name="all" />
+              All (9)
+            </button>
+            <button
+              type="button"
+              className={`clean-tf-btn ${trackFilter === "open_market" ? "active" : ""}`}
+              style={{ padding: "7px 14px", fontSize: "13px" }}
+              onClick={() => {
+                setTrackFilter("open_market");
+                setSelectedSymbol("NVDA");
+              }}
+            >
+              <GuideIcon name="equity" color={trackFilter === "open_market" ? "#FFFFFF" : markColor("equity")} />
+              Stocks & ETFs (6)
+            </button>
+            <button
+              type="button"
+              className={`clean-tf-btn ${trackFilter === "competition" ? "active" : ""}`}
+              style={{ padding: "7px 14px", fontSize: "13px" }}
+              onClick={() => {
+                setTrackFilter("competition");
+                setSelectedSymbol("BTC-USD");
+              }}
+            >
+              <GuideIcon name="crypto" color={trackFilter === "competition" ? "#FFFFFF" : markColor("crypto")} />
+              Crypto perps (3)
+            </button>
+          </div>
+          <div className="seg" role="group" aria-label="Catalog view">
+            <button type="button" className={`clean-tf-btn ${catalogView === "cards" ? "active" : ""}`} aria-pressed={catalogView === "cards"} style={{ padding: "7px 12px", fontSize: "13px" }} onClick={() => setCatalogView("cards")}>Cards</button>
+            <button type="button" className={`clean-tf-btn ${catalogView === "list" ? "active" : ""}`} aria-pressed={catalogView === "list"} style={{ padding: "7px 12px", fontSize: "13px" }} onClick={() => setCatalogView("list")}>List</button>
+          </div>
+        </div>
+
+        {catalogView === "cards" ? (
+          <div className="asset-grid">
+            {filteredListings.map((item) => (
+              <AssetCard
+                key={item.symbol}
+                symbol={item.symbol}
+                name={item.name.replace(/ \(SEC CIK \d+\)$/, "")}
+                kind={item.track === "open_market" ? "Stock / ETF" : "Crypto perp"}
+                venue={item.venue}
+                quote={feedQuotes[item.symbol]}
+                selected={item.symbol === selectedSymbol}
+                onSelect={() => setSelectedSymbol(item.symbol)}
+                details={[
+                  { label: "Regime", value: item.regime, tone: "info" },
+                  { label: "Rolling VPIN", value: `${(item.vpin * 100).toFixed(1)}%`, tone: item.vpin > 0.4 ? "warn" : "up" },
+                  { label: "Top-5 L2 OFI", value: `${item.ofi >= 0 ? "+" : ""}${item.ofi.toFixed(3)}`, tone: item.ofi >= 0 ? "up" : "down" },
+                  { label: "Kyle's λ", value: item.kylesLambda.toFixed(4), tone: "info" },
+                  { label: "ATR stop", value: item.vpin > 0.35 ? "1.5× widened" : "Armed", tone: "info" },
+                ]}
+                footnote={`Microstructure figures are from the ${feedNote.split(" · ")[0] || "fixture"} snapshot, not the quote feed. execution_permission none`}
+              />
+            ))}
+          </div>
+        ) : (
+          <AssetTable
+            rows={filteredListings.map((i) => ({ symbol: i.symbol, name: i.name.replace(/ \(SEC CIK \d+\)$/, ""), kind: i.track === "open_market" ? "Stock / ETF" : "Crypto perp" }))}
+            quotes={feedQuotes}
+            selected={selectedSymbol}
+            onSelect={setSelectedSymbol}
+          />
+        )}
+
+        <div className="clean-card selected-market-viewer">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
+            <strong>{activeListing.symbol} - chart and model inputs</strong>
+            {(["1s", "1m", "5m", "15m", "1h", "1D"] as const).map(interval => <button key={interval} type="button" className={`clean-tf-btn${chartTimeframe === interval ? " is-active" : ""}`} aria-pressed={chartTimeframe === interval} onClick={() => setChartTimeframe(interval)}>{interval === "1s" ? "Real time" : interval}</button>)}
+          </div>
+          <DeskChart symbol={activeListing.symbol} modelSymbol={activeListing.symbol} timeframe={chartTimeframe} frameClassName="desk-chart-frame" onOpenMinute={() => setChartTimeframe("1m")} />
+        </div>
+
+
+        {/* Real-Time Remaining-Room HUD (Task C & Task D.2) */}
+        <div className="clean-kpi-row" style={{ marginBottom: "16px" }}>
+          <div className="clean-kpi-card">
+            <span className="clean-kpi-label">Mark-to-Market Open Equity</span>
+            <span className="clean-kpi-value">${remainingRoomHud.currentEquityUsd.toLocaleString()}</span>
+            <span className="clean-kpi-sub" style={{ color: "#00F29D" }}>
+              SOD ${remainingRoomHud.startOfDayUsd.toLocaleString()} · reference ${remainingRoomHud.referenceUsd.toLocaleString()}
+            </span>
+          </div>
+          <div className="clean-kpi-card">
+            <span className="clean-kpi-label">Daily Loss Cushion ({remainingRoomHud.dailyLossLimitPct.toFixed(1)}%)</span>
+            <span className="clean-kpi-value" style={{ color: "#00F29D" }}>
+              ${remainingRoomHud.dailyLossRoomUsd.toLocaleString()}
+            </span>
+            <span className="clean-kpi-sub">
+              {remainingRoomHud.dailyLossRoomPct.toFixed(2)}% buffer remaining before auto-flatten
+            </span>
+          </div>
+          <div className="clean-kpi-card">
+            <span className="clean-kpi-label">
+              {remainingRoomHud.drawdownMode === "static" ? "Static" : "Trailing"} Drawdown Cushion ({remainingRoomHud.drawdownLimitPct.toFixed(1)}%)
+            </span>
+            <span className="clean-kpi-value" style={{ color: "#00C8FF" }}>
+              ${remainingRoomHud.trailingDdRoomUsd.toLocaleString()}
+            </span>
+            <span className="clean-kpi-sub">
+              {remainingRoomHud.trailingDdRoomPct.toFixed(2)}% buffer remaining above ${remainingRoomHud.trailingFloorUsd.toLocaleString()} floor
+            </span>
+          </div>
+          <div className="clean-kpi-card">
+            <span className="clean-kpi-label">500ms Feed Freshness Breaker</span>
+            <span className="clean-kpi-value" style={{ color: "#00F29D" }}>
+              {activeListing.latencyMs.toFixed(1)}ms
+            </span>
+            <span className="clean-kpi-sub">
+              Competition freshness gate 500ms · fixture venue label {activeListing.provider}
+            </span>
+          </div>
+        </div>
+
+
+        <details className="ux-collapse">
+          <summary>Desk context<span className="ux-collapse-hint">role, feed origin, ring buffer</span></summary>
+          <div className="ux-collapse-body">
         {/* RBAC Client Segment Selector Strip (Section 2) */}
         <div className="clean-card" style={{ marginBottom: "16px", padding: "14px 18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
@@ -574,288 +704,16 @@ function Module02InnerWorkbench() {
           </div>
         </div>
 
-        {/* Real-Time Remaining-Room HUD (Task C & Task D.2) */}
-        <div className="clean-kpi-row" style={{ marginBottom: "16px" }}>
-          <div className="clean-kpi-card">
-            <span className="clean-kpi-label">Mark-to-Market Open Equity</span>
-            <span className="clean-kpi-value">${remainingRoomHud.currentEquityUsd.toLocaleString()}</span>
-            <span className="clean-kpi-sub" style={{ color: "#00F29D" }}>
-              SOD ${remainingRoomHud.startOfDayUsd.toLocaleString()} · reference ${remainingRoomHud.referenceUsd.toLocaleString()}
-            </span>
+          <AssetMarkLegend />
           </div>
-          <div className="clean-kpi-card">
-            <span className="clean-kpi-label">Daily Loss Cushion ({remainingRoomHud.dailyLossLimitPct.toFixed(1)}%)</span>
-            <span className="clean-kpi-value" style={{ color: "#00F29D" }}>
-              ${remainingRoomHud.dailyLossRoomUsd.toLocaleString()}
-            </span>
-            <span className="clean-kpi-sub">
-              {remainingRoomHud.dailyLossRoomPct.toFixed(2)}% buffer remaining before auto-flatten
-            </span>
-          </div>
-          <div className="clean-kpi-card">
-            <span className="clean-kpi-label">
-              {remainingRoomHud.drawdownMode === "static" ? "Static" : "Trailing"} Drawdown Cushion ({remainingRoomHud.drawdownLimitPct.toFixed(1)}%)
-            </span>
-            <span className="clean-kpi-value" style={{ color: "#00C8FF" }}>
-              ${remainingRoomHud.trailingDdRoomUsd.toLocaleString()}
-            </span>
-            <span className="clean-kpi-sub">
-              {remainingRoomHud.trailingDdRoomPct.toFixed(2)}% buffer remaining above ${remainingRoomHud.trailingFloorUsd.toLocaleString()} floor
-            </span>
-          </div>
-          <div className="clean-kpi-card">
-            <span className="clean-kpi-label">500ms Feed Freshness Breaker</span>
-            <span className="clean-kpi-value" style={{ color: "#00F29D" }}>
-              {activeListing.latencyMs.toFixed(1)}ms
-            </span>
-            <span className="clean-kpi-sub">
-              Competition freshness gate 500ms · fixture venue label {activeListing.provider}
-            </span>
-          </div>
-        </div>
+        </details>
 
-        <div className="clean-card selected-market-viewer">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
-            <strong>{activeListing.symbol} - chart and model inputs</strong>
-            {(["1s", "1m", "5m", "15m", "1h", "1D"] as const).map(interval => <button key={interval} type="button" className={`clean-tf-btn${chartTimeframe === interval ? " is-active" : ""}`} aria-pressed={chartTimeframe === interval} onClick={() => setChartTimeframe(interval)}>{interval === "1s" ? "Real time" : interval}</button>)}
-          </div>
-          <DeskChart symbol={activeListing.symbol} modelSymbol={activeListing.symbol} timeframe={chartTimeframe} frameClassName="desk-chart-frame" onOpenMinute={() => setChartTimeframe("1m")} />
-        </div>
-
-        <TradingViewStockInfo symbol={activeListing.symbol} timeframe={chartTimeframe} />
+        <details className="ux-collapse" onToggle={(e) => setInfoOpen((e.currentTarget as HTMLDetailsElement).open)}>
+          <summary>{activeListing.symbol} profile<span className="ux-collapse-hint">TradingView symbol info (loads when opened)</span></summary>
+          <div className="ux-collapse-body">{infoOpen ? <TradingViewStockInfo symbol={activeListing.symbol} timeframe={chartTimeframe} /> : null}</div>
+        </details>
 
         <TradingViewMarkets />
-
-        {/* Dual-Track Filter Bar & Stream Controls (Task D.1) */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "10px",
-            marginBottom: "14px",
-          }}
-        >
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className={`clean-tf-btn ${trackFilter === "all" ? "active" : ""}`}
-              style={{ padding: "7px 14px", fontSize: "12.5px" }}
-              onClick={() => setTrackFilter("all")}
-            >
-              <GuideIcon name="all" />
-              All Dual-Track Listings (9)
-            </button>
-            <button
-              type="button"
-              className={`clean-tf-btn ${trackFilter === "open_market" ? "active" : ""}`}
-              style={{ padding: "7px 14px", fontSize: "12.5px" }}
-              onClick={() => {
-                setTrackFilter("open_market");
-                setSelectedSymbol("NVDA");
-              }}
-            >
-              <GuideIcon name="equity" color={trackFilter === "open_market" ? "#FFFFFF" : markColor("equity")} />
-              Open-Market Equities · NYSE/SIP (6)
-            </button>
-            <button
-              type="button"
-              className={`clean-tf-btn ${trackFilter === "competition" ? "active" : ""}`}
-              style={{ padding: "7px 14px", fontSize: "12.5px" }}
-              onClick={() => {
-                setTrackFilter("competition");
-                setSelectedSymbol("BTC-USD");
-              }}
-            >
-              <GuideIcon name="crypto" color={trackFilter === "competition" ? "#FFFFFF" : markColor("crypto")} />
-              Prop Competition Crypto Perps · 24/7 (3)
-            </button>
-          </div>
-          <AssetMarkLegend />
-
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <span className="badge badge-emerald">⚡ ZERO-TOUCH STREAMING ACTIVE (2.5s)</span>
-          </div>
-        </div>
-
-        {/* Real-Time Ticker Cards Grid with Green/Red Flash & Live VPIN/OFI/Kyle's Lambda Badges */}
-        <div className="clean-grid-3" style={{ marginBottom: "18px" }}>
-          {filteredListings.map((item) => {
-            const isSelected = item.symbol === selectedSymbol;
-            const flashBorder =
-              item.flash === "up"
-                ? "rgba(0, 242, 157, 0.45)"
-                : item.flash === "down"
-                ? "rgba(255, 59, 105, 0.45)"
-                : "rgba(255, 255, 255, 0.08)";
-            return (
-              <div
-                key={item.symbol}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedSymbol(item.symbol)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") setSelectedSymbol(item.symbol);
-                }}
-                className="clean-card"
-                style={{
-                  cursor: "pointer",
-                  padding: "14px 16px",
-                  borderColor: isSelected ? "#00C8FF" : flashBorder,
-                  background:
-                    item.flash === "up"
-                      ? "linear-gradient(135deg, rgba(0, 242, 157, 0.07) 0%, #121722 65%)"
-                      : item.flash === "down"
-                      ? "linear-gradient(135deg, rgba(255, 59, 105, 0.07) 0%, #121722 65%)"
-                      : "#121722",
-                  transition: "all 0.25s ease",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <GuideIcon name={markForSymbol(item.symbol)} color={markColor(markForSymbol(item.symbol))} />
-                      <strong
-                        style={{
-                          fontSize: "16px",
-                          color: "#F8FAFC",
-                          fontFamily: "var(--font-mono)",
-                        }}
-                      >
-                        {item.symbol}
-                      </strong>
-                      <span
-                        className={`badge ${
-                          item.track === "open_market" ? "badge-blue" : "badge-emerald"
-                        }`}
-                      >
-                        {item.track === "open_market" ? "OPEN-MARKET" : "PROP PERP"}
-                      </span>
-                      <span className="clean-meta-tag" style={{ fontSize: "10px" }}>
-                        {item.regime}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: "11.5px", color: "#94A3B8", marginTop: "3px" }}>
-                      {item.name} · {item.venue}
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: "right", fontFamily: "var(--font-mono)" }}>
-                    <div
-                      style={{
-                        fontSize: "17px",
-                        fontWeight: 800,
-                        color: item.flash === "up" ? "#00F29D" : item.flash === "down" ? "#FF3B69" : "#F8FAFC",
-                      }}
-                    >
-                      <QuotePrice quote={feedQuotes[item.symbol]} />
-                    </div>
-                    <div style={{ fontSize: "11.5px" }}>
-                      <QuoteChange quote={feedQuotes[item.symbol]} />
-                    </div>
-                    <QuoteMeta quote={feedQuotes[item.symbol]} />
-                  </div>
-                </div>
-
-                {/* Live VPIN, Multi-Level OFI, and Kyle's Lambda Gauge Badges */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
-                    gap: "6px",
-                    marginTop: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      background: "#070A0F",
-                      padding: "6px 8px",
-                      borderRadius: "6px",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                    }}
-                  >
-                    <div style={{ fontSize: "10px", color: "#64748B" }}>ROLLING VPIN</div>
-                    <div
-                      className="mono-cell"
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        color: item.vpin > 0.4 ? "#F59E0B" : "#00F29D",
-                      }}
-                    >
-                      {(item.vpin * 100).toFixed(1)}%
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      background: "#070A0F",
-                      padding: "6px 8px",
-                      borderRadius: "6px",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                    }}
-                  >
-                    <div style={{ fontSize: "10px", color: "#64748B" }}>TOP-5 L2 OFI</div>
-                    <div
-                      className="mono-cell"
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        color: item.ofi >= 0 ? "#00F29D" : "#FF3B69",
-                      }}
-                    >
-                      {item.ofi >= 0 ? "+" : ""}
-                      {item.ofi.toFixed(3)}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      background: "#070A0F",
-                      padding: "6px 8px",
-                      borderRadius: "6px",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                    }}
-                  >
-                    <div style={{ fontSize: "10px", color: "#64748B" }}>KYLE&apos;S λ IMPACT</div>
-                    <div className="mono-cell" style={{ fontSize: "12px", fontWeight: 700, color: "#00C8FF" }}>
-                      {item.kylesLambda.toFixed(4)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Autonomous Whale Policy Signal & Control Plane Bracket Strip */}
-                <div
-                  style={{
-                    marginTop: "8px",
-                    paddingTop: "8px",
-                    borderTop: "1px solid rgba(255,255,255,0.06)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    fontSize: "11px",
-                  }}
-                >
-                  <span
-                    className="mono-cell"
-                    style={{
-                      fontWeight: 700,
-                      color: item.ofi >= 0 ? "#00F29D" : "#FF3B69",
-                    }}
-                  >
-                    {item.ofi >= 0 ? "Buy imbalance" : "Sell imbalance"} · OFI {item.ofi.toFixed(2)} · fixture
-                  </span>
-                  <span className="mono-cell" style={{ color: "#94A3B8" }}>
-                    ATR Stop {item.vpin > 0.35 ? "1.5× Widened" : "Armed"} · perm: none
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-
       </div>
     </div>
   );
