@@ -70,7 +70,8 @@ class SetupAutopilot:
                  audit_db: str = ":memory:", safe_stop: Any = None, shadow: ShadowCollector | None = None,
                  registry: Any = None, model_version: str | None = None, cost_bps: float = 10.0,
                  starting_equity_usd: Decimal = Decimal("100000"), founder_config_dir: str | None = None,
-                 expected_owner: str = "owner", clock: Callable[[], float] = time.time):
+                 expected_owner: str = "owner", clock: Callable[[], float] = time.time,
+                 engine_cfgs: dict | None = None, replay_cfg: ReplayConfig | None = None):
         from atlas.control.engine import ActionableControlPlaneEngine
         from atlas.control.founder_track import build_founder_rulebook
         from atlas.risk.safe_stop import new_safe_stop
@@ -80,7 +81,7 @@ class SetupAutopilot:
         self.safe_stop = safe_stop if safe_stop is not None else new_safe_stop()
         self.shadow = shadow
         self.registry, self.model_version, self.expected_owner = registry, model_version, expected_owner
-        self.rcfg = ReplayConfig(cost_bps=cost_bps)
+        self.rcfg = replay_cfg or ReplayConfig(cost_bps=cost_bps)
         self.rulebook = build_founder_rulebook(founder_config_dir)
         cp = ActionableControlPlaneEngine(safe_stop=self.safe_stop)
         # A clean paper account under the founder rulebook (the engine's demo book is not used here).
@@ -91,7 +92,8 @@ class SetupAutopilot:
         cp.best_day_profit_usd = cp.total_cumulative_profit_usd = Decimal("0")
         cp.completed_trading_days, cp.open_positions = 0, []
         self.cp, self.connector = cp, PaperConnector()
-        self.engines = {s: PriceActionEngine(s.symbol, s.timeframe, EngineConfig(session=PRESETS.get(s.session) if s.session else None))
+        self.engines = {s: PriceActionEngine(s.symbol, s.timeframe, (engine_cfgs or {}).get(s) or
+                                             EngineConfig(session=PRESETS.get(s.session) if s.session else None))
                         for s in self.streams}
         self.waiting: list[tuple[ReplayTrade, int, dict]] = []   # (trade, age, ctx)
         self.live: list[tuple[ReplayTrade, int, dict]] = []
@@ -178,6 +180,8 @@ class SetupAutopilot:
             fee = (ctx["notional"] * Decimal(str(self.rcfg.cost_bps)) * Decimal("0.0001")).quantize(Decimal("0.01"))
             res = self.cp.close_position(ctx["position_id"], exit_price=price, fee_usd=fee, reason=reason, now=ts)
             self.audit.append("setup_autopilot.paper_exit", {"candidate_id": t.candidate_id, "reason": reason,
+                                                             "correlation_id": ctx.get("correlation_id"),
+                                                             "r_multiple": t.r_multiple, "exit_at": t.exit_at,
                                                              "exit_price": price, "result": res.get("status")}, actor="setup_autopilot")
 
     def _resolve(self, t: ReplayTrade, ctx: dict, ts: datetime) -> None:
