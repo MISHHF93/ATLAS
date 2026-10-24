@@ -30,7 +30,7 @@ from atlas.features.price_action.bars import Bar
 from atlas.features.price_action.calendar import TradingCalendar
 from atlas.features.price_action.detectors import Candidate, Transition
 from atlas.features.price_action.htf import DailyBias, FourHour
-from atlas.features.price_action.levels import (PRIORITY, InteractionConfig, LevelEvent, LevelInteractionEngine,
+from atlas.features.price_action.levels import (PRIORITY, priority_of, InteractionConfig, LevelEvent, LevelInteractionEngine,
                                                 LiquidityLevelRegistry, PriceLevel, RegistryConfig)
 from atlas.features.price_action.reentry import ReentryConfig, ReentryGovernor
 from atlas.features.price_action.zones import Zone
@@ -173,7 +173,7 @@ class LevelSuiteDetector:
         f = {"setup_type": setup, "event_id": event_id, "reward_risk": reward / risk, "net_reward_risk": net_rr,
              "risk_price": risk, "cost_price": c, "cost_r": c / risk, "htf_bias": h["bias"],
              "htf_aligned": float(hb == (1 if direction == "long" else -1)), "htf_against": float(hb == (-1 if direction == "long" else 1)),
-             "level_source": level.source_type, "level_priority": PRIORITY.get(level.source_type, 0),
+             "level_source": level.source_type, "level_priority": priority_of(level.source_type),
              "level_age_h": level.age(at) / 3600.0, "level_touches": level.touch_count,
              "reference_levels": [level.to_dict()], "explanation": expl,
              "invalidation_rule": "stop touch (gap-through exits at open); stop-first on ambiguous bars",
@@ -292,7 +292,7 @@ class LevelSuiteDetector:
                 continue
             by_dir.setdefault(ev.side, []).append(ev)
         for s, group in by_dir.items():
-            group.sort(key=lambda e: (-PRIORITY.get(self._level(e.level_id).source_type, 0), e.level_id))
+            group.sort(key=lambda e: (-priority_of(self._level(e.level_id).source_type), e.level_id))
             ev = group[0]
             p = {"ev": ev, "level": self._level(ev.level_id), "s": s, "bars": 0, "confluence": len(group),
                  "reclaim_bar": bar, "others": [g.level_id for g in group[1:]]}

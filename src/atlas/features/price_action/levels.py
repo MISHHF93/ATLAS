@@ -44,7 +44,11 @@ EVENT_KINDS = ("approach", "touch", "rejection", "breakout_attempt", "sweep", "r
                "breakout_failure", "retest_success", "retest_failure", "consolidation", "expiration")
 # priority for dedupe when one bar sweeps several levels (higher = more significant)
 PRIORITY = {"prev_month": 9, "prev_week": 8, "prev_day": 7, "ny_session": 6, "london_session": 6, "asia_session": 5,
-            "equal": 4, "box": 4, "round": 3, "swing": 3}
+            "equal": 4, "box": 4, "round": 3, "swing": 3, "vwap": 3, "ma": 2}
+# dynamic source types are "ma<N>" (e.g. ma20) and "vwap"; look up with priority_of()
+def priority_of(source_type: str) -> int:
+    return PRIORITY.get("ma" if source_type.startswith("ma") and source_type[2:].isdigit() else source_type, 1)
+
 
 ASIA = SessionSpec("asia", "Asia/Tokyo", time(9, 0), time(15, 0), weekdays=(0, 1, 2, 3, 4, 5, 6))
 LONDON = SessionSpec("london", "Europe/London", time(8, 0), time(16, 30), weekdays=(0, 1, 2, 3, 4, 5, 6))
@@ -236,6 +240,8 @@ class RegistryConfig:
     round_step: float | None = None   # psychological round-number levels (e.g. 50.0 for GC); None = off
     round_max_age: int = 7 * 86400
     confluence_atr: float = 0.15      # levels within this many ATR are linked in confluence_ids
+    ma_periods: tuple[int, ...] = ()  # dynamic EMA levels over completed closes (shared indicators.EMA), e.g. (20, 50); () = off
+    session_vwap: bool = False        # dynamic session VWAP level (resets each trading session; needs bar volume > 0)
 
 
 class LiquidityLevelRegistry:
@@ -251,6 +257,9 @@ class LiquidityLevelRegistry:
         self._swings: list[tuple[int, PriceLevel]] = []
         self._n = 0
         self.daily_closes: list[tuple[int, float]] = []   # (available_ts, close) of completed trading days
+        from .indicators import EMA, BarVWAP   # reuse the shared causal indicators; no second implementation
+        self._ema = {n: EMA(n) for n in self.cfg.ma_periods}
+        self._vwap = BarVWAP()
 
     def _mk(self, st: str, kind: str, price: float, created: int, avail: int, sid: str, prov: dict, expires=None) -> PriceLevel:
         lv = PriceLevel(f"{self.instrument}:{st}:{kind}:{created}", self.instrument, self.venue, st, kind, price, created, avail,
@@ -341,6 +350,7 @@ class LiquidityLevelRegistry:
                     self._swings.append((self._n, lv))
             self._swings = self._swings[-200:]
         new += self._round_levels(bar)
+        new += self._dynamic_levels(bar)
         self._link_confluence(new, bar.end, atr)
         return new
 
@@ -362,6 +372,32 @@ class LiquidityLevelRegistry:
                           expires=bar.end + self.cfg.round_max_age)
             self.current[key] = lv
             out.append(lv)
+        return out
+
+    def _reissue(self, st: str, px: float, bar: Bar, prov: dict) -> PriceLevel:
+        """Dynamic level: one live object per source_type, re-issued at each completed bar and expiring at the next."""
+        cur = self.current.get(f"{st}:dyn")
+        if cur is not None and (cur.expires_ts is None or cur.expires_ts > bar.end):
+            cur.expires_ts = bar.end
+        kind = "high" if px > bar.close else "low"     # resistance above / support below the close it was computed on
+        lv = self._mk(st, kind, float(px), bar.start, bar.end, f"{st}:{bar.end}", prov, expires=bar.end + self.tf)
+        self.current[f"{st}:dyn"] = lv
+        return lv
+
+    def _dynamic_levels(self, bar: Bar) -> list[PriceLevel]:
+        """MA and session-VWAP zone types from completed bars only (causal: available at the bar's end, valid one bar)."""
+        out: list[PriceLevel] = []
+        for n, ema in self._ema.items():
+            px = ema.update(bar.close)
+            if px is not None:
+                out.append(self._reissue(f"ma{n}", px, bar, {"method": "ema_close", "period": n}))
+        if self.cfg.session_vwap:
+            s = self.cal.session_of(bar.start)
+            if s is not None:
+                px = self._vwap.update(bar.high, bar.low, bar.close, float(bar.volume or 0.0), s[0])
+                if px is not None:       # None until the session has volume: never a fabricated VWAP
+                    out.append(self._reissue("vwap", px, bar, {"method": type(self._vwap).label, "session": s[0].isoformat(),
+                                                               "volume": self._vwap.v}))
         return out
 
     def _link_confluence(self, new: list[PriceLevel], now: int, atr: float | None) -> None:
