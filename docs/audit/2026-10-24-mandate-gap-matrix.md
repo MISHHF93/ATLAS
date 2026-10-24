@@ -60,3 +60,4 @@ so "existing" means "found", not "audited".
 | Legacy pathname map in InstitutionalWorkspacesView | Removed (it overrode tab views on hub paths) |
 | Re-verified rows: §8 confluence/provenance exist; §34–35 correlation IDs exist | Matrix corrected |
 | Closed in evo3: §13 cumulative-loss cap, §6 single contract source, §25 realism in PA replay paths. Pass 10 closed: multiplier duplicates (universe/instruments), control-plane partial close, backtester realism, snapback runnable. Still open: §22 macro data (feed `observations` table is empty) | Partly done |
+| ext-1 | Seven-repo extensions (options/VaR/DCF/EDGAR/scan/Pine/dossier/personas/agents/Alpaca paper/alerts/MCP) | built (research/paper only) | `src/atlas/ext/`, `/api/ext/*`; see `2026-10-24-seven-repo-gap.md`. Blocked: option chains, news, maritime. Yield curve deferred to evo-5. |

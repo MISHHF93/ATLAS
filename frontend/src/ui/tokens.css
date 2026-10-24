@@ -498,3 +498,7 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 @media (max-width: 860px) { .ux-curtain__hint { display: none; } }
 .docs-index, .docs-body { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 860px) { .docs-shell { grid-template-columns: minmax(0, 1fr); padding: 12px; } }
+/* ext-1 forms and code blocks */
+.ux-form-grid { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-bottom: var(--s-3); }
+.ux-form-grid .ux-form-row { margin-bottom: 0; }
+.ux-pre { font: 12px/1.45 var(--font-mono); background: var(--c-surface-3); color: var(--c-text-2); padding: var(--s-3); border-radius: 6px; max-height: 260px; overflow: auto; white-space: pre; }

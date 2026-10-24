@@ -29,3 +29,10 @@
 - `atlas.intel`: research lab (DSR, PBO, bootstrap, cost sensitivity, reproducible report IDs), causal regimes + strategy-by-regime, portfolio exposure/correlation/VaR/CVaR/stress, track rulebook diff + enforcement probes, grounded evidence-ID assistant (LLM never used), market memory/attribution/governance view, microstructure tier gating, Four-Box scan. `/api/intel/*`.
 - UI: `/research/lab` hub (6 tabs) and Risk tabs Portfolio risk / Track rules, with freshness chips.
 - Exchange holidays via `exchange_calendars` (COMEX/CMES) for futures last-trade/roll dates.
+
+## atlas-ext-1 (2026-10-24, unmerged, not pushed)
+- Seven-repo gap audit: `docs/audit/2026-10-24-seven-repo-gap.md`.
+- `atlas.ext`: Black-Scholes greeks/IV, parametric/historical/component VaR+ES, DCF (FCFF/FCFE), SEC EDGAR point-in-time fundamentals, VWAP/volume profile/S-R/scan, Pine v5 export, conviction dossier, rule-based investor personas, a deterministic analyst-debate-trader-risk-PM pipeline (never submits), an Alpaca PAPER broker (live refused, control plane first), alerts (off by default), and a read-only MCP tool server (`scripts/atlas_mcp_stdio.py`). `/api/ext/*`.
+- Control plane: `preview_order` (no booking) shares `_evaluate_request` with `submit_order`. Rules are unchanged.
+- UI tabs: Research Lab gets Valuation / Dossier & agents / Options; Research gets Scan & Pine; Settings gets Broker & alerts.
+- Blocked: live option chains, news/sentiment, maritime. Deferred to evo-5: yield curve/macro.

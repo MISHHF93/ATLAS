@@ -83,6 +83,10 @@ def report(feed, positions: list[dict[str, Any]], universe: list[str]) -> dict[s
         unpriced = [s for s in signed if not rets[s]]
         book = {"status": "ok" if not unpriced else "partial", "unpriced_positions": unpriced, "n_days": len(pnl), "var95_usd": v95 and round(v95["var"], 2), "cvar95_usd": v95 and round(v95["cvar"], 2),
                 "var99_usd": v99 and round(v99["var"], 2), "stress": stress}
+        from atlas.ext.var import parametric_var   # normal (variance-covariance) VaR on the same daily book P&L
+        p95, p99 = parametric_var(pnl, 0.95), parametric_var(pnl, 0.99)
+        book.update({"param_var95_usd": p95 and round(p95["var"], 2), "param_cvar95_usd": p95 and round(p95["cvar"], 2),
+                     "param_var99_usd": p99 and round(p99["var"], 2), "cvar99_usd": v99 and round(v99["cvar"], 2)})
     return {"positions": pos, "exposure": {"gross_usd": gross, "net_usd": sum(signed.values()), "by_symbol": signed, "by_class": by_class},
             "per_instrument": per, "correlation": correlation(rets), "book": book, "execution_permission": "none",
             "note": "historical simulation on feed daily closes; per-$10k figures are unit risk, not a position"}

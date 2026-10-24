@@ -116,6 +116,7 @@ export const PAGES: AtlasPage[] = [
         summary: "Prior-day, session and swing levels, sweeps and reclaims, gold opening boxes, and the strategy switches. Research only." },
       { id: "forecasts", label: "Forecast ledger", workspaceRoute: "/research/prediction-ledger", aliases: ["/research/prediction-ledger"],
         summary: "Every recorded forecast, the data it used, and how it turned out." },
+      { id: "scan", label: "Scan & Pine", summary: "Watchlist pivot/Fibonacci/zone crossings, VWAP and volume profile, and Pine v5 export with ATLAS replay statistics. Research only." },
     ],
   },
   {
@@ -139,6 +140,9 @@ export const PAGES: AtlasPage[] = [
       { id: "memory", label: "Memory & governance", summary: "Where replay results came from, the closest past setups, and the model registry's promotion state." },
       { id: "assistant", label: "Assistant", summary: "Ask a question; answers are quoted from docs and lab reports with evidence IDs." },
       { id: "evolution", label: "Model evolution", summary: "Generations of candidate models and bar types scored on the same walk-forward folds. Nothing is promoted to trading." },
+      { id: "valuation", label: "Valuation", summary: "DCF (FCFF/FCFE), SEC filed fundamentals and investor-persona scores with a capped weight matrix. Research only." },
+      { id: "agents", label: "Dossier & agents", summary: "Deterministic conviction 1–100 with named rules, entry/stop/target from levels, and the analyst-debate-trader-risk pipeline. Never submits." },
+      { id: "options", label: "Options", summary: "Black-Scholes price, greeks and implied volatility. Live chains are unavailable without a licensed provider." },
     ],
   },
   {
@@ -170,6 +174,7 @@ export const PAGES: AtlasPage[] = [
         summary: "Create read or research keys for agents, see each once, revoke any time. No key can trade live or move money." },
       { id: "connectors", label: "Connectors", workspaceRoute: "/data/pipelines", aliases: ["/data/pipelines", "/connectors", "/integrations", "/sync"],
         summary: "Data connector records. A test writes an audit line and does not open a vendor connection." },
+      { id: "broker", label: "Broker & alerts", summary: "Alpaca paper status (live refused), alert channels (off by default) and the read-only agent tool list." },
     ],
   },
   {

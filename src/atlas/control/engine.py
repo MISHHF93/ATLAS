@@ -275,6 +275,51 @@ class ActionableControlPlaneEngine:
             audit_log=tuple(self.audit_log[-20:]),
         )
 
+    def _evaluate_request(self, request: ActionableOrderRequest, ts: datetime,
+                          intake_violations: tuple[str, ...] = ()) -> RuleEvaluationReport:
+        """The one validation path shared by submit_order and preview_order (no state is changed here)."""
+        prev_track = self.active_track
+        self.active_track = request.track          # snapshot source label only
+        try:
+            rulebook = self._rulebook_for(request.track)
+            snap = self._snapshot(ts)
+            cand = ProposedTradeCheck(
+                instrument_id=request.instrument_id,
+                notional_usd=request.notional_usd,
+                stop_kind=request.stop_kind,
+                stop_distance_bps=request.stop_distance_bps,
+                holding_horizon_seconds=request.holding_horizon_seconds,
+                current_holding_seconds=0,
+                session_state="continuous_24_7" if request.track == "competition" else "regular_open",
+                data_quality="verified",
+                data_age_seconds=25.0,
+                license_verified=True,
+                correlated_group_add_usd=(request.notional_usd * Decimal("0.25")).quantize(Decimal("0.01")),
+                sector_add_usd=(request.notional_usd * Decimal("0.25")).quantize(Decimal("0.01")),
+                vpin_toxicity=request.vpin_toxicity,
+            )
+            eval_rep = evaluate_trading_rules(rulebook, snap, cand, evaluated_at=ts)
+            extra_violations = list(eval_rep.violations) + list(intake_violations)
+            if request.track == "open_market" and request.data_age_ms > 2000.0:
+                extra_violations.append("data_stale_open_market_2000ms")
+            if request.track == "competition" and float(request.data_age_ms) > 500.0:
+                extra_violations.append("data_stale_competition_500ms: market data staleness exceeds 500ms")
+            if extra_violations != list(eval_rep.violations):
+                eval_rep = eval_rep.model_copy(
+                    update={
+                        "compliance_passed": False,
+                        "violations": tuple(extra_violations),
+                    }
+                )
+            return eval_rep
+        finally:
+            self.active_track = prev_track
+
+    def preview_order(self, request: ActionableOrderRequest, *, now: datetime | None = None,
+                      intake_violations: tuple[str, ...] = ()) -> RuleEvaluationReport:
+        """Dry run: the exact rules submit_order applies, without booking a position or consuming an order id."""
+        return self._evaluate_request(request, now or datetime.now(timezone.utc), intake_violations)
+
     def submit_order(
         self,
         request: ActionableOrderRequest,
@@ -284,36 +329,8 @@ class ActionableControlPlaneEngine:
     ) -> ActionableOrderDecision:
         ts = now or datetime.now(timezone.utc)
         self.active_track = request.track
-        rulebook = self._rulebook_for(request.track)
-        snap = self._snapshot(ts)
-        cand = ProposedTradeCheck(
-            instrument_id=request.instrument_id,
-            notional_usd=request.notional_usd,
-            stop_kind=request.stop_kind,
-            stop_distance_bps=request.stop_distance_bps,
-            holding_horizon_seconds=request.holding_horizon_seconds,
-            current_holding_seconds=0,
-            session_state="continuous_24_7" if request.track == "competition" else "regular_open",
-            data_quality="verified",
-            data_age_seconds=25.0,
-            license_verified=True,
-            correlated_group_add_usd=(request.notional_usd * Decimal("0.25")).quantize(Decimal("0.01")),
-            sector_add_usd=(request.notional_usd * Decimal("0.25")).quantize(Decimal("0.01")),
-            vpin_toxicity=request.vpin_toxicity,
-        )
-        eval_rep = evaluate_trading_rules(rulebook, snap, cand, evaluated_at=ts)
-        extra_violations = list(eval_rep.violations) + list(intake_violations)
-        if request.track == "open_market" and request.data_age_ms > 2000.0:
-            extra_violations.append("data_stale_open_market_2000ms")
-        if request.track == "competition" and float(request.data_age_ms) > 500.0:
-            extra_violations.append("data_stale_competition_500ms: market data staleness exceeds 500ms")
-        if extra_violations != list(eval_rep.violations):
-            eval_rep = eval_rep.model_copy(
-                update={
-                    "compliance_passed": False,
-                    "violations": tuple(extra_violations),
-                }
-            )
+        eval_rep = self._evaluate_request(request, ts, intake_violations)
+        exposure_add = (request.notional_usd * Decimal("0.25")).quantize(Decimal("0.01"))  # == candidate group/sector add
         self._order_seq += 1
         order_id = f"ord-{self._order_seq:03d}"
 
@@ -333,8 +350,8 @@ class ActionableControlPlaneEngine:
             )
             self.open_positions.append(pos)
             self.gross_notional_usd += request.notional_usd
-            self.correlated_exposure_usd += cand.correlated_group_add_usd
-            self.sector_exposure_usd += cand.sector_add_usd
+            self.correlated_exposure_usd += exposure_add
+            self.sector_exposure_usd += exposure_add
             decision = ActionableOrderDecision(
                 order_id=order_id,
                 evaluated_at=ts,
