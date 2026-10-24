@@ -7,6 +7,7 @@ import pathlib, os
 app = pathlib.Path(__file__).resolve().parent.parent / "app"
 routes = sorted({"/" + str(p.parent.relative_to(app)).replace(".", "") .strip("/") for p in app.rglob("page.tsx")})
 routes = [r if r != "/" else "/" for r in routes] + ["/this-does-not-exist"]
+if len(sys.argv) > 3: routes += [x for x in sys.argv[3].split(",") if x]  # extra routes, e.g. hub tab URLs
 IGNORE = re.compile(r"tradingview|s3\.tradingview|widget", re.I)
 os.makedirs(OUT, exist_ok=True)
 report = {}
@@ -26,7 +27,7 @@ with sync_playwright() as p:
                 except Exception: pass
                 errs.append("nav: " + str(e)[:120])
             pg.wait_for_timeout(2500)
-            slug = (r.strip("/").replace("/", "_") or "home")
+            slug = (r.strip("/").replace("/", "_").replace("?tab=", "__") or "home")
             pg.screenshot(path=f"{OUT}/{slug}--{name}.png", full_page=False)
             report.setdefault(r, {})[name] = {"final": pg.url.replace(BASE, ""), "status": resp.status if resp else None, "console": errs, "bad": bad,
                 "title": pg.title()}
