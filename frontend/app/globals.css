@@ -3282,4 +3282,7 @@ body {
 .realtime-empty span { max-width: 48ch; font-size: 12px; }
 .clean-main-scroll > * { flex-shrink: 0; }
 .selected-market-viewer { min-width: 0; flex-shrink: 0; }
-.selected-market-viewer .desk-chart-frame { height: clamp(28rem, 70dvh, 58rem); }
+.selected-market-viewer .desk-chart-frame.is-realtime { height: clamp(28rem, 70dvh, 58rem); }
+/* Widget mode stacks the TradingView picture and the model panel; let it grow so the panel never overflows onto the next section. */
+.selected-market-viewer .desk-chart-frame:not(.is-realtime) { height: auto; }
+.selected-market-viewer .desk-chart-frame:not(.is-realtime) .desk-tv-picture { flex: 0 0 auto; height: clamp(28rem, 60dvh, 44rem); }

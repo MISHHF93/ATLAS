@@ -6,9 +6,9 @@ ATLAS (Autonomous Trading, Liquidity, Allocation & Strategy Intelligence) is a f
 - **Open market** (US equities and ETFs, paper).
 - **Prop competition** (24/7 crypto, paper). This track has a 4% daily breaker, an 8% trailing drawdown limit, a 35% consistency gate and a 5-day minimum.
 
-> **Status, 2026-10-23 (`main@c87ef50`).** Every part of the platform runs on paper or simulation only. No live orders are placed and no money moves.
+> **Status, 2026-10-23 (`main (integration, 2026-10-23)`).** Every part of the platform runs on paper or simulation only. No live orders are placed and no money moves.
 > **No price-action setup, technique selector or model has passed the real-data validation gates.** The prediction registry is empty, so every live candidate *abstains*. The "break of range level reaches the swing level" claim is **unproven** (see [evidence](docs/spec/evidence/)).
-> pytest on `main`: **1404 passed, 9 skipped**.
+> pytest on `main`: **1447 passed, 9 skipped**.
 
 ## Safety invariants
 
@@ -59,7 +59,7 @@ Requirements: Python 3.11+ and Node.js 18+.
 # backend deps (editable install with extras)
 python -m venv .venv && . .venv/bin/activate        # Windows: .\.venv\Scripts\activate
 pip install -e ".[dev,founder,ml,mcp]"
-python -m pytest -q                                  # main: 1404 passed, 9 skipped (tests/conftest.py creates .test-runs/)
+python -m pytest -q                                  # main: 1447 passed, 9 skipped (tests/conftest.py creates .test-runs/)
 
 # frontend + backend on ONE port (Node spawns FastAPI over stdio; binds 127.0.0.1 only)
 cd frontend && npm install

@@ -32,4 +32,4 @@ route and nav link (console errors, failed `/api` calls, "That page is not in AT
 - Route sweep: 49 GET + 39 write routes, **0 5xx**.
 - Frontend: `next build` exit 0, `tsc` clean, `test:routes` 3/3.
 - Crawl: 23 pages, **0 ATLAS errors**, 0 failed `/api` calls, 0 "not in ATLAS" (only third-party TradingView fetches).
-- pytest: **1310 passed, 9 skipped, 0 failed** at the time of this audit. Current `main@c87ef50`: 1404 passed, 9 skipped.
+- pytest: **1310 passed, 9 skipped, 0 failed** at the time of this audit. Current main (2026-10-23 integration): 1447 passed, 9 skipped.
