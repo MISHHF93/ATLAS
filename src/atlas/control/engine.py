@@ -780,6 +780,7 @@ class ActionableControlPlaneEngine:
                      **{x: Decimal("1") for x in ("SPY", "QQQ", "NVDA", "AAPL", "MSFT", "TSLA")}}
         lot = lot_sizes.get(sym)
         mult = Decimal("1")
+        sized_qty: Decimal | None = None   # whole lots when lot-sized; reported as-is (0 on a zero-lot rejection)
         if lot is None:
             from atlas.feeds.contracts import contract_for   # futures: contracts x multiplier
             spec = contract_for(sym)
@@ -802,6 +803,7 @@ class ActionableControlPlaneEngine:
             if lot is not None:
                 quantity = (sized_notional / (Decimal(str(entry_px)) * mult) / lot).to_integral_value(rounding=ROUND_DOWN) * lot
                 sized_notional = quantity * Decimal(str(entry_px)) * mult
+                sized_qty = quantity
             if sized_notional <= 0:
                 intake_violations.append("insufficient_remaining_room_for_one_lot")
                 sized_notional = Decimal("0.01")
@@ -828,7 +830,8 @@ class ActionableControlPlaneEngine:
         decision = decision.model_copy(update={
             "entry_price": entry_px, "stop_loss_price": stop_px,
             "take_profit_price": tp_px,
-            "quantity": sized_notional / (Decimal(str(entry_px)) * mult) if entry_px > 0 else Decimal("0"),
+            "quantity": sized_qty if sized_qty is not None else (
+                sized_notional / (Decimal(str(entry_px)) * mult) if entry_px > 0 else Decimal("0")),
         })
         self.order_history[-1] = decision
 
