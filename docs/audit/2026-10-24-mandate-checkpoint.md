@@ -67,3 +67,24 @@ New package `atlas.intel` (EXECUTION_PERMISSION="none") + `/api/intel/*` router 
 - Holidays: `exchange_calendars` 4.13.2 (COMEX/CMES) in `feeds/contracts.py`; weekday fallback; `/api/intel/holidays`. Contract specs still `verified=False`.
 - Freshness: market-data cards use shared `quant.freshness`. Lab runs are labelled `historical`. Track rules are configuration, so they carry no market freshness chip. Note: the portfolio's daily-bar freshness shows `live · 28 h old` on a Saturday because the shared rule treats a daily bar within its bucket as live. This was left unchanged.
 - Checks: pytest 1570 passed / 9 skipped (ATLAS_FEED_DB unset); tsc clean; next build ok; pages test 4/4; vertical-text 152/152 combos (38 pages x 4 widths), 0 instances, 0 load failures, after fixing a wrapped freshness chip at 390px (`.ux-chip` nowrap); screenshots in `/workspace/shots/full2/` (16 page shots + 2 curtain shots, no page errors).
+
+## Pass 6 / evo1 (2026-10-24, branch atlas-evo-1 from 97bf58f, unmerged, not pushed)
+- Evolution run d6a35224ceef:
+  - Universe: BTCUSDT, ETHUSDT, SPY, QQQ and IWM on 15m. 11,249 rows, 24 genomes, 3 generations, about 69 s.
+  - Decision: **no_challenger_beats_baseline**. Taking every opportunity gives EV -0.70 R.
+  - Best genome: hgb + renko_atr, fitness -0.034, EV -0.0109 R, BSS +0.0069.
+  - Best time-bar genome: xgb, fitness -0.0387.
+- Markers:
+  - GC 15m: 126 rule_only markers, all rejected with no_validated_model.
+  - BTCUSDT 15m: 586 ml_skip, 1 ml_suggested and 13 rule_only. These come from a genome that does not beat baseline, and the UI says so.
+- Zero trades for snapback_only and orb_only: this is timeframe_mismatch on GC 15m, not a detector bug. On GC 1m, snapback had 3 trades and ORB had 4, which is too few to say anything.
+- Checks:
+  - pytest with ATLAS_FEED_DB unset: 1580 passed, 9 skipped.
+  - tsc, next build and pages test (4/4) pass.
+  - Vertical-text check: 156/156 page and width combinations, 0 instances.
+  - Screenshots are in `/workspace/shots/evo1/`.
+- Pending:
+  - Kagi and P&F bars are not built (they were optional).
+  - Tick bars need trade prints.
+  - The desk TradingView widget can't take ATLAS markers, so the markers are on an ATLAS feed chart under it.
+  - The legacy LiveChartEngine is unchanged.

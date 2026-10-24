@@ -41,3 +41,12 @@ so "existing" means "found", not "audited".
 - No verified economic calendar → Event Box disabled.
 - 1m gold history ≈ 5 trading days; no 5m; 15m cannot tile 08:20–08:50.
 - No macro dataset for §22.
+
+## Pass 6 / evo1 additions
+| Item | Status |
+|---|---|
+| Governed ML evolution loop (genes incl. bar type, purged WF, lineage, champion/challenger, no auto-promotion) | Done (branch atlas-evo-1); no model beats baseline |
+| Opportunity markers on Levels and desk charts (classes, tooltip, toggle, disclaimer, historical outcomes) | Done; TradingView widget itself cannot take markers |
+| Alt bars HA/Renko/range/volume/dollar; tick gated; Kagi/P&F | Done; tick unavailable (no trade prints); Kagi/P&F not built |
+| snapback/orb zero trades | Explained: timeframe_mismatch on 15m |
+| Weekend "live" freshness on daily data; memory merge | Fixed |
