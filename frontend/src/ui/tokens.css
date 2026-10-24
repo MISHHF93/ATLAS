@@ -361,7 +361,7 @@ body { font-family: var(--font-ui); background: var(--c-bg); color: var(--c-text
 .ux-spin { animation: ux-rot 1s linear infinite; } @keyframes ux-rot { to { transform: rotate(360deg); } }
 .ux-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); border: 0; padding: 0; margin: 0 0 var(--s-3); align-items: center; }
 .ux-chips legend { float: left; margin-right: var(--s-2); font-size: var(--t-xs); }
-.ux-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--r-pill); border: 1px solid var(--c-border); font-size: var(--t-xs); cursor: pointer; }
+.ux-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--r-pill); border: 1px solid var(--c-border); font-size: var(--t-xs); cursor: pointer; white-space: nowrap; flex-shrink: 0; }
 .ux-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 
 /* Overview helpers */

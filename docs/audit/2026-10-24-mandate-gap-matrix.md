@@ -11,7 +11,7 @@ so "existing" means "found", not "audited".
 | 6 | Instrument specs | partial | `marketdata/futures.py`, `models/quant/multi.py` multipliers; no single `ContractSpec` (rolls/expiry) contract |
 | 7 | Market structure engine | **new** | `features/price_action/structure.py`: causal swings HH/HL/LH/LL, BOS, CHoCH, breakout success/fail, compression/expansion, with event records. Impulse/retrace not separated yet |
 | 8 | Zone registry + interaction SM | partial | `levels.py` (LiquidityLevelRegistry, LevelInteractionEngine), `zones.py` Zone. Missing fields: confluence_ids, breakout/rejection counts, provenance; MA/VWAP/psych/supply-demand zone types |
-| 9 | Four-Box | partial | Opening/ORB `detectors.ORBRetestDetector`, Breakout `DualBollingerDetector`, Anchor `WickReversalDetector`, Event `events.event_zone` (no verified calendar data; disabled) |
+| 9 | Four-Box | implemented (research; Event disabled) — pass 5 `intel/fourbox.py`, /research/lab?tab=fourbox; | Opening/ORB `detectors.ORBRetestDetector`, Breakout `DualBollingerDetector`, Anchor `WickReversalDetector`, Event `events.event_zone` (no verified calendar data; disabled) |
 | 10 | Snapback | partial | `strategies/snapback.py`, `suite.py`, stop alternatives in `docs/research/levels-2026-10-24.md`; trailing/partial/time exits not tested |
 | 11 | Gold session models | **new** + existing | `gold_models.py` (Early Bird, range-bound to open, ORB alignment overlap math, Asian context; gold-only; 08:20–08:50 default); `suite.GoldBox` |
 | 12 | SFP states | existing | `suite.py` SFP (BREAKOUT_ACCEPTED/FAILED/SWEEP_RECLAIMED/UNRESOLVED per audit) |
@@ -19,19 +19,19 @@ so "existing" means "found", not "audited".
 | 14–15 | Indicators + math | **new** + existing | `indicators.py` (EMA/RSI/ATR/BB/VWAP) + `library.py` (SMA, slope, MACD, ADX/DMI, ROC, momentum, log-ret, RV, Donchian, AVWAP, RVOL, anatomy, doji/engulfing/displacement, trend band, HTF mapping, fib, overlap, normalized distance, OBI, TI, Kyle λ, Hawkes, VPIN, EV, p_BE, sizing, wᵀμ/wᵀΣw, VaR/CVaR, Brier, log loss, reliability, IS). Almgren-Chriss existing `execution/scheduling.py`. Chart overlays for new ones: missing |
 | 16–18 | Unified ML | existing (partial) | `ml/` (registry, selector, calibration, cv purged WF, drift), `models/quant/*` (lgbm, DSR, PBO, registry rollback). Two ML trees exist (`ml/` and `models/`) — overlap not reconciled. Full prediction contract/abstention set not verified |
 | 19 | Continuation vs reversal | existing | `resolve()` in unified candidate (per spec docs) |
-| 20 | Microstructure | partial | `microstructure/orderbook.py`, `features/microstructure.py`, `features/toxicity.py`, whale modules. No L2 data in feed → disabled |
-| 21 | Regime | partial | `regime/hawkes_detector.py`, `models/quant` regime models |
+| 20 | Microstructure | partial (bar tier only; higher tiers gated) — pass 5 `intel/microstructure.py`; | `microstructure/orderbook.py`, `features/microstructure.py`, `features/toxicity.py`, whale modules. No L2 data in feed → disabled |
+| 21 | Regime | implemented (causal classifier + strategy-by-regime) — pass 5 `intel/regime.py`; | `regime/hawkes_detector.py`, `models/quant` regime models |
 | 22 | Cross-asset/macro | missing | no timestamp-correct macro dataset |
 | 23 | Unified candidate | existing (partial) | `detectors.Candidate`, `proposals.py`; full field list not verified |
-| 24 | Research lab | partial | `experiments/`, `research/`, DSR/PBO in `models/quant/metrics.py` |
+| 24 | Research lab | implemented — pass 5 `intel/lab.py` (DSR/PBO/bootstrap/cost/report ids); | `experiments/`, `research/`, DSR/PBO in `models/quant/metrics.py` |
 | 25 | Backtest/replay | partial | `price_action/replay.py` (conservative_ohlc_v1), `research/backtester.py`; partial fills/latency not in PA replay |
-| 26 | Portfolio | partial | `portfolio/construction.py` (CVaR) |
+| 26 | Portfolio | implemented (VaR/CVaR/stress; unpriced positions listed) — pass 5 `intel/portfolio.py`; | `portfolio/construction.py` (CVaR) |
 | 27 | OMS/paper | existing | `execution/paper`, `risk/killswitch.py`, `risk/reconcile.py` |
 | 28 | Control plane | existing | `control/engine.py`, `control/rules.py` (not modified) |
-| 29 | Competition mode | existing (partial) | `models/platform_state.py`, `models/trade_readiness.py` |
+| 29 | Competition mode | implemented (separate rulebooks, probes) — pass 5 `control/tracks.py`; | `models/platform_state.py`, `models/trade_readiness.py` |
 | 30–31 | Charting / UI | partial | `/research` Levels & sweeps tab; new structure/gold-session/indicator overlays **not wired** on this branch |
-| 32 | Grounded assistant | existing (partial) | `ai/assistant/{tools,guard,store,providers}.py` |
-| 33 | Market memory | partial | `research/memory.py`, `ledgers/`, `journal/` |
+| 32 | Grounded assistant | implemented (retrieval + evidence IDs; LLM off) — pass 5 `intel/assistant.py`; | `ai/assistant/{tools,guard,store,providers}.py` |
+| 33 | Market memory | partial (pass 5 `intel/memory.py` overlaps `research/memory.py`; consolidate) | `research/memory.py`, `ledgers/`, `journal/` |
 | 34–35 | Security/obs | partial | `keys/api_keys.py` rate limit, `ops/health.py`; no correlation IDs found |
 | 36 | Tests | partial | 57+ test modules; new `tests/price_action/test_mandate_full1.py` |
 | 37–41 | DoD / process | not met | see checkpoint |

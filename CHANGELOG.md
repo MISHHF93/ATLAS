@@ -24,3 +24,8 @@
 - UI: curtain merged into 4 sections (Home & trading, Research & models, Money & compliance, Settings, help & tools incl. advanced); `Card fresh=` prop renders the shared freshness badge on Levels, Gold sessions, Candidates, Inspect, No-trade, Setup candidates, Zones and Paper replay cards; market AssetCard shows only symbol/name/price/change/quote status (fixture microstructure details removed).
 - Research `scripts/run_mgc_sizing_eval.py` -> `shots/full1/e2e/mgc_sizing_eval.json`: MGC does not make the E2E candidates pass. All 6 have stops of 2.4-12.1 bps vs the 30 bps open-track minimum, and one MGC (~$41.2k-42.3k) already exceeds the $40k open-track position cap. GC and MGC: 0/6 authorized. No rule changed.
 - Exchange holidays: no holiday/exchange-calendar library installed in the venv; not added. `last_trade_date` remains weekday-only.
+
+## atlas-full-2 pass 5 (2026-10-24, branch from 17ea2cc, unmerged, not pushed)
+- `atlas.intel`: research lab (DSR, PBO, bootstrap, cost sensitivity, reproducible report IDs), causal regimes + strategy-by-regime, portfolio exposure/correlation/VaR/CVaR/stress, track rulebook diff + enforcement probes, grounded evidence-ID assistant (LLM never used), market memory/attribution/governance view, microstructure tier gating, Four-Box scan. `/api/intel/*`.
+- UI: `/research/lab` hub (6 tabs) and Risk tabs Portfolio risk / Track rules, with freshness chips.
+- Exchange holidays via `exchange_calendars` (COMEX/CMES) for futures last-trade/roll dates.
