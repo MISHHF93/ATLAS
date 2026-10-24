@@ -63,6 +63,7 @@ class NoTradeReason(str, Enum):
     INSUFFICIENT_DATA = "INSUFFICIENT_DATA"                    # warm-up / missing bars / missing calendar
     STALE_DATA = "STALE_DATA"                                  # last bar older than allowed
     REWARD_BELOW_COST = "REWARD_BELOW_COST"                    # net-of-cost reward:risk under threshold
+    COST_TOO_HIGH = "COST_TOO_HIGH"                            # round-trip cost is too large a fraction of the risk (cost/|E-S|)
     NO_TARGET = "NO_TARGET"
     REENTRY_LIMIT = "REENTRY_LIMIT"
     HTF_CONFLICT = "HTF_CONFLICT"

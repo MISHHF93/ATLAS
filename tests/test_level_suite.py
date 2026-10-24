@@ -265,3 +265,11 @@ def test_levels_endpoint_on_fixture(tmp_path, monkeypatch):
         c.post(f"/api/quant/strategies/{sid}", json={"enabled": True})
     j = c.get("/api/quant/levels", params={"symbol": "GC", "resolution": "5"}).json()
     assert j["zones"] and j["htf"]["bias"] == "insufficient" and j["data_gaps"]["order_flow"] == "missing"
+
+
+def test_cost_too_high_is_refused_not_traded():
+    cfg = gold_cfg(cost_price=50.0)
+    e = PriceActionEngine("GC", 300, EngineConfig(suite=cfg))
+    e.run_batch(gold_bars())
+    su = e.detectors[-1]
+    assert not su.candidates and any(n["reason"] == "COST_TOO_HIGH" for n in su.no_trades)

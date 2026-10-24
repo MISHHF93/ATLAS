@@ -138,9 +138,14 @@ def evaluate(df: pd.DataFrame, n_folds: int = 4, kinds: tuple[str, ...] = ("logi
                 tef = dte.index[dte.family == fam]
                 if len(tef) == 0:
                     continue
-                mm = fit_meta(df, trf, kind, SEL_FEATURES) if len(trf) >= min_family_rows else None
-                if mm is None:
+                if len(trf) < min_family_rows or df.y.iloc[trf].nunique() < 2:
                     rec[f"{kind}_{fam}"] = "insufficient_rows"
+                    continue
+                try:
+                    feats = [f for f in SEL_FEATURES if df[f].iloc[trf].notna().any()]   # drop columns undefined for this family
+                    mm = fit_meta(df, trf, kind, feats)
+                except (ValueError, ImportError) as exc:      # degenerate fold (e.g. too few distinct values): abstain, recorded
+                    rec[f"{kind}_{fam}"] = f"fit_failed: {exc}"
                     continue
                 d = mm.decide(df.loc[tef], use_conformal=False)
                 pp.loc[tef] = d["p"]

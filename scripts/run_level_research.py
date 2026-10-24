@@ -98,6 +98,7 @@ def main(quick=False):
         res["sfp"][inst]["bars"] = None
         pool.append(df)
     data = pd.concat([p for p in pool if p is not None and len(p)], ignore_index=True)
+    data.to_pickle("/workspace/shots/sfp1/selector_rows.pkl")   # scratch cache, outside the repo
     sel = evaluate(data, n_folds=4, kinds=("logit", "hgb", "xgb", "lgbm"))
     res["selector"] = sel
     res["selector_rows"] = int(len(data))

@@ -9,7 +9,8 @@ SFP (swing failure pattern) on a level with side s (+1 = level above price):
   Optional confirmation (``confirm``): none | next_bar (next close continues away) | displacement (a bar body >=
   disp_atr*ATR in trade direction within N bars) | structure (close beyond the reclaim bar's opposite extreme).
   Direction = -s. Stop = sweep extreme + s*(stop_atr*ATR + tick). Target = nearest opposing available level, else
-  fixed ``target_r`` R. NO_TRADE(REWARD_BELOW_COST) if (|T-E| - cost)/(|E-S| + cost) < min_rr.
+  fixed ``target_r`` R. NO_TRADE(REWARD_BELOW_COST) if (|T-E| - cost)/(|E-S| + cost) < min_rr;
+  NO_TRADE(COST_TOO_HIGH) if cost/|E-S| > max_cost_r (default 0.5).
   Several levels reclaimed on one bar in one direction -> one candidate on the highest-priority level, confluence = n.
 Snapback (gold box): BOX_FORMING -> BOX_CONFIRMED -> BREAKOUT_OBSERVED -> AWAITING_RETEST (accepted) -> RETEST_OBSERVED
   -> SNAPBACK_CONFIRMED (retest held) -> COMPLETED; or INVALIDATED (retest failed / reclaimed back into box) / EXPIRED.
@@ -64,6 +65,7 @@ class SFPConfig:
     target: str = "opposing"           # opposing | fixed_r
     target_r: float = 2.0
     min_rr: float = 1.0
+    max_cost_r: float = 0.5            # NO_TRADE(COST_TOO_HIGH) if cost / |E-S| exceeds this
     sources: tuple[str, ...] = ("prev_day", "prev_week", "prev_month", "asia_session", "london_session", "ny_session",
                                 "swing", "equal", "box")
 
@@ -82,6 +84,7 @@ class GoldConfig:
     stop: str = "box_opposite"         # box_opposite | box_mid | two_box_heights | retest_extreme
     target_r: float = 2.0
     min_rr: float = 1.0
+    max_cost_r: float = 0.5            # NO_TRADE(COST_TOO_HIGH) if cost / |E-S| exceeds this
 
 
 @dataclass
@@ -149,6 +152,10 @@ class LevelSuiteDetector:
             return None
         c = self.cfg.cost_price
         net_rr = (reward - c) / (risk + c)
+        max_cost_r = self.cfg.sfp.max_cost_r if family == "sfp" else self.cfg.gold.max_cost_r
+        if c / risk > max_cost_r:
+            self._no_trade(family, "COST_TOO_HIGH", at, cost_r=c / risk, level=level.id)
+            return None
         if net_rr < (self.cfg.sfp.min_rr if family == "sfp" else self.cfg.gold.min_rr):
             self._no_trade(family, "REWARD_BELOW_COST", at, net_rr=net_rr, level=level.id)
             return None
