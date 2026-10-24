@@ -37,6 +37,7 @@ class ReplayTrade:
     r_multiple: float | None = None
     features: dict[str, Any] = field(default_factory=dict)
     entry_type: str = "limit"          # "stop": fills when price crosses entry, at max(entry, open) (long) / min (short)
+    fill_ratio: float = 1.0            # filled qty / order qty (volume-capped partial fill; remainder cancelled)
 
 
 @dataclass
@@ -46,6 +47,15 @@ class ReplayConfig:
     cost_per_unit: float = 0.0
     cost_bps: float = 0.0              # round-trip cost as bps of entry, added to cost_per_unit
     zone_rule: str | None = None       # None: ORB candidates only; "zone_entry_v1": also research-map zones
+    # execution realism (defaults keep the original behaviour)
+    latency_bars: int = 0              # bars after detection before the order is working (decision + routing delay)
+    limit_fill: str = "touch"          # "touch" | "trade_through": limit fills only if price trades strictly beyond it
+    order_qty: float | None = None     # with max_participation: volume-capped partial fill on the first fill bar
+    max_participation: float | None = None   # fraction of the fill bar's volume we may take; volume<=0 -> no fill
+
+
+def weighted_r(t: "ReplayTrade") -> float | None:
+    return None if t.r_multiple is None else t.r_multiple * t.fill_ratio
 
 
 def trade_cost(t: "ReplayTrade", cfg: ReplayConfig) -> float:
@@ -88,10 +98,14 @@ class ReplayResult:
                 "trades": [asdict(t) for t in self.trades], "execution_permission": "none"}
 
 
-def try_fill(t: "ReplayTrade", b: Bar) -> bool:
+def try_fill(t: "ReplayTrade", b: Bar, cfg: "ReplayConfig | None" = None, age: int = 0) -> bool:
     """Entry fill on bar b. Limit: touched -> fill at the limit (no improvement). Stop: crossed -> fill at the trigger,
-    or at the open when the bar gaps through it (slippage taken in full)."""
+    or at the open when the bar gaps through it (slippage taken in full). With ``cfg``: no fill while
+    ``age < latency_bars``; ``trade_through`` limits need a strict cross; participation caps the filled qty."""
     long = t.direction == "long"
+    if cfg is not None and age < cfg.latency_bars:
+        return False
+    strict = cfg is not None and cfg.limit_fill == "trade_through"
     if t.entry_type == "stop":
         if not ((b.high >= t.entry) if long else (b.low <= t.entry)):
             return False
@@ -100,8 +114,15 @@ def try_fill(t: "ReplayTrade", b: Bar) -> bool:
                 (long and t.entry >= t.target) or (not long and t.entry <= t.target):
             t.outcome = "gap_skipped"          # gapped beyond stop/target: the stop order would be cancelled
             return False
+    elif strict and not ((b.low < t.entry) if long else (b.high > t.entry)):
+        return False
     elif not ((b.low <= t.entry) if long else (b.high >= t.entry)):
         return False
+    if cfg is not None and cfg.order_qty and cfg.max_participation:
+        cap = max(0.0, b.volume) * cfg.max_participation
+        if cap <= 0:
+            return False                          # unknown/zero volume: assume no fill (conservative)
+        t.fill_ratio = min(1.0, cap / cfg.order_qty)
     t.filled_at, t.outcome = b.start, "open"
     return True
 
@@ -154,13 +175,13 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
         live = nxt_live
         nxt_wait = []
         for t, age in waiting:
-            if try_fill(t, b):
+            if try_fill(t, b, cfg, age):
                 _step_trade(t, b, cfg, 0)
                 if t.exit_at is None:
                     live.append((t, 0))
             elif t.outcome == "gap_skipped":
                 pass
-            elif age + 1 < cfg.entry_window:
+            elif age + 1 < cfg.entry_window + cfg.latency_bars:
                 nxt_wait.append((t, age + 1))
         waiting = nxt_wait
         # 2) live detection path on the closed bar
@@ -192,6 +213,10 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
         "mean_r": (sum(t.r_multiple for t in done) / len(done)) if done else None,
         "total_r": sum(t.r_multiple for t in done) if done else None,
         "cost_per_unit": cfg.cost_per_unit, "cost_bps": cfg.cost_bps, "zone_rule": cfg.zone_rule,
+        "latency_bars": cfg.latency_bars, "limit_fill": cfg.limit_fill, "max_participation": cfg.max_participation,
+        "mean_fill_ratio": (sum(t.fill_ratio for t in trades if t.filled_at is not None) /
+                            max(1, sum(t.filled_at is not None for t in trades))),
+        "total_weighted_r": sum(weighted_r(t) for t in done) if done else None,
         "fill_model": "conservative_ohlc_v1",
     }
     return res

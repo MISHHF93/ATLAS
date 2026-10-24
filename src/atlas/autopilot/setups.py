@@ -220,7 +220,7 @@ class SetupAutopilot:
         for t, age, ctx in self.waiting:
             if ctx["symbol"] != sym:
                 wait.append((t, age, ctx)); continue
-            if try_fill(t, b):
+            if try_fill(t, b, self.rcfg, age):
                 _step_trade(t, b, self.rcfg, 0)
                 if t.exit_at is None:
                     self.live.append((t, 0, ctx))
@@ -229,7 +229,7 @@ class SetupAutopilot:
             elif t.outcome == "gap_skipped":
                 t.outcome = "unfilled"                       # stop order cancelled: gapped beyond stop/target
                 self._resolve(t, ctx, ts)
-            elif age + 1 < self.rcfg.entry_window:
+            elif age + 1 < self.rcfg.entry_window + self.rcfg.latency_bars:
                 wait.append((t, age + 1, ctx))
             else:
                 self._resolve(t, ctx, ts)
