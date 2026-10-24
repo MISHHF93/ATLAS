@@ -117,6 +117,7 @@ export const PAGES: AtlasPage[] = [
     summary: "Which models the autopilot may use and the tests behind them. Unproven setups stay switched off.",
     tabs: [
       { id: "evidence", label: "Approved models", summary: "Registered setup models and the evidence files that back them." },
+      { id: "ml", label: "ML meta-labels", summary: "Meta-label models trained on live feeds: gates, calibration, drift and cited explanations. Read-only." },
       { id: "walk-forward", label: "Back-tests", workspaceRoute: "/research/walk-forward", aliases: ["/research/walk-forward", "/experiments"],
         summary: "Run the standard walk-forward test. Passing a test does not promote a model." },
       { id: "training", label: "Training", workspaceRoute: "/research/registry", aliases: ["/models", "/research/registry"],
