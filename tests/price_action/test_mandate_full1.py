@@ -131,3 +131,11 @@ def test_gold_15m_bars_cannot_build_0820_box():
     bars = [Bar(t0 + 900 * i, 900, 100, 101, 99, 100) for i in range(8)]
     r = session_day_ranges("GC", bars, day, t0 + 7200)
     assert r["opening_orb"] is None and "opening_orb" in r["insufficient"]
+
+
+def test_window_gap_tolerance_reports_coverage():
+    from atlas.features.price_action.gold_models import window_range
+    bars = [Bar(60 * i, 60, 1, 2, 0.5, 1) for i in range(100) if i not in (10, 20, 30)]
+    assert window_range(bars, 0, 6000, 6000) is None
+    r = window_range(bars, 0, 6000, 6000, max_missing_frac=0.05)
+    assert r["n"] == 97 and r["coverage"] == pytest.approx(0.97)

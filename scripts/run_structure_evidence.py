@@ -24,6 +24,8 @@ for d in days:
     dt = datetime(d.year, d.month, d.day, tzinfo=NY)
     r = session_day_ranges("GC", b1, dt, b1[-1].end, atr=atr[-1])
     gd.append({"day": str(d), "opening_orb": r.get("opening_orb"), "orb_alignment": r.get("orb_alignment"),
-               "insufficient": r.get("insufficient")})
+               "insufficient": r.get("insufficient"),
+               "coverage": {k: (r.get(k) or {}).get("coverage") for k in ("asian", "early", "premarket_orb", "opening_orb")},
+               "asian_context": r.get("asian_context"), "early_bird": r.get("early_bird")})
 out["GC_1m"] = {"bars": len(b1), "days": gd}
 print(json.dumps(out, indent=1, default=str))

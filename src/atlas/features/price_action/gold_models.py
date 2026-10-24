@@ -26,6 +26,9 @@ class GoldSessionConfig:
     opening_orb: tuple[str, str] = ("08:20", "08:50")
     pre_open_consolidation: tuple[str, str] = ("07:30", "08:20")
     tight_range_atr: float = 1.0
+    # documented gap tolerance: Asian/early windows are long and thin; ORB windows stay strict.
+    asian_max_missing: float = 0.10
+    early_max_missing: float = 0.05
 
 
 def _ts(day: datetime, hhmm: str, prev_day: bool = False) -> int:
@@ -34,15 +37,22 @@ def _ts(day: datetime, hhmm: str, prev_day: bool = False) -> int:
     return int(datetime.combine(d, time(h, m), NY).timestamp())
 
 
-def window_range(bars: Sequence[Bar], start: int, end: int, now: int) -> dict | None:
+def window_range(bars: Sequence[Bar], start: int, end: int, now: int, max_missing_frac: float = 0.0) -> dict | None:
+    """Range over [start,end). Requires bars of one duration that divides the window; at most
+    ``max_missing_frac`` of the expected bars may be absent (gaps are reported, never filled)."""
     if now < end:
         return None
     w = [b for b in bars if b.start >= start and b.end <= end and b.end <= now]
-    if not w or (end - start) % w[0].duration or len(w) != (end - start) // w[0].duration:
-        return None  # INSUFFICIENT_DATA: window not exactly tiled
+    if not w or (end - start) % w[0].duration:
+        return None
+    expected = (end - start) // w[0].duration
+    missing = expected - len(w)
+    if missing > max_missing_frac * expected:
+        return None  # INSUFFICIENT_DATA
     hi, lo = max(b.high for b in w), min(b.low for b in w)
     return {"high": hi, "low": lo, "mid": midpoint(hi, lo), "height": hi - lo, "open": w[0].open,
-            "close": w[-1].close, "volume": sum(b.volume for b in w), "start": start, "end": end, "n": len(w)}
+            "close": w[-1].close, "volume": sum(b.volume for b in w), "start": start, "end": end, "n": len(w),
+            "expected": expected, "coverage": len(w) / expected, "first_bar": w[0].start, "last_bar_end": w[-1].end}
 
 
 def session_day_ranges(instrument: str, bars: Sequence[Bar], day_ny: datetime, now: int,
@@ -51,8 +61,8 @@ def session_day_ranges(instrument: str, bars: Sequence[Bar], day_ny: datetime, n
         return {"status": "NOT_APPLICABLE", "reason": "gold-only model"}
     cfg = cfg or GoldSessionConfig()
     a0, a1 = cfg.asian
-    asian = window_range(bars, _ts(day_ny, a0, prev_day=True), _ts(day_ny, a1), now)
-    early = window_range(bars, _ts(day_ny, cfg.early[0]), _ts(day_ny, cfg.early[1]), now)
+    asian = window_range(bars, _ts(day_ny, a0, prev_day=True), _ts(day_ny, a1), now, cfg.asian_max_missing)
+    early = window_range(bars, _ts(day_ny, cfg.early[0]), _ts(day_ny, cfg.early[1]), now, cfg.early_max_missing)
     pre = window_range(bars, _ts(day_ny, cfg.premarket_orb[0]), _ts(day_ny, cfg.premarket_orb[1]), now)
     opn = window_range(bars, _ts(day_ny, cfg.opening_orb[0]), _ts(day_ny, cfg.opening_orb[1]), now)
     cons = window_range(bars, _ts(day_ny, cfg.pre_open_consolidation[0]), _ts(day_ny, cfg.pre_open_consolidation[1]), now)
