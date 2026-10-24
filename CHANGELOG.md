@@ -16,3 +16,11 @@
 - Levels: confluence_ids, rejection/breakout/sweep/acceptance counts, last_event_ts, optional round-number levels.
 - Replay: `latency_bars`, `limit_fill="trade_through"`, volume-capped partial fills (`fill_ratio`, weighted R); `scripts/run_replay_realism.py`.
 - `GET /api/feeds/freshness` + shared `FreshBadge` / `DataFreshnessChip` in the header and curtain menu.
+
+## atlas-full-1 pass 4 (2026-10-24, unmerged, not pushed)
+- Control plane: lot-sized orders now report whole-contract `quantity` (0 on a zero-lot rejection; previously a fractional value derived from the 0.01 placeholder notional). Tests: `tests/test_control_futures_sizing.py` (GC/MGC/SI/ES whole contracts, notional = qty x entry x multiplier, 1 GC > open-track cap rejected, unknown symbol -> lot metadata unavailable).
+- Levels: dynamic `ma<N>` (shared `indicators.EMA`) and `vwap` (shared `indicators.BarVWAP`, session reset, absent without volume) zone types; one live level per type, valid one bar; `priority_of()`. Off by default (`RegistryConfig.ma_periods=()`, `session_vwap=False`).
+- `vertical-text.check.mjs`: pages and tabs read from `pagesMap.ts` (30 pages x 4 widths = 120 combos); load failures / near-empty pages are counted and exit 2. The earlier "0 page/width combos" line counted only failing combos and the run had no server on the default port, so it covered nothing. Rerun: 120/120 checked, 0 instances, 0 load failures.
+- UI: curtain merged into 4 sections (Home & trading, Research & models, Money & compliance, Settings, help & tools incl. advanced); `Card fresh=` prop renders the shared freshness badge on Levels, Gold sessions, Candidates, Inspect, No-trade, Setup candidates, Zones and Paper replay cards; market AssetCard shows only symbol/name/price/change/quote status (fixture microstructure details removed).
+- Research `scripts/run_mgc_sizing_eval.py` -> `shots/full1/e2e/mgc_sizing_eval.json`: MGC does not make the E2E candidates pass. All 6 have stops of 2.4-12.1 bps vs the 30 bps open-track minimum, and one MGC (~$41.2k-42.3k) already exceeds the $40k open-track position cap. GC and MGC: 0/6 authorized. No rule changed.
+- Exchange holidays: no holiday/exchange-calendar library installed in the venv; not added. `last_trade_date` remains weekday-only.
