@@ -89,3 +89,10 @@ Every destination uses `Hub`: eyebrow (group) → plain-language title → one-l
 - Type scale 11/12/13/14/16/20/22/26; monospace only for figures and codes; tabular numbers in tables.
 - 4 px spacing grid; radii 4/6/8; denser tables (8 px rows, uppercase 11 px headers) and cards.
 - Header in three zones with underline active state; one primary button per page header.
+
+## UX-4: readable cards and no vertical text (atlas-ux-4)
+
+- Shared `AssetCard`/`AssetTable` (`src/components/market/AssetCard.tsx`) on Markets; the Trading desk watchlist uses the same hierarchy: symbol and name, large price, change, then a quote-status pill with source and time. Secondary metrics are collapsed in `<details>`. Quote status stays honest (live/delayed/market_closed/stale/no_data); no prices are invented.
+- Markets catalog: the card grid comes first (auto-fill minmax 280px, Cards/List toggle). Desk context, the symbol profile and the TradingView widgets are collapsed or lazy, so no iframes load until asked (before: 22 iframes, page over 14,000px tall).
+- Global CSS: no `overflow-wrap:anywhere`; table cells are nowrap inside horizontally scrolling containers; docs tables keep a 14ch minimum width; labels truncate with an ellipsis.
+- Guard: `npm run check:vertical-text -- <baseUrl>` (Playwright) scans 14 pages at 1440/1024/768/390 and fails on any vertical text. It found 187 instances before this work and finds 0 after.
