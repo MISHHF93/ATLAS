@@ -30,13 +30,15 @@ DETECTORS = ("dual_band_breakout", "orb_retest", "prior_day_range_reversal", "wi
 SETUP_FEATURES = ("dir_long", "reward_risk", "cost_r", "risk_atr", "entry_is_stop") + tuple(f"det_{d}" for d in DETECTORS)
 SIGNED = ("ret_4", "ret_16", "ema20_dist_atr", "ema20_slope_atr", "body_frac")
 FEATURES = BAR_FEATURES + SETUP_FEATURES + tuple(f"{s}_x_dir" for s in SIGNED)
-DUR = {"15m": 900, "1h": 3600}
+DUR = {"15m": 900, "1h": 3600, "4h": 14400}   # 4h = complete UTC buckets of closed feed 1h bars (crypto only)
 
 
 def max_hold_bars(interval: str, asset_class: str) -> int:
     """1-day vertical barrier."""
     if asset_class == "crypto":
         return 86400 // DUR[interval]
+    if interval == "4h":
+        raise ValueError("4h is crypto only (equity RTH 1h bars do not tile UTC 4h buckets)")
     return {"15m": 26, "1h": 7}[interval]    # one 6.5h RTH session
 
 
@@ -55,7 +57,30 @@ class SeriesData:
         return h.hexdigest()
 
 
+def resample_4h(sd: SeriesData) -> SeriesData:
+    """UTC 4h buckets from closed 1h bars; a bucket is emitted only when all four 1h bars are present."""
+    out, cur = [], []
+
+    def flush() -> None:
+        if len(cur) == 4:
+            out.append(Bar(cur[0].start // 14400 * 14400, 14400, cur[0].open, max(x.high for x in cur),
+                           min(x.low for x in cur), cur[-1].close, sum(x.volume for x in cur)))
+
+    for b in sd.bars:
+        if cur and b.start // 14400 != cur[0].start // 14400:
+            flush()
+            cur = []
+        cur.append(b)
+    flush()
+    return SeriesData(sd.instrument, "4h", sd.asset_class, out, sd.providers + ["derived:1h->4h"])
+
+
 def load_series(feed, instrument: str, interval: str, as_of: int | None = None, start: int | None = None) -> SeriesData:
+    if interval == "4h":
+        sd = resample_4h(load_series(feed, instrument, "1h", as_of=as_of, start=start))
+        if sd.asset_class != "crypto":
+            raise ValueError("4h is crypto only")
+        return sd
     fb = feed.bars(instrument, interval, start, None, as_of=as_of, confirmed_only=True) if start is not None \
         else feed.bars(instrument, interval, as_of=as_of)
     dur = DUR[interval]
@@ -75,24 +100,27 @@ def load_series(feed, instrument: str, interval: str, as_of: int | None = None, 
                       sorted({b.provider for b in fb}))
 
 
-def build_rows(sd: SeriesData, include_open: bool = False) -> pd.DataFrame:
+def build_rows(sd: SeriesData, include_open: bool = False, variant: Any = None, detectors: Sequence[str] | None = None) -> pd.DataFrame:
     """One row per filled + resolved setup with causal features at detection time.
 
     ``include_open`` also emits filled-but-unresolved setups (outcome ``open``, r NaN, y -1, exit_at -1) for
-    shadow scoring only; they are never used for training."""
+    shadow scoring only; they are never used for training. ``variant`` (research.setup_variants.SetupVariant)
+    re-labels with its ATR-scaled stop/target, cost filter and hold multiple; ``detectors`` restricts the rows."""
     if len(sd.bars) < 200:
         return pd.DataFrame()
     vc = VENUE_COSTS[venue_for(sd.asset_class)]
     session = UTC_DAY if sd.asset_class == "crypto" else US_EQUITY_RTH
-    cfg = paper_replay_config(entry_window=3, max_hold_bars=max_hold_bars(sd.interval, sd.asset_class),   # section 25 realism
-                       cost_per_unit=vc["cost_per_unit"], cost_bps=vc["cost_bps"], zone_rule="zone_entry_v1")
+    vk = {} if variant is None else {"stop_atr_mult": variant.stop_atr_mult, "target_rr": variant.target_rr, "max_cost_r": variant.max_cost_r}
+    hold = max_hold_bars(sd.interval, sd.asset_class) * (variant.hold_mult if variant is not None else 1)
+    cfg = paper_replay_config(entry_window=3, max_hold_bars=hold,   # section 25 realism
+                       cost_per_unit=vc["cost_per_unit"], cost_bps=vc["cost_bps"], zone_rule="zone_entry_v1", **vk)
     res = replay(sd.instrument, sd.bars[0].duration, sd.bars, engine_cfg=EngineConfig(session=session, pdr=PriorDayRangeConfig()),
                  cfg=cfg, data_label="atlas-feed")
     bf = bar_features(sd.bars)
     out = []
     for t in res.trades:
         is_open = include_open and t.outcome == "open"
-        if t.detector not in DETECTORS or not (is_open or (t.outcome in ("target", "stop", "timeout") and t.r_multiple is not None)):
+        if t.detector not in DETECTORS or (detectors is not None and t.detector not in detectors) or not (is_open or (t.outcome in ("target", "stop", "timeout") and t.r_multiple is not None)):
             continue
         risk = abs(t.entry - t.stop)
         if risk <= 0 or t.detected_at not in bf.index:

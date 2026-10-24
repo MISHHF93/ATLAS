@@ -135,6 +135,15 @@ def quant_strategy_toggle(sid: str, body: ToggleIn) -> dict[str, Any]:
     return quant_strategies()
 
 
+@quant_router.post("/strategies/{sid}/retired/{interval}")
+def quant_strategy_retire(sid: str, interval: str, body: ToggleIn) -> dict[str, Any]:
+    """Research retirement toggle per (strategy, interval); ``enabled`` true = retired. Reversible; never authorizes."""
+    if sid not in _STRAT or interval not in ("15m", "1h", "4h"):
+        raise HTTPException(status_code=404, detail="unknown strategy or interval")
+    StrategyRegistry().set_retired(sid, interval, body.enabled)
+    return quant_strategies()
+
+
 def _suite_calendar(sym: str) -> str:
     if sym in _CAL:
         return _CAL[sym]

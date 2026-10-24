@@ -61,3 +61,10 @@ so "existing" means "found", not "audited".
 | Re-verified rows: §8 confluence/provenance exist; §34–35 correlation IDs exist | Matrix corrected |
 | Closed in evo3: §13 cumulative-loss cap, §6 single contract source, §25 realism in PA replay paths. Pass 10 closed: multiplier duplicates (universe/instruments), control-plane partial close, backtester realism, snapback runnable. Pass 11 closed: §22 macro dataset (FRED, release-lagged) + HTF/macro context gene + ML diagnosis (docs/ml/evo5-diagnosis.md). Still open: ALFRED vintages (needs key), primary-strategy edge (negative gross R; founder decision) | Partly done |
 | ext-1 | Seven-repo extensions (options/VaR/DCF/EDGAR/scan/Pine/dossier/personas/agents/Alpaca paper/alerts/MCP) | built (research/paper only) | `src/atlas/ext/`, `/api/ext/*`; see `2026-10-24-seven-repo-gap.md`. Blocked: option chains, news, maritime. Yield curve deferred to evo-5. |
+
+## Pass 12 / evo6 additions
+| Item | Status |
+|---|---|
+| Wider ATR stops / higher timeframe / cost-aware setup variants | Done (research, toggleable, off by default); 0/230 pass gates |
+| Retire 15m orb_retest | Done as research-retired, reversible, documented reason |
+| ML on gross-positive variant (PDR 4h) | Done; no challenger beats baseline |

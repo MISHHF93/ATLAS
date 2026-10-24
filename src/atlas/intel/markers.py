@@ -67,7 +67,7 @@ def from_evolution(inst: str, interval: str, path=None) -> tuple[list[dict[str, 
         return [], {"run_id": run["run_id"]}
     rows = [r for r in json.loads(p.read_text()) if r["instrument"] == inst and r["interval"] == interval]
     best = run.get("best_beating_baseline") or run.get("best") or {}
-    tf = {"15m": 900, "1h": 3600}.get(interval, 900)
+    tf = {"15m": 900, "1h": 3600, "4h": 14400}.get(interval, 900)
     mv = f"evolution:{run['run_id']}:{best.get('genome_id')}"
     out = []
     for r in rows:

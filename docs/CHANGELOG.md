@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-24: branch `atlas-evo-6` (from main 8cea007)
+- Setup redesign research (new, toggleable; legacy setups unchanged):
+  - `ReplayConfig.stop_atr_mult / target_rr / max_cost_r` (default None): ATR(14) stops on closed bars, R-multiple targets, and a cost filter that skips setups whose round-trip cost exceeds a fraction of risk (`cost_skipped`).
+  - `research/setup_variants.py` + `scripts/run_setup_variants.py`: 5 variants x 15m/1h/4h (4h = complete UTC buckets of 1h bars, crypto only) x BTCUSDT/ETHUSDT/SPY/QQQ/IWM with paper realism, gross and net R, bootstrap CIs, DSR across 230 trials, PBO (CSCV) and purged walk-forward selection. Output `docs/research/evo6-setup-variants.{md,json}`.
+  - 16 `research` strategy specs `<detector>__<variant>` (off by default; excluded from the live suite).
+  - `orb_retest` 15m research-retired with a documented reason, reversible (`Registry.set_retired`, `POST /api/quant/strategies/{sid}/retired/{interval}`).
+- Findings: 0/230 configs pass the gates. Costs drop from ~0.3-0.7 R to ~0.04-0.12 R with wider stops, but gross R stays negative for orb_retest, dual_band_breakout and wick_reversal on every timeframe. Only prior_day_range_reversal 4h crypto is positive before costs (+0.05 to +0.07 R; CI spans 0) and about break-even after costs. See `docs/ml/evo6-setup-redesign.md`.
+- ML: `--universe evo6` (PDR 4h atr2_rr2 labels, 457 rows). AUC 0.485, shuffled 0.481. Evolution de86779da75c: no challenger beats baseline (best EV +0.058 R but Brier skill -0.031). Extended run f8e7de55c108 (15,157 rows) refreshes the 15m/1h chart markers: no challenger beats baseline. Nothing promoted; execution_permission none.
+- `ml/dataset.py`, `intel/markers.py`: 4h interval support (crypto only).
+
 ## 2026-10-24: branch `atlas-evo-5` (from main 771863a; not merged, not pushed)
 - §22 macro data: `feeds/providers/fred_public.py` reads keyless FRED `fredgraph.csv` (DGS10, DGS2, VIXCLS, DTWEXBGS, CPIAUCNS, chosen because they are rarely or never revised). Every value gets a conservative availability date as `realtime_start`:
   - daily series: next business day + 1 day

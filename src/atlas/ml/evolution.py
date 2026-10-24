@@ -76,6 +76,10 @@ DEFAULTS = {"context": "none"}
 UNIVERSE = [(i, "15m") for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM")]
 # Extended pooled universe (opt-in): 1h history back to 2023/24 (lower cost per R) + 15m crypto alts.
 UNIVERSE_EXTENDED = UNIVERSE + [(i, "1h") for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM")]
+# evo6: the only setup family with positive mean gross R (before costs) in docs/research/evo6-setup-variants.md:
+# prior_day_range_reversal on 4h (crypto, derived from closed 1h bars) with ATR-scaled stops. Gross CI still spans 0.
+UNIVERSE_EVO6 = [(i, "4h") for i in ("BTCUSDT", "ETHUSDT")]
+EVO6_VARIANT, EVO6_DETECTORS = "atr2_rr2", ("prior_day_range_reversal",)
 N_FOLDS = 5
 EMBARGO = 86400
 TIME_FEATS = ("hod_sin", "hod_cos", "dow_sin", "dow_cos")
@@ -86,12 +90,18 @@ def gid(g: dict[str, str]) -> str:
     return "|".join(f"{k}={g.get(k, DEFAULTS.get(k))}" for k in GENES)
 
 
-def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, as_of: int | None = None) -> tuple[pd.DataFrame, dict]:
+def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, as_of: int | None = None,
+                          variant: str | None = None, detectors: Sequence[str] | None = None) -> tuple[pd.DataFrame, dict]:
+    """``variant``/``detectors``: evo6 re-labelling on a research setup variant (research.setup_variants)."""
     from atlas.ml.context import htf_frame
-    frames, meta = [], {"series": [], "bar_type_availability": {}}
+    frames, meta = [], {"series": [], "bar_type_availability": {}, "variant": variant, "detectors": list(detectors) if detectors else None}
+    v = None
+    if variant is not None:
+        from atlas.research.setup_variants import VARIANT_BY_ID
+        v = VARIANT_BY_ID[variant]
     for inst, iv in universe:
         sd = load_series(feed, inst, iv, as_of=as_of)
-        df = build_rows(sd)
+        df = build_rows(sd, variant=v, detectors=detectors)
         meta["series"].append({"instrument": inst, "interval": iv, "n_bars": len(sd.bars), "n_rows": len(df),
                                "first_bar": sd.bars[0].start if sd.bars else None, "last_bar_end": sd.bars[-1].end if sd.bars else None})
         if not len(df):
@@ -124,7 +134,7 @@ def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, 
 def add_macro(data: pd.DataFrame, store, meta: dict) -> pd.DataFrame:
     """Join section-22 macro as known at each detection time (detection-bar end); all-NaN if no observations."""
     from atlas.ml.context import MACRO_FEATURES, macro_frame
-    dur = data.interval.map({"15m": 900, "1h": 3600}).fillna(0).astype(int)
+    dur = data.interval.map({"15m": 900, "1h": 3600, "4h": 14400}).fillna(0).astype(int)
     end = data.t + dur
     mf = macro_frame(store, end) if store is not None else pd.DataFrame(index=pd.Index([], name="t"), columns=list(MACRO_FEATURES))
     data = data.join(mf.reindex(end.to_numpy()).reset_index(drop=True).set_axis(data.index))

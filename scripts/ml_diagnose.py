@@ -16,7 +16,7 @@ def grp(d, by):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--universe", choices=("default", "extended"), default="default")
+    ap.add_argument("--universe", choices=("default", "extended", "evo6"), default="default")
     ap.add_argument("--model", default="lgbm")
     ap.add_argument("--out")
     a = ap.parse_args()
@@ -24,7 +24,8 @@ def main() -> int:
     from atlas.ml import evolution as E
     from atlas.ml import metrics as M
     from atlas.ml.train import fit_meta
-    d, meta = E.build_population_data(get_feed(), E.UNIVERSE_EXTENDED if a.universe == "extended" else E.UNIVERSE)
+    d, meta = (E.build_population_data(get_feed(), E.UNIVERSE_EVO6, variant=E.EVO6_VARIANT, detectors=E.EVO6_DETECTORS) if a.universe == "evo6" else
+        E.build_population_data(get_feed(), E.UNIVERSE_EXTENDED if a.universe == "extended" else E.UNIVERSE))
     d = d.copy()
     d["gross"] = d.r + d.cost_r
     d["regime"] = np.where(d.reg_hi > 0, "hi", np.where(d.reg_lo > 0, "lo", "mid"))

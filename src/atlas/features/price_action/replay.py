@@ -55,6 +55,11 @@ class ReplayConfig:
     limit_fill: str = "touch"          # "touch" | "trade_through": limit fills only if price trades strictly beyond it
     order_qty: float | None = None     # with max_participation: volume-capped partial fill on the first fill bar
     max_participation: float | None = None   # fraction of the fill bar's volume we may take; volume<=0 -> no fill
+    # setup variants (evo6; None keeps the detector's own stop/target and takes every setup)
+    stop_atr_mult: float | None = None  # stop = entry -/+ k * ATR(atr_n) at detection (Wilder, closed bars only)
+    target_rr: float | None = None      # with stop_atr_mult: target = entry +/- target_rr * risk (default: detector R:R)
+    max_cost_r: float | None = None     # skip (outcome "cost_skipped", never filled) when round-trip cost / risk > this
+    atr_n: int = 14
 
 
 # Paper realism used by the research lab, chart markers, the ML dataset and the paper setup autopilot (section 25):
@@ -172,6 +177,24 @@ def _step_trade(t: ReplayTrade, b: Bar, cfg: ReplayConfig, held: int) -> None:
         close(b.close, "timeout")
 
 
+def apply_variant(t: ReplayTrade, atr: float | None, cfg: ReplayConfig) -> bool:
+    """Re-scale stop/target with an ATR multiple and apply the cost-aware filter. False -> setup skipped."""
+    long = t.direction == "long"
+    if cfg.stop_atr_mult is not None:
+        if not atr or atr <= 0:
+            t.outcome = "cost_skipped" if cfg.max_cost_r is not None else "no_atr"
+            return False
+        rr = cfg.target_rr if cfg.target_rr is not None else (abs(t.target - t.entry) / abs(t.entry - t.stop) if t.entry != t.stop else 2.0)
+        risk = cfg.stop_atr_mult * atr
+        t.stop = t.entry - risk if long else t.entry + risk
+        t.target = t.entry + rr * risk if long else t.entry - rr * risk
+    risk = abs(t.entry - t.stop)
+    if cfg.max_cost_r is not None and (risk <= 0 or trade_cost(t, cfg) / risk > cfg.max_cost_r):
+        t.outcome = "cost_skipped"
+        return False
+    return True
+
+
 def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: EngineConfig | None = None,
            cfg: ReplayConfig | None = None, data_label: str) -> ReplayResult:
     cfg = cfg or ReplayConfig()
@@ -179,6 +202,14 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
     trades: list[ReplayTrade] = []
     waiting: list[tuple[ReplayTrade, int]] = []
     live: list[tuple[ReplayTrade, int]] = []
+    atr, prev_close, n_tr = None, None, 0
+    variant = cfg.stop_atr_mult is not None or cfg.max_cost_r is not None
+
+    def admit(t: ReplayTrade, a: float | None) -> None:
+        trades.append(t)
+        if not variant or apply_variant(t, a, cfg):
+            waiting.append((t, 0))
+
     for b in bars:
         # 1) manage existing state using this bar (decided before the bar is shown to detectors)
         nxt_live = []
@@ -202,6 +233,12 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
             elif age + 1 < cfg.entry_window + cfg.latency_bars:
                 nxt_wait.append((t, age + 1))
         waiting = nxt_wait
+        # ATR on closed bars up to and including b (Wilder); used only for variants
+        tr = b.high - b.low if prev_close is None else max(b.high, prev_close) - min(b.low, prev_close)
+        n_tr += 1
+        atr = tr if atr is None else (atr + (tr - atr) / cfg.atr_n if n_tr > cfg.atr_n else atr + (tr - atr) / n_tr)
+        prev_close = b.close
+        atr_ready = atr if n_tr >= cfg.atr_n else None
         # 2) live detection path on the closed bar
         for ev in eng.update(b):
             if isinstance(ev, Candidate):
@@ -210,14 +247,12 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
                                 features={"score": ev.features.get("breakout_strength_atr", ev.features.get("reward_risk")),
                                           **{k: v for k, v in ev.features.items() if isinstance(v, (int, float))}},
                                 entry_type=ev.entry_type)
-                trades.append(t)
-                waiting.append((t, 0))
+                admit(t, atr_ready)
             elif cfg.zone_rule == "zone_entry_v1" and isinstance(ev, Zone) and ev.zone_type != "opening_range" \
                     and not ev.zone_type.startswith("pdr_"):   # PDR level zones are context, not trade rules
                 zt = zone_trade(ev, b)
                 if zt is not None:
-                    trades.append(zt)
-                    waiting.append((zt, 0))
+                    admit(zt, atr_ready)
     res = ReplayResult(data_label, trades, eng.candidates, len(bars), len(eng.refused))
     done = [t for t in trades if t.r_multiple is not None]
     res.summary = {
@@ -227,6 +262,8 @@ def replay(instrument: str, timeframe: int, bars: Sequence[Bar], *, engine_cfg: 
         "stop": sum(t.outcome == "stop" for t in trades),
         "timeout": sum(t.outcome == "timeout" for t in trades),
         "still_open": sum(t.outcome == "open" for t in trades),
+        "cost_skipped": sum(t.outcome == "cost_skipped" for t in trades),
+        "stop_atr_mult": cfg.stop_atr_mult, "target_rr": cfg.target_rr, "max_cost_r": cfg.max_cost_r,
         "ambiguous_bars_counted_as_stop": sum(t.ambiguous for t in trades),
         "mean_r": (sum(t.r_multiple for t in done) / len(done)) if done else None,
         "total_r": sum(t.r_multiple for t in done) if done else None,
