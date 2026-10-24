@@ -42,9 +42,17 @@ class FeedStore:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA busy_timeout=30000")
         self._db.executescript(SCHEMA)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()  # also serialises reads: one sqlite connection is shared by the API threadpool
 
     # ---- ingest ----
+    def _fetchall(self, sql: str, params=()):
+        with self._lock:
+            return self._db.execute(sql, params).fetchall()
+
+    def _fetchone(self, sql: str, params=()):
+        with self._lock:
+            return self._db.execute(sql, params).fetchone()
+
     def ingest(self, bars: Iterable[FeedBar], note: str = "") -> dict:
         """Idempotent. A version is inserted only if OHLCV/confirmed differs from the latest stored version."""
         rec = ins = rev = 0
@@ -53,9 +61,9 @@ class FeedStore:
             for b in bars:
                 rec += 1
                 last = b
-                cur = self._db.execute(
+                cur = self._fetchone(
                     "SELECT open,high,low,close,volume,confirmed FROM bar_revisions WHERE provider=? AND instrument=? AND interval=? "
-                    "AND event_time=? ORDER BY receipt_time DESC LIMIT 1", (b.provider, b.instrument, b.interval, b.event_time)).fetchone()
+                    "AND event_time=? ORDER BY receipt_time DESC LIMIT 1", (b.provider, b.instrument, b.interval, b.event_time))
                 new = (b.open, b.high, b.low, b.close, b.volume, int(b.confirmed))
                 if cur is not None:
                     if tuple(cur) == new or (cur[5] == 1 and not b.confirmed and tuple(cur[:5]) == new[:5]):
@@ -80,8 +88,8 @@ class FeedStore:
             for r in rows:
                 if not (r.get("price") and r["price"] > 0):
                     continue
-                cur = self._db.execute("SELECT event_time, price FROM last_quotes WHERE instrument=? AND provider=?",
-                                       (r["instrument"], r["provider"])).fetchone()
+                cur = self._fetchone("SELECT event_time, price FROM last_quotes WHERE instrument=? AND provider=?",
+                                       (r["instrument"], r["provider"]))
                 if cur is not None and (cur[0] > r["event_time"] or (cur[0] == r["event_time"] and cur[1] == r["price"])):
                     continue
                 self._db.execute("INSERT OR REPLACE INTO last_quotes VALUES (?,?,?,?,?,?,?,?)",
@@ -92,7 +100,7 @@ class FeedStore:
 
     def last_quotes(self, instrument: str | None = None) -> list[dict]:
         q = "SELECT instrument,provider,price,event_time,receipt_time,prev_close,kind,provider_symbol FROM last_quotes"
-        rows = self._db.execute(q + (" WHERE instrument=?" if instrument else ""), (instrument,) if instrument else ()).fetchall()
+        rows = self._fetchall(q + (" WHERE instrument=?" if instrument else ""), (instrument,) if instrument else ())
         keys = ("instrument", "provider", "price", "event_time", "receipt_time", "prev_close", "kind", "provider_symbol")
         return [dict(zip(keys, r)) for r in rows]
 
@@ -101,10 +109,10 @@ class FeedStore:
         (min(bar_end, receipt_time)); the finest interval wins ties."""
         best = None
         for iv in intervals:
-            r = self._db.execute(
+            r = self._fetchone(
                 "SELECT provider,instrument,interval,event_time,open,high,low,close,volume,receipt_time,confirmed,provider_symbol "
                 "FROM bar_revisions WHERE instrument=? AND interval=? ORDER BY event_time DESC, receipt_time DESC LIMIT 1",
-                (instrument, iv)).fetchone()
+                (instrument, iv))
             if r:
                 b = FeedBar(r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[0], r[9], bool(r[10]), r[11] or "")
                 if best is None or min(b.bar_end, b.receipt_time) > min(best.bar_end, best.receipt_time):
@@ -112,8 +120,8 @@ class FeedStore:
         return best
 
     def daily_closes(self, instrument: str, limit: int = 3) -> list[tuple[int, float]]:
-        rows = self._db.execute("SELECT event_time, close FROM bar_revisions WHERE instrument=? AND interval='1d' "
-                                "GROUP BY event_time ORDER BY event_time DESC LIMIT ?", (instrument, limit)).fetchall()
+        rows = self._fetchall("SELECT event_time, close FROM bar_revisions WHERE instrument=? AND interval='1d' "
+                                "GROUP BY event_time ORDER BY event_time DESC LIMIT ?", (instrument, limit))
         return [(int(t), float(c)) for t, c in rows]
 
     def ingest_observations(self, obs: Iterable[FeedObservation]) -> int:
@@ -139,11 +147,11 @@ class FeedStore:
         if as_of is not None:
             q.append("receipt_time<=?"); a.append(int(as_of))
         where = " AND ".join(q)
-        rows = self._db.execute(
+        rows = self._fetchall(
             f"SELECT provider,instrument,interval,event_time,open,high,low,close,volume,receipt_time,confirmed,provider_symbol "
             f"FROM bar_revisions r WHERE {where} AND receipt_time = (SELECT MAX(receipt_time) FROM bar_revisions r2 WHERE "
             f"r2.provider=r.provider AND r2.instrument=r.instrument AND r2.interval=r.interval AND r2.event_time=r.event_time"
-            f"{' AND r2.receipt_time<=' + str(int(as_of)) if as_of is not None else ''}) ORDER BY event_time", a).fetchall()
+            f"{' AND r2.receipt_time<=' + str(int(as_of)) if as_of is not None else ''}) ORDER BY event_time", a)
         prio = self.provider_rank(instrument, interval) if not provider else [provider]
         best: dict[int, tuple] = {}
         for r in rows:
@@ -155,8 +163,8 @@ class FeedStore:
         return [FeedBar(r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[0], r[9], bool(r[10]), r[11] or "") for _, r in sorted(best.items())]
 
     def provider_rank(self, instrument, interval) -> list[str]:
-        rows = self._db.execute("SELECT provider, COUNT(*) c FROM bar_revisions WHERE instrument=? AND interval=? GROUP BY provider ORDER BY c DESC",
-                                (instrument, interval)).fetchall()
+        rows = self._fetchall("SELECT provider, COUNT(*) c FROM bar_revisions WHERE instrument=? AND interval=? GROUP BY provider ORDER BY c DESC",
+                                (instrument, interval))
         return [r[0] for r in rows]
 
     def set_priority(self, instrument, interval, order: Sequence[str]):
@@ -167,18 +175,18 @@ class FeedStore:
         a = [instrument, interval, int(event_time)]
         if provider:
             q += " AND provider=?"; a.append(provider)
-        return self._db.execute(q + " ORDER BY receipt_time", a).fetchall()
+        return self._fetchall(q + " ORDER BY receipt_time", a)
 
     def summary(self) -> list[dict]:
-        rows = self._db.execute("SELECT provider,instrument,interval,COUNT(DISTINCT event_time),MIN(event_time),MAX(event_time),MAX(receipt_time),"
-                                "SUM(confirmed) FROM bar_revisions GROUP BY provider,instrument,interval ORDER BY instrument,interval,provider").fetchall()
+        rows = self._fetchall("SELECT provider,instrument,interval,COUNT(DISTINCT event_time),MIN(event_time),MAX(event_time),MAX(receipt_time),"
+                                "SUM(confirmed) FROM bar_revisions GROUP BY provider,instrument,interval ORDER BY instrument,interval,provider")
         return [dict(zip(("provider", "instrument", "interval", "bars", "first", "last", "last_receipt", "confirmed_rows"), r)) for r in rows]
 
     def observations(self, series, as_of_date: str | None = None):
         q, a = "SELECT date,value,realtime_start FROM observations WHERE series=?", [series]
         if as_of_date:
             q += " AND realtime_start<=?"; a.append(as_of_date)
-        rows = self._db.execute(q + " ORDER BY date, realtime_start", a).fetchall()
+        rows = self._fetchall(q + " ORDER BY date, realtime_start", a)
         latest = {}
         for d, v, rs in rows:
             latest[d] = (v, rs)

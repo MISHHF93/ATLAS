@@ -1,5 +1,5 @@
 """The UI universe: every symbol any ATLAS screen lists (ticker tape, /api/listings, market list, watchlists, trade desk,
-library page) mapped to an ATLAS feed instrument. ``tests/feeds/test_ui_universe.py`` asserts that every symbol the UI
+library page) mapped to an ATLAS feed instrument. ``tests/feeds/test_live_quotes.py`` asserts that every symbol the UI
 catalog/listings expose is in here, so a new UI symbol without a feed series fails CI instead of showing a fake price.
 
 Symbols are kept here as plain data (no import of atlas.marketdata) so the feed layer stays at the bottom of the stack.

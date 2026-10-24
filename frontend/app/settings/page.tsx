@@ -1,4 +1,5 @@
 import { AtlasTerminal } from "@/app/AtlasTerminal";
+import { FeedHealthPanel } from "@/src/components/market/FeedHealthPanel";
 import { ApiKeysView } from "@/src/ui/pages/Console";
 import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
 
@@ -7,7 +8,12 @@ export default async function Page(props: HubProps) {
   return (
     <Hub id="settings" tab={tab} panels={{
         "keys": <ApiKeysView />,
-        "connectors": <AtlasTerminal initialSection="connectors" initialWorkspaceRoute="/data/pipelines" />,
+        "connectors": (
+          <>
+            <FeedHealthPanel />
+            <AtlasTerminal initialSection="connectors" initialWorkspaceRoute="/data/pipelines" />
+          </>
+        ),
       }} />
   );
 }

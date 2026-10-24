@@ -1821,6 +1821,7 @@ export function StreamlinedTradingStudio() {
                         {(item.change_pct ?? 0).toFixed(2)}%
                       </span>
                       <span
+                        data-quote-price={String(item.last_price)}
                         style={{
                           fontSize: "12px",
                           fontWeight: 700,
@@ -1902,6 +1903,7 @@ export function StreamlinedTradingStudio() {
               </div>
 
               <div
+                data-quote-price={activeAsset.last_price > 0 ? String(activeAsset.last_price) : "none"}
                 title={`VPIN ${(activeAsset.vpin * 100).toFixed(1)}% · OFI ${activeAsset.ofi_z.toFixed(2)} · Kyle λ ${activeAsset.kyles_lambda.toFixed(4)}`}
                 style={{ fontFamily: "var(--font-mono, monospace)", fontSize: "15px", color: activeAsset.last_price > 0 ? "var(--c-good)" : "var(--c-muted)", fontWeight: 700 }}
               >

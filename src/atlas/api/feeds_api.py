@@ -72,6 +72,16 @@ def _live_ingest_state() -> dict[str, Any]:
     return {"pid": pid, "running": alive, "command": "PYTHONPATH=src python scripts/run_live_ingest.py"}
 
 
+def _bar_label(bar, now: float) -> str:
+    """Daily bars are labelled by their session date (their nominal bar_end can lie in the future); intraday bars by
+    their end time in Toronto, capped at now for a still-forming bar."""
+    from datetime import datetime
+    from atlas.feeds.status import NY, toronto
+    if bar.interval == "1d":
+        return datetime.fromtimestamp(bar.event_time, NY).strftime("%Y-%m-%d") + " session"
+    return toronto(min(bar.bar_end, now))
+
+
 @router.get("/api/feeds/health")
 def api_feed_health(symbols: str | None = Query(default=None)) -> dict[str, Any]:
     from atlas.feeds.status import toronto
@@ -95,7 +105,7 @@ def api_feed_health(symbols: str | None = Query(default=None)) -> dict[str, Any]
                      "last_price": v.get("price"), "last_quote_at": v.get("observed_at_toronto"),
                      "lag_seconds": v.get("age_seconds"), "last_bar_interval": last_bar.interval if last_bar else None,
                      "last_bar_provider": last_bar.provider if last_bar else None,
-                     "last_bar_end": toronto(last_bar.bar_end) if last_bar else None, "flags": flags})
+                     "last_bar_end": _bar_label(last_bar, now) if last_bar else None, "flags": flags})
     counts: dict[str, int] = {}
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
