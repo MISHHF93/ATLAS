@@ -51,6 +51,7 @@ export function AccountRiskPage({
   positions,
   busy,
   onFlatten,
+  showTable = true,
 }: {
   ready: boolean;
   equityLabel: string;
@@ -62,6 +63,8 @@ export function AccountRiskPage({
   positions: PositionRow[];
   busy: boolean;
   onFlatten: () => void;
+  /** Off when the caller renders the richer open-positions table itself. */
+  showTable?: boolean;
 }) {
   return (
     <>
@@ -98,6 +101,7 @@ export function AccountRiskPage({
           </div>
         </div>
       </div>
+      {showTable ? (
       <div className="clean-card">
         <table className="clean-table">
           <thead>
@@ -130,6 +134,7 @@ export function AccountRiskPage({
           </tbody>
         </table>
       </div>
+      ) : null}
     </>
   );
 }

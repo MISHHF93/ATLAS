@@ -6,7 +6,7 @@ import { ShieldCheck } from "lucide-react";
 import { FounderGate, useFounderData, useFounderStatus } from "./FounderPanel";
 import { EquityDrawdown, FintracTimeline, LossBullets, MoneySankey, TaxWaterfall, fmt, type Flow } from "./Charts";
 import { Async, Badge, Card, DataTable, EmptyState, Grid, StatTile, money, num as toNum, pct, useApi, type Column, type Tone } from "../../ui/primitives";
-import { useSafeStop } from "../../ui/AppShell";
+import { PnlTiles } from "../../ui/PnlTiles";
 
 type Row = Record<string, unknown>;
 const arr = (v: unknown): Row[] => (Array.isArray(v) ? (v as Row[]) : []);
@@ -77,33 +77,14 @@ export function InboxView() {
 }
 
 /* ----------------------------------------------------------------- Money */
-type Pnl = { currency?: string; day_pnl_usd?: number; day_pnl_pct?: number; total_pnl_usd?: number; total_pnl_pct?: number; remaining_room?: Row };
 export function MoneyView() {
-  const pnl = useApi<Pnl>("/api/founder/pnl", 15000);
   const status = useFounderStatus();
   const ok = status.data?.available;
   const eq = useFounderData(ok, "trading/equity"), risk = useFounderData(ok, "trading/risk"), led = useFounderData(ok, "payments/ledger");
-  const safe = useSafeStop();
   const accounts = arr(led.data?.accounts);
   return (
     <>
-      <Async state={pnl} label="Loading P&L">
-        {(d) => {
-          const r = d.remaining_room ?? {};
-          const limit = toNum(r.daily_loss_limit_pct) ?? 2;
-          const used = Math.min(1, Math.max(0, (num(r.daily_drawdown_fraction) * 100) / limit));
-          return (
-            <Grid cols={4}>
-              <StatTile label="Equity (paper)" value={money(r.current_equity_usd, d.currency)} />
-              <StatTile label="Today" value={money(d.day_pnl_usd, d.currency)} delta={pct(d.day_pnl_pct, 2, true)} deltaTone={num(d.day_pnl_usd) >= 0 ? "good" : "bad"} />
-              <StatTile label="Since start" value={money(d.total_pnl_usd, d.currency)} delta={pct(d.total_pnl_pct, 2, true)} deltaTone={num(d.total_pnl_usd) >= 0 ? "good" : "bad"} />
-              <StatTile label={`Room before Safe stop (${limit}%)`} value={safe.engaged ? "Safe stop active" : money(r.daily_loss_room_usd, d.currency)}
-                hint={`Trailing drawdown room ${money(r.trailing_dd_room_usd, d.currency)}`}
-                meter={{ used, label: `${Math.round(used * 100)}% of today’s loss limit used`, tone: used > 0.75 ? "bad" : used > 0.5 ? "warn" : "good" }} />
-            </Grid>
-          );
-        }}
-      </Async>
+      <PnlTiles />
       <FounderGate status={status}>
         <div className="ux-grid" data-cols={2}>
           <EquityDrawdown points={arr(eq.data?.items) as unknown as Array<[string, number]>} />

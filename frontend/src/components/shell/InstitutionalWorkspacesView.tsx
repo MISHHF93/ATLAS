@@ -2248,20 +2248,30 @@ export function InstitutionalWorkspacesView({
         {/* ==================================================================
             1.3 ACTIVE POSITIONS & WORKING ORDERS BLOTTER (/trade/blotter)
            ================================================================== */}
-        {currentRoute === "/trade/blotter" && (
+        {/* ==================================================================
+            2.1 ACCOUNT & POSITIONS (/control/risk-hud; the former /trade/blotter view is merged here)
+           ================================================================== */}
+        {(currentRoute === "/control/risk-hud" || currentRoute === "/trade/blotter") && (
           <>
+          <AccountRiskPage
+            ready={remainingRoomCalc.controlReady}
+            equityLabel={formatDeskUsd(remainingRoomCalc.equity, 2)}
+            hwmLabel={formatDeskUsd(remainingRoomCalc.hwm, 2)}
+            profitLabel={`${remainingRoomCalc.profitUsd >= 0 ? "+" : ""}${formatDeskUsd(remainingRoomCalc.profitUsd, 2)} (${remainingRoomCalc.profitPct.toFixed(2)}%)`}
+            dailyLabel={`${formatDeskUsd(remainingRoomCalc.dailyRoomUsd)} left of the ${remainingRoomCalc.dailyLimitPct.toFixed(0)}% daily limit`}
+            trailingLabel={`${formatDeskUsd(remainingRoomCalc.trailingRoomUsd)} left of the ${remainingRoomCalc.trailingLimitPct.toFixed(0)}% drawdown limit`}
+            consistencyLabel={activeTrack === "competition" ? `${remainingRoomCalc.consistencyPct.toFixed(1)}% of cumulative profit on the best day` : "The open-market track has no 35% day cap"}
+            positions={control.open_positions}
+            busy={deskSubmitting}
+            onFlatten={() => void flattenDesk()}
+            showTable={false}
+          />
+
             <div className="clean-kpi-row">
               <div className="clean-kpi-card">
                 <span className="clean-kpi-label">Open Exposure</span>
                 <span className="clean-kpi-value">{formatDeskUsd(remainingRoomCalc.openNotionalUsd, 2)}</span>
                 <span className="clean-kpi-sub">{control.open_positions.length} open control-plane position{control.open_positions.length === 1 ? "" : "s"}</span>
-              </div>
-              <div className="clean-kpi-card">
-                <span className="clean-kpi-label">Account P&amp;L</span>
-                <span className="clean-kpi-value" style={{ color: remainingRoomCalc.profitUsd >= 0 ? "#00F29D" : "#FF3B69" }}>
-                  {remainingRoomCalc.controlReady ? formatDeskUsd(remainingRoomCalc.profitUsd, 2) : "—"}
-                </span>
-                <span className="clean-kpi-sub">Equity versus initial equity on the control plane</span>
               </div>
               <div className="clean-kpi-card">
                 <span className="clean-kpi-label">Recorded decisions</span>
@@ -2283,11 +2293,8 @@ export function InstitutionalWorkspacesView({
               <div className="clean-card-header">
                 <div>
                   <h2 className="clean-card-title">Open paper positions</h2>
-                  <p className="clean-card-subtitle">Inspect exposure and recorded stops, or close all paper positions.</p>
+                  <p className="clean-card-subtitle">Exposure, recorded stops and track for every open position. Use Flatten above to close them all.</p>
                 </div>
-                <button type="button" className="btn btn-danger btn-sm" disabled={deskSubmitting || !remainingRoomCalc.controlReady} onClick={() => void flattenDesk()}>
-                  Flatten All Positions
-                </button>
               </div>
               <table className="clean-table">
                 <thead>
@@ -2322,26 +2329,6 @@ export function InstitutionalWorkspacesView({
             </div>
           </>
         )}
-
-        {/* ==================================================================
-            2.1 MULTI-ACCOUNT PROP RISK HUD (/control/risk-hud)
-           ================================================================== */}
-        {currentRoute === "/control/risk-hud" && (
-          <AccountRiskPage
-            ready={remainingRoomCalc.controlReady}
-            equityLabel={formatDeskUsd(remainingRoomCalc.equity, 2)}
-            hwmLabel={formatDeskUsd(remainingRoomCalc.hwm, 2)}
-            profitLabel={`${remainingRoomCalc.profitUsd >= 0 ? "+" : ""}${formatDeskUsd(remainingRoomCalc.profitUsd, 2)} (${remainingRoomCalc.profitPct.toFixed(2)}%)`}
-            dailyLabel={`${formatDeskUsd(remainingRoomCalc.dailyRoomUsd)} left of the ${remainingRoomCalc.dailyLimitPct.toFixed(0)}% daily limit`}
-            trailingLabel={`${formatDeskUsd(remainingRoomCalc.trailingRoomUsd)} left of the ${remainingRoomCalc.trailingLimitPct.toFixed(0)}% drawdown limit`}
-            consistencyLabel={activeTrack === "competition" ? `${remainingRoomCalc.consistencyPct.toFixed(1)}% of cumulative profit on the best day` : "The open-market track has no 35% day cap"}
-            positions={control.open_positions}
-            busy={deskSubmitting}
-            onFlatten={() => void flattenDesk()}
-          />
-        )}
-
-        
 
         {/* ==================================================================
             2.2 PRE-TRADE RISK ENGINE & RULEBOOK EDITOR (/control/rulebook)

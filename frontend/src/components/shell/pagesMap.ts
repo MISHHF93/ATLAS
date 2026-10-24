@@ -34,6 +34,8 @@ export type HubTab = {
   workspaceRoute?: WorkspaceRoute;
   /** Older addresses that now open this tab. */
   aliases?: string[];
+  /** Retired hub tabs (path?tab=id) whose content now lives in this tab. */
+  tabAliases?: string[];
 };
 
 export type AtlasPage = {
@@ -87,10 +89,9 @@ export const PAGES: AtlasPage[] = [
     id: "risk", href: "/control", label: "Risk & positions", navLabel: "Risk", group: "trade",
     summary: "How much room the paper account has, what is open right now, and the limits that protect it.",
     tabs: [
-      { id: "account", label: "Account", workspaceRoute: "/control/risk-hud", aliases: ["/control/risk-hud", "/profile"],
-        summary: "Equity, drawdown room and open positions for the one paper account." },
-      { id: "positions", label: "Positions", workspaceRoute: "/trade/blotter", aliases: ["/trade/blotter", "/control/dealing-desk"],
-        summary: "Every open position, total exposure and its stop protection." },
+      { id: "account", label: "Account & positions", workspaceRoute: "/control/risk-hud",
+        aliases: ["/control/risk-hud", "/profile", "/trade/blotter", "/control/dealing-desk"], tabAliases: ["/control?tab=positions"],
+        summary: "Equity, drawdown room, total exposure, stop protection and every open position for the one paper account." },
       { id: "portfolio", label: "Portfolio risk", summary: "Exposure, correlation, VaR/CVaR and stress for the open paper book. Unpriced positions are listed, not guessed." },
       { id: "tracks", label: "Track rules", summary: "Competition and open-market rulebooks side by side, with probes showing each is enforced separately." },
       { id: "limits", label: "Limits & rules", workspaceRoute: "/control/rulebook", aliases: ["/control/rulebook", "/rules", "/configurations"],
@@ -107,9 +108,10 @@ export const PAGES: AtlasPage[] = [
     tabs: [
       { id: "chart", label: "Chart read", workspaceRoute: "/research/central-node",
         aliases: ["/research/central-node", "/research/microstructure", "/research/drift-dashboard", "/matrix"],
-        summary: "Candle patterns and order-flow measurements for the current symbol." },
-      { id: "zones", label: "Price zones", aliases: ["/research/price-action"],
-        summary: "Opening ranges, breakout-and-retest setups and wick zones. Setups are ideas, not trades." },
+        tabAliases: ["/research/lab?tab=microstructure"],
+        summary: "Candle patterns, order-flow measurements and tier-gated microstructure metrics for the current symbol." },
+      { id: "zones", label: "Price zones", aliases: ["/research/price-action"], tabAliases: ["/research/lab?tab=fourbox"],
+        summary: "Opening ranges, breakout-and-retest setups, wick zones and the Four-Box summary. Setups are ideas, not trades." },
       { id: "levels", label: "Levels & sweeps", aliases: ["/research/levels"],
         summary: "Prior-day, session and swing levels, sweeps and reclaims, gold opening boxes, and the strategy switches. Research only." },
       { id: "forecasts", label: "Forecast ledger", workspaceRoute: "/research/prediction-ledger", aliases: ["/research/prediction-ledger"],
@@ -130,14 +132,12 @@ export const PAGES: AtlasPage[] = [
   },
   {
     id: "lab", href: "/research/lab", label: "Research lab", navLabel: "Lab", group: "research",
-    summary: "Experiments, regimes, market memory, the evidence assistant, microstructure and Four-Box. Research only: nothing here can place an order.",
+    summary: "Experiments, regimes, market memory, the evidence assistant and model evolution. Research only: nothing here can place an order.",
     tabs: [
       { id: "experiments", label: "Experiments", summary: "Recorded variant experiments with deflated Sharpe, PBO, bootstrap intervals and cost sensitivity." },
       { id: "regimes", label: "Regimes", summary: "A causal trend/volatility regime label and how each strategy did in each regime." },
       { id: "memory", label: "Memory & governance", summary: "Where replay results came from, the closest past setups, and the model registry's promotion state." },
       { id: "assistant", label: "Assistant", summary: "Ask a question; answers are quoted from docs and lab reports with evidence IDs." },
-      { id: "microstructure", label: "Microstructure", summary: "Liquidity and volatility estimates, gated by the data tier the feed actually has." },
-      { id: "fourbox", label: "Four-Box", summary: "Opening, Breakout and Anchor boxes from the zone detectors. Event is off." },
       { id: "evolution", label: "Model evolution", summary: "Generations of candidate models and bar types scored on the same walk-forward folds. Nothing is promoted to trading." },
     ],
   },
@@ -203,9 +203,31 @@ const ALIAS_TARGET: Record<string, { page: AtlasPage; href: string }> = Object.f
   ])
 );
 
+/** Every retired hub tab ("/hub?tab=old") and the exact URL it now opens. */
+const TAB_ALIAS_TARGET: Record<string, string> = Object.fromEntries(
+  PAGES.flatMap((page) => (page.tabs ?? []).flatMap((t) => (t.tabAliases ?? []).map((a) => [a, tabHref(page, t.id)] as const)))
+);
+/** Same targets with an explicit ?tab= so Next's redirect cannot carry the retired tab id through (which would loop). */
+const TAB_ALIAS_EXPLICIT: Record<string, string> = Object.fromEntries(
+  PAGES.flatMap((page) => (page.tabs ?? []).flatMap((t) => (t.tabAliases ?? []).map((a) => [a, `${page.href}?tab=${t.id}`] as const)))
+);
+
+export type LegacyRedirect = { source: string; destination: string; permanent: true; has?: Array<{ type: "query"; key: "tab"; value: string }> };
+
+/** Permanent (308) redirects for next.config: every older address, then every retired tab. */
+export function legacyRedirects(): LegacyRedirect[] {
+  const paths = Object.entries(ALIAS_TARGET).map(([source, t]) => ({ source, destination: t.href, permanent: true as const }));
+  const tabs = Object.entries(TAB_ALIAS_EXPLICIT).map(([from, destination]) => {
+    const [source, query] = from.split("?");
+    const value = new URLSearchParams(query).get("tab")!;
+    return { source, destination, permanent: true as const, has: [{ type: "query" as const, key: "tab" as const, value }] };
+  });
+  return [...paths, ...tabs];
+}
+
 /** Every older address and the exact URL (hub + tab) it redirects to. */
 export function redirectTarget(path: string): string | null {
-  return ALIAS_TARGET[path]?.href ?? null;
+  return ALIAS_TARGET[path]?.href ?? TAB_ALIAS_TARGET[path] ?? null;
 }
 
 export function pageForPath(path: string): AtlasPage {

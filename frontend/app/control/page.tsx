@@ -7,7 +7,6 @@ export default async function Page(props: HubProps) {
   return (
     <Hub id="risk" tab={tab} panels={{
         "account": <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/control/risk-hud" />,
-        "positions": <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/trade/blotter" />,
         "portfolio": <PortfolioRiskView />,
         "tracks": <TracksView />,
         "limits": <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/control/rulebook" />,

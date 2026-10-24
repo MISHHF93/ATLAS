@@ -1,5 +1,5 @@
 import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
-import { AssistantView, EvolutionView, FourBoxView, LabView, MemoryView, MicrostructureView, RegimesView } from "@/src/ui/pages/IntelViews";
+import { AssistantView, EvolutionView, LabView, MemoryView, RegimesView } from "@/src/ui/pages/IntelViews";
 
 export default async function Page(props: HubProps) {
   const tab = await tabParam(props);
@@ -9,8 +9,6 @@ export default async function Page(props: HubProps) {
         "regimes": <RegimesView />,
         "memory": <MemoryView />,
         "assistant": <AssistantView />,
-        "microstructure": <MicrostructureView />,
-        "fourbox": <FourBoxView />,
         "evolution": <EvolutionView />,
       }} />
   );

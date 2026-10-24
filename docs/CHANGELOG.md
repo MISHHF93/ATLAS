@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-24: branch `atlas-routes-1` (from main 8cabd13; not merged, not pushed)
+- Consolidated pages that did the same job under different names. Audit: `docs/audit/2026-10-24-route-consolidation.md`.
+  - Risk & positions: the "Positions" tab (former `/trade/blotter`, `/control/dealing-desk`) is merged into "Account & positions". It keeps the exposure, recorded-decision and stop-protection figures and the full positions table, with one Flatten button.
+  - Research lab "Microstructure" moved into Research → Chart read, next to the candle measurements.
+  - Research lab "Four-Box" moved into Research → Price zones, next to the opening-range and wick-zone detectors.
+  - Overview and Money → Summary now share one P&L strip (`src/ui/PnlTiles.tsx`) instead of two copies.
+- Old addresses are now permanent (308) redirects generated from `pagesMap.ts` in `next.config.ts`. The 40 stub `redirect()` page files and `scripts/gen-redirects.mjs` are gone. Retired tabs (`/control?tab=positions`, `/research/lab?tab=microstructure`, `/research/lab?tab=fourbox`) redirect to the tab that took them over.
+- No backend, API or risk-rule changes.
+
 ## 2026-10-24: branch `atlas-evo-1` (from atlas-full-2 97bf58f; not merged, not pushed)
 - Added alternative bar builders in `features/representations`: Heikin-Ashi (features and display only), Renko (ATR), range (ATR), volume and dollar bars. They are causal and indexed by completion time. Tick bars are gated as unavailable because the feed stores bars only.
 - Added a governed model-evolution loop in `ml/evolution.py`, run with `scripts/evolve_models.py`:

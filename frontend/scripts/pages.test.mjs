@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(readFileSync(path.join(root, "src/components
 }).outputText;
 const registry = {};
 new Function("exports", compiled)(registry);
-const { PAGES, pageForPath, hrefForWorkspace, redirectTarget, tabHref } = registry;
+const { PAGES, pageForPath, hrefForWorkspace, redirectTarget, tabHref, legacyRedirects } = registry;
 const allAliases = page => [...(page.aliases ?? []), ...(page.tabs ?? []).flatMap(t => t.aliases ?? [])];
 
 test("each page and legacy address has exactly one owner", () => {
@@ -28,7 +28,7 @@ test("each page and legacy address has exactly one owner", () => {
   }
 });
 
-test("every app page is canonical or redirects directly to its owner", () => {
+test("app/ holds only canonical pages; every former address is a permanent next.config redirect", () => {
   const app = path.join(root, "app");
   const known = new Set();
   function visit(dir) {
@@ -39,25 +39,42 @@ test("every app page is canonical or redirects directly to its owner", () => {
         const suffix = path.relative(app, dir).split(path.sep).join("/");
         const route = suffix ? `/${suffix}` : "/";
         known.add(route);
-        const owner = PAGES.find(page => page.href === route || allAliases(page).includes(route));
-        assert.ok(owner, `Unregistered page: ${route}`);
-        const source = readFileSync(file, "utf8");
-        const redirect = source.match(/redirect\("([^"]+)"\)/)?.[1];
-        if (owner.href === route) assert.equal(redirect, undefined, `Canonical page redirects: ${route}`);
-        else assert.equal(redirect, redirectTarget(route), `Alias must redirect directly to its hub tab: ${route}`);
+        assert.ok(PAGES.some(page => page.href === route), `Page file that is not a canonical hub: ${route}`);
+        assert.equal(readFileSync(file, "utf8").match(/redirect\("/), null, `Stub redirect page left behind: ${route}`);
       }
     }
   }
   visit(app);
-  for (const page of PAGES) {
-    for (const route of [page.href, ...allAliases(page)]) assert.ok(known.has(route), `Missing route: ${route}`);
+  for (const page of PAGES) assert.ok(known.has(page.href), `Missing canonical page: ${page.href}`);
+  const redirects = legacyRedirects();
+  const sources = redirects.map(r => r.source + (r.has ? `?tab=${r.has[0].value}` : ""));
+  assert.equal(new Set(sources).size, sources.length, "duplicate redirect source");
+  for (const r of redirects) {
+    assert.equal(r.permanent, true);
+    const target = r.destination.split("?")[0];
+    assert.ok(PAGES.some(page => page.href === target), `Redirect to a non-canonical page: ${r.source} -> ${r.destination}`);
+    if (!r.has) assert.ok(!known.has(r.source), `Redirect source still has a page file: ${r.source}`);
   }
+  for (const r of redirects.filter(r => r.has)) {
+    assert.match(r.destination, /\?tab=/, `retired-tab redirect must name its tab explicitly: ${r.source}`);
+    assert.notEqual(new URL(r.destination, "http://x").searchParams.get("tab"), r.has[0].value, `redirect loop: ${r.source}`);
+  }
+  for (const page of PAGES) for (const alias of allAliases(page)) assert.ok(redirects.some(r => r.source === alias && !r.has), `No redirect for ${alias}`);
+});
+
+test("retired tabs open the tab that absorbed them", () => {
+  for (const [from, to] of Object.entries({
+    "/control?tab=positions": "/control", "/research/lab?tab=microstructure": "/research", "/research/lab?tab=fourbox": "/research?tab=zones",
+  })) assert.equal(redirectTarget(from), to);
+  const lab = PAGES.find(p => p.id === "lab");
+  assert.ok(!lab.tabs.some(t => t.id === "microstructure" || t.id === "fourbox"));
+  assert.ok(!PAGES.find(p => p.id === "risk").tabs.some(t => t.id === "positions"));
 });
 
 test("retired workspace destinations resolve to their consolidated pages", () => {
   for (const [route, href] of Object.entries({
     "/trade/cockpit": "/trade", "/trade/journal": "/compliance?tab=audit",
-    "/control/dealing-desk": "/control?tab=positions", "/research/microstructure": "/research",
+    "/control/dealing-desk": "/control", "/trade/blotter": "/control", "/research/microstructure": "/research",
     "/data/pipelines": "/settings?tab=connectors", "/research/registry": "/research/evidence?tab=training",
   })) assert.equal(hrefForWorkspace(route), href);
 });
