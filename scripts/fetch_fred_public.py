@@ -2,6 +2,10 @@
 Usage: ATLAS_FEED_DB=... python scripts/fetch_fred_public.py [SERIES ...]"""
 import json
 import sys
+if any(a in ("-h", "--help") for a in sys.argv[1:]):
+    print(__doc__)
+    raise SystemExit(0)
+
 
 
 def main() -> int:

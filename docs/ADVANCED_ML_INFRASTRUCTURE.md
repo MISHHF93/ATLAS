@@ -740,50 +740,11 @@ ws.onmessage = (event) => {
 
 ## Live Market Data Integration
 
-### Setting Up Live Drift Monitoring
+### Live drift monitoring
 
-```python
-from atlas.marketdata.drift_integration import (
-    create_drift_integration,
-    DriftIntegrationConfig,
-)
-from atlas.marketdata.live_stream import LiveMarketDataGateway
-import numpy as np
-
-# Create gateway
-gateway = LiveMarketDataGateway()
-
-# Create drift integration
-config = DriftIntegrationConfig(
-    window_size=1000,
-    evaluation_interval_seconds=60,
-    enable_auto_retraining=False,
-    alert_on_drift=True,
-)
-
-integration = create_drift_integration(gateway, config)
-
-# Baseline must be observed feature history, not a random stand-in.
-baseline_features = {
-    "returns": np.asarray(observed_returns),
-    "volume": np.asarray(observed_volume),
-}
-
-# Create monitor
-monitor = integration.create_monitor(
-    monitor_id="btc_live_monitor",
-    baseline_features=baseline_features,
-    baseline_metrics={"mae": 0.05},
-)
-
-# Start evaluation loop
-import asyncio
-asyncio.run(integration.start_evaluation_loop())
-
-# Check monitor status
-status = integration.get_monitor_status("btc_live_monitor")
-print(status)
-```
+The unused `atlas.marketdata.drift_integration` wrapper was removed (2026-10-24 streamline). Drift detection lives in
+`atlas.models.drift_detection` and `atlas.ml.drift`, registered as the `drift` component of the AI node (`atlas.ai.node`,
+`GET /api/ai/components/drift`); alerts stream on `/ws/drift-alerts`. Drift output is advisory (`execution_permission: none`).
 
 ## Next Steps
 

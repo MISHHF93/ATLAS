@@ -10,9 +10,7 @@ from atlas.models.quant.validation import pbo_cscv
 EPS = 1e-6
 
 
-def brier(p, y) -> float:
-    p, y = np.asarray(p, float), np.asarray(y, float)
-    return float(((p - y) ** 2).mean())
+from atlas.models.quant.metrics import brier  # noqa: E402,F401  single implementation (2026-10-24 streamline)
 
 
 def logloss(p, y) -> float:

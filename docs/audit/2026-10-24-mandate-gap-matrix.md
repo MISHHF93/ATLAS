@@ -68,3 +68,11 @@ so "existing" means "found", not "audited".
 | Wider ATR stops / higher timeframe / cost-aware setup variants | Done (research, toggleable, off by default); 0/230 pass gates |
 | Retire 15m orb_retest | Done as research-retired, reversible, documented reason |
 | ML on gross-positive variant (PDR 4h) | Done; no challenger beats baseline |
+
+## Streamline pass 1 (atlas-unify-1)
+| Item | Status |
+|---|---|
+| Completeness audit (imports, scripts, routes, UI→API, tests, config) | Done: docs/audit/2026-10-24-repo-streamline.md |
+| Broken scripts (5) and setup_evidence recursion | Fixed |
+| Dead modules / generated artifacts / unused deps | Removed (3 files, 5 deps) |
+| AI as one node (`atlas.ai`, `/api/ai/*`, single advisory guard) | Done; physical package move of atlas.ml/models/intel deferred |

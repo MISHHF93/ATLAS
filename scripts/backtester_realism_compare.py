@@ -3,8 +3,14 @@ Usage: ATLAS_FEED_DB=... python scripts/backtester_realism_compare.py [INSTRUMEN
 import json, os, sqlite3, sys
 import pandas as pd
 from atlas.research.backtester import StrategyBacktester
+if any(a in ("-h", "--help") for a in sys.argv[1:]):
+    print(__doc__)
+    raise SystemExit(0)
+
 
 inst, iv, n = (sys.argv[1:4] + ["BTCUSDT", "15m", "3000"][len(sys.argv[1:4]):])
+if not os.environ.get("ATLAS_FEED_DB"):
+    raise SystemExit("set ATLAS_FEED_DB to an ATLAS feed SQLite file")
 c = sqlite3.connect(os.environ["ATLAS_FEED_DB"])
 rows = c.execute("""SELECT event_time, open, high, low, close, volume FROM bar_revisions b WHERE instrument=? AND interval=?
   AND confirmed=1 AND receipt_time=(SELECT MAX(receipt_time) FROM bar_revisions WHERE provider=b.provider AND

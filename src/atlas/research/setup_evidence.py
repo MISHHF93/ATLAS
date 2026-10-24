@@ -76,7 +76,8 @@ def load_datasets(cache: Path, intervals: tuple[str, ...] | None = None):
                 if len(bars) > 50:
                     yield bars, meta
         return
-    for bars, meta in load_datasets(cache):
+    for path in sorted(cache.glob("*.json")):
+        bars, meta = load_bars(path)
         if intervals is None or meta["interval"] in intervals:
             yield bars, meta
 

@@ -36,3 +36,6 @@
 - Control plane: `preview_order` (no booking) shares `_evaluate_request` with `submit_order`. Rules are unchanged.
 - UI tabs: Research Lab gets Valuation / Dossier & agents / Options; Research gets Scan & Pine; Settings gets Broker & alerts.
 - Blocked: live option chains, news/sentiment, maritime. Deferred to evo-5: yield curve/macro.
+
+## atlas-unify-1 (2026-10-24)
+- AI consolidated into one node (`atlas.ai`, `/api/ai/*`); dead code and unused deps removed. Details in docs/CHANGELOG.md and docs/audit/2026-10-24-repo-streamline.md.

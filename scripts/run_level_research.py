@@ -22,6 +22,10 @@ from atlas.features.price_action.replay import ReplayConfig
 from atlas.features.price_action.bars import Bar
 from atlas.features.price_action.suite import GoldBox, GoldConfig, SFPConfig, StrategyToggles, SuiteConfig
 from atlas.ml.selector import _stats, build_rows, evaluate
+if any(a in ("-h", "--help") for a in sys.argv[1:]):
+    print(__doc__)
+    raise SystemExit(0)
+
 
 FAM = {"sfp_reversal": "sfp", "gold_snapback": "snapback", "gold_orb_breakout": "orb"}
 from atlas.intel.data import SPEC  # noqa: E402  single source: futures rows derive from atlas.feeds.contracts

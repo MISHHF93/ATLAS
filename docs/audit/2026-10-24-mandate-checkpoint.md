@@ -142,3 +142,7 @@ New package `atlas.intel` (EXECUTION_PERMISSION="none") + `/api/intel/*` router 
 - ML: evo6 labels (457 rows) AUC 0.485 vs shuffled 0.481; run de86779da75c and extended f8e7de55c108: no challenger beats baseline. Markers from f8e7de55c108. Nothing promoted.
 - Verify: pytest 1639 passed (after rebase on d0afcf4) / 9 skipped; tsc ok; next build ok; route tests 5/5; vertical-text 144/144, 0 instances; local prod curl 200; screenshots /workspace/shots/evo6/.
 - Next pass: more 4h history (crypto 1h starts 2024-10) and futures/ETF 4h; new entry logic for breakout/wick families (parameters alone do not create gross edge).
+
+## Streamline pass 1 / unify-1 (2026-10-24, branch atlas-unify-1 from 61e03df)
+- Done: repo audit (docs/audit/2026-10-24-repo-streamline.md); AI as one node (`atlas.ai.node` + `/api/ai/*`, one advisory guard over every AI path); 8 scripts made side-effect-free on `--help`, setup_evidence recursion fixed; 3 dead files + 5 unused deps removed; one `brier`.
+- Next pass: duplicate docs (two CHANGELOGs), remaining duplicate helpers, oversized modules.

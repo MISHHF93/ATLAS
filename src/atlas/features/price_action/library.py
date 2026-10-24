@@ -281,9 +281,7 @@ def historical_var_es(returns: Sequence[float], alpha: float = 0.95) -> dict[str
     return {"var": var, "cvar": es, "es": es, "n": len(r)}
 
 
-def brier(p, y) -> float:
-    p, y = np.asarray(p, float), np.asarray(y, float)
-    return float(np.mean((p - y) ** 2))
+from atlas.models.quant.metrics import brier  # noqa: E402,F401  single implementation (2026-10-24 streamline)
 
 
 def log_loss(p, y, eps: float = 1e-15) -> float:

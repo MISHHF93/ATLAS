@@ -17,6 +17,10 @@ from datetime import datetime, time, timezone
 from pathlib import Path
 
 import numpy as np
+if any(a in ("-h", "--help") for a in sys.argv[1:]):
+    print(__doc__)
+    raise SystemExit(0)
+
 
 sys.path.insert(0, "scripts")
 from run_level_research import load  # noqa: E402

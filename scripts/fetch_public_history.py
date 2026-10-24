@@ -12,6 +12,10 @@ from __future__ import annotations
 
 import json
 import sys
+if any(a in ("-h", "--help") for a in sys.argv[1:]):
+    print(__doc__)
+    raise SystemExit(0)
+
 import time
 import urllib.request
 from datetime import datetime, timezone

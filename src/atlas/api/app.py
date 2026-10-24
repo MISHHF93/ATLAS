@@ -84,6 +84,11 @@ app.include_router(feeds_router)
 from atlas.api.intel_api import router as intel_router  # noqa: E402
 
 app.include_router(intel_router, prefix="/api/intel")
+# AI node: one namespace (/api/ai/*), one guard for every AI response (old and new paths).
+from atlas.ai.http import AINodeMiddleware, router as ai_router  # noqa: E402
+
+app.include_router(ai_router)
+app.add_middleware(AINodeMiddleware)
 from atlas.api.ext_api import router as ext_router  # noqa: E402
 app.include_router(ext_router, prefix="/api/ext")
 app.state.experimental_ml_status = {

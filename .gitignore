@@ -27,3 +27,4 @@ frontend/out/
 frontend/tsconfig.tsbuildinfo
 var/demo/
 var/
+frontend/build_output.txt

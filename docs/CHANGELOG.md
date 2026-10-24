@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-24: branch `atlas-unify-1` (streamline pass 1, AI as one node)
+- AI node: `atlas.ai.node` (one registry of 14 AI/ML/LLM components, uniform statuses, audit trail) + `atlas.ai.http` (`/api/ai/*`; `/api/ai/{ml,research,intel,advanced-ml,agent}/*` alias the legacy paths). One middleware forces `execution_permission: none` on every AI JSON response (old and new paths); the control plane stays the sole authorizer. Docs: `docs/architecture/AI_NODE.md`.
+- Fixed 5 scripts failing `--help`; fixed RecursionError in `setup_evidence.load_datasets` legacy JSON branch.
+- Removed dead `research/warmup.py`, `marketdata/drift_integration.py`, `frontend/build_output.txt`; moved `frontend/ATLAS_AUDIT.md` to `docs/audit/`. One `brier` implementation. Dropped unused deps databento, polygon-api-client, ccxt, polars, aiohttp.
+- UI: ML models page uses `/api/ai/ml/*` and shows the AI node card.
+
 ## 2026-10-24: branch `atlas-evo-6` (from main 8cea007)
 - Setup redesign research (new, toggleable; legacy setups unchanged):
   - `ReplayConfig.stop_atr_mult / target_rr / max_cost_r` (default None): ATR(14) stops on closed bars, R-multiple targets, and a cost filter that skips setups whose round-trip cost exceeds a fraction of risk (`cost_skipped`).

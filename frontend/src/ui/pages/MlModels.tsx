@@ -35,9 +35,9 @@ function CalibrationPlot({ bins }: { bins: Rel[] }) {
 }
 
 function Detail({ version }: { version: string }) {
-  const m = useApi<Manifest>(`/api/ml/models/${encodeURIComponent(version)}`, 600000);
-  const d = useApi<Drift>(`/api/ml/models/${encodeURIComponent(version)}/drift`, 600000);
-  const e = useApi<{ summary: string; citations: Cite[] }>(`/api/ml/explain?version=${encodeURIComponent(version)}`, 600000);
+  const m = useApi<Manifest>(`/api/ai/ml/models/${encodeURIComponent(version)}`, 600000);
+  const d = useApi<Drift>(`/api/ai/ml/models/${encodeURIComponent(version)}/drift`, 600000);
+  const e = useApi<{ summary: string; citations: Cite[] }>(`/api/ai/ml/explain?version=${encodeURIComponent(version)}`, 600000);
   return (
     <>
       <Card title="Gates" subtitle="Pre-declared before training. Eligible only if every row passes." span={2}>
@@ -80,12 +80,13 @@ function Detail({ version }: { version: string }) {
 }
 
 export function MlModelsView() {
-  const reg = useApi<{ latest: Summary[]; n_eligible: number; policy: string }>("/api/ml/registry", 60000);
-  const shadow = useApi<{ n_observed: number; n_resolved: number }>("/api/ml/shadow", 60000);
+  const reg = useApi<{ latest: Summary[]; n_eligible: number; policy: string }>("/api/ai/ml/registry", 60000);
+  const shadow = useApi<{ n_observed: number; n_resolved: number }>("/api/ai/ml/shadow", 60000);
   const [pick, setPick] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [sq, setSq] = useState<string | null>(null);
-  const search = useApi<{ results: Cite[] }>(sq ? `/api/ml/search?q=${encodeURIComponent(sq)}` : null, 600000);
+  const node = useApi<{ status: string; authorizer: string; components: { name: string; kind: string; status: string }[] }>("/api/ai/status", 120000);
+  const search = useApi<{ results: Cite[] }>(sq ? `/api/ai/ml/search?q=${encodeURIComponent(sq)}` : null, 600000);
   return (
     <div className="ux-layout">
       <Card title="Meta-label models" span="full" subtitle="Latest version per group. Purged walk-forward OOS, after venue costs."
@@ -106,6 +107,16 @@ export function MlModelsView() {
         </Async>
       </Card>
       {pick ? <Detail key={pick} version={pick} /> : null}
+      <Card title="AI node" span="full" subtitle="Every AI/ML/LLM component goes through atlas.ai (/api/ai/*). Advisory only: execution permission none.">
+        <Async state={node} label="Loading AI node">
+          {(n) => <>
+            <p>Node {n.status}. Sole authorizer: {n.authorizer}.</p>
+            <DataTable rows={n.components as unknown as Record<string, unknown>[]} columns={[
+              { key: "name", label: "Component" }, { key: "kind", label: "Kind" },
+              { key: "status", label: "Status", render: (r) => <Badge tone={r.status === "ok" ? "good" : "warn"}>{String(r.status)}</Badge> }]} />
+          </>}
+        </Async>
+      </Card>
       <Card title="Search docs & evidence" span="full">
         <form className="ux-form-row" onSubmit={(ev) => { ev.preventDefault(); if (q.trim().length > 1) setSq(q.trim()); }}>
           <input value={q} onChange={(ev) => setQ(ev.target.value)} placeholder="e.g. purged walk-forward embargo" aria-label="Search query" />{" "}

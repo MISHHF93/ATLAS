@@ -1,6 +1,10 @@
 """Run atlas.research.setup_evidence on var/evidence_cache and write docs/spec/evidence/ (JSON + Markdown)."""
 import json
 import sys
+if any(a in ("-h", "--help") for a in sys.argv[1:]):
+    print(__doc__)
+    raise SystemExit(0)
+
 from pathlib import Path
 
 from atlas.research.setup_evidence import registry_gates, run

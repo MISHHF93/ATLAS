@@ -13,6 +13,11 @@ Status vocabulary, used here and in the root workbook:
 
 The row-by-row status matrix is the root workbook `ATLAS Platform Master Roadmap & Technical Specifications (A-Z).xlsx`. Its "Changelog & Legend" sheet records each change.
 
+## AI node
+
+- [architecture/AI_NODE.md](architecture/AI_NODE.md): the single AI/ML/LLM node (`atlas.ai`), `/api/ai/*`, advisory guard
+- [audit/2026-10-24-repo-streamline.md](audit/2026-10-24-repo-streamline.md): completeness + streamline audit and passes
+
 ## Start here: governing spec and current truth
 
 | Doc | What it is | Current? |
@@ -99,4 +104,4 @@ These documents describe the target or vision. Some of their claims are **not** 
 
 ## Other
 
-- [../frontend/ATLAS_AUDIT.md](../frontend/ATLAS_AUDIT.md): repository audit, 2026-10-21 (historical)
+- [audit/2026-10-21-frontend-audit.md](audit/2026-10-21-frontend-audit.md): repository audit, 2026-10-21 (historical)

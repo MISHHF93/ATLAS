@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """Write docs/ml/model-card.md from the latest registry version per group (exact numbers, no rounding beyond 4 dp)."""
 import sys
+if any(a in ("-h", "--help") for a in sys.argv[1:]):
+    print(__doc__)
+    raise SystemExit(0)
+
 
 from atlas.ml import registry as R
 
