@@ -64,13 +64,8 @@ def _live_ingest_state() -> dict[str, Any]:
     from atlas.feeds import feed as feed_mod
     pid_file = Path(feed_mod.DEFAULT_STORE).parent / "live_ingest.pid"
     pid = int(pid_file.read_text()) if pid_file.exists() and pid_file.read_text().strip().isdigit() else None
-    alive = False
-    if pid:
-        try:
-            os.kill(pid, 0)
-            alive = True
-        except OSError:
-            alive = False
+    from atlas.ops.procutil import pid_alive
+    alive = pid_alive(pid)
     return {"pid": pid, "running": alive, "command": "PYTHONPATH=src python scripts/run_live_ingest.py"}
 
 

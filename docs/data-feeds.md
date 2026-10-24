@@ -105,7 +105,7 @@ Every price the UI shows comes from the ATLAS feed store. Each price is shown wi
 - Run `python scripts/backfill_feeds.py --ui-universe --intervals 1d,15m,1m --no-cross-check`.
 - Yahoo 1d now requests `range=10y`. With `range=max`, Yahoo silently returned monthly bars.
 
-**Live ingest:** `python scripts/run_live_ingest.py` writes its PID to `var/feeds/live_ingest.pid`. It runs four feeds:
+**Live ingest:** `python scripts/run_live_ingest.py` writes its PID to `var/feeds/live_ingest.pid`. It runs four feeds: `/api/feeds/health` reports `running` by checking that PID with `atlas.ops.procutil.pid_alive` (psutil if installed, else `OpenProcess`/`GetExitCodeProcess` on Windows, `os.kill(pid, 0)` on POSIX). Never use `os.kill(pid, 0)` directly: on Windows it terminates the process.
 - Binance combined `kline_1m` websocket: every update goes to `last_quotes`, and confirmed klines go to 1m bars.
 - Coinbase `ticker` websocket.
 - Kraken v2 `ticker` websocket.
