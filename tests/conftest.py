@@ -74,3 +74,13 @@ def explicit_legacy_demo_gateway(request, monkeypatch):
     }:
         from atlas.api.app import live_market_gateway
         monkeypatch.setattr(live_market_gateway, "demo_mode", True)
+
+
+@pytest.fixture(autouse=True)
+def _reset_default_atlas_feed():
+    """Keep a lazily created on-disk AtlasFeed singleton from leaking between tests."""
+    from atlas.feeds import feed as _feed_mod
+
+    old = _feed_mod._DEFAULT
+    yield
+    _feed_mod._DEFAULT = old
