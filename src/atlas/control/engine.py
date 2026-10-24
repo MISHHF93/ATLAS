@@ -779,6 +779,12 @@ class ActionableControlPlaneEngine:
         lot_sizes = {"BTC-USD": Decimal("0.0001"), "ETH-USD": Decimal("0.001"), "SOL-USD": Decimal("0.01"),
                      **{x: Decimal("1") for x in ("SPY", "QQQ", "NVDA", "AAPL", "MSFT", "TSLA")}}
         lot = lot_sizes.get(sym)
+        mult = Decimal("1")
+        if lot is None:
+            from atlas.feeds.contracts import contract_for   # futures: contracts x multiplier
+            spec = contract_for(sym)
+            if spec is not None:
+                lot, mult = Decimal("1"), Decimal(str(spec.multiplier))
         if lot is None:
             intake_violations.append("instrument_lot_metadata_unavailable")
         if desired_notional_usd is None and entry_px > 0 and stop_bps > 0:
@@ -794,8 +800,8 @@ class ActionableControlPlaneEngine:
                 if room is not None:
                     sized_notional = min(sized_notional, Decimal(room))
             if lot is not None:
-                quantity = (sized_notional / Decimal(str(entry_px)) / lot).to_integral_value(rounding=ROUND_DOWN) * lot
-                sized_notional = quantity * Decimal(str(entry_px))
+                quantity = (sized_notional / (Decimal(str(entry_px)) * mult) / lot).to_integral_value(rounding=ROUND_DOWN) * lot
+                sized_notional = quantity * Decimal(str(entry_px)) * mult
             if sized_notional <= 0:
                 intake_violations.append("insufficient_remaining_room_for_one_lot")
                 sized_notional = Decimal("0.01")
@@ -822,7 +828,7 @@ class ActionableControlPlaneEngine:
         decision = decision.model_copy(update={
             "entry_price": entry_px, "stop_loss_price": stop_px,
             "take_profit_price": tp_px,
-            "quantity": sized_notional / Decimal(str(entry_px)) if entry_px > 0 else Decimal("0"),
+            "quantity": sized_notional / (Decimal(str(entry_px)) * mult) if entry_px > 0 else Decimal("0"),
         })
         self.order_history[-1] = decision
 

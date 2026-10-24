@@ -44,7 +44,7 @@ EVENT_KINDS = ("approach", "touch", "rejection", "breakout_attempt", "sweep", "r
                "breakout_failure", "retest_success", "retest_failure", "consolidation", "expiration")
 # priority for dedupe when one bar sweeps several levels (higher = more significant)
 PRIORITY = {"prev_month": 9, "prev_week": 8, "prev_day": 7, "ny_session": 6, "london_session": 6, "asia_session": 5,
-            "equal": 4, "box": 4, "swing": 3}
+            "equal": 4, "box": 4, "round": 3, "swing": 3}
 
 ASIA = SessionSpec("asia", "Asia/Tokyo", time(9, 0), time(15, 0), weekdays=(0, 1, 2, 3, 4, 5, 6))
 LONDON = SessionSpec("london", "Europe/London", time(8, 0), time(16, 30), weekdays=(0, 1, 2, 3, 4, 5, 6))
@@ -70,6 +70,13 @@ class PriceLevel:
     expires_ts: int | None = None
     provenance: dict[str, Any] = field(default_factory=dict)
     label: str = LABEL
+    # zone-registry evidence fields (counts are observed interactions, not predictions)
+    confluence_ids: list[str] = field(default_factory=list)   # other levels within tolerance at availability
+    rejection_count: int = 0
+    breakout_attempt_count: int = 0
+    sweep_count: int = 0
+    acceptance_count: int = 0
+    last_event_ts: int | None = None
 
     def age(self, now: int) -> int:
         return max(0, now - self.available_ts)
@@ -141,6 +148,15 @@ class LevelInteractionEngine:
 
             def ev(kind: str, extreme: float | None = None, detail: str = "") -> None:
                 x = L if extreme is None else extreme
+                lvl.last_event_ts = bar.end
+                if kind == "rejection":
+                    lvl.rejection_count += 1
+                elif kind == "breakout_attempt":
+                    lvl.breakout_attempt_count += 1
+                elif kind == "sweep":
+                    lvl.sweep_count += 1
+                elif kind == "breakout_acceptance":
+                    lvl.acceptance_count += 1
                 out.append(LevelEvent(lid, evid, kind, bar.end, s, tr.post, s * x, tr.bars, detail))
 
             if lvl.expires_ts is not None and bar.start >= lvl.expires_ts and tr.state != "AWAITING_CONFIRMATION":
@@ -217,6 +233,9 @@ class RegistryConfig:
     eq_max_gap: int = 96
     sessions: bool = True          # Asia/London/NY levels (24h instruments only)
     periods: tuple[str, ...] = ("day", "week", "month")
+    round_step: float | None = None   # psychological round-number levels (e.g. 50.0 for GC); None = off
+    round_max_age: int = 7 * 86400
+    confluence_atr: float = 0.15      # levels within this many ATR are linked in confluence_ids
 
 
 class LiquidityLevelRegistry:
@@ -321,4 +340,39 @@ class LiquidityLevelRegistry:
                             break
                     self._swings.append((self._n, lv))
             self._swings = self._swings[-200:]
+        new += self._round_levels(bar)
+        self._link_confluence(new, bar.end, atr)
         return new
+
+    def _round_levels(self, bar: Bar) -> list[PriceLevel]:
+        """Round-number levels at completed-bar close: the nearest step above and below (causal, deduped)."""
+        st = self.cfg.round_step
+        if not st:
+            return []
+        import math
+        out = []
+        for kind, px in (("high", math.ceil(bar.close / st) * st), ("low", math.floor(bar.close / st) * st)):
+            key = f"round:{kind}"
+            cur = self.current.get(key)
+            if cur is not None and abs(cur.price - px) < 1e-9 and (cur.expires_ts or 0) > bar.end:
+                continue
+            if cur is not None:
+                cur.expires_ts = bar.end
+            lv = self._mk("round", kind, float(px), bar.start, bar.end, f"round:{px}", {"step": st},
+                          expires=bar.end + self.cfg.round_max_age)
+            self.current[key] = lv
+            out.append(lv)
+        return out
+
+    def _link_confluence(self, new: list[PriceLevel], now: int, atr: float | None) -> None:
+        if not new or not atr:
+            return
+        tol = self.cfg.confluence_atr * atr
+        live = [l for l in self.levels if l.available_ts <= now and (l.expires_ts is None or l.expires_ts > now)]
+        for lv in new:
+            for o in live:
+                if o.id != lv.id and abs(o.price - lv.price) <= tol:
+                    if o.id not in lv.confluence_ids:
+                        lv.confluence_ids.append(o.id)
+                    if lv.id not in o.confluence_ids:
+                        o.confluence_ids.append(lv.id)
