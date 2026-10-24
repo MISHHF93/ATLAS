@@ -103,3 +103,71 @@ def quant_replay(symbol: str = Query(min_length=1), resolution: str = "60", sess
     out["feed_origin"] = report.get("feed_origin")
     out["note"] = "descriptive replay only; not a validated performance estimate"
     return out
+
+
+# ---------- price-level suite + strategy registry (research; execution_permission none) ----------
+from dataclasses import asdict as _asdict  # noqa: E402
+
+from atlas.features.price_action.strategies import BY_ID as _STRAT, StrategyRegistry  # noqa: E402
+from atlas.features.price_action.suite import StrategyToggles, SuiteConfig, is_gold  # noqa: E402
+
+_CAL = {"GC": "COMEX", "MGC": "COMEX", "SI": "COMEX", "HG": "COMEX", "CL": "NYMEX", "ES": "CMES", "NQ": "CMES"}
+
+
+class ToggleIn(BaseModel):
+    enabled: bool
+
+
+@quant_router.get("/strategies")
+def quant_strategies() -> dict[str, Any]:
+    return {"strategies": StrategyRegistry().listing(), "execution_permission": "none",
+            "note": "toggles choose which detectors run and which candidates the selector may rank; they never authorize orders"}
+
+
+@quant_router.post("/strategies/{sid}")
+def quant_strategy_toggle(sid: str, body: ToggleIn) -> dict[str, Any]:
+    if sid not in _STRAT:
+        raise HTTPException(status_code=404, detail="unknown strategy")
+    try:
+        StrategyRegistry().set(sid, body.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return quant_strategies()
+
+
+def _suite_calendar(sym: str) -> str:
+    if sym in _CAL:
+        return _CAL[sym]
+    return "crypto" if sym.endswith(("USDT", "USD", "USDC")) else "XNYS"
+
+
+@quant_router.get("/levels")
+def quant_levels(symbol: str = Query(min_length=1), resolution: str = "15") -> dict[str, Any]:
+    """Potential liquidity reference levels, interaction events, SFP / gold-box candidates and NO_TRADE reasons."""
+    sym = symbol.upper()
+    reg = StrategyRegistry()
+    visible, report, bucket = _visible(symbol, resolution)
+    try:
+        daily_rows, _, _ = _visible(symbol, "D")
+    except HTTPException:
+        daily_rows = []
+    now = int(datetime.now(timezone.utc).timestamp())
+    toggles = StrategyToggles(reg.enabled("sfp"), reg.enabled("gold_snapback"), reg.enabled("gold_orb_breakout"))
+    sc = SuiteConfig(toggles=toggles, calendar=_suite_calendar(sym), daily=tuple((int(r[0]), r[2], r[3], r[4]) for r in daily_rows))
+    eng = PriceActionEngine(sym, bucket, EngineConfig(suite=sc))
+    eng.run_batch(bars_from_rows(visible, bucket), now=now)
+    su = eng.detectors[-1]
+    on = reg.enabled_detectors()
+    return {
+        "instrument": sym, "timeframe": bucket, "calendar": sc.calendar, "gold_rules_applied": is_gold(sym),
+        "label": "POTENTIAL LIQUIDITY REFERENCE LEVELS",
+        "levels": [_asdict(lv) for lv in su.registry.levels[-300:]],
+        "events": [_asdict(e) for e in su.level_events[-500:]],
+        "zones": [z.to_dict() for z in su.zones],
+        "candidates": [c.to_dict() for c in su.candidates if c.detector in on],
+        "no_trades": su.no_trades[-300:], "transitions": [_asdict(t) for t in su.transitions[-300:]],
+        "htf": su.htf(now), "strategies": reg.listing(),
+        "bars": [list(r) for r in visible], "bars_used": len(visible), "feed_origin": report.get("feed_origin"),
+        "data_gaps": {"order_flow": "missing", "economic_calendar": "missing"},
+        "execution_permission": "none",
+    }

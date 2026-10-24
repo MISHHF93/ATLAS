@@ -234,3 +234,34 @@ def test_selector_context_is_causal_and_onehot():
 def test_suite_off_by_default():
     e = PriceActionEngine("GC", 300, EngineConfig())
     assert not any(type(d).__name__ == "LevelSuiteDetector" for d in e.detectors)
+
+
+def test_strategy_api_toggle(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from atlas.api.quant import quant_router
+    monkeypatch.setenv("ATLAS_STRATEGY_REGISTRY", str(tmp_path / "r.json"))
+    app = FastAPI(); app.include_router(quant_router)
+    c = TestClient(app)
+    assert {s["id"]: s["enabled"] for s in c.get("/api/quant/strategies").json()["strategies"]}["sfp"] is False
+    r = c.post("/api/quant/strategies/sfp", json={"enabled": True}).json()
+    assert {s["id"]: s["enabled"] for s in r["strategies"]}["sfp"] is True and r["execution_permission"] == "none"
+    assert c.post("/api/quant/strategies/four_box", json={"enabled": True}).status_code == 409
+    assert c.post("/api/quant/strategies/nope", json={"enabled": True}).status_code == 404
+
+
+def test_levels_endpoint_on_fixture(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    import atlas.api.quant as q
+    monkeypatch.setenv("ATLAS_STRATEGY_REGISTRY", str(tmp_path / "r.json"))
+    rows = [[b.start, b.open, b.high, b.low, b.close, 1.0] for b in gold_bars()]
+    monkeypatch.setattr(q, "_visible", lambda s, r: (rows if r != "D" else [], {"feed_origin": "synthetic_fixture"}, 300 if r != "D" else 86400))
+    app = FastAPI(); app.include_router(q.quant_router)
+    c = TestClient(app)
+    j = c.get("/api/quant/levels", params={"symbol": "GC", "resolution": "5"}).json()
+    assert j["candidates"] == [] and j["execution_permission"] == "none" and j["calendar"] == "COMEX"   # all suite toggles off
+    for sid in ("gold_snapback", "gold_orb_breakout"):
+        c.post(f"/api/quant/strategies/{sid}", json={"enabled": True})
+    j = c.get("/api/quant/levels", params={"symbol": "GC", "resolution": "5"}).json()
+    assert j["zones"] and j["htf"]["bias"] == "insufficient" and j["data_gaps"]["order_flow"] == "missing"
