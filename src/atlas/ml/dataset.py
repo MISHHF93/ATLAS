@@ -75,8 +75,11 @@ def load_series(feed, instrument: str, interval: str, as_of: int | None = None, 
                       sorted({b.provider for b in fb}))
 
 
-def build_rows(sd: SeriesData) -> pd.DataFrame:
-    """One row per filled + resolved setup with causal features at detection time."""
+def build_rows(sd: SeriesData, include_open: bool = False) -> pd.DataFrame:
+    """One row per filled + resolved setup with causal features at detection time.
+
+    ``include_open`` also emits filled-but-unresolved setups (outcome ``open``, r NaN, y -1, exit_at -1) for
+    shadow scoring only; they are never used for training."""
     if len(sd.bars) < 200:
         return pd.DataFrame()
     vc = VENUE_COSTS[venue_for(sd.asset_class)]
@@ -88,7 +91,8 @@ def build_rows(sd: SeriesData) -> pd.DataFrame:
     bf = bar_features(sd.bars)
     out = []
     for t in res.trades:
-        if t.outcome not in ("target", "stop", "timeout") or t.r_multiple is None or t.detector not in DETECTORS:
+        is_open = include_open and t.outcome == "open"
+        if t.detector not in DETECTORS or not (is_open or (t.outcome in ("target", "stop", "timeout") and t.r_multiple is not None)):
             continue
         risk = abs(t.entry - t.stop)
         if risk <= 0 or t.detected_at not in bf.index:
@@ -97,8 +101,9 @@ def build_rows(sd: SeriesData) -> pd.DataFrame:
         d = 1.0 if t.direction == "long" else -1.0
         atr = x["atr_bps"] * t.entry / 1e4 if np.isfinite(x["atr_bps"]) else np.nan
         row = {"instrument": sd.instrument, "interval": sd.interval, "asset_class": sd.asset_class, "detector": t.detector,
-               "candidate_id": t.candidate_id, "t": int(t.detected_at), "exit_at": int(t.exit_at), "outcome": t.outcome,
-               "r": float(t.r_multiple), "y": int(t.r_multiple > 0), "entry": t.entry, "stop": t.stop, "target": t.target,
+               "candidate_id": t.candidate_id, "t": int(t.detected_at), "exit_at": -1 if is_open else int(t.exit_at),
+               "outcome": t.outcome, "direction": t.direction,
+               "r": float("nan") if is_open else float(t.r_multiple), "y": -1 if is_open else int(t.r_multiple > 0), "entry": t.entry, "stop": t.stop, "target": t.target,
                "risk_bps": risk / t.entry * 1e4}
         row |= {k: float(x[k]) for k in BAR_FEATURES}
         row |= {"dir_long": float(d > 0), "reward_risk": abs(t.target - t.entry) / risk, "cost_r": trade_cost(t, cfg) / risk,
@@ -111,17 +116,17 @@ def build_rows(sd: SeriesData) -> pd.DataFrame:
     return df.sort_values(["t", "candidate_id"]).reset_index(drop=True) if len(df) else df
 
 
-def build_dataset(feed, universe: Sequence[tuple[str, str]], as_of: int | None = None) -> tuple[pd.DataFrame, dict[str, Any]]:
+def build_dataset(feed, universe: Sequence[tuple[str, str]], as_of: int | None = None, include_open: bool = False) -> tuple[pd.DataFrame, dict[str, Any]]:
     frames, meta = [], {"series": [], "as_of": as_of}
     h = hashlib.sha256()
     for inst, iv in universe:
         sd = load_series(feed, inst, iv, as_of=as_of)
         dg = sd.digest()
         h.update(dg.encode())
-        df = build_rows(sd)
+        df = build_rows(sd, include_open=include_open)
         meta["series"].append({"instrument": inst, "interval": iv, "asset_class": sd.asset_class, "providers": sd.providers,
                                "n_bars": len(sd.bars), "first_bar": sd.bars[0].start if sd.bars else None,
-                               "last_bar_end": sd.bars[-1].end if sd.bars else None, "sha256": dg, "n_rows": len(df),
+                               "last_bar_end": sd.bars[-1].end if sd.bars else None, "sha256": dg, "n_rows": int((df.y >= 0).sum()) if len(df) else 0,
                                "max_hold_bars": max_hold_bars(iv, sd.asset_class)})
         if len(df):
             frames.append(df)
