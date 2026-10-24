@@ -181,3 +181,74 @@ def holidays(symbol: str = Query("GC")) -> dict[str, Any]:
     return {"instrument": spec.instrument_id, "front": code, "last_trade": lt.isoformat(), "roll_date": roll.isoformat(),
             "holiday_source": holiday_source(spec, today.year), "upcoming_weekday_closures": upcoming, "verified": spec.verified,
             "freshness": {"label": "historical", "source": "exchange_calendars", "computed_at": int(time.time())}}
+
+
+# ---- model evolution (research; never promotes to execution) ----
+@router.get("/evolution")
+def evolution() -> dict[str, Any]:
+    from atlas.ml.evolution import GENES, champion, latest_run
+    run = latest_run()
+    now = int(time.time())
+    if not run:
+        return {"status": "no_runs", "genes": GENES, "execution_permission": EXECUTION_PERMISSION,
+                "note": "run scripts/evolve_models.py or POST /api/intel/evolution/run",
+                "freshness": {"label": "unavailable", "last_bar_end": None, "age_s": None, "source": "ml registry/evolution", "computed_at": now}}
+    last = max((s.get("last_bar_end") or 0 for s in run["data"].get("series", [])), default=0) or None
+    lb = [{k: v.get(k) for k in ("genome_id", "genome", "generation", "parent", "mutation", "eval_seconds")}
+          | {"metrics": {k: x for k, x in (v.get("metrics") or {}).items() if k != "folds"}} for v in run["leaderboard"]]
+    return {"status": "ok", "run_id": run["run_id"], "created_at": run["created_at"], "code_sha": run.get("code_sha"),
+            "decision": run["decision"], "no_model_beats_baseline": run["no_model_beats_baseline"], "by_bar_type": run["by_bar_type"],
+            "folds": run["folds"], "data": run["data"], "leaderboard": lb, "champion": champion(), "genes": GENES,
+            "promoted_to_execution": False, "execution_permission": EXECUTION_PERMISSION,
+            "freshness": {"label": "historical", "last_bar_end": last, "age_s": (now - last) if last else None,
+                          "source": "walk-forward OOS on a fixed feed snapshot", "computed_at": now}}
+
+
+@router.post("/evolution/run")
+def evolution_run(generations: int = Query(3, ge=1, le=6), seed: int = Query(11)) -> dict[str, Any]:
+    from atlas.ml import evolution as E
+    data, meta = E.build_population_data(_feed())
+    if not len(data):
+        return {"status": "no_data", "meta": meta, "execution_permission": EXECUTION_PERMISSION}
+    res = E.evolve(data, meta, generations=generations, seed=seed, log=lambda s: None)
+    best = res["best_beating_baseline"] or res["best"]
+    run = E.record(res, oos=E.oos_predictions(data, best["genome"]) if best else None)
+    return {"status": "ok", "run_id": run["run_id"], "decision": run["decision"], "no_model_beats_baseline": run["no_model_beats_baseline"],
+            "execution_permission": EXECUTION_PERMISSION}
+
+
+# ---- chart opportunity markers ----
+@router.get("/markers")
+def markers(symbol: str = Query("GC"), tf: str = Query("15m"), limit: int = Query(400, ge=1, le=2000)) -> dict[str, Any]:
+    from atlas.intel.markers import DISCLAIMER, from_evolution, from_replay
+    sym = symbol.upper(); bars = _bars(sym, tf)
+    if not bars:
+        return _wrap(bars, {"status": "no_data", "markers": [], "disclaimer": DISCLAIMER})
+    _, _, cpu, _, _ = SPEC.get(sym, ("crypto", 0.01, 0.0, 0.0, 96))
+    mk = from_replay(_replay_all(sym, tf, bars), TF_SECONDS[tf], cpu)
+    ml, ml_meta = from_evolution(sym, tf)
+    t0 = bars[0].start
+    allm = sorted([m for m in mk + ml if m["time"] >= t0], key=lambda m: m["time"])[-limit:]
+    counts: dict[str, int] = {}
+    for m in allm:
+        counts[m["class"]] = counts.get(m["class"], 0) + 1
+    return _wrap(bars, {"status": "ok", "symbol": sym, "tf": tf, "markers": allm, "counts": counts, "evolution": ml_meta,
+                        "disclaimer": DISCLAIMER, "anchoring": "time = start of the confirmation bar (detected_at - tf); price = real entry reference"})
+
+
+# ---- alternative bar representations (display) ----
+@router.get("/bars_alt")
+def bars_alt(symbol: str = Query("GC"), tf: str = Query("15m"), kind: str = Query("heikin_ashi"), limit: int = Query(600, ge=10, le=5000)) -> dict[str, Any]:
+    from atlas.features.representations import BAR_TYPES, availability, build
+    if kind not in BAR_TYPES:
+        raise HTTPException(status_code=400, detail="unknown_bar_type")
+    sym = symbol.upper(); bars = _bars(sym, tf)
+    av = availability(bars)
+    if not bars or not av[kind]["available"]:
+        return _wrap(bars, {"status": "unavailable", "kind": kind, "reason": av.get(kind, {}).get("reason", "no data"), "bars": [], "availability": av})
+    alt = build(kind, bars)[-limit:]
+    rows = [{"start": a.start, "completed_at": a.completed_at, "open": a.open, "high": a.high, "low": a.low, "close": a.close,
+             "volume": a.volume, "direction": a.direction, "n_src": a.n_src} for a in alt]
+    return _wrap(bars, {"status": "ok", "kind": kind, "source_tf": tf, "bars": rows, "availability": av,
+                        "note": "display/features only; HA prices are synthetic; fills and P&L always use real time bars",
+                        "time_axis": "each bar is plotted at its completed_at (real time it became known)"})
