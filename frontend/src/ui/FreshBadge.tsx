@@ -34,3 +34,10 @@ export function DataFreshnessChip({ compact = false }: { compact?: boolean }) {
     </span>
   );
 }
+
+/** Per-symbol freshness from the same /api/feeds/freshness rule as the header chip. */
+export function useSymbolFreshness(symbol?: string): Fresh | null {
+  const r = useApi<FeedFreshness>("/api/feeds/freshness", 60000);
+  const rows = (r.data as unknown as { symbols?: Fresh[] } | undefined)?.symbols ?? [];
+  return rows.find((x) => x.symbol === symbol) ?? null;
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, CloudOff, Inbox, RefreshCw } from "lucide-react";
+import { FreshBadge, type Fresh } from "./FreshBadge";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 /* ------------------------------------------------------------------ data */
@@ -93,19 +94,21 @@ export function PageHeader({ title, summary, actions, eyebrow }: { title: string
   );
 }
 
-export function Card({ title, subtitle, actions, children, span, id, footer }: {
+export function Card({ title, subtitle, actions, children, span, id, footer, fresh }: {
   title?: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children: ReactNode; span?: 1 | 2 | 3 | "full"; id?: string; footer?: ReactNode;
+  /** Freshness of the market data this card shows (shared quant.freshness label). Omit for cards that show no feed data. */
+  fresh?: Fresh | null;
 }) {
   const labelId = id ? `${id}-title` : undefined;
   return (
     <section className="ux-card" data-span={span} aria-labelledby={title ? labelId : undefined} id={id}>
-      {title || actions ? (
+      {title || actions || fresh !== undefined ? (
         <div className="ux-card__head">
           <div>
             {title ? <h2 className="ux-h2" id={labelId}>{title}</h2> : null}
             {subtitle ? <p className="ux-card__sub">{subtitle}</p> : null}
           </div>
-          {actions ? <div className="ux-card__actions">{actions}</div> : null}
+          {actions || fresh !== undefined ? <div className="ux-card__actions">{fresh !== undefined ? <FreshBadge f={fresh} /> : null}{actions}</div> : null}
         </div>
       ) : null}
       <div className="ux-card__body">{children}</div>

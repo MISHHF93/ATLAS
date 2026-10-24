@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { Card, DataTable, EmptyState, ErrorState } from "../../ui/primitives";
 import { ColorType, createChart, LineStyle, type IChartApi, type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
 import { deskTimeOptions, freshness } from "./lwTime";
+import { useSymbolFreshness } from "../../ui/FreshBadge";
 import { TvProvenance } from "./TvFrame";
 
 type Zone = {
@@ -28,6 +29,7 @@ export function PriceActionView() {
   const [busy, setBusy] = useState(false);
   const [on, setOn] = useState<Record<string, boolean>>({ opening_range: true, dual_band_breakout: false, wick_reversal: false });
   const box = useRef<HTMLDivElement>(null);
+  const fr = useSymbolFreshness(query.symbol);
 
   useEffect(() => {
     const q = new URLSearchParams({ symbol: query.symbol, resolution: query.resolution, session: query.session });
@@ -131,7 +133,7 @@ export function PriceActionView() {
           Chart rendering: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts™</a> (Apache-2.0). Data: ATLAS, not TradingView. Times America/Toronto.
         </p>
       </Card>
-      <Card title="Setup candidates" subtitle="Detected patterns awaiting the control plane.">
+      <Card title="Setup candidates" fresh={fr} subtitle="Detected patterns awaiting the control plane.">
         {data?.candidates.length ? (
           <DataTable rows={data.candidates as unknown as Record<string, unknown>[]} columns={[
             { key: "candidate_id", label: "Candidate" }, { key: "direction", label: "Side" },
@@ -140,7 +142,7 @@ export function PriceActionView() {
           ]} />
         ) : <EmptyState title="No candidates">Nothing qualifies on these bars.</EmptyState>}
       </Card>
-      <Card title="Zones" subtitle="Most recent 30 for the selected overlays.">
+      <Card title="Zones" fresh={fr} subtitle="Most recent 30 for the selected overlays.">
         {zones.length ? (
           <DataTable rows={zones as unknown as Record<string, unknown>[]} columns={[
             { key: "zone_type", label: "Type", render: r => String(r.zone_type).replace(/_/g, " ") }, { key: "direction", label: "Dir" },
@@ -163,6 +165,7 @@ function ReplayPanel(props: { symbol: string; resolution: string; session: strin
   const [res, setRes] = useState<Replay | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const replayFresh = useSymbolFreshness(props.symbol);
   const run = async () => {
     setBusy(true); setErr("");
     const q = new URLSearchParams({ symbol: props.symbol, resolution: props.resolution, session: props.session, cost_per_unit: String(cost), max_hold_bars: String(hold) });
@@ -176,7 +179,7 @@ function ReplayPanel(props: { symbol: string; resolution: string; session: strin
   const summary = res ? Object.entries(res).filter(([, v]) => typeof v === "number" || typeof v === "string").slice(0, 14) : [];
   const trades = res?.trades ?? [];
   return (
-    <Card title={`Paper replay · ${props.symbol}`} span="full" subtitle="Conservative OHLC replay of the live detection path on confirmed bars. Descriptive only, not a performance estimate.">
+    <Card title={`Paper replay · ${props.symbol}`} fresh={replayFresh} span="full" subtitle="Conservative OHLC replay of the live detection path on confirmed bars. Descriptive only, not a performance estimate.">
       <form className="ux-form-row" onSubmit={e => { e.preventDefault(); void run(); }}>
         <label className="ux-field" data-size="sm"><span>Cost per unit</span><input type="number" step="0.01" min={0} value={cost} onChange={e => setCost(Math.max(0, Number(e.target.value) || 0))} /></label>
         <label className="ux-field" data-size="sm"><span>Max hold (bars)</span><input type="number" min={1} max={500} value={hold} onChange={e => setHold(Math.min(500, Math.max(1, Number(e.target.value) || 8)))} /></label>

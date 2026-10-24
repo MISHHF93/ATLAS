@@ -577,14 +577,6 @@ function Module02InnerWorkbench() {
                 quote={feedQuotes[item.symbol]}
                 selected={item.symbol === selectedSymbol}
                 onSelect={() => setSelectedSymbol(item.symbol)}
-                details={[
-                  { label: "Regime", value: item.regime, tone: "info" },
-                  { label: "Rolling VPIN", value: `${(item.vpin * 100).toFixed(1)}%`, tone: item.vpin > 0.4 ? "warn" : "up" },
-                  { label: "Top-5 L2 OFI", value: `${item.ofi >= 0 ? "+" : ""}${item.ofi.toFixed(3)}`, tone: item.ofi >= 0 ? "up" : "down" },
-                  { label: "Kyle's λ", value: item.kylesLambda.toFixed(4), tone: "info" },
-                  { label: "ATR stop", value: item.vpin > 0.35 ? "1.5× widened" : "Armed", tone: "info" },
-                ]}
-                footnote={`Microstructure figures are from the ${feedNote.split(" · ")[0] || "fixture"} snapshot, not the quote feed. execution_permission none`}
               />
             ))}
           </div>

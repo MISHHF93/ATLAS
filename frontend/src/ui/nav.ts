@@ -12,6 +12,21 @@ export const SECTIONS: NavSection[] = PAGE_GROUPS.map((group) => {
   return { id: group.id, label: group.label, href: pages[0]?.href ?? "/", pages };
 }).filter((s) => s.pages.length);
 
+/** Curtain menu: the six page groups merged into four sections (Advanced folds into "Settings, help & tools"). */
+export type CurtainSection = { id: string; label: string; pages: AtlasPage[] };
+const CURTAIN_MERGE: Array<{ id: string; label: string; groups: PageGroupId[]; advanced?: boolean }> = [
+  { id: "trade", label: "Home & trading", groups: ["home", "trade"] },
+  { id: "research", label: "Research & models", groups: ["research"] },
+  { id: "money", label: "Money & compliance", groups: ["money", "compliance"] },
+  { id: "settings", label: "Settings, help & tools", groups: ["settings"], advanced: true },
+];
+export function curtainSections(): CurtainSection[] {
+  return CURTAIN_MERGE.map((m) => ({
+    id: m.id, label: m.label,
+    pages: [...PAGES.filter((p) => m.groups.includes(p.group) && !p.advanced), ...(m.advanced ? PAGES.filter((p) => p.advanced) : [])],
+  })).filter((s) => s.pages.length);
+}
+
 /** Specialist tools, shown together in the curtain's "Advanced" group. */
 export const ADVANCED: AtlasPage[] = PAGES.filter((p) => p.advanced);
 

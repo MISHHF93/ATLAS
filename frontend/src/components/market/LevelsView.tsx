@@ -131,7 +131,7 @@ export function LevelsView() {
   const evs = pick ? data?.events.filter(e => JSON.stringify(pick).includes(`"${e.level_id}"`)) ?? [] : [];
   return (
     <div className="ux-layout">
-      <Card title="Levels & sweeps" span="full" subtitle="Potential liquidity reference levels, how price interacted with them, and the setups that followed. Research only.">
+      <Card title="Levels & sweeps" fresh={data?.overlays?.freshness ?? null} span="full" subtitle="Potential liquidity reference levels, how price interacted with them, and the setups that followed. Research only.">
         <form className="ux-form-row" onSubmit={e => { e.preventDefault(); setQuery({ symbol: symbol.trim() || "GC", resolution, n: query.n + 1 }); }}>
           <label className="ux-field" data-size="sm"><span>Symbol</span><input value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} maxLength={20} /></label>
           <label className="ux-field" data-size="sm"><span>Bar size</span>
@@ -164,7 +164,7 @@ export function LevelsView() {
           Chart rendering: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts™</a> (Apache-2.0). Data: ATLAS, not TradingView. Times America/Toronto.
         </p>
       </Card>
-      <Card title="Gold session ranges" subtitle="Asian, early, 08:00 and 08:20 New York boxes from 1-minute feed bars. Gold futures only.">
+      <Card title="Gold session ranges" fresh={data?.overlays?.gold_sessions?.freshness ?? null} subtitle="Asian, early, 08:00 and 08:20 New York boxes from 1-minute feed bars. Gold futures only.">
         {data?.overlays?.gold_sessions?.days?.length ? (
           <>
             <p className="ux-muted">Data: <FreshBadge f={data.overlays.gold_sessions.freshness} /> · {data.overlays.gold_sessions.gap_policy}</p>
@@ -193,7 +193,7 @@ export function LevelsView() {
           </ul>
         ) : <EmptyState title="No strategy list">Load a symbol first.</EmptyState>}
       </Card>
-      <Card title="Candidates" subtitle="Pick a row to inspect it.">
+      <Card title="Candidates" fresh={data?.overlays?.freshness ?? null} subtitle="Pick a row to inspect it.">
         {data?.candidates.length ? (
           <DataTable rows={data.candidates} columns={[
             { key: "candidate_id", label: "", render: r => <button type="button" className="ux-btn" data-size="sm" onClick={() => setPick(r as Cand)}>Inspect</button> },
@@ -203,7 +203,7 @@ export function LevelsView() {
           ]} />
         ) : <EmptyState title="No candidates">None qualified, or the technique is switched off.</EmptyState>}
       </Card>
-      <Card title="Inspect" span="full" subtitle="What was observed, what was inferred, and what could not be checked.">
+      <Card title="Inspect" fresh={data?.overlays?.freshness ?? null} span="full" subtitle="What was observed, what was inferred, and what could not be checked.">
         {pick ? (
           <>
             <dl className="ux-dl">{Object.entries(pick).filter(([, v]) => typeof v !== "object").map(([k, v]) => <Fragment key={k}><dt>{k.replace(/_/g, " ")}</dt><dd>{String(v)}</dd></Fragment>)}</dl>
@@ -212,7 +212,7 @@ export function LevelsView() {
           </>
         ) : <EmptyState title="Nothing selected">Pick a candidate.</EmptyState>}
       </Card>
-      <Card title="No-trade decisions" span="full" subtitle="Most recent 50, with the reason each setup was refused.">
+      <Card title="No-trade decisions" fresh={data?.overlays?.freshness ?? null} span="full" subtitle="Most recent 50, with the reason each setup was refused.">
         {data?.no_trades.length ? <DataTable rows={data.no_trades.slice(-50)} maxHeight={320} columns={Object.keys(data.no_trades[0]).slice(0, 6).map(k => ({ key: k, label: k.replace(/_/g, " "), render: (r: Record<string, unknown>) => typeof r[k] === "object" ? JSON.stringify(r[k]) : String(r[k] ?? "—") }))} />
           : <EmptyState title="No refusals">Nothing was refused on these bars.</EmptyState>}
       </Card>

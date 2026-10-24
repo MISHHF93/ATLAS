@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AtlasLogo } from "../components/shell/AtlasLogo";
 import type { AtlasPage } from "../components/shell/pagesMap";
 import { pageIcon } from "./icons";
-import { ADVANCED, HEADER_LINKS, SECTIONS, activeTab, breadcrumbs, findPage, pageCommands, pageTitle, type Command } from "./nav";
+import { HEADER_LINKS, curtainSections, activeTab, breadcrumbs, findPage, pageCommands, pageTitle, type Command } from "./nav";
 import { useApi } from "./primitives";
 import { DataFreshnessChip } from "./FreshBadge";
 
@@ -209,18 +209,12 @@ function Curtain({ open, refEl, activeHref, onClose }: {
           <button type="button" className="ux-icon-btn" aria-label="Close menu" onClick={() => onClose(true)}><X size={18} aria-hidden /></button>
         </div>
         <div className="ux-curtain__all">
-          {SECTIONS.map((s) => (
+          {curtainSections().map((s) => (
             <section key={s.id} className="ux-curtain__group" aria-labelledby={`cg-${s.id}`}>
               <h3 id={`cg-${s.id}`} className="ux-curtain__gh">{s.label}</h3>
               <Tiles pages={s.pages} activeHref={activeHref} />
             </section>
           ))}
-          {ADVANCED.length ? (
-            <section className="ux-curtain__group" data-advanced aria-labelledby="cg-adv">
-              <h3 id="cg-adv" className="ux-curtain__gh">Advanced</h3>
-              <Tiles pages={ADVANCED} activeHref={activeHref} />
-            </section>
-          ) : null}
         </div>
       </div>
     </div>
