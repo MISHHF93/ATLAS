@@ -11,10 +11,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--generations", type=int, default=3)
     ap.add_argument("--seed", type=int, default=11)
+    ap.add_argument("--universe", choices=("default", "extended"), default="default")
     a = ap.parse_args()
     from atlas.feeds.feed import get_feed
     from atlas.ml import evolution as E
-    data, meta = E.build_population_data(get_feed())
+    data, meta = E.build_population_data(get_feed(), E.UNIVERSE_EXTENDED if a.universe == "extended" else E.UNIVERSE)
     if not len(data):
         print(json.dumps({"status": "no_data", "meta": meta}))
         return 1
@@ -23,7 +24,7 @@ def main() -> int:
     oos = E.oos_predictions(data, best["genome"]) if best else None
     run = E.record(res, oos=oos)
     print(json.dumps({"run_id": run["run_id"], "decision": run["decision"], "no_model_beats_baseline": run["no_model_beats_baseline"],
-                      "n_rows": meta.get("n_rows"), "by_bar_type": run["by_bar_type"],
+                      "n_rows": meta.get("n_rows"), "universe": a.universe, "macro_coverage": meta.get("macro_coverage"), "by_bar_type": run["by_bar_type"],
                       "top5": [(v["genome_id"], v["metrics"].get("fitness"), v["metrics"].get("ev_r_per_opportunity"),
                                 v["metrics"].get("brier_skill"), v["metrics"].get("take_all_ev")) for v in run["leaderboard"][:5]]}, indent=1, default=str))
     return 0

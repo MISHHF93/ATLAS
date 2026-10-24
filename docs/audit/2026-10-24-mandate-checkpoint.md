@@ -114,3 +114,24 @@ New package `atlas.intel` (EXECUTION_PERMISSION="none") + `/api/intel/*` router 
 - ML: not re-run; replay labels unchanged. Latest run remains acfd9abb65cc (no challenger beats baseline; execution_permission none).
 - Verify: pytest 1605 passed / 9 skipped (ATLAS_FEED_DB unset, 2 threads); tsc ok; next build ok; route tests 5/5; local prod curl 200 + /api/health ok; screenshots /workspace/shots/evo4/.
 - Open: §22 macro data (no observations in the feed).
+
+## Pass 11 / evo5 (2026-10-24, branch atlas-evo-5 from 771863a, unmerged, not pushed)
+- Done:
+  - §22 macro from keyless FRED with release-lag availability dates, stored in feed observations (local feed DB: 44,659 rows).
+  - HTF and macro `context` gene, extended 15m+1h universe option, ML diagnosis script and doc. See CHANGELOG.
+- Diagnosis (default data, 9,531 rows):
+  - Base rate 0.249; net −0.89 R, gross −0.24 R; median cost 0.48 R.
+  - lgbm AUC 0.526, BSS −0.003. Shuffled-label AUC 0.500 (no leakage).
+  - Root cause is the negative gross edge of the primary setups plus costs, not the model.
+- Evolution:
+  - 44f40efd9e65 (default, 3 generations, seed 11): best hgb/no_signed/vol_conditioned/heikin_ashi, fitness −0.027, EV −0.0003, BSS +0.003. Context genomes: htf −0.036, macro −0.051, htf_macro −0.050.
+  - 30721a3ccb32 (extended, 15,157 rows, take-all −0.78 R): best hgb/heikin_ashi, fitness −0.004, EV −0.002, BSS +0.009. htf beats none on time bars (−0.008 vs −0.027).
+  - Decision for both runs: **no_challenger_beats_baseline**. Nothing promoted; execution_permission none.
+- Markers: BTCUSDT 15m shows 389 ML skips and 11 rule-only setups, from run 30721a3ccb32.
+- Verify:
+  - pytest 1611 passed / 9 skipped (ATLAS_FEED_DB unset, 2 threads)
+  - tsc ok; next build ok; route tests 5/5
+  - vertical-text 0 instances
+  - local prod curl 200
+  - screenshots in /workspace/shots/evo5/
+- Open: ALFRED vintages (needs a FRED key); primary-strategy changes (wider stops / higher timeframe, retire 15m orb_retest) need a founder decision.
