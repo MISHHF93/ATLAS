@@ -27,7 +27,7 @@ const NoData = <EmptyState title="No bars in the feed for this symbol">Nothing i
 /* ---------- Research lab ---------- */
 type Run = { report_id: string; name: string; instrument: string; bars: number; created_at: string; code_sha: string; seed: number;
   deflated_sharpe?: { best_variant: string; dsr: number; n_trials: number } | null; pbo?: { pbo: number; n_combinations: number } | null; pbo_note?: string | null;
-  variants: Record<string, { n_trades: number; mean_r: number | null; win_rate: number | null; bootstrap_mean_r?: { lo: number; hi: number; p_mean_le_0: number } | null;
+  variants: Record<string, { n_trades: number; zero_trade_reason?: string | null; mean_r: number | null; win_rate: number | null; bootstrap_mean_r?: { lo: number; hi: number; p_mean_le_0: number } | null;
     cost_sensitivity: { cost_mult: number; mean_r: number | null }[] }>; data_label?: string };
 
 export function LabView() {
@@ -54,14 +54,14 @@ export function LabView() {
 }
 
 function RunDetail({ run, fresh }: { run: Run; fresh: Fresh | null }) {
-  const rows = Object.entries(run.variants).map(([v, s]) => ({ v, n: s.n_trades, mean: s.mean_r, win: s.win_rate,
+  const rows = Object.entries(run.variants).map(([v, s]) => ({ v, n: s.n_trades, why: s.zero_trade_reason ?? "", mean: s.mean_r, win: s.win_rate,
     ci: s.bootstrap_mean_r ? `${f(s.bootstrap_mean_r.lo)} … ${f(s.bootstrap_mean_r.hi)}` : "too few trades",
     p0: s.bootstrap_mean_r?.p_mean_le_0, ...Object.fromEntries(s.cost_sensitivity.map((c) => [`c${c.cost_mult}`, c.mean_r])) }));
   return (
     <Card title={`Report ${run.report_id}`} span="full" fresh={fresh}
       subtitle={`Seed ${run.seed}. DSR deflates the best variant's Sharpe for ${run.deflated_sharpe?.n_trials ?? "—"} trials; PBO is the probability the in-sample winner underperforms out of sample (${run.pbo?.n_combinations ?? 0} splits). ${run.pbo_note ?? ""}`}>
       <DataTable rows={rows as R[]} columns={[
-        { key: "v", label: "Variant" }, { key: "n", label: "Trades", align: "right" },
+        { key: "v", label: "Variant" }, { key: "n", label: "Trades", align: "right" }, { key: "why", label: "Why 0 trades" },
         { key: "mean", label: "Mean R", align: "right", render: (r) => f(r.mean) }, { key: "win", label: "Win rate", align: "right", render: (r) => f(r.win, 2) },
         { key: "ci", label: "Bootstrap 95% CI (mean R)" }, { key: "p0", label: "P(mean ≤ 0)", align: "right", render: (r) => f(r.p0, 2) },
         { key: "c0", label: "0× cost", align: "right", render: (r) => f(r.c0) }, { key: "c1", label: "1×", align: "right", render: (r) => f(r.c1) },
@@ -280,6 +280,58 @@ export function TracksView() {
           {(d) => <><DataTable rows={d.probes.map((p) => ({ id: p.id, why: p.why, comp: String(p.competition.decision ?? ""), open: String(p.open_market.decision ?? "") })) as R[]}
             columns={[{ key: "id", label: "Probe" }, { key: "comp", label: "Competition" }, { key: "open", label: "Open market" }, { key: "why", label: "What it tests" }]} />
             <p className="ux-muted">{d.note}</p></>}
+        </Async>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- Model evolution ---------- */
+type EvoM = { status: string; reason?: string; fitness?: number; ev_r_per_opportunity?: number; brier_skill?: number; stability?: number;
+  n_oos?: number; n_taken?: number; take_all_ev?: number; beats_baseline?: boolean; auc?: number | null };
+type EvoRow = { genome_id: string; genome: Record<string, string>; generation: number; parent: string | null; mutation: string; metrics: EvoM };
+type Evo = WithFresh & { run_id?: string; decision?: string; no_model_beats_baseline?: boolean; leaderboard?: EvoRow[];
+  by_bar_type?: Record<string, { best_genome: string; fitness: number; ev: number; brier_skill: number }>;
+  folds?: { fold: number; n_train: number; n_test: number; test_from: number; test_to: number }[]; data?: { n_rows?: number; series?: { instrument: string; interval: string; n_rows: number }[] };
+  champion?: EvoRow | null; created_at?: number };
+
+export function EvolutionView() {
+  const s = useApi<Evo>("/api/intel/evolution", 120000);
+  return (
+    <div className="ux-layout">
+      <Card title="Model evolution" span="full" fresh={fr(s)}
+        subtitle="Each genome is a model type, a feature set, a regime option and a bar type. All genomes use the same rows, the same purged walk-forward folds and real-price fills and costs. Fitness = out-of-sample R per opportunity after costs + Brier skill vs the base rate + a small stability term."
+        footer={<>Run again (research only, nothing is promoted): <Command text="PYTHONPATH=src python scripts/evolve_models.py --generations 3" /></>}>
+        <Async state={s} label="Loading evolution runs" isEmpty={(d) => d.status === "no_runs"} empty={<EmptyState title="No evolution run recorded yet">Run scripts/evolve_models.py.</EmptyState>}>
+          {(d) => (<>
+            <p>{d.no_model_beats_baseline
+              ? <><Badge tone="warn">No model beats baseline</Badge> No genome had positive out-of-sample R per opportunity after costs together with positive Brier skill. The baseline is taking nothing (0 R); taking every setup averaged {f(d.leaderboard?.[0]?.metrics.take_all_ev)} R.</>
+              : <><Badge tone="good">Research champion</Badge> {d.champion?.genome_id}. It is not promoted to trading; ML has no execution permission.</>}</p>
+            <p className="ux-muted">Run {d.run_id} · {d.data?.n_rows ?? 0} out-of-sample rows from {(d.data?.series ?? []).map((x) => `${x.instrument} ${x.interval}`).join(", ")} · {d.folds?.length ?? 0} folds · decision: {d.decision}</p>
+            <DataTable rows={(d.leaderboard ?? []).map((v, i) => ({ rank: i + 1, gen: v.generation, model: v.genome.model, feats: v.genome.features, reg: v.genome.regime,
+                bar: v.genome.bar_type, st: v.metrics.status === "ok" ? "" : `${v.metrics.status}: ${v.metrics.reason ?? ""}`, fit: v.metrics.fitness, ev: v.metrics.ev_r_per_opportunity,
+                bss: v.metrics.brier_skill, stab: v.metrics.stability, taken: v.metrics.n_taken, beats: v.metrics.beats_baseline ? "yes" : "no",
+                parent: v.parent ? v.mutation : "seed" })) as R[]} columns={[
+              { key: "rank", label: "#", align: "right" }, { key: "gen", label: "Gen", align: "right" }, { key: "model", label: "Model" }, { key: "feats", label: "Features" },
+              { key: "reg", label: "Regime" }, { key: "bar", label: "Bar type" }, { key: "fit", label: "Fitness", align: "right", render: (r) => f(r.fit) },
+              { key: "ev", label: "OOS R / opp.", align: "right", render: (r) => f(r.ev, 4) }, { key: "bss", label: "Brier skill", align: "right", render: (r) => f(r.bss, 4) },
+              { key: "stab", label: "Stable folds", align: "right", render: (r) => f(r.stab, 2) }, { key: "taken", label: "Taken", align: "right" },
+              { key: "beats", label: "Beats baseline" }, { key: "parent", label: "Lineage" }, { key: "st", label: "Status" }]} />
+          </>)}
+        </Async>
+      </Card>
+      <Card title="Best result per bar type" span={2} fresh={fr(s)} subtitle="Bar types only change features. Heikin-Ashi prices are never used for fills; tick bars are unavailable because the feed has no trade prints.">
+        <Async state={s} label="Loading" isEmpty={(d) => !d.by_bar_type || !Object.keys(d.by_bar_type).length}>
+          {(d) => <DataTable rows={Object.entries(d.by_bar_type ?? {}).map(([k, v]) => ({ k, g: v.best_genome.split("|")[0], fit: v.fitness, ev: v.ev, bss: v.brier_skill })) as R[]} columns={[
+            { key: "k", label: "Bar type" }, { key: "g", label: "Best model" }, { key: "fit", label: "Fitness", align: "right", render: (r) => f(r.fit) },
+            { key: "ev", label: "OOS R / opp.", align: "right", render: (r) => f(r.ev, 4) }, { key: "bss", label: "Brier skill", align: "right", render: (r) => f(r.bss, 4) }]} />}
+        </Async>
+      </Card>
+      <Card title="Walk-forward folds" span={2} fresh={fr(s)} subtitle="Purged and embargoed by one day. Every genome is scored on exactly these test blocks.">
+        <Async state={s} label="Loading" isEmpty={(d) => !d.folds?.length}>
+          {(d) => <DataTable rows={(d.folds ?? []).map((x) => ({ k: x.fold, tr: x.n_train, te: x.n_test, from: ts(x.test_from), to: ts(x.test_to) })) as R[]} columns={[
+            { key: "k", label: "Fold", align: "right" }, { key: "tr", label: "Train rows", align: "right" }, { key: "te", label: "Test rows", align: "right" },
+            { key: "from", label: "Test from" }, { key: "to", label: "Test to" }]} />}
         </Async>
       </Card>
     </div>

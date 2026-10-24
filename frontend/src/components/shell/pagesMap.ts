@@ -138,6 +138,7 @@ export const PAGES: AtlasPage[] = [
       { id: "assistant", label: "Assistant", summary: "Ask a question; answers are quoted from docs and lab reports with evidence IDs." },
       { id: "microstructure", label: "Microstructure", summary: "Liquidity and volatility estimates, gated by the data tier the feed actually has." },
       { id: "fourbox", label: "Four-Box", summary: "Opening, Breakout and Anchor boxes from the zone detectors. Event is off." },
+      { id: "evolution", label: "Model evolution", summary: "Generations of candidate models and bar types scored on the same walk-forward folds. Nothing is promoted to trading." },
     ],
   },
   {
