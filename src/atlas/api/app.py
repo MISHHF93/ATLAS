@@ -44,6 +44,9 @@ from atlas.market.fixtures import candle_page
 from atlas.market.schemas import CandlePage
 
 app = FastAPI(title="ATLAS", version="0.2.0")
+from atlas.ops.correlation import install as _install_correlation  # noqa: E402
+
+_install_correlation(app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

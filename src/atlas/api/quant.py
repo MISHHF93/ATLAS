@@ -169,5 +169,85 @@ def quant_levels(symbol: str = Query(min_length=1), resolution: str = "15") -> d
         "htf": su.htf(now), "strategies": reg.listing(),
         "bars": [list(r) for r in visible], "bars_used": len(visible), "feed_origin": report.get("feed_origin"),
         "data_gaps": {"order_flow": "missing", "economic_calendar": "missing"},
+        "overlays": overlays(sym, bars_from_rows(visible, bucket), now, report.get("feed_origin")),
         "execution_permission": "none",
     }
+
+
+def freshness(last_end: int | None, now: int, bucket: int, origin: Any) -> dict[str, Any]:
+    """Data-freshness label: live / delayed / historical / simulated / unavailable (never upgraded)."""
+    o = str(origin or "unknown").lower()
+    if last_end is None:
+        label = "unavailable"
+    elif any(k in o for k in ("fixture", "synthetic", "simulat")):
+        label = "simulated"
+    elif now - last_end <= 2 * bucket:
+        label = "live"
+    elif now - last_end <= 86400:
+        label = "delayed"
+    else:
+        label = "historical"
+    return {"label": label, "last_bar_end": last_end, "age_s": None if last_end is None else now - last_end,
+            "source": str(origin or "unknown"), "computed_at": now}
+
+
+def _feed_1m(sym: str, now: int) -> list:
+    from atlas.features.price_action.bars import Bar
+    try:
+        from atlas.feeds.feed import get_feed
+        rows = list(get_feed().bars(sym, "1m"))
+    except Exception:  # noqa: BLE001 - feed unavailable -> insufficient, never fabricated
+        return []
+    out, last = [], None
+    for b in rows:
+        t = int(b.event_time)
+        if (last is not None and t <= last) or t + 60 > now:
+            continue
+        try:
+            out.append(Bar(t, 60, b.open, b.high, b.low, b.close, b.volume or 0.0))
+        except ValueError:
+            continue
+        last = t
+    return out
+
+
+def overlays(sym: str, bars: list, now: int, origin: Any) -> dict[str, Any]:
+    """Indicator, structure and (gold-only) session overlays computed from the same confirmed bars as the chart."""
+    from atlas.features.price_action.gold_models import session_day_ranges
+    from atlas.features.price_action.library import donchian_batch, sma_batch, trend_band_batch
+    from atlas.features.price_action.structure import analyze_structure
+
+    if not bars:
+        return {"freshness": freshness(None, now, 0, origin), "series": {}, "structure": [], "gold_sessions": {"status": "INSUFFICIENT_DATA"}}
+    bucket = bars[0].duration
+    T = [b.start for b in bars]; H = [b.high for b in bars]; L = [b.low for b in bars]; C = [b.close for b in bars]
+    ser = lambda vals: [[t, round(v, 6)] for t, v in zip(T, vals) if v is not None]
+    tb = trend_band_batch(H, L, C, 20, 1.0); dc = donchian_batch(H, L, 20)
+    series = {
+        "sma50": ser(sma_batch(C, 50)), "sma200": ser(sma_batch(C, 200)),
+        "trend_upper": ser([x[0] if x else None for x in tb]), "trend_lower": ser([x[2] if x else None for x in tb]),
+        "donchian_upper": ser([x[0] if x and x[0] is not None else None for x in dc]),
+        "donchian_lower": ser([x[1] if x and x[1] is not None else None for x in dc]),
+    }
+    structure = [e.to_dict() for e in analyze_structure(bars, sym)][-300:]
+    gold: dict[str, Any] = {"status": "NOT_APPLICABLE", "reason": "gold-only model"}
+    if is_gold(sym):
+        b1 = _feed_1m(sym, now)   # real ATLAS feed 1m only; synthetic projections are never used for session boxes
+        if not b1:
+            gold = {"status": "INSUFFICIENT_DATA", "reason": "no 1m bars in the ATLAS feed"}
+        else:
+            from datetime import timedelta
+            from zoneinfo import ZoneInfo
+            ny = ZoneInfo("America/New_York")
+            last = datetime.fromtimestamp(b1[-1].end, ny).date()
+            days = []
+            for k in range(5, -1, -1):
+                d = last - timedelta(days=k)
+                r = session_day_ranges(sym, b1, datetime(d.year, d.month, d.day, tzinfo=ny), now)
+                days.append({"day": str(d), **{w: r.get(w) for w in ("asian", "early", "premarket_orb", "opening_orb")},
+                             "orb_alignment": r.get("orb_alignment"), "insufficient": r.get("insufficient")})
+            gold = {"status": "OK", "timeframe": 60, "days": days,
+                    "gap_policy": "asian<=10% missing, early<=5% missing, ORB windows strict; gaps reported, never filled",
+                    "freshness": freshness(b1[-1].end, now, 60, "atlas_feed 1m")}
+    return {"freshness": freshness(bars[-1].end, now, bucket, origin), "series": series, "structure": structure,
+            "gold_sessions": gold, "provenance": "ATLAS confirmed bars; indicators computed server-side (features/price_action/library.py)"}

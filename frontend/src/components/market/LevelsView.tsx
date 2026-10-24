@@ -14,8 +14,27 @@ type Strategy = { id: string; family: string; scope: string; status: string; ena
 type Payload = {
   instrument: string; calendar: string; gold_rules_applied: boolean; label: string; levels: Level[]; events: LevelEvent[]; zones: Zone[];
   candidates: Cand[]; no_trades: Record<string, unknown>[]; htf: Record<string, unknown>; strategies: Strategy[]; bars: number[][];
-  bars_used: number; feed_origin: unknown; data_gaps: Record<string, string>;
+  bars_used: number; feed_origin: unknown; data_gaps: Record<string, string>; overlays?: Overlays;
 };
+type Fresh = { label: "live" | "delayed" | "historical" | "simulated" | "unavailable"; last_bar_end: number | null; age_s: number | null; source: string };
+type SEvent = { event_id: string; kind: string; direction: string; event_ts: number; confirmation_ts: number; reference_price: number };
+type Win = { high: number; low: number; coverage: number; n: number; expected: number } | null;
+type GoldDay = { day: string; asian: Win; early: Win; premarket_orb: Win; opening_orb: Win; orb_alignment?: { overlap_ratio: number } | null; insufficient?: string[] | null };
+type Overlays = { freshness: Fresh; series: Record<string, number[][]>; structure: SEvent[];
+  gold_sessions: { status: string; reason?: string; gap_policy?: string; days?: GoldDay[]; freshness?: Fresh }; provenance?: string };
+
+const IND: Record<string, { label: string; color: string; keys: string[] }> = {
+  sma: { label: "SMA 50 / 200", color: "#999999", keys: ["sma50", "sma200"] },
+  trend: { label: "Trend band (EMA20 ± ATR)", color: "#009E73", keys: ["trend_upper", "trend_lower"] },
+  donchian: { label: "Donchian 20", color: "#56B4E9", keys: ["donchian_upper", "donchian_lower"] },
+  structure: { label: "Structure (BOS / CHoCH)", color: "#F0E442", keys: [] },
+};
+
+export function FreshBadge({ f }: { f?: Fresh | null }) {
+  const label = f?.label ?? "unavailable";
+  const age = f?.age_s == null ? "" : f.age_s < 3600 ? ` · ${Math.round(f.age_s / 60)} min old` : ` · ${Math.round(f.age_s / 3600)} h old`;
+  return <span className="ux-chip" data-fresh={label} title={f?.source ?? ""}>{label}{age}</span>;
+}
 
 // Okabe-Ito colourblind-safe palette
 const GROUPS: Record<string, { label: string; color: string; match: (s: string) => boolean }> = {
@@ -33,7 +52,7 @@ export function LevelsView() {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [on, setOn] = useState<Record<string, boolean>>({ prior: true, session: false, swing: false, equal: false, box: true });
+  const [on, setOn] = useState<Record<string, boolean>>({ prior: true, session: false, swing: false, equal: false, box: true, sma: false, trend: false, donchian: false, structure: false });
   const [pick, setPick] = useState<Cand | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
@@ -81,12 +100,30 @@ export function LevelsView() {
       segment(z.confirmed_at ?? z.formed_at, end, z.upper_bound, GROUPS.box.color);
       segment(z.confirmed_at ?? z.formed_at, end, z.lower_bound, GROUPS.box.color);
     }
+    const ov = data.overlays;
+    for (const [k, g] of Object.entries(IND)) {
+      if (!on[k] || !ov) continue;
+      for (const key of g.keys) {
+        const pts = ov.series[key] ?? [];
+        if (!pts.length) continue;
+        const s = chart.addLineSeries({ color: g.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: key === "sma200" ? 2 : 0 });
+        s.setData(pts.map(p => ({ time: p[0] as UTCTimestamp, value: p[1] })));
+      }
+    }
     const times = new Set(bars.map(r => r[0]));
+    const dur = (bars[1]?.[0] - bars[0]?.[0]) || 0;
+    const smarks: SeriesMarker<UTCTimestamp>[] = on.structure && ov ? ov.structure
+      .filter(e => e.kind === "bos" || e.kind === "choch")
+      .map(e => ({ t: Math.floor((e.confirmation_ts - dur) / (dur || 1)) * (dur || 1), e }))
+      .filter(x => times.has(x.t))
+      .map(({ t, e }) => ({ time: t as UTCTimestamp, position: e.direction === "bearish" || e.direction === "down" ? "aboveBar" : "belowBar",
+        shape: "circle", color: IND.structure.color, text: e.kind.toUpperCase() })) : [];
     const marks: SeriesMarker<UTCTimestamp>[] = data.candidates.filter(c => times.has(c.detected_at - (bars[1]?.[0] - bars[0]?.[0] || 0)) || times.has(c.detected_at)).map(c => ({
       time: (times.has(c.detected_at) ? c.detected_at : c.detected_at - (bars[1][0] - bars[0][0])) as UTCTimestamp,
       position: c.direction === "short" ? "aboveBar" : "belowBar", shape: c.direction === "short" ? "arrowDown" : "arrowUp",
       color: c.direction === "short" ? "#D55E00" : "#009E73", text: c.detector.replace("gold_", "").replace("_reversal", ""),
     }));
+    marks.push(...smarks);
     marks.sort((a, b) => (a.time as number) - (b.time as number));
     candles.setMarkers(marks);
     chart.timeScale().fitContent();
@@ -111,6 +148,10 @@ export function LevelsView() {
             <label key={k} className="ux-chip"><input type="checkbox" checked={!!on[k]} onChange={e => setOn({ ...on, [k]: e.target.checked })} />
               <span className="ux-swatch" style={{ background: g.color }} aria-hidden /> {g.label}</label>
           ))}
+          {Object.entries(IND).map(([k, g]) => (
+            <label key={k} className="ux-chip"><input type="checkbox" checked={!!on[k]} onChange={e => setOn({ ...on, [k]: e.target.checked })} />
+              <span className="ux-swatch" style={{ background: g.color }} aria-hidden /> {g.label}</label>
+          ))}
         </fieldset>
         {error ? <ErrorState title="Could not load levels" detail={error} onRetry={() => setQuery({ ...query, n: query.n + 1 })} /> : null}
         {data ? (
@@ -121,11 +162,26 @@ export function LevelsView() {
           </p>
         ) : null}
         {data && !data.bars?.length ? <EmptyState title="No confirmed bars for this symbol">Try another symbol or bar size.</EmptyState> : null}
-        {data?.bars?.length ? <p className="ux-muted"><TvProvenance kind="atlas" /> {data.label} · feed: {String(data.feed_origin ?? "unknown")}</p> : null}
+        {data?.bars?.length ? <p className="ux-muted"><TvProvenance kind="atlas" /> {data.label} · feed: {String(data.feed_origin ?? "unknown")} · data: <FreshBadge f={data.overlays?.freshness} /></p> : null}
         <div ref={box} className="ux-chart" hidden={!data?.bars?.length} />
         <p className="ux-muted" style={{ fontSize: 11 }}>
           Chart rendering: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts™</a> (Apache-2.0). Data: ATLAS, not TradingView. Times America/Toronto.
         </p>
+      </Card>
+      <Card title="Gold session ranges" subtitle="Asian, early, 08:00 and 08:20 New York boxes from 1-minute feed bars. Gold futures only.">
+        {data?.overlays?.gold_sessions?.days?.length ? (
+          <>
+            <p className="ux-muted">Data: <FreshBadge f={data.overlays.gold_sessions.freshness} /> · {data.overlays.gold_sessions.gap_policy}</p>
+            <DataTable rows={data.overlays.gold_sessions.days.map(d => ({
+              day: d.day,
+              ...Object.fromEntries((["asian", "early", "premarket_orb", "opening_orb"] as const).map(w => [w, d[w] ? `${d[w]!.low.toFixed(1)}–${d[w]!.high.toFixed(1)} (${Math.round(d[w]!.coverage * 100)}%)` : "not enough data"])),
+              overlap: d.orb_alignment ? d.orb_alignment.overlap_ratio.toFixed(2) : "—",
+            })) as unknown as Record<string, unknown>[]} columns={[
+              { key: "day", label: "Day (NY)" }, { key: "asian", label: "Asian" }, { key: "early", label: "Early" },
+              { key: "premarket_orb", label: "08:00 box" }, { key: "opening_orb", label: "08:20 box" }, { key: "overlap", label: "Box overlap", align: "right" },
+            ]} />
+          </>
+        ) : <EmptyState title={data?.overlays?.gold_sessions?.status === "NOT_APPLICABLE" ? "Not a gold symbol" : "No session data"}>{data?.overlays?.gold_sessions?.reason ?? "Load GC to see gold sessions."}</EmptyState>}
       </Card>
       <Card title="Strategies" subtitle="Choose which techniques run. Switching one on never lets it place an order.">
         {data?.strategies?.length ? (
