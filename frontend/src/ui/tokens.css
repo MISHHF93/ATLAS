@@ -496,3 +496,5 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .atlas-app :is([class*="value"], [class*="price"], [class*="mono"], code, pre, kbd) { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .atlas-app td, .atlas-app [class*="num"] { font-variant-numeric: tabular-nums; }
 @media (max-width: 860px) { .ux-curtain__hint { display: none; } }
+.docs-index, .docs-body { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 860px) { .docs-shell { grid-template-columns: minmax(0, 1fr); padding: 12px; } }
