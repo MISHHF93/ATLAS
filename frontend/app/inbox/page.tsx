@@ -1,10 +1,6 @@
-import { FounderShell } from "../../src/components/founder/FounderPanel";
-import { InboxView } from "../../src/components/founder/views";
+import { InboxView } from "@/src/components/founder/views";
+import { Hub } from "@/src/ui/Hub";
 
 export default function Page() {
-  return (
-    <FounderShell eyebrow="Home" title="Inbox" summary="Everything waiting on you: paper approvals, payouts, policy and venue checks.">
-      <InboxView />
-    </FounderShell>
-  );
+  return <Hub id="inbox"><InboxView /></Hub>;
 }

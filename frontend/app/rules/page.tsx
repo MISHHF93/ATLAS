@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
-export default function RulesPage() {
-  redirect("/control/rulebook");
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/control?tab=limits");
 }

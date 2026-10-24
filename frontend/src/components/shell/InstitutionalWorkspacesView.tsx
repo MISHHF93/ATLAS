@@ -14,7 +14,7 @@ import {
   TEN_CATEGORIES_META,
   type ProctoringScenarioPreset,
 } from "./hundredFeaturesData";
-import { PAGES, hrefForWorkspace } from "./pagesMap";
+import { WORKSPACE_VIEWS, hrefForWorkspace } from "./pagesMap";
 import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel } from "./guideIcons";
 import {
   AccountRiskPage,
@@ -309,10 +309,10 @@ for (const group of SHELL_GROUPS) {
     number: group.number,
     label: group.label,
     basePath: group.basePath,
-    subpages: PAGES.filter((page) => page.workspaceRoute?.split("/")[1] === group.basePath.slice(1)).map((page) => ({
-      route: page.workspaceRoute as SubPageRouteId,
-      title: page.label,
-      summary: page.summary,
+    subpages: WORKSPACE_VIEWS.filter((view) => view.route.split("/")[1] === group.basePath.slice(1)).map((view) => ({
+      route: view.route as SubPageRouteId,
+      title: view.title,
+      summary: view.summary,
     })),
   };
 }
@@ -1554,7 +1554,7 @@ export function InstitutionalWorkspacesView({
 
   function handleNavigateRoute(route: SubPageRouteId) {
     const href = hrefForWorkspace(route);
-    if (typeof window !== "undefined" && window.location.pathname !== href) {
+    if (typeof window !== "undefined" && window.location.pathname + window.location.search !== href) {
       window.location.assign(href);
     }
   }

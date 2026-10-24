@@ -1,10 +1,6 @@
-import { FounderShell } from "../../src/components/founder/FounderPanel";
-import { PortalView } from "../../src/components/founder/views";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return (
-    <FounderShell eyebrow="Money" title="Partner wallet" summary="What partners hold with the custodian: NAV, holdings, subscriptions, redemptions and payouts.">
-      <PortalView />
-    </FounderShell>
-  );
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/money?tab=partners");
 }

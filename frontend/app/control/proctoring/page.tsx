@@ -1,6 +1,6 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
-export default function ControlProctoringPage() {
-  return <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/control/proctoring" />;
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/compliance?tab=identity");
 }
-

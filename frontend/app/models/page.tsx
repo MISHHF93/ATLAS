@@ -1,5 +1,6 @@
-import { AtlasTerminal } from "../AtlasTerminal";
+import { redirect } from "next/navigation";
 
-export default function ModelsPage() {
-  return <AtlasTerminal initialSection="models" initialWorkspaceRoute="/research/registry" />;
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/research/evidence?tab=training");
 }

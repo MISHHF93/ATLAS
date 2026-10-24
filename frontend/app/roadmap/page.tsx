@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
-export default function RoadmapPage() {
-  redirect("/data/features-100");
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/data?tab=capability");
 }

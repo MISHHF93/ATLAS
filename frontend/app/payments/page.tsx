@@ -1,10 +1,6 @@
-import { FounderShell } from "../../src/components/founder/FounderPanel";
-import { PaymentsView } from "../../src/components/founder/views";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return (
-    <FounderShell eyebrow="Money" title="Payments" summary="Transfers, payees and manual transfer prep with two-person approval.">
-      <PaymentsView />
-    </FounderShell>
-  );
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/money?tab=payments");
 }

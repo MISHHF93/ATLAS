@@ -15,6 +15,7 @@ const PAGE_ICONS: Record<string, LucideIcon> = {
   "walk-forward": Sigma, training: FlaskConical, "prediction-ledger": FileText, evidence: FileSearch, bars: Database, connectors: Network,
   reserve: PiggyBank, capability: Map, specs: BookOpen, money: Landmark, payments: Receipt, portal: Wallet, tax: Receipt,
   compliance: ShieldCheck, "api-keys": KeyRound,
+  risk: Activity, models: FileSearch, settings: Settings, docs: BookOpen, data: Database, research: LineChart,
 };
 
 export const pageIcon = (id: string): LucideIcon => PAGE_ICONS[id] ?? FileText;

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
-export default function ResearchRegistryPage() {
-  redirect("/models");
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/research/evidence?tab=training");
 }

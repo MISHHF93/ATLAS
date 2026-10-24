@@ -1,5 +1,6 @@
-import { Module02ListingsView } from "../../src/components/market/Module02ListingsView";
+import { redirect } from "next/navigation";
 
-export default function ListingsPage() {
-  return <Module02ListingsView />;
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/trade?tab=markets");
 }

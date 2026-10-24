@@ -1,5 +1,6 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
-export default function TradeDepthDomPage() {
-  return <AtlasTerminal initialSection="market" initialWorkspaceRoute="/trade/depth-dom" />;
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/trade?tab=depth");
 }

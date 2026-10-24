@@ -1,6 +1,6 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
-export default function ResearchWalkForwardPage() {
-  return <AtlasTerminal initialSection="models" initialWorkspaceRoute="/research/walk-forward" />;
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/research/evidence?tab=walk-forward");
 }
-

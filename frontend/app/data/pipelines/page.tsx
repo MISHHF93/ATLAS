@@ -1,6 +1,6 @@
-import { AtlasTerminal } from "../../AtlasTerminal";
+import { redirect } from "next/navigation";
 
-export default function DataPipelinesPage() {
-  return <AtlasTerminal initialSection="connectors" initialWorkspaceRoute="/data/pipelines" />;
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/settings?tab=connectors");
 }
-

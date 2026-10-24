@@ -1,10 +1,6 @@
-import { FounderShell } from "../../../src/components/founder/FounderPanel";
-import { PriceActionView } from "../../../src/components/market/PriceActionView";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return (
-    <FounderShell title="Price-action zones" summary="Backend-computed zones and setups on closed bars. A detected pattern is not a trade; the control plane decides.">
-      <PriceActionView />
-    </FounderShell>
-  );
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/research?tab=zones");
 }

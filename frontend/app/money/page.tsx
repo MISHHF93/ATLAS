@@ -1,10 +1,14 @@
-import { FounderShell } from "../../src/components/founder/FounderPanel";
-import { MoneyView } from "../../src/components/founder/views";
+import { MoneyView, PaymentsView, PortalView, TaxView } from "@/src/components/founder/views";
+import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
 
-export default function Page() {
+export default async function Page(props: HubProps) {
+  const tab = await tabParam(props);
   return (
-    <FounderShell eyebrow="Money" title="Money overview" summary="Paper P&amp;L, room left before Safe stop, equity and drawdown, and the non-custodial ledgers.">
-      <MoneyView />
-    </FounderShell>
+    <Hub id="money" tab={tab} panels={{
+        "overview": <MoneyView />,
+        "payments": <PaymentsView />,
+        "partners": <PortalView />,
+        "tax": <TaxView />,
+      }} />
   );
 }

@@ -1,12 +1,12 @@
 "use client";
 
-import { BookOpen, ChevronDown, ChevronRight, CircleUser, Menu, Moon, Search, Sun, X } from "lucide-react";
+import { BookOpen, ChevronRight, CircleUser, Inbox, KeyRound, Menu, Moon, Search, Sun, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AtlasLogo } from "../components/shell/AtlasLogo";
-import type { AtlasPage, PageGroupId } from "../components/shell/pagesMap";
-import { SECTION_ICONS, pageIcon } from "./icons";
-import { ADVANCED, SECTIONS, breadcrumbs, findPage, pageCommands, type Command } from "./nav";
+import type { AtlasPage } from "../components/shell/pagesMap";
+import { pageIcon } from "./icons";
+import { ADVANCED, HEADER_LINKS, SECTIONS, activeTab, breadcrumbs, findPage, pageCommands, pageTitle, type Command } from "./nav";
 import { useApi } from "./primitives";
 
 
@@ -50,35 +50,27 @@ function useTheme(): [Theme, () => void] {
 
 /* ----------------------------------------------------------- the shell */
 
-type CurtainView = PageGroupId | "all";
-
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname() || "/";
+  const [tab, setTab] = useState<string | null>(null);
   const page = findPage(path);
-  const crumbs = breadcrumbs(path);
+  const crumbs = breadcrumbs(path, tab);
   const [theme, toggleTheme] = useTheme();
-  const [curtain, setCurtain] = useState<CurtainView | null>(null);
+  const [curtain, setCurtain] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const safeStop = useSafeStopSource();
   const health = useApi<{ status?: string }>("/api/health", 15000);
   const [online, setOnline] = useState(true);
   const headerRef = useRef<HTMLElement>(null);
   const curtainRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const hoverOpen = useRef(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeSection = page?.group ?? null;
+  const menuBtn = useRef<HTMLButtonElement | null>(null);
 
-  const clearTimer = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
   const close = useCallback((restoreFocus = false) => {
-    clearTimer(); hoverOpen.current = false; setCurtain(null);
-    if (restoreFocus) triggerRef.current?.focus();
+    setCurtain(false);
+    if (restoreFocus) menuBtn.current?.focus();
   }, []);
-  const open = (view: CurtainView, trigger: HTMLButtonElement | null, byHover = false) => {
-    clearTimer(); triggerRef.current = trigger; hoverOpen.current = byHover; setCurtain(view);
-  };
 
-  useEffect(() => { close(); }, [path, close]);
+  useEffect(() => { close(); setTab(new URLSearchParams(window.location.search).get("tab")); }, [path, close]);
   useEffect(() => {
     const on = () => setOnline(navigator.onLine);
     on();
@@ -103,81 +95,55 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", esc); };
   }, [curtain, close]);
   useEffect(() => {
-    document.title = page ? `${page.label} · ATLAS` : "Not found · ATLAS";
-  }, [page]);
+    document.title = page ? `${pageTitle(page, activeTab(page, tab))} · ATLAS` : "Not found · ATLAS";
+  }, [page, tab]);
 
   const backendDown = health.status === 0 || (health.status !== null && health.status >= 500);
-  const canHover = () => typeof window !== "undefined" && window.matchMedia("(hover: hover) and (min-width: 1100px)").matches;
-  const leave = () => { if (hoverOpen.current) { clearTimer(); timer.current = setTimeout(() => close(), 220); } };
 
   return (
     <SafeStopContext.Provider value={safeStop}>
       <a className="ux-skip" href="#ux-main">Skip to content</a>
       <div className="ux-shell" data-curtain={curtain ? "open" : "closed"}>
-        <header className="ux-header" ref={headerRef} onMouseLeave={leave} onMouseEnter={() => { if (hoverOpen.current) clearTimer(); }}>
-          <button type="button" className="ux-menu-btn" aria-expanded={curtain === "all"} aria-controls="ux-curtain"
-            aria-label={curtain === "all" ? "Close menu" : "Open menu"}
-            onClick={(e) => (curtain === "all" ? close() : open("all", e.currentTarget))}>
-            {curtain === "all" ? <X size={18} aria-hidden /> : <Menu size={18} aria-hidden />}
-            <span className="ux-menu-btn__text">Menu</span>
-          </button>
-          <a href="/" className="ux-brand" aria-label="ATLAS home">
-            <AtlasLogo size={24} wordmark />
-          </a>
-          <span className="ux-paper" title="Paper trading only. No order on this platform reaches a live venue.">PAPER</span>
-          <nav className="ux-tabs" aria-label="Sections">
+        <header className="ux-header" ref={headerRef}>
+          <div className="ux-header__left">
+            <button type="button" ref={menuBtn} className="ux-menu-btn" aria-expanded={curtain} aria-controls="ux-curtain"
+              aria-label={curtain ? "Close menu" : "Open menu: all pages"}
+              onClick={() => (curtain ? close() : setCurtain(true))}>
+              {curtain ? <X size={18} aria-hidden /> : <Menu size={18} aria-hidden />}
+              <span className="ux-menu-btn__text">Menu</span>
+            </button>
+            <a href="/" className="ux-brand" aria-label="ATLAS overview">
+              <AtlasLogo size={22} wordmark />
+            </a>
+            <span className="ux-paper" title="Paper trading only. No order on this platform reaches a live venue.">PAPER</span>
+          </div>
+          <nav className="ux-tabs" aria-label="Main sections">
             <ul>
-              {SECTIONS.map((s, i) => {
-                const Icon = SECTION_ICONS[s.id];
+              {HEADER_LINKS.map((l) => {
+                const active = Boolean(page && l.pageIds.includes(page.id));
                 return (
-                  <li key={s.id}>
-                    <button type="button" className="ux-tab" data-active={s.id === activeSection ? "true" : "false"} data-section={s.id}
-                      aria-expanded={curtain === s.id} aria-controls="ux-curtain"
-                      onClick={(e) => (curtain === s.id && !hoverOpen.current ? close() : open(s.id, e.currentTarget))}
-                      onMouseEnter={(e) => {
-                        if (!canHover()) return;
-                        const el = e.currentTarget;
-                        clearTimer();
-                        timer.current = setTimeout(() => { if (!curtain || hoverOpen.current) open(s.id, el, true); }, curtain ? 60 : 140);
-                      }}
-                      onKeyDown={(e) => {
-                        const tabs = [...(headerRef.current?.querySelectorAll<HTMLButtonElement>(".ux-tab") ?? [])];
-                        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-                          e.preventDefault();
-                          const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
-                          next?.focus(); if (curtain) open(SECTIONS[tabs.indexOf(next)].id, next);
-                        }
-                        if (e.key === "ArrowDown") {
-                          e.preventDefault(); open(s.id, e.currentTarget);
-                          setTimeout(() => curtainRef.current?.querySelector<HTMLAnchorElement>("a")?.focus(), 0);
-                        }
-                      }}>
-                      <Icon size={15} aria-hidden />
-                      <span>{s.label}</span>
-                      {s.id === activeSection ? <span className="ux-sr">(current section)</span> : null}
-                      <ChevronDown size={13} aria-hidden className="ux-tab__chev" />
-                    </button>
+                  <li key={l.href}>
+                    <a href={l.href} className="ux-tab" data-active={active ? "true" : "false"} aria-current={active ? "page" : undefined}>{l.label}</a>
                   </li>
                 );
               })}
             </ul>
           </nav>
-          <button type="button" className="ux-search" onClick={() => { close(); setPaletteOpen(true); }} aria-label="Search pages and actions (Ctrl+K)">
-            <Search size={15} aria-hidden />
-            <span className="ux-search__text">Search…</span>
-            <kbd className="ux-kbd">⌘K</kbd>
-          </button>
           <div className="ux-header__right">
-            <SafeStopPill />
-            <button type="button" className="ux-icon-btn" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>
-              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            <button type="button" className="ux-search" onClick={() => { close(); setPaletteOpen(true); }} aria-label="Search pages and actions (Ctrl+K)">
+              <Search size={15} aria-hidden />
+              <span className="ux-search__text">Search</span>
+              <kbd className="ux-kbd">⌘K</kbd>
             </button>
+            <a href="/inbox" className="ux-icon-btn" aria-label="Action needed (inbox)" title="Action needed" data-active={page?.id === "inbox" ? "true" : undefined}>
+              <Inbox size={17} aria-hidden />
+            </a>
+            <SafeStopPill />
             <AccountMenu onTheme={toggleTheme} theme={theme} />
           </div>
         </header>
 
-        <Curtain view={curtain} refEl={curtainRef} activeHref={page?.href ?? null} onClose={close} onSwitch={(v) => setCurtain(v)}
-          onMouseEnter={() => { if (hoverOpen.current) clearTimer(); }} onMouseLeave={leave} />
+        <Curtain open={curtain} refEl={curtainRef} activeHref={page?.href ?? null} onClose={close} />
         {curtain ? <div className="ux-curtain-scrim" aria-hidden onMouseDown={() => close()} /> : null}
 
         <div className="ux-main-col">
@@ -193,7 +159,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <code className="ux-code">atlas-owner reset-kill-switch</code>
             </div>
           ) : null}
-          {crumbs.length > 1 ? (
+          {crumbs.length > 2 ? (
             <nav className="ux-crumbs" aria-label="Breadcrumb">
               <ol>
                 {crumbs.map((c, i) => (
@@ -215,78 +181,62 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 /* --------------------------------------------------------------- curtain */
 
-function Curtain({ view, refEl, activeHref, onClose, onSwitch, onMouseEnter, onMouseLeave }: {
-  view: CurtainView | null; refEl: React.RefObject<HTMLDivElement | null>; activeHref: string | null;
-  onClose: (restore?: boolean) => void; onSwitch: (v: CurtainView) => void; onMouseEnter: () => void; onMouseLeave: () => void;
+function Curtain({ open, refEl, activeHref, onClose }: {
+  open: boolean; refEl: React.RefObject<HTMLDivElement | null>; activeHref: string | null; onClose: (restore?: boolean) => void;
 }) {
-  const isAll = view === "all";
-  const section = view && view !== "all" ? SECTIONS.find((s) => s.id === view) ?? null : null;
   useEffect(() => {
-    if (!isAll) return;
-    const t = setTimeout(() => refEl.current?.querySelector<HTMLElement>("a, button")?.focus(), 0);
+    if (!open) return;
+    const t = setTimeout(() => refEl.current?.querySelector<HTMLElement>("a")?.focus(), 0);
     return () => clearTimeout(t);
-  }, [isAll, refEl]);
+  }, [open, refEl]);
   const trap = (e: React.KeyboardEvent) => {
-    if (!isAll || e.key !== "Tab" || !refEl.current) return;
+    if (e.key !== "Tab" || !refEl.current) return;
     const f = [...refEl.current.querySelectorAll<HTMLElement>("a, button")];
     if (!f.length) return;
     if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
     else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
   };
-  const label = isAll ? "All pages" : section ? `${section.label} pages` : "Navigation";
   return (
-    <div id="ux-curtain" ref={refEl} className="ux-curtain" data-open={view ? "true" : "false"} data-mode={isAll ? "all" : "section"}
-      hidden={!view} role={isAll ? "dialog" : "region"} aria-modal={isAll ? true : undefined} aria-label={label}
-      onKeyDown={trap} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+    <div id="ux-curtain" ref={refEl} className="ux-curtain" data-open={open ? "true" : "false"} data-mode="all"
+      hidden={!open} role="dialog" aria-modal={true} aria-label="All pages" onKeyDown={trap}>
       <div className="ux-curtain__inner">
         <div className="ux-curtain__top">
-          <h2 className="ux-curtain__title">{label}</h2>
+          <h2 className="ux-curtain__title">All pages</h2>
+          <span className="ux-curtain__hint">Tip: press <kbd className="ux-kbd">⌘K</kbd> to jump anywhere</span>
           <button type="button" className="ux-icon-btn" aria-label="Close menu" onClick={() => onClose(true)}><X size={18} aria-hidden /></button>
         </div>
-        {isAll ? (
-          <div className="ux-curtain__all">
-            {SECTIONS.map((s) => s.main.length ? (
-              <section key={s.id} className="ux-curtain__group" aria-labelledby={`cg-${s.id}`}>
-                <h3 id={`cg-${s.id}`} className="ux-curtain__gh"><button type="button" className="ux-link-btn" onClick={() => onSwitch(s.id)}>{s.label}</button></h3>
-                <Tiles pages={s.main} activeHref={activeHref} compact />
-              </section>
-            ) : null)}
-            {ADVANCED.length ? (
-              <section className="ux-curtain__group" data-advanced aria-labelledby="cg-adv">
-                <h3 id="cg-adv" className="ux-curtain__gh">Advanced</h3>
-                <Tiles pages={ADVANCED} activeHref={activeHref} compact />
-              </section>
-            ) : null}
-          </div>
-        ) : section ? (
-          <div className="ux-curtain__section">
-            <Tiles pages={section.main} activeHref={activeHref} />
-            {section.advanced.length ? (
-              <section className="ux-curtain__adv" aria-labelledby="cg-sec-adv">
-                <h3 id="cg-sec-adv" className="ux-curtain__gh">Advanced</h3>
-                <Tiles pages={section.advanced} activeHref={activeHref} compact />
-              </section>
-            ) : null}
-            <button type="button" className="ux-link-btn ux-curtain__more" onClick={() => onSwitch("all")}>See all sections</button>
-          </div>
-        ) : null}
+        <div className="ux-curtain__all">
+          {SECTIONS.map((s) => (
+            <section key={s.id} className="ux-curtain__group" aria-labelledby={`cg-${s.id}`}>
+              <h3 id={`cg-${s.id}`} className="ux-curtain__gh">{s.label}</h3>
+              <Tiles pages={s.pages} activeHref={activeHref} />
+            </section>
+          ))}
+          {ADVANCED.length ? (
+            <section className="ux-curtain__group" data-advanced aria-labelledby="cg-adv">
+              <h3 id="cg-adv" className="ux-curtain__gh">Advanced</h3>
+              <Tiles pages={ADVANCED} activeHref={activeHref} />
+            </section>
+          ) : null}
+        </div>
       </div>
     </div>
   );
 }
 
-function Tiles({ pages, activeHref, compact }: { pages: AtlasPage[]; activeHref: string | null; compact?: boolean }) {
+function Tiles({ pages, activeHref }: { pages: AtlasPage[]; activeHref: string | null }) {
   return (
-    <ul className="ux-ctiles" data-compact={compact ? "true" : "false"}>
+    <ul className="ux-ctiles" data-compact="true">
       {pages.map((p) => {
         const Icon = pageIcon(p.id);
         return (
           <li key={p.href}>
             <a href={p.href} className="ux-ctile" aria-current={p.href === activeHref ? "page" : undefined}>
-              <span className="ux-ctile__icon" aria-hidden><Icon size={compact ? 16 : 18} /></span>
+              <span className="ux-ctile__icon" aria-hidden><Icon size={16} /></span>
               <span className="ux-ctile__text">
                 <span className="ux-ctile__label">{p.label}</span>
                 <span className="ux-ctile__desc" title={p.summary}>{p.summary}</span>
+                {p.tabs ? <span className="ux-ctile__tabs">{p.tabs.map((t) => t.label).join(" · ")}</span> : null}
               </span>
             </a>
           </li>
@@ -327,11 +277,11 @@ function AccountMenu({ onTheme, theme }: { onTheme: () => void; theme: Theme }) 
       {open ? (
         <div className="ux-menu__list" role="menu">
           <div className="ux-menu__head">Owner · paper account<br /><span className="ux-muted">Writes need atlas-owner + step-up</span></div>
-          <a role="menuitem" href="/control">Account risk</a>
-          <a role="menuitem" href="/control/rulebook">Rulebook &amp; limits</a>
-          <a role="menuitem" href="/docs"><BookOpen size={14} aria-hidden /> Specifications</a>
+          <a role="menuitem" href="/control?tab=limits">Limits &amp; rules</a>
+          <a role="menuitem" href="/settings"><KeyRound size={14} aria-hidden /> Settings &amp; API keys</a>
+          <a role="menuitem" href="/docs"><BookOpen size={14} aria-hidden /> Help &amp; docs</a>
           <button role="menuitem" type="button" onClick={() => { onTheme(); setOpen(false); }}>
-            {theme === "dark" ? "Light theme" : "Dark theme"}
+            {theme === "dark" ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />} {theme === "dark" ? "Light theme" : "Dark theme"}
           </button>
         </div>
       ) : null}
@@ -347,7 +297,7 @@ function CommandPalette({ onClose, onTheme }: { onClose: () => void; onTheme: ()
   const all = useMemo<Command[]>(() => [
     ...pageCommands(),
     { id: "act:theme", label: "Toggle light / dark theme", hint: "Appearance", group: "Actions", run: onTheme, keywords: "theme dark light appearance" },
-    { id: "act:safestop", label: "Safe stop status", hint: "Open account risk", group: "Actions", href: "/control", keywords: "safe stop halt risk kill" },
+    { id: "act:safestop", label: "Safe stop status", hint: "Open Risk & positions", group: "Actions", href: "/control", keywords: "safe stop halt risk kill" },
   ], [onTheme]);
   const results = useMemo(() => {
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);

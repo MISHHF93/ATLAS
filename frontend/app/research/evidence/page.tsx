@@ -1,11 +1,14 @@
-import { PageHeader } from "../../../src/ui/primitives";
-import { EvidenceView } from "../../../src/ui/pages/Console";
+import { AtlasTerminal } from "@/app/AtlasTerminal";
+import { EvidenceView } from "@/src/ui/pages/Console";
+import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
 
-export default function Page() {
+export default async function Page(props: HubProps) {
+  const tab = await tabParam(props);
   return (
-    <div className="ux-page">
-      <PageHeader eyebrow="Research" title="Models & evidence" summary="What the autopilot is allowed to use, and the studies behind it." />
-      <EvidenceView />
-    </div>
+    <Hub id="models" tab={tab} panels={{
+        "evidence": <EvidenceView />,
+        "walk-forward": <AtlasTerminal initialSection="models" initialWorkspaceRoute="/research/walk-forward" />,
+        "training": <AtlasTerminal initialSection="models" initialWorkspaceRoute="/research/registry" />,
+      }} />
   );
 }

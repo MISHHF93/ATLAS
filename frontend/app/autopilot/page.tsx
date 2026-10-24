@@ -1,11 +1,6 @@
-import { PageHeader } from "../../src/ui/primitives";
-import { AutopilotView } from "../../src/ui/pages/Console";
+import { AutopilotView } from "@/src/ui/pages/Console";
+import { Hub } from "@/src/ui/Hub";
 
 export default function Page() {
-  return (
-    <div className="ux-page">
-      <PageHeader eyebrow="Trade" title="Setup autopilot" summary="Paper only. Request it on, switch it off instantly, and review what it saw." />
-      <AutopilotView />
-    </div>
-  );
+  return <Hub id="autopilot"><AutopilotView /></Hub>;
 }

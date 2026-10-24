@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
-export default function SyncPage() {
-  redirect("/data/pipelines");
+/** Former address, kept working: opens the hub tab that now holds this content. */
+export default function LegacyPage() {
+  redirect("/settings?tab=connectors");
 }

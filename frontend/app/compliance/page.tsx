@@ -1,10 +1,14 @@
-import { FounderShell } from "../../src/components/founder/FounderPanel";
-import { ComplianceView } from "../../src/components/founder/views";
+import { AtlasTerminal } from "@/app/AtlasTerminal";
+import { ComplianceView } from "@/src/components/founder/views";
+import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
 
-export default function Page() {
+export default async function Page(props: HubProps) {
+  const tab = await tabParam(props);
   return (
-    <FounderShell eyebrow="Compliance" title="Compliance overview" summary="Venue registration, sanctions screening, FINTRAC records and privacy policy.">
-      <ComplianceView />
-    </FounderShell>
+    <Hub id="compliance" tab={tab} panels={{
+        "overview": <ComplianceView />,
+        "audit": <AtlasTerminal initialSection="matrix" initialWorkspaceRoute="/control/surveillance" />,
+        "identity": <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/control/proctoring" />,
+      }} />
   );
 }
