@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { type LiveCandlePoint } from "../market/LiveChartEngine";
 import { WhaleOnChart } from "../market/WhaleOnChart";
 import { DeskChart } from "../market/DeskChart";
+import { OpportunityChart } from "../market/OpportunityChart";
 import { type LiveSnapshot } from "../market/LiveMarketViewer";
 import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel, type GuideIconName } from "../shell/guideIcons";
 import { CLIENT_ROLE_PROFILES, useRoleContext, type ClientRoleId } from "../../context/RoleContext";
@@ -1973,6 +1974,7 @@ export function StreamlinedTradingStudio() {
               modelSymbol={selectedSymbol}
               onSnapshot={handleLiveSnapshot}
             />
+            <OpportunityChart symbol={selectedSymbol ?? chartSymbol ?? activeAsset.symbol} timeframe={timeframe} />
           </div>
 
           {/* Collapsible Bottom Drawer: Active Positions Blotter, Working Orders & Audit History */}
