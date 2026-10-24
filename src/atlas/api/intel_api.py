@@ -55,7 +55,11 @@ def lab_runs(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
     runs = list_runs(limit)
     slim = [{k: r.get(k) for k in ("report_id", "name", "instrument", "timeframe_s", "bars", "created_at", "code_sha", "seed",
                                     "deflated_sharpe", "pbo", "pbo_note", "last_bar_end")} | {"variants": r.get("variants")} for r in runs]
-    return {"runs": slim, "n": len(slim), "execution_permission": EXECUTION_PERMISSION}
+    newest = max((r.get("last_bar_end") or 0 for r in slim), default=0) or None
+    now = int(time.time())
+    fresh = {"label": "historical" if slim else "unavailable", "last_bar_end": newest, "age_s": (now - newest) if newest else None,
+             "source": "recorded lab experiments (fixed data snapshot per run)", "computed_at": now}
+    return {"runs": slim, "n": len(slim), "freshness": fresh, "execution_permission": EXECUTION_PERMISSION}
 
 
 @router.post("/lab/run")
@@ -103,7 +107,7 @@ def tracks() -> dict[str, Any]:
     from atlas.control.tracks import probe, rulebooks
     return {**rulebooks(control_engine), "probes": probe(), "execution_permission": EXECUTION_PERMISSION,
             "note": "probes run on throwaway in-memory paper engines; nothing is persisted or routed",
-            "freshness": {"label": "live", "source": "control_plane_config", "computed_at": int(time.time())}}
+            "freshness": {"label": "unavailable", "source": "control_plane_config (rule configuration, not market data)", "computed_at": int(time.time())}}
 
 
 # ---- assistant ----

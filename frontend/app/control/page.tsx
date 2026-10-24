@@ -1,4 +1,5 @@
 import { AtlasTerminal } from "@/app/AtlasTerminal";
+import { PortfolioRiskView, TracksView } from "@/src/ui/pages/IntelViews";
 import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
 
 export default async function Page(props: HubProps) {
@@ -7,6 +8,8 @@ export default async function Page(props: HubProps) {
     <Hub id="risk" tab={tab} panels={{
         "account": <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/control/risk-hud" />,
         "positions": <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/trade/blotter" />,
+        "portfolio": <PortfolioRiskView />,
+        "tracks": <TracksView />,
         "limits": <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/control/rulebook" />,
       }} />
   );

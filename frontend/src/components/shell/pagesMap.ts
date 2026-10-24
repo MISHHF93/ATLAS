@@ -91,6 +91,8 @@ export const PAGES: AtlasPage[] = [
         summary: "Equity, drawdown room and open positions for the one paper account." },
       { id: "positions", label: "Positions", workspaceRoute: "/trade/blotter", aliases: ["/trade/blotter", "/control/dealing-desk"],
         summary: "Every open position, total exposure and its stop protection." },
+      { id: "portfolio", label: "Portfolio risk", summary: "Exposure, correlation, VaR/CVaR and stress for the open paper book. Unpriced positions are listed, not guessed." },
+      { id: "tracks", label: "Track rules", summary: "Competition and open-market rulebooks side by side, with probes showing each is enforced separately." },
       { id: "limits", label: "Limits & rules", workspaceRoute: "/control/rulebook", aliases: ["/control/rulebook", "/rules", "/configurations"],
         summary: "The trading limits in force, plus a risk check you can run on a paper ticket before sending it." },
     ],
@@ -124,6 +126,18 @@ export const PAGES: AtlasPage[] = [
         summary: "Run the standard walk-forward test. Passing a test does not promote a model." },
       { id: "training", label: "Training", workspaceRoute: "/research/registry", aliases: ["/models", "/research/registry"],
         summary: "Train the isolated research policy on desk candles. It cannot send an order." },
+    ],
+  },
+  {
+    id: "lab", href: "/research/lab", label: "Research lab", navLabel: "Lab", group: "research",
+    summary: "Experiments, regimes, market memory, the evidence assistant, microstructure and Four-Box. Research only: nothing here can place an order.",
+    tabs: [
+      { id: "experiments", label: "Experiments", summary: "Recorded variant experiments with deflated Sharpe, PBO, bootstrap intervals and cost sensitivity." },
+      { id: "regimes", label: "Regimes", summary: "A causal trend/volatility regime label and how each strategy did in each regime." },
+      { id: "memory", label: "Memory & governance", summary: "Where replay results came from, the closest past setups, and the model registry's promotion state." },
+      { id: "assistant", label: "Assistant", summary: "Ask a question; answers are quoted from docs and lab reports with evidence IDs." },
+      { id: "microstructure", label: "Microstructure", summary: "Liquidity and volatility estimates, gated by the data tier the feed actually has." },
+      { id: "fourbox", label: "Four-Box", summary: "Opening, Breakout and Anchor boxes from the zone detectors. Event is off." },
     ],
   },
   {
