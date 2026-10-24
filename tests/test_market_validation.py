@@ -70,8 +70,10 @@ def test_asset_catalog_is_paged_searchable_and_explicitly_synthetic() -> None:
     assert first["total_matching"] > first["page_size"]
     assert len(first["listings"]) == 50
     assert first["execution_permission"] == "none"
-    assert all(row["data_status"] == "synthetic_fixture" for row in first["listings"])
-    assert all(row["provider"] == "synthetic_fixture" for row in first["listings"])
+    # Prices come only from the ATLAS feed (or are None/no_data); the remaining analytics columns stay labelled fixtures.
+    assert all(row["analytics_source"] == "synthetic_fixture" for row in first["listings"])
+    assert all(row["data_status"] in ("atlas_feed", "no_data") for row in first["listings"])
+    assert all(row["last_price"] is None or row["quote_source"] for row in first["listings"])
 
     second_page = client.get("/api/catalog/snapshot", params={"page": 2, "page_size": 50}).json()
     assert first["listings"][-1]["symbol"] != second_page["listings"][0]["symbol"]

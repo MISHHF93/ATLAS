@@ -26,6 +26,8 @@ def _feed():
     from atlas.feeds import feed as feed_mod
     if feed_mod._DEFAULT is not None:
         return feed_mod._DEFAULT
+    if "PYTEST_CURRENT_TEST" in os.environ and not os.environ.get("ATLAS_FEED_DB"):
+        return None  # tests never read the developer's on-disk store implicitly (install a feed or set ATLAS_FEED_DB)
     if not os.path.exists(feed_mod.DEFAULT_STORE):
         return None
     return feed_mod.get_feed()
