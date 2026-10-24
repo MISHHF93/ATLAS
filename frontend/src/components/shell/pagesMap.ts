@@ -81,6 +81,8 @@ export const PAGES: AtlasPage[] = [
         summary: "The symbol list, the price chart and the paper order ticket." },
       { id: "markets", label: "Market list", aliases: ["/listings"],
         summary: "Search the instrument catalog. Entries are catalog data, not a live exchange feed." },
+      { id: "paper", label: "Paper account",
+        summary: "Alpaca paper equity, cash, positions, orders and fills, reconciled. Read-only; live accounts are refused." },
       { id: "depth", label: "Order book estimate", workspaceRoute: "/trade/depth-dom", aliases: ["/trade/depth-dom"],
         summary: "An estimated order book built from the last close and the catalog spread. It is not a real exchange book." },
     ],
@@ -174,7 +176,7 @@ export const PAGES: AtlasPage[] = [
         summary: "Create read or research keys for agents, see each once, revoke any time. No key can trade live or move money." },
       { id: "connectors", label: "Connectors", workspaceRoute: "/data/pipelines", aliases: ["/data/pipelines", "/connectors", "/integrations", "/sync"],
         summary: "Data connector records. A test writes an audit line and does not open a vendor connection." },
-      { id: "broker", label: "Broker & alerts", summary: "Alpaca paper status (live refused), alert channels (off by default) and the read-only agent tool list." },
+      { id: "broker", label: "Broker & alerts", summary: "Integration status for every service, Alpaca paper status (live refused), alert channels (off by default) and the read-only agent tool list." },
     ],
   },
   {

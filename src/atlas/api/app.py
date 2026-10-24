@@ -94,6 +94,8 @@ app.include_router(chart_overlays_router)
 app.add_middleware(AINodeMiddleware)
 from atlas.api.ext_api import router as ext_router  # noqa: E402
 app.include_router(ext_router, prefix="/api/ext")
+from atlas.api.integrations_api import router as integrations_router  # noqa: E402
+app.include_router(integrations_router, prefix="/api/integrations")
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",

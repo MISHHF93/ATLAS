@@ -185,7 +185,10 @@ def alpaca_status() -> dict[str, Any]:
 @router.get("/alpaca/{what}")
 def alpaca_get(what: str) -> dict[str, Any]:
     b = _broker()
-    fn = {"account": b.get_account, "positions": b.get_positions, "clock": b.get_clock, "orders": b.get_orders}.get(what)
+    if what == "reconcile":
+        from atlas.ext.alpaca_reconcile import reconcile
+        return reconcile(b)
+    fn = {"account": b.get_account, "positions": b.get_positions, "clock": b.get_clock, "orders": b.get_orders, "fills": b.get_fills}.get(what)
     if fn is None:
         raise HTTPException(404, "unknown")
     return fn()

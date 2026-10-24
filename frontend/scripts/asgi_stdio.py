@@ -10,7 +10,12 @@ from urllib.parse import urlsplit, unquote
 # Reserve stdout for protocol frames. Application prints belong on stderr.
 wire = sys.stdout
 sys.stdout = sys.stderr
-from atlas.api.app import app
+from pathlib import Path  # noqa: E402
+
+from atlas.envfile import load_env_file  # noqa: E402
+
+load_env_file(Path(__file__).resolve().parents[2] / ".env")   # keys added to .env take effect on restart
+from atlas.api.app import app  # noqa: E402
 
 
 async def main() -> None:

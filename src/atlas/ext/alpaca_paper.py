@@ -92,16 +92,23 @@ class AlpacaPaperBroker:
             return {k: acct.get(k) for k in keep}
         return self._wrap(f)
 
+    def _read(self, path: str):
+        """Every read first verifies the account is a paper (PA...) account; a live account is refused."""
+        return self._wrap(lambda: (self.adapter._ensure(), self.adapter._call("GET", path))[1])
+
     def get_positions(self):
-        return self._wrap(lambda: self.adapter._call("GET", "/v2/positions"))
+        return self._read("/v2/positions")
 
     def get_orders(self, status: str = "open"):
         if status not in ("open", "closed", "all"):
             raise ValueError("status must be open|closed|all")
-        return self._wrap(lambda: self.adapter._call("GET", f"/v2/orders?status={status}&limit=100"))
+        return self._read(f"/v2/orders?status={status}&limit=100")
+
+    def get_fills(self, limit: int = 100):
+        return self._read(f"/v2/account/activities/FILL?direction=desc&page_size={max(1, min(int(limit), 100))}")
 
     def get_clock(self):
-        return self._wrap(lambda: self.adapter._call("GET", "/v2/clock"))
+        return self._read("/v2/clock")
 
     def cancel_all_orders(self):
         return self._wrap(lambda: self.adapter._call("DELETE", "/v2/orders"))

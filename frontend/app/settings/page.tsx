@@ -1,4 +1,5 @@
 import { BrokerView } from "@/src/ui/pages/ExtViews";
+import { IntegrationsStatusCard } from "@/src/ui/pages/IntegrationsViews";
 import { AtlasTerminal } from "@/app/AtlasTerminal";
 import { FeedHealthPanel } from "@/src/components/market/FeedHealthPanel";
 import { ApiKeysView } from "@/src/ui/pages/Console";
@@ -15,7 +16,7 @@ export default async function Page(props: HubProps) {
             <AtlasTerminal initialSection="connectors" initialWorkspaceRoute="/data/pipelines" />
           </>
         ),
-        "broker": <BrokerView />,
+        "broker": <><IntegrationsStatusCard /><BrokerView /></>,
       }} />
   );
 }
