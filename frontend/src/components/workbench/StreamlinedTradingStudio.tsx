@@ -8,6 +8,8 @@ import { type LiveSnapshot } from "../market/LiveMarketViewer";
 import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel, type GuideIconName } from "../shell/guideIcons";
 import { CLIENT_ROLE_PROFILES, useRoleContext, type ClientRoleId } from "../../context/RoleContext";
 import { fetchLibraryQuotes, libraryQuoteSymbols } from "../../lib/libraryQuotes";
+import type { FeedQuote } from "../../lib/feedQuotes";
+import { QuoteMeta } from "../market/QuoteBadge";
 import { loadMarketBars, mergeTickIntoBars } from "../../lib/marketBars";
 import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 
@@ -34,6 +36,10 @@ export interface CatalogListingItem {
   regime: string;
   provider: string;
   quote_origin?: string;
+  // ATLAS feed quote status/source/Toronto time (never shown without them).
+  quote_status?: "live" | "delayed" | "market_closed" | "stale" | "no_data";
+  quote_source?: string | null;
+  quote_time?: string | null;
   execution_permission: "none";
 }
 
@@ -79,8 +85,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 10,
     track: "competition",
     is_active: true,
-    last_price: 68410.0,
-    change_pct: 1.42,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 32000,
     volume_24h: 48000000,
     vpin: 0.312,
@@ -101,8 +107,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 10,
     track: "competition",
     is_active: true,
-    last_price: 2645.5,
-    change_pct: 2.15,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 28500,
     volume_24h: 36500000,
     vpin: 0.278,
@@ -123,8 +129,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 10,
     track: "competition",
     is_active: true,
-    last_price: 176.8,
-    change_pct: 3.18,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 24100,
     volume_24h: 29400000,
     vpin: 0.354,
@@ -145,8 +151,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 100,
     track: "open_market",
     is_active: true,
-    last_price: 142.1,
-    change_pct: 2.14,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 19340,
     volume_24h: 15200000,
     vpin: 0.368,
@@ -167,8 +173,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 100,
     track: "open_market",
     is_active: true,
-    last_price: 584.2,
-    change_pct: 0.42,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 18500,
     volume_24h: 14500000,
     vpin: 0.242,
@@ -189,8 +195,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 100,
     track: "open_market",
     is_active: true,
-    last_price: 231.45,
-    change_pct: 0.65,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 19760,
     volume_24h: 15550000,
     vpin: 0.214,
@@ -211,8 +217,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 2500,
     track: "competition",
     is_active: true,
-    last_price: 5882.5,
-    change_pct: 0.45,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 9200,
     volume_24h: 8800000,
     vpin: 0.24,
@@ -233,8 +239,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 2000,
     track: "competition",
     is_active: true,
-    last_price: 20545.25,
-    change_pct: 0.92,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 9510,
     volume_24h: 9010000,
     vpin: 0.265,
@@ -255,8 +261,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 1000,
     track: "competition",
     is_active: true,
-    last_price: 71.45,
-    change_pct: -1.15,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 10440,
     volume_24h: 9640000,
     vpin: 0.34,
@@ -277,8 +283,8 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     min_notional: 2000,
     track: "competition",
     is_active: true,
-    last_price: 2738.6,
-    change_pct: 0.88,
+    last_price: 0, // no hardcoded sample price: filled from the ATLAS feed
+    change_pct: 0,
     volume_1m: 10750,
     volume_24h: 9850000,
     vpin: 0.365,
@@ -314,6 +320,19 @@ function nyseSessionCountdown(now: Date): string {
   const mins = Math.floor((remain % 3600) / 60);
   const secs = remain % 60;
   return `Cash close ${hours}h ${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s ET`;
+}
+
+function itemQuote(item: CatalogListingItem): FeedQuote {
+  const has = Number(item.last_price) > 0;
+  return {
+    symbol: item.symbol,
+    price: has ? item.last_price : null,
+    change_pct: has ? item.change_pct ?? null : null,
+    source: has ? item.quote_source ?? item.quote_origin ?? null : null,
+    observed_at: null,
+    observed_at_toronto: has ? item.quote_time ?? null : null,
+    status: has ? item.quote_status ?? "stale" : "no_data",
+  };
 }
 
 function placeholderListing(symbol: string, lastPrice = 0): CatalogListingItem {
@@ -611,8 +630,11 @@ export function StreamlinedTradingStudio() {
               return {
                 ...item,
                 last_price: quote.price,
-                change_pct: quote.change_pct ?? item.change_pct,
+                change_pct: quote.change_pct ?? 0,
                 quote_origin: quote.feed_origin,
+                quote_status: quote.status ?? (quote.delayed ? "delayed" : "live"),
+                quote_source: quote.source ?? quote.feed_origin,
+                quote_time: quote.observed_at_toronto ?? quote.observed_at ?? null,
               };
             })
           );
@@ -783,7 +805,8 @@ export function StreamlinedTradingStudio() {
                 item.symbol === pkt.symbol
                   ? {
                       ...item,
-                      last_price: item.quote_origin && demoPrint ? item.last_price : nextPrice > 0 ? nextPrice : item.last_price,
+                      // Demo/synthetic gateway prints never become the displayed price (only observed/public prints do).
+                      last_price: demoPrint ? item.last_price : nextPrice > 0 ? nextPrice : item.last_price,
                       vpin: Number(pkt.vpin ?? item.vpin),
                       ofi_z: Number(pkt.ofi_z ?? pkt.ofi ?? item.ofi_z),
                       kyles_lambda: Number(pkt.kyles_lambda ?? item.kyles_lambda),
@@ -1794,8 +1817,8 @@ export function StreamlinedTradingStudio() {
                           color: item.change_pct >= 0 ? "var(--c-good)" : "var(--c-bad)",
                         }}
                       >
-                        {item.change_pct >= 0 ? "+" : ""}
-                        {item.change_pct.toFixed(2)}%
+                        {(item.change_pct ?? 0) >= 0 ? "+" : ""}
+                        {(item.change_pct ?? 0).toFixed(2)}%
                       </span>
                       <span
                         style={{
@@ -1806,6 +1829,9 @@ export function StreamlinedTradingStudio() {
                         }}
                       >
                         {item.last_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      <span style={{ gridColumn: "2 / span 2" }}>
+                        <QuoteMeta quote={itemQuote(item)} compact />
                       </span>
                     </>
                   )}
@@ -1882,6 +1908,9 @@ export function StreamlinedTradingStudio() {
                 {activeAsset.last_price > 0
                   ? activeAsset.last_price.toLocaleString(undefined, { minimumFractionDigits: 2 })
                   : "No quote"}
+                <div>
+                  <QuoteMeta quote={itemQuote(activeAsset)} />
+                </div>
               </div>
             </div>
 

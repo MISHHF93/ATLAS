@@ -14,6 +14,8 @@ import { TradingViewStockInfo } from "./TradingViewChart";
 import { DeskChart } from "./DeskChart";
 import { TradingViewMarkets } from "./TradingViewMarkets";
 import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
+import { useFeedQuotes } from "../../lib/feedQuotes";
+import { QuoteChange, QuoteMeta, QuotePrice } from "./QuoteBadge";
 
 export interface Module02ListingPacket {
   symbol: string;
@@ -43,8 +45,8 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     track: "open_market",
     provider: "databento",
     venue: "NYSE Arca · SIP L2",
-    price: 584.2,
-    prevPrice: 583.95,
+    price: 0, // sample price removed: the displayed price comes from the ATLAS feed
+    prevPrice: 0,
     changePct: 0.42,
     vpin: 0.242,
     ofi: 0.185,
@@ -63,8 +65,8 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     track: "open_market",
     provider: "polygon",
     venue: "Nasdaq Global Select · XNAS",
-    price: 142.1,
-    prevPrice: 141.8,
+    price: 0, // sample price removed: the displayed price comes from the ATLAS feed
+    prevPrice: 0,
     changePct: 2.14,
     vpin: 0.368,
     ofi: 0.312,
@@ -83,8 +85,8 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     track: "open_market",
     provider: "databento",
     venue: "Nasdaq Global Select · XNAS",
-    price: 231.45,
-    prevPrice: 231.2,
+    price: 0, // sample price removed: the displayed price comes from the ATLAS feed
+    prevPrice: 0,
     changePct: 0.65,
     vpin: 0.214,
     ofi: 0.142,
@@ -103,8 +105,8 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     track: "open_market",
     provider: "polygon",
     venue: "Nasdaq Global Select · XNAS",
-    price: 428.9,
-    prevPrice: 428.65,
+    price: 0, // sample price removed: the displayed price comes from the ATLAS feed
+    prevPrice: 0,
     changePct: 0.31,
     vpin: 0.225,
     ofi: 0.164,
@@ -123,8 +125,8 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     track: "open_market",
     provider: "databento",
     venue: "Nasdaq · SIP L2",
-    price: 498.6,
-    prevPrice: 498.1,
+    price: 0, // sample price removed: the displayed price comes from the ATLAS feed
+    prevPrice: 0,
     changePct: 0.88,
     vpin: 0.289,
     ofi: 0.238,
@@ -143,8 +145,8 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     track: "open_market",
     provider: "polygon",
     venue: "Nasdaq Global Select · XNAS",
-    price: 254.3,
-    prevPrice: 254.85,
+    price: 0, // sample price removed: the displayed price comes from the ATLAS feed
+    prevPrice: 0,
     changePct: -1.12,
     vpin: 0.432,
     ofi: -0.264,
@@ -163,8 +165,8 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     track: "competition",
     provider: "ccxt_pro",
     venue: "24/7 Prop Perp · CCXT Pro",
-    price: 68410.0,
-    prevPrice: 68365.0,
+    price: 0, // sample price removed: the displayed price comes from the ATLAS feed
+    prevPrice: 0,
     changePct: 1.42,
     vpin: 0.312,
     ofi: 0.245,
@@ -183,8 +185,8 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     track: "competition",
     provider: "coinbase",
     venue: "24/7 Prop Perp · Coinbase",
-    price: 2645.5,
-    prevPrice: 2641.2,
+    price: 0, // sample price removed: the displayed price comes from the ATLAS feed
+    prevPrice: 0,
     changePct: 2.15,
     vpin: 0.278,
     ofi: 0.212,
@@ -203,8 +205,8 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     track: "competition",
     provider: "hyperliquid",
     venue: "24/7 Prop Perp · Hyperliquid",
-    price: 176.8,
-    prevPrice: 176.1,
+    price: 0, // sample price removed: the displayed price comes from the ATLAS feed
+    prevPrice: 0,
     changePct: 3.18,
     vpin: 0.354,
     ofi: 0.289,
@@ -225,6 +227,8 @@ function Module02InnerWorkbench() {
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTC-USD");
   const [chartTimeframe, setChartTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("1s");
   const [listings, setListings] = useState<Module02ListingPacket[]>(INITIAL_MODULE02_LISTINGS);
+  const feedSymbols = useMemo(() => listings.map((l) => l.symbol), [listings]);
+  const feedQuotes = useFeedQuotes(feedSymbols);
   // Live data fetches from backend API on mount; pollModule02Stream refreshes every 2.5s
   useEffect(() => {
     void pollModule02Stream();
@@ -745,17 +749,12 @@ function Module02InnerWorkbench() {
                         color: item.flash === "up" ? "#00F29D" : item.flash === "down" ? "#FF3B69" : "#F8FAFC",
                       }}
                     >
-                      ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <QuotePrice quote={feedQuotes[item.symbol]} />
                     </div>
-                    <div
-                      style={{
-                        fontSize: "11.5px",
-                        color: item.changePct >= 0 ? "#00F29D" : "#FF3B69",
-                      }}
-                    >
-                      {item.changePct >= 0 ? "▲ +" : "▼ "}
-                      {item.changePct.toFixed(2)}% · {item.latencyMs.toFixed(1)}ms
+                    <div style={{ fontSize: "11.5px" }}>
+                      <QuoteChange quote={feedQuotes[item.symbol]} />
                     </div>
+                    <QuoteMeta quote={feedQuotes[item.symbol]} />
                   </div>
                 </div>
 
