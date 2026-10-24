@@ -1,6 +1,6 @@
 # ATLAS documentation index
 
-Last verified: **2026-10-23** against `main (integration, 2026-10-23)`, where pytest gives 1404 passed and 9 skipped. Everything runs on paper or simulation only.
+Last verified: **2026-10-23** against `main (integration, 2026-10-23)`, where pytest gives 1447 passed and 9 skipped. Everything runs on paper or simulation only.
 
 Status vocabulary, used here and in the root workbook:
 
