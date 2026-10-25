@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type LiveCandlePoint } from "../market/LiveChartEngine";
+import { type LiveCandlePoint } from "../market/liveTypes";
 import { WhaleOnChart } from "../market/WhaleOnChart";
 import { DeskChart } from "../market/DeskChart";
-import { type LiveSnapshot } from "../market/LiveMarketViewer";
+import { type LiveSnapshot } from "../market/liveTypes";
 import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel, type GuideIconName } from "../shell/guideIcons";
 import { CLIENT_ROLE_PROFILES, useRoleContext, type ClientRoleId } from "../../context/RoleContext";
 import { fetchLibraryQuotes, libraryQuoteSymbols } from "../../lib/libraryQuotes";
@@ -1874,29 +1874,9 @@ export function StreamlinedTradingStudio() {
               </div>
             </div>
 
-            {/* Timeframe Switcher: 1s, 1m, 5m, 15m, 1h, 1D */}
+            {/* Notes toggle */}
             <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", alignItems: "center" }}>
-              {(["1s", "1m", "5m", "15m", "1h", "1D"] as const).map((tf) => (
-                <button
-                  key={tf}
-                  type="button"
-                  onClick={() => setTimeframe(tf)}
-                  aria-pressed={timeframe === tf}
-                  title={tf === "1s" ? "Native market viewer: 1-second crypto trades where supported; public API minute candles for other listings, with resolution and delay disclosed." : `TradingView ${tf} candles`}
-                  style={{
-                    padding: "5px 9px",
-                    borderRadius: "5px",
-                    border: "1px solid var(--c-border)",
-                    background: timeframe === tf ? "var(--c-good)" : "var(--c-surface)",
-                    color: timeframe === tf ? "var(--c-bg)" : "var(--c-muted)",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  {tf === "1s" ? "Real time" : tf}
-                </button>
-              ))}
+              {/* chart-2: the timeframe switcher (incl. Live) lives inside AtlasChart: one chart, one switcher. */}
               <button
                 type="button"
                 onClick={() => setNotesOpen((open) => !open)}
@@ -1972,6 +1952,7 @@ export function StreamlinedTradingStudio() {
               onOpenMinute={() => setTimeframe("1m")}
               modelSymbol={selectedSymbol}
               onSnapshot={handleLiveSnapshot}
+              onTimeframe={(tf) => { if (tf in TIMEFRAME_SECONDS) setTimeframe(tf as keyof typeof TIMEFRAME_SECONDS); }}
             />
           </div>
 

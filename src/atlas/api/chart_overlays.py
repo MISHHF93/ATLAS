@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/ai/chart", tags=["ai"])
 INTERVALS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}
 BAR_TYPES = ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "tick", "kagi_atr", "pnf_atr")
 LAYERS = ("ml_markers", "ml_probability", "setups", "zones", "vwap", "volume_profile", "regimes", "conviction", "predictions")
+EXTRA_LAYERS = ("marker_details", "forward")  # chart-2: additive
 
 
 def _feed():
@@ -224,6 +225,25 @@ def _ml_panel(sym, interval, markers):
     return panel
 
 
+def _enrich(markers, bars):
+    from atlas.intel.marker_context import enrich, snapshots
+    win = bars[-4000:]
+    enrich(markers, win, snapshots(win))
+    return {"status": "ok", "n": len(markers), "fields": ["indicators", "threshold", "outcome_label", "why", "setup", "resolution_path"],
+            "note": "indicator values are the causal state at each marker's confirmation bar (closed bars only, no lookahead)"}
+
+
+def _forward(bars, markers):
+    from atlas.intel.marker_context import forward_zone, snapshots
+    win = bars[-4000:]
+    return forward_zone(win, snapshots(win), markers)
+
+
+def _calib(preds):
+    from atlas.intel.marker_context import calibration
+    return calibration(preds)
+
+
 @router.get("/overlays")
 def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str = Query("15m"), bar_type: str = Query("time"),
                    limit: int = Query(600, ge=50, le=3000)) -> dict[str, Any]:
@@ -261,9 +281,11 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
         markers, classes, evo = mk
         mstat = {"status": "ok"}
     markers = [m for m in markers if m["time"] >= t0]
+    details = _layer(_enrich, markers, bars)
     ml = [m for m in markers if m["source"] == "evolution_oos"]
     vw, vp = _layer(_vwap_profile, view) if any(b.volume for b in view) else ({"status": "unavailable", "reason": "no volume"},) * 2
     preds = [{"time": m["time"], "p": m["probability"], "take": m["class"] == "ml_suggested", "outcome": m["outcome"], "r": m["r"],
+              "hit": (None if m["outcome"] not in ("target", "stop", "timeout") else bool((m.get("r") or 0) > 0)), "id": m["id"],
               "calibrator": (m.get("probability_label") or "").split("OOS, ")[-1].rstrip(")")} for m in ml if m.get("probability") is not None]
     panel = _layer(_ml_panel, sym, interval, markers)
     em = (panel.get("evolution") or {}).get("metrics") if isinstance(panel, dict) and panel.get("evolution") else None
@@ -278,7 +300,10 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
         "conviction": _layer(_conviction, sym, interval, feed),
         "predictions": {"status": "ok" if preds else "unavailable", "items": preds[-200:],
                         "calibration": {k: em.get(k) for k in ("brier", "brier_baseline", "ece", "auc")} if em else None,
-                        "note": "out-of-sample walk-forward probabilities from the latest evolution run; research only"},
+                        "note": "out-of-sample walk-forward probabilities from the latest evolution run; research only",
+                        "running_calibration": _layer(_calib, preds)},
+        "marker_details": details,
+        "forward": _layer(_forward, bars, markers),
     }
     return enforce_advisory({**base, "status": "ok", "bars": out_bars, "display": display, "layers": layers, "ml_panel": panel},
                             source="/api/ai/chart/overlays")[0]

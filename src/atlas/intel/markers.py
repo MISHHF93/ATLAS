@@ -53,8 +53,20 @@ def from_replay(res, tf: int, cost_per_unit: float = 0.0) -> list[dict[str, Any]
                     "uncertainty": None, "ev_r": evr,
                     "gross_rr": gain / loss if loss > 0 else None, "model_version": mv or "none (no validated model)",
                     "risk_status": risk, "class": cls,
-                    "outcome": (t.outcome if t else "not_filled"), "r": (t.r_multiple if t else None)})
+                    "outcome": (t.outcome if t else "not_filled"), "r": (t.r_multiple if t else None),
+                    "filled_at": (t.filled_at if t else None), "exit_at": (t.exit_at if t else None),
+                    "exit_price": (t.exit_price if t else None), "gate_reasons": [str(r) for r in reasons],
+                    "zone_touched": _zone_label(getattr(c, "zone", None))})
     return out
+
+
+def _zone_label(z) -> str | None:
+    if not isinstance(z, dict) or not z:
+        return None
+    kind = z.get("zone_type") or z.get("type") or z.get("kind") or "zone"
+    lo, hi = z.get("lower_bound", z.get("low")), z.get("upper_bound", z.get("high"))
+    rng = f" {lo:.6g}-{hi:.6g}" if isinstance(lo, (int, float)) and isinstance(hi, (int, float)) else ""
+    return f"{str(kind).replace('_', ' ')}{rng}"
 
 
 def from_evolution(inst: str, interval: str, path=None) -> tuple[list[dict[str, Any]], dict | None]:

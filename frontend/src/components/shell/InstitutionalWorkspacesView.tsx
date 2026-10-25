@@ -5,7 +5,7 @@ import {
   type LiveCandlePoint,
   type LockedWhaleOpportunityData,
   type TradingFactorAttributionPoint,
-} from "../market/LiveChartEngine";
+} from "../market/liveTypes";
 import { fetchLibraryQuotes, libraryQuoteSymbols } from "../../lib/libraryQuotes";
 import { loadMarketBars } from "../../lib/marketBars";
 import { useFeatures100 } from "../../lib/features100";

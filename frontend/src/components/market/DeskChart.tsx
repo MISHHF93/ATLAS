@@ -1,89 +1,34 @@
 "use client";
 
 import { ModelFlowPanel } from "./ModelFlowPanel";
-import { LiveMarketViewer, type LiveSnapshot } from "./LiveMarketViewer";
+import type { LiveSnapshot } from "./liveTypes";
 import { AtlasChart } from "./AtlasChart";
-import { useLayoutEffect, useRef } from "react";
 
-const BUCKETS: Record<string, number> = {
-  "1s": 1,
-  "1m": 60,
-  "5m": 300,
-  "15m": 900,
-  "1h": 3600,
-  "1D": 86400,
-};
+const BUCKETS: Record<string, number> = { "1s": 1, "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1D": 86400 };
 
-export function DeskChart({
-  symbol,
-  timeframe,
-  frameClassName,
-  gap,
-  onOpenMinute,
-  modelSymbol,
-  onSnapshot,
-}: {
+/** The desk's one chart. Real time is a timeframe ("Live") INSIDE AtlasChart, not a second chart (chart-2). */
+export function DeskChart({ symbol, timeframe, frameClassName, gap, modelSymbol, onSnapshot, onTimeframe }: {
   symbol: string;
   timeframe: string;
   frameClassName: string;
   gap?: string | null;
+  /** @deprecated kept for call-site compatibility; the Live timeframe has its own empty state. */
   onOpenMinute?: () => void;
   modelSymbol?: string;
   onSnapshot?: (snapshot: LiveSnapshot) => void;
+  onTimeframe?: (tf: string) => void;
 }) {
-  const bucketSeconds = BUCKETS[timeframe] ?? 60;
-  const widgetPicture = timeframe !== "1s";
-  const frame = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const element = frame.current;
-    if (!element || widgetPicture) return;
-    const main = element.closest("main");
-    if (!main) return;
-    let scheduled = 0;
-    const measure = () => {
-      cancelAnimationFrame(scheduled);
-      scheduled = requestAnimationFrame(() => {
-        const style = getComputedStyle(main);
-        const flowing = window.matchMedia("(max-width: 1100px)").matches;
-        const available = flowing ? (window.visualViewport?.height ?? window.innerHeight) : main.clientHeight;
-        const offset = element.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
-        const footer = main.lastElementChild?.getBoundingClientRect().height ?? 0;
-        const gap = parseFloat(style.rowGap) || 0;
-        const fontSize = parseFloat(style.fontSize) || 12;
-        const height = Math.max(fontSize * 24, available - offset - footer - gap * 2);
-        element.style.setProperty("--viewer-available-height", `${Math.floor(height)}px`);
-      });
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(main);
-    if (element.parentElement) observer.observe(element.parentElement);
-    if (main.firstElementChild) observer.observe(main.firstElementChild);
-    if (main.lastElementChild) observer.observe(main.lastElementChild);
-    window.addEventListener("resize", measure);
-    window.visualViewport?.addEventListener("resize", measure);
-    measure();
-    return () => {
-      observer.disconnect(); cancelAnimationFrame(scheduled);
-      window.removeEventListener("resize", measure);
-      window.visualViewport?.removeEventListener("resize", measure);
-    };
-  }, [widgetPicture]);
+  const live = timeframe === "1s";
+  const sym = modelSymbol ?? symbol;
   return (
-    <div ref={frame} className={`${frameClassName}${widgetPicture ? "" : " is-realtime"}`}>
+    <div className={frameClassName}>
       <div className="desk-chart-stage">
-        {widgetPicture ? (
-          <div className="desk-atlas-picture">
-            <AtlasChart symbol={modelSymbol ?? symbol} timeframe={timeframe} height={480} />
-          </div>
-        ) : (
-          <LiveMarketViewer symbol={modelSymbol ?? symbol} onOpenMinute={onOpenMinute} onSnapshot={onSnapshot} />
-        )}
-        {widgetPicture && <ModelFlowPanel
-          symbol={modelSymbol ?? symbol}
-          bucketSeconds={bucketSeconds}
-          intervalLabel={widgetPicture ? timeframe : "Real time"}
-          gap={gap}
-        />}
+        <div className="desk-atlas-picture">
+          <AtlasChart symbol={sym} timeframe={timeframe} height={480} onTimeframe={onTimeframe} onLiveSnapshot={onSnapshot}
+            liveExtras={(snap, err) => <ModelFlowPanel symbol={sym} bucketSeconds={snap?.bucket_seconds ?? 1} intervalLabel="Real time"
+              snapshot={snap} snapshotError={err} refreshSeconds={snap?.refresh_seconds} />} />
+        </div>
+        {!live && <ModelFlowPanel symbol={sym} bucketSeconds={BUCKETS[timeframe] ?? 60} intervalLabel={timeframe} gap={gap} />}
       </div>
     </div>
   );

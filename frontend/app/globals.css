@@ -3187,47 +3187,6 @@ body {
  .model-flow-header, .model-learning { flex-wrap: wrap; }
 }
 
-/* Keep live refreshes inside the viewer instead of extending the page. */
-.desk-chart-frame.is-realtime {
-  height: var(--viewer-available-height, 70dvh);
-  min-height: 0;
-  container: realtime-view / inline-size;
-  flex-shrink: 0;
-  overflow-anchor: none;
-}
-.is-realtime .desk-chart-stage {
-  display: grid;
-  grid-template-rows: minmax(0, .8fr) minmax(0, 1.2fr);
-  gap: 12px;
-  min-height: 0;
-}
-.is-realtime .model-flow-panel {
-  min-height: 0;
-  margin-top: 0;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scrollbar-gutter: stable;
-  overflow-anchor: none;
-}
-.is-realtime .model-flow-header {
-  position: sticky;
-  top: -16px;
-  background: #0d1520;
-  z-index: 2;
-  padding-bottom: 8px;
-}
-.is-realtime .realtime-tape > p {
-  height: 4.5em;
-  flex-shrink: 0;
-  overflow-y: auto;
-  overflow-anchor: none;
-}
-@container realtime-view (min-width: 60rem) {
-  .is-realtime .desk-chart-stage {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-  }
-}
 @media (max-width: 1100px) {
   html:has(.atlas-command-grid), body:has(.atlas-command-grid) {
     height: auto; min-height: 100dvh; overflow-x: hidden; overflow-y: auto;
@@ -3261,23 +3220,10 @@ body {
   .clean-card-header > div { min-width: 0; }
   .clean-card:has(table) { overflow-x: auto; }
 }
-@media (max-height: 800px) {
-  @container realtime-view (min-width: 36rem) {
-    .is-realtime .desk-chart-stage {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
-    }
-  }
-}
-
-.realtime-chart-host { z-index: 0; }
-.realtime-empty { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; background: #0b0f17; color: #a9bdce; overflow: auto; }
-.realtime-empty span { max-width: 48ch; font-size: 12px; }
 .clean-main-scroll > * { flex-shrink: 0; }
 .selected-market-viewer { min-width: 0; flex-shrink: 0; }
-.selected-market-viewer .desk-chart-frame.is-realtime { height: clamp(28rem, 70dvh, 58rem); }
-/* Widget mode stacks the TradingView picture and the model panel; let it grow so the panel never overflows onto the next section. */
-.selected-market-viewer .desk-chart-frame:not(.is-realtime) { height: auto; }
+/* The desk chart stacks AtlasChart and the model panel; let it grow so the panel never overflows onto the next section. */
+.selected-market-viewer .desk-chart-frame { height: auto; }
 
 /* ---- UX-4: scannable asset cards (Markets + Trading desk) ---- */
 .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; margin-bottom: 18px; }
@@ -3356,3 +3302,50 @@ body {
 .ux-chip[data-fresh="simulated"] { border-color: #CC79A7; border-style: dashed; }
 .ux-header__left .ux-chip[data-fresh] { white-space: nowrap; font-size: 11px; }
 @media (max-width: 520px) { .ux-header__left .ux-chip[data-fresh] { display: none; } }
+
+/* ---- chart-2: rich markers, marker card, trade geometry, prediction zone (AtlasChart only) ---- */
+.atlas-chart-stage { position: relative; overflow: hidden; }
+.atlas-chips, .atlas-pz { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.atlas-pz { inset: auto; top: 0; bottom: 0; }
+.atlas-pz > div { position: absolute; left: 0; right: 0; }
+.atlas-pz-outer { background: rgba(86,180,233,0.10); border-block: 1px dashed rgba(86,180,233,0.45); }
+.atlas-pz-inner { background: rgba(86,180,233,0.18); }
+.atlas-pz-mid { height: 0; border-top: 1px dashed #56B4E9; }
+.atlas-chip { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; display: inline-flex; align-items: center; gap: 1px;
+  min-width: 18px; height: 18px; padding: 0 3px; border-radius: 9px; border: 1px solid transparent; font: 700 10px/1 var(--font-sans, system-ui); cursor: pointer;
+  writing-mode: horizontal-tb; white-space: nowrap; color: #fff; }
+.atlas-chip.is-buy { background: #1f9d6f; }
+.atlas-chip.is-sell { background: #d9534f; }
+.atlas-chip.is-ml_suggested { border-color: #fff; box-shadow: 0 0 0 2px rgba(0,114,178,0.9); }
+.atlas-chip.is-ml_skip { background: transparent; color: #cfd8e3; border: 1px dashed currentColor; }
+.atlas-chip.is-ml_skip.is-buy { color: #5fd3a6; } .atlas-chip.is-ml_skip.is-sell { color: #ff8c87; }
+.atlas-chip.is-risk_rejected { background: #4a5260; color: #c9ced6; border-color: #7a8291; }
+.atlas-chip.is-rule_only.is-buy { background: #2b6e57; } .atlas-chip.is-rule_only.is-sell { background: #8f3a37; }
+.atlas-chip.is-rule_only { border-color: #E69F00; }
+.atlas-chip.is-sel { outline: 2px solid #F0E442; outline-offset: 1px; opacity: 1 !important; z-index: 4; }
+.atlas-chip-out { font-size: 9px; padding: 0 2px; border-radius: 6px; background: rgba(0,0,0,0.35); }
+.atlas-chip-out.is-win { color: #7CF0C0; } .atlas-chip-out.is-loss { color: #FFB0A8; } .atlas-chip-out.is-open, .atlas-chip-out.is-flat { color: #E8EEF5; }
+.atlas-mcard, .atlas-pcard { position: absolute; z-index: 5; background: rgba(13,18,27,0.96); border: 1px solid var(--c-border, #27303D); border-radius: 8px;
+  color: var(--c-text, #E8EEF5); font-size: 11px; line-height: 1.35; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.45); writing-mode: horizontal-tb; }
+.atlas-mcard { left: 8px; top: 8px; width: min(300px, calc(100% - 16px)); max-height: calc(100% - 16px); overflow: auto; }
+.atlas-mcard header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.atlas-mcard header strong { flex: 1 1 auto; min-width: 0; text-transform: capitalize; }
+.atlas-mcard header button { background: none; border: 0; color: inherit; font-size: 16px; cursor: pointer; padding: 0 4px; }
+.atlas-mcard-dir { font-weight: 800; padding: 1px 6px; border-radius: 4px; }
+.atlas-mcard-dir.is-buy { background: #1f9d6f; } .atlas-mcard-dir.is-sell { background: #d9534f; }
+.atlas-mcard-cls { color: var(--c-muted, #98A3B3); }
+.atlas-mcard dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 10px; margin: 0; }
+.atlas-mcard dl > div { display: flex; justify-content: space-between; gap: 6px; min-width: 0; }
+.atlas-mcard dt { color: var(--c-muted, #98A3B3); white-space: nowrap; }
+.atlas-mcard dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.atlas-mcard-why { margin: 6px 0 2px; } .atlas-mcard-note { margin: 0; color: var(--c-muted, #98A3B3); font-size: 10px; }
+.atlas-pcard { right: 64px; top: 8px; width: min(260px, calc(100% - 80px)); }
+.atlas-pcard h5 { margin: 0 0 4px; font-size: 11px; } .atlas-pcard h5 span { display: block; font-weight: 400; color: #F0E442; font-size: 10px; }
+.atlas-pcard p, .atlas-pcard ul { margin: 2px 0; padding-left: 0; list-style: none; }
+.atlas-pcard-cal { color: var(--c-muted, #98A3B3); font-size: 10px; }
+@media (max-width: 640px) {
+  .atlas-pcard { right: 8px; left: auto; top: auto; bottom: 28px; width: calc(100% - 72px); }
+  .atlas-mcard { width: calc(100% - 16px); }
+  .atlas-mcard dl { grid-template-columns: minmax(0, 1fr); }
+  .atlas-chart-seg { overflow-x: auto; flex-wrap: nowrap; max-width: 100%; }
+}

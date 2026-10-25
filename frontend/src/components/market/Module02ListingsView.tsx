@@ -9,7 +9,7 @@ import {
 } from "../../context/RoleContext";
 import { AtlasLogo } from "../shell/AtlasLogo";
 import { AssetMarkLegend, GuideIcon, markColor } from "../shell/guideIcons";
-import { type LiveCandlePoint } from "./LiveChartEngine";
+import { type LiveCandlePoint } from "./liveTypes";
 import { tradingViewUrl } from "./AtlasChart";
 import { DeskChart } from "./DeskChart";
 import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
@@ -590,9 +590,8 @@ function Module02InnerWorkbench() {
         <div className="clean-card selected-market-viewer">
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
             <strong>{activeListing.symbol} - chart and model inputs</strong>
-            {(["1s", "1m", "5m", "15m", "1h", "1D"] as const).map(interval => <button key={interval} type="button" className={`clean-tf-btn${chartTimeframe === interval ? " is-active" : ""}`} aria-pressed={chartTimeframe === interval} onClick={() => setChartTimeframe(interval)}>{interval === "1s" ? "Real time" : interval}</button>)}
           </div>
-          <DeskChart symbol={activeListing.symbol} modelSymbol={activeListing.symbol} timeframe={chartTimeframe} frameClassName="desk-chart-frame" onOpenMinute={() => setChartTimeframe("1m")} />
+          <DeskChart symbol={activeListing.symbol} modelSymbol={activeListing.symbol} timeframe={chartTimeframe} frameClassName="desk-chart-frame" onTimeframe={(tf) => { if (["1s", "1m", "5m", "15m", "1h", "1D"].includes(tf)) setChartTimeframe(tf as typeof chartTimeframe); }} />
         </div>
 
 
