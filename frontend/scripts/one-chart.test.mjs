@@ -1,5 +1,5 @@
 // chart-2: exactly ONE full price chart per asset. Static guard (runs with test:routes):
-//  - only AtlasChart creates a Lightweight Charts instance (one allow-listed exception, owned by integrations);
+//  - only AtlasChart creates a Lightweight Charts instance;
 //  - the retired duplicate chart components stay deleted and unimported;
 //  - the real-time view is a timeframe inside AtlasChart, not a separate viewer.
 // Runtime guard: scripts/one-chart.check.mjs loads every page and fails if >1 chart mounts for a symbol.
@@ -22,7 +22,7 @@ const files = [];
 })(path.join(root, "app"));
 const rel = (f) => path.relative(root, f).split(path.sep).join("/");
 // AlpacaChartCard (paper tab) is the integrations worker's area; it plots the Alpaca paper account's own bars.
-export const CREATE_CHART_ALLOW = new Set(["src/components/market/AtlasChart.tsx", "src/ui/pages/IntegrationsViews.tsx"]);
+export const CREATE_CHART_ALLOW = new Set(["src/components/market/AtlasChart.tsx"]);
 export const RETIRED = ["LiveMarketViewer", "SecondBars", "LiveChartEngine", "AtlasUdfTape", "TvFrame"];
 
 test("only AtlasChart creates a price chart", () => {

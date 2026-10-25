@@ -3,8 +3,7 @@
 // Usage: node scripts/one-chart.check.mjs [baseUrl]   (needs playwright; CHROMIUM_PATH optional)
 import { pagesFromRegistry } from "./registry-pages.mjs";
 const base = (process.argv.slice(2).find((a) => /^https?:/.test(a)) ?? "http://127.0.0.1:3000").replace(/\/$/, "");
-// The paper tab's AlpacaChartCard is the integrations worker's area (account bars, not the asset chart).
-const OUTSIDE_ALLOW = new Set(["desk-paper"]);
+const OUTSIDE_ALLOW = new Set();
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });

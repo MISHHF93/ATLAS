@@ -2,8 +2,7 @@
 /** Integrations status card (Settings) and the Alpaca paper account reconciliation view (Trade). Paper only. Read-only:
  *  nothing here places an order, and no secret value is ever fetched or shown (the API returns names and booleans). */
 import { useEffect, useRef, useState } from "react";
-import { ColorType, createChart, type UTCTimestamp } from "lightweight-charts";
-import { deskTimeOptions } from "../../components/market/lwTime";
+import { AtlasChart } from "../../components/market/AtlasChart";
 import { Async, Badge, Card, DataTable, EmptyState, StatTile, useApi, type Tone } from "../primitives";
 
 type R = Record<string, unknown>;
@@ -53,51 +52,17 @@ type Recon = { status: string; reason?: string; account: R | null; positions: R[
   checks: { check: string; ok: boolean | null; detail: string }[] };
 const money = (v: unknown) => (typeof v === "number" ? v.toLocaleString("en-US", { style: "currency", currency: "USD" }) : "—");
 
-type Src = { id: string; label: string; available: boolean; reason: string | null };
-type ABars = { status: string; reason?: string; provider?: string; bars: { time: number; open: number; high: number; low: number; close: number }[] };
-
-/** Alpaca as a selectable chart source (IEX stock/ETF bars once paper keys are set; crypto history is keyless).
- *  Display and research only: execution_permission none. */
+/** Paper-account chart: the one ATLAS chart (AtlasChart). Bars come from the free provider router, which prefers
+ *  Alpaca (IEX stocks/ETFs once paper keys are set; keyless crypto history) and falls back to other free sources.
+ *  Each bar carries its provider and real-time/delayed tag. Display and research only: execution_permission none. */
 export function AlpacaChartCard() {
-  const srcs = useApi<{ sources: Src[] }>("/api/integrations/chart/sources", 60000);
-  const [source, setSource] = useState("alpaca_crypto");
   const [symbol, setSymbol] = useState("BTCUSDT");
-  const [tf, setTf] = useState("15m");
-  const [data, setData] = useState<ABars | null>(null);
-  const host = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let live = true;
-    fetch(`/api/integrations/chart/bars?source=${source}&symbol=${encodeURIComponent(symbol)}&tf=${tf}&limit=300`)
-      .then((r) => r.json()).then((j: ABars) => { if (live) setData(j); }).catch((e) => { if (live) setData({ status: "error", reason: String(e), bars: [] }); });
-    return () => { live = false; };
-  }, [source, symbol, tf]);
-  useEffect(() => {
-    const el = host.current;
-    if (!el || !data?.bars.length) return;
-    const api = createChart(el, { ...deskTimeOptions, width: Math.max(1, el.clientWidth), height: 320,
-      layout: { attributionLogo: true, background: { type: ColorType.Solid, color: "#0B0F17" }, textColor: "#A9BDCE" },
-      grid: { vertLines: { color: "#182431" }, horzLines: { color: "#182431" } } });
-    const s = api.addCandlestickSeries({ upColor: "#34d399", downColor: "#fb7185", borderVisible: false, wickUpColor: "#34d399", wickDownColor: "#fb7185" });
-    s.setData(data.bars.map((b) => ({ time: b.time as UTCTimestamp, open: b.open, high: b.high, low: b.low, close: b.close })));
-    api.timeScale().fitContent();
-    return () => api.remove();
-  }, [data]);
-  const opts = srcs.data?.sources.filter((x) => x.id !== "atlas") ?? [];
-  const cur = opts.find((x) => x.id === source);
   return (
-    <Card title="Alpaca market data" span="full" subtitle={`Source: ${data?.provider ?? source}. Bars are tagged with their provider. Display and research only; no orders.`}
-      actions={<span style={{ display: "flex", gap: 8 }}>
-        <select aria-label="Chart source" value={source} onChange={(e) => { setSource(e.target.value); setSymbol(e.target.value === "alpaca" ? "SPY" : "BTCUSDT"); }}>
-          {opts.map((o) => <option key={o.id} value={o.id} disabled={!o.available}>{o.label}{o.available ? "" : " (add keys)"}</option>)}
-        </select>
-        <select aria-label="Symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-          {(source === "alpaca" ? ["SPY", "QQQ", "IWM", "AAPL", "NVDA"] : ["BTCUSDT", "ETHUSDT", "SOLUSDT"]).map((x) => <option key={x}>{x}</option>)}
-        </select>
-        <select aria-label="Timeframe" value={tf} onChange={(e) => setTf(e.target.value)}>{["1m", "5m", "15m", "1h", "1d"].map((x) => <option key={x}>{x}</option>)}</select>
-      </span>}>
-      {cur && !cur.available ? <EmptyState title="Alpaca stock bars not configured">{cur.reason ?? ""}</EmptyState>
-        : data && data.status !== "ok" ? <EmptyState title={`Alpaca bars ${data.status.replace(/_/g, " ")}`}>{data.reason ?? ""}</EmptyState>
-        : <div ref={host} style={{ width: "100%", height: 320 }} />}
+    <Card title="Paper account chart" span="full" subtitle="Bars from the ATLAS provider router (Alpaca first, free fallbacks), tagged with provider and latency. No orders from this chart."
+      actions={<select aria-label="Symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
+        {["BTCUSDT", "ETHUSDT", "SOLUSDT", "SPY", "QQQ", "IWM"].map((x) => <option key={x}>{x}</option>)}
+      </select>}>
+      <AtlasChart symbol={symbol} timeframe="15m" height={360} />
     </Card>
   );
 }
