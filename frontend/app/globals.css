@@ -313,17 +313,10 @@ body {
   flex-direction: column;
 }
 
-.desk-tv-picture {
-  flex: 1;
-  min-height: 440px;
+.desk-atlas-picture {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-}
-
-.desk-tv-picture > div {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
 }
 
 .chart-lock-rail {
@@ -3285,7 +3278,6 @@ body {
 .selected-market-viewer .desk-chart-frame.is-realtime { height: clamp(28rem, 70dvh, 58rem); }
 /* Widget mode stacks the TradingView picture and the model panel; let it grow so the panel never overflows onto the next section. */
 .selected-market-viewer .desk-chart-frame:not(.is-realtime) { height: auto; }
-.selected-market-viewer .desk-chart-frame:not(.is-realtime) .desk-tv-picture { flex: 0 0 auto; height: clamp(28rem, 60dvh, 44rem); }
 
 /* ---- UX-4: scannable asset cards (Markets + Trading desk) ---- */
 .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; margin-bottom: 18px; }

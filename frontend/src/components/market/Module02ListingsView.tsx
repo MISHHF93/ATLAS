@@ -10,9 +10,8 @@ import {
 import { AtlasLogo } from "../shell/AtlasLogo";
 import { AssetMarkLegend, GuideIcon, markColor } from "../shell/guideIcons";
 import { type LiveCandlePoint } from "./LiveChartEngine";
-import { TradingViewStockInfo } from "./TradingViewChart";
+import { tradingViewUrl } from "./AtlasChart";
 import { DeskChart } from "./DeskChart";
-import { TradingViewMarkets } from "./TradingViewMarkets";
 import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 import { useFeedQuotes } from "../../lib/feedQuotes";
 import { AssetCard, AssetTable } from "./AssetCard";
@@ -225,7 +224,7 @@ function Module02InnerWorkbench() {
   const { role, setRole, profile } = useRoleContext();
   const [trackFilter, setTrackFilter] = useState<"all" | "open_market" | "competition">("all");
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTC-USD");
-  const [chartTimeframe, setChartTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("1s");
+  const [chartTimeframe, setChartTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("15m");
   const [listings, setListings] = useState<Module02ListingPacket[]>(INITIAL_MODULE02_LISTINGS);
   const feedSymbols = useMemo(() => listings.map((l) => l.symbol), [listings]);
   const feedQuotes = useFeedQuotes(feedSymbols);
@@ -234,7 +233,6 @@ function Module02InnerWorkbench() {
     void pollModule02Stream();
   }, []);
   const [catalogView, setCatalogView] = useState<"cards" | "list">("cards");
-  const [infoOpen, setInfoOpen] = useState(false);
   const [streamPaused, setStreamPaused] = useState<boolean>(false);
   const [ringBufferSize, setRingBufferSize] = useState<number>(64);
   const [killSwitchEngaged, setKillSwitchEngaged] = useState<boolean>(false);
@@ -700,12 +698,10 @@ function Module02InnerWorkbench() {
           </div>
         </details>
 
-        <details className="ux-collapse" onToggle={(e) => setInfoOpen((e.currentTarget as HTMLDetailsElement).open)}>
-          <summary>{activeListing.symbol} profile<span className="ux-collapse-hint">TradingView symbol info (loads when opened)</span></summary>
-          <div className="ux-collapse-body">{infoOpen ? <TradingViewStockInfo symbol={activeListing.symbol} timeframe={chartTimeframe} /> : null}</div>
-        </details>
-
-        <TradingViewMarkets />
+        <p className="ux-collapse-hint" style={{ margin: "4px 0" }}>
+          Watchlist scan (pivots, Fibonacci, zones, VWAP, volume profile): <a href="/research?tab=scan">Scan &amp; Pine</a>.{" "}
+          <a href={tradingViewUrl(activeListing.symbol)} target="_blank" rel="noopener noreferrer">Open {activeListing.symbol} in TradingView ↗</a>
+        </p>
       </div>
     </div>
   );

@@ -502,3 +502,45 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .ux-form-grid { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-bottom: var(--s-3); }
 .ux-form-grid .ux-form-row { margin-bottom: 0; }
 .ux-pre { font: 12px/1.45 var(--font-mono); background: var(--c-surface-3); color: var(--c-text-2); padding: var(--s-3); border-radius: 6px; max-height: 260px; overflow: auto; white-space: pre; }
+
+/* ATLAS chart: the one primary chart (AtlasChart.tsx). Horizontal text only, one card style. */
+.atlas-chart { gap: 8px; padding: 12px; writing-mode: horizontal-tb; }
+.atlas-chart-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.atlas-chart-sym { font-size: 15px; margin-right: 4px; }
+.atlas-chart-seg { display: inline-flex; border: 1px solid var(--c-border); border-radius: 8px; overflow: hidden; }
+.atlas-chart-seg button { background: transparent; color: var(--c-muted); border: 0; padding: 4px 9px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.atlas-chart-seg button[aria-pressed="true"] { background: var(--c-accent); color: var(--c-on-accent); }
+.atlas-chart-select { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c-muted); }
+.atlas-chart-select select { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); border-radius: 6px; padding: 3px 6px; font: inherit; }
+.atlas-chart-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--c-border); color: var(--c-muted); white-space: nowrap; }
+.atlas-chart-badge.is-live { color: var(--c-good); border-color: var(--c-good); }
+.atlas-chart-badge.is-safe { color: var(--c-info); background: var(--c-info-bg); border-color: transparent; }
+.atlas-chart-links { margin-left: auto; display: inline-flex; gap: 12px; font-size: 12px; white-space: nowrap; }
+.atlas-chart-links a, .atlas-chart-foot a { color: var(--c-accent); }
+.atlas-chart-layers { display: flex; flex-wrap: wrap; gap: 6px; }
+.atlas-chart-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--c-border); color: var(--c-muted); cursor: pointer; white-space: nowrap; }
+.atlas-chart-chip input { margin: 0; accent-color: var(--c-accent); }
+.atlas-chart-chip.is-on { color: var(--c-text); border-color: var(--c-border-strong); }
+.atlas-chart-chip.is-off { opacity: .6; text-decoration: line-through; }
+.atlas-chart-stage { position: relative; width: 100%; min-height: 280px; }
+.atlas-chart-canvas { position: absolute; inset: 0; }
+.atlas-chart-vp { position: absolute; top: 0; bottom: 0; right: 64px; width: 18%; pointer-events: none; }
+.atlas-chart-vp-bin { position: absolute; right: 0; background: rgba(86,180,233,.18); border-radius: 2px 0 0 2px; }
+.atlas-chart-vp-bin[data-poc] { background: rgba(240,228,66,.38); }
+.atlas-chart-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--c-muted); font-size: 13px; text-align: center; padding: 24px; }
+.atlas-chart-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; color: var(--c-muted); }
+.atlas-ml-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; border-top: 1px solid var(--c-border); padding-top: 10px; }
+.atlas-ml-cell { font-size: 12px; min-width: 0; }
+.atlas-ml-cell h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted); }
+.atlas-ml-cell p, .atlas-ml-cell ul { margin: 4px 0; }
+.atlas-ml-cell ul { padding-left: 16px; }
+.atlas-ml-cell dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 6px 0 0; }
+.atlas-ml-cell dt { color: var(--c-muted); }
+.atlas-ml-cell dd { margin: 0; overflow-wrap: anywhere; }
+.atlas-ml-table { border-collapse: collapse; width: 100%; }
+.atlas-ml-table th, .atlas-ml-table td { text-align: left; padding: 2px 6px 2px 0; font-weight: normal; }
+.atlas-ml-table thead th { color: var(--c-muted); }
+.atlas-ml-note { color: var(--c-muted); overflow-wrap: anywhere; }
+.atlas-ml-why { grid-column: 1 / -1; }
+.atlas-ml-why ul { list-style: none; padding: 0; max-height: 180px; overflow: auto; }
+.atlas-ml-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }

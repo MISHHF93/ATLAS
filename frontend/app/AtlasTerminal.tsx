@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFeedQuotes, type FeedQuote, type QuoteStatus } from "../src/lib/feedQuotes";
 import { QuoteChange, QuoteMeta, QuotePrice } from "../src/components/market/QuoteBadge";
-import { TradingViewChart } from "../src/components/market/TradingViewChart";
+import { AtlasChart } from "../src/components/market/AtlasChart";
 import { ATLAS_TAGLINE, AtlasLogo } from "../src/components/shell/AtlasLogo";
 import { InstitutionalWorkspacesView, type SubPageRouteId } from "../src/components/shell/InstitutionalWorkspacesView";
 import { SafeStopReleaseCli } from "../src/components/safety/SafeStopReleaseCli";
@@ -427,7 +427,7 @@ const DEFAULT_ROADMAP_STATE: MasterRoadmapState = {
     { layer: "Whale ML, SaaS & A-Z Roadmap", route: "/roadmap", description: "Roadmap catalogue (A-Z, WF-01..08 on sample inputs, SAAS-01..12 Planned)", data_flow: "/api/master-roadmap, /api/master-roadmap/evaluate-whale" },
     { layer: "Quant & Signal Matrix", route: "/matrix", description: "9x4 Multi-Horizon Alpha, 9x9 Correlation, 5x5 Regime & L2 DOM", data_flow: "/api/matrix, /api/matrix/recompute" },
     { layer: "Live Listings", route: "/listings", description: "Real-time multi-asset listings & 1-click order desk routing", data_flow: "/api/listings, /api/listings/action" },
-    { layer: "Live Charts & Market PIT", route: "/market", description: "Dual-mode ATLAS PIT + Forecast Fan & TradingView Live Charts", data_flow: "/api/market/candles, /api/market/live-internet-sync" },
+    { layer: "Live Charts & Market PIT", route: "/market", description: "ATLAS PIT + Forecast Fan & ATLAS Chart", data_flow: "/api/market/candles, /api/market/live-internet-sync" },
     { layer: "Enterprise API Data Warehouse", route: "/warehouse", description: "BigQuery Analytics Hub, DuckDB Parquet, Databento, Polygon, ClickHouse", data_flow: "/api/warehouse, /api/warehouse/action" },
     { layer: "Deterministic Control Plane", route: "/control, /rules", description: "Risk enforcement, VPIN stop-widening & millisecond kill-switch", data_flow: "ActionableControlPlaneEngine (/api/control/*)" },
     { layer: "Governance & 8 Ledgers", route: "/governance", description: "8 separated non-custodial ledgers & ISO 42001 / NIST AI RMF", data_flow: "/api/control/readiness-audit" },
@@ -1827,88 +1827,6 @@ function CandlePlot({ candles, symbol = "SPY" }: { candles: Candle[]; symbol?: s
   );
 }
 
-function TradingViewLiveChart({
-  symbol,
-  interval,
-  theme,
-  onSelectSymbol,
-  onSelectInterval,
-}: {
-  symbol: string;
-  interval: string;
-  theme: "dark" | "light";
-  onSelectSymbol: (s: string) => void;
-  onSelectInterval: (i: string) => void;
-}) {
-  const symbols = [
-    { label: "SPY (S&P 500 ETF)", value: "AMEX:SPY" },
-    { label: "NVDA (NVIDIA Corp.)", value: "NASDAQ:NVDA" },
-    { label: "AAPL (Apple Inc.)", value: "NASDAQ:AAPL" },
-    { label: "MSFT (Microsoft)", value: "NASDAQ:MSFT" },
-    { label: "QQQ (Nasdaq 100)", value: "NASDAQ:QQQ" },
-    { label: "TSLA (Tesla Inc.)", value: "NASDAQ:TSLA" },
-    { label: "BTC-USD (Prop Perp)", value: "COINBASE:BTCUSD" },
-    { label: "ETH-USD (Prop Perp)", value: "COINBASE:ETHUSD" },
-  ];
-  const intervals = [
-    { label: "1m", value: "1" },
-    { label: "5m", value: "5" },
-    { label: "15m", value: "15" },
-    { label: "1H", value: "60" },
-    { label: "4H", value: "240" },
-    { label: "1D", value: "D" },
-  ];
-
-  const embedUrl = `https://s.tradingview.com/widgetembed/?frameElementId=tv_atlas_chart&symbol=${encodeURIComponent(
-    symbol
-  )}&interval=${encodeURIComponent(interval)}&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=${
-    theme === "dark" ? "060a12" : "f1f5f9"
-  }&studies=%5B%5D&theme=${theme}&style=1&timezone=Etc%2FUTC`;
-
-  return (
-    <div>
-      <div className="chart-toolbar">
-        <div className="btn-row">
-          <span style={{ color: "#38bdf8", fontWeight: 700 }}>LIVE INTERNET CHART:</span>
-          {symbols.map((s) => (
-            <button
-              key={s.value}
-              type="button"
-              className={`btn btn-sm ${symbol === s.value ? "btn-primary" : "btn-dark"}`}
-              onClick={() => onSelectSymbol(s.value)}
-            >
-              {s.label.split(" ")[0]}
-            </button>
-          ))}
-        </div>
-        <div className="btn-row">
-          {intervals.map((intv) => (
-            <button
-              key={intv.value}
-              type="button"
-              className={`btn btn-sm ${interval === intv.value ? "btn-primary" : "btn-outline"}`}
-              onClick={() => onSelectInterval(intv.value)}
-            >
-              {intv.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <iframe
-        title={`TradingView Live Chart ${symbol}`}
-        src={embedUrl}
-        style={{
-          width: "100%",
-          height: "320px",
-          border: "1px solid var(--border-light)",
-          borderRadius: "4px",
-          background: "#060a12",
-        }}
-        allowFullScreen
-      />
-    </div>
-  );
-}
 
 const DEFAULT_CANDLE_PAGE: CandlePage = {
   symbol: "BTC-USD",
@@ -2305,7 +2223,7 @@ export function AtlasTerminal({
     "6 Warehouse & API Feed Nodes Online · Google BigQuery Analytics Hub + DuckDB Parquet + Databento + Polygon + Coinbase Live + ClickHouse"
   );
   const [internetSyncNotice, setInternetSyncNotice] = useState<string>(
-    "Live Internet Market Sync Ready (Coinbase Public REST + TradingView Live Engine)"
+    "Live Internet Market Sync Ready (Coinbase Public REST)"
   );
 
   const [matrixData, setMatrixData] = useState<InstitutionalMatrix>(DEFAULT_MATRIX);
@@ -3403,7 +3321,7 @@ export function AtlasTerminal({
       title: "Multi-Horizon Signal Grid, 9x9 Cross-Asset Correlation, Model x Regime & L2 DOM",
     },
     listings: { tag: "MULTI-ASSET SCREENER", title: "Live U.S. Equities, ETFs & Prop Perp Listings & Order Routing" },
-    market: { tag: "MARKET & LIVE CHARTS", title: "Point-in-Time Market Feed, TradingView Live & Exchange API" },
+    market: { tag: "MARKET & LIVE CHARTS", title: "Point-in-Time Market Feed, ATLAS Chart & Exchange API" },
     warehouse: {
       tag: "DATA WAREHOUSE & LAKEHOUSE",
       title: "Google Cloud BigQuery Analytics Hub, DuckDB PIT Lakehouse & Market APIs",
@@ -6077,7 +5995,7 @@ export function AtlasTerminal({
                         <span className="panel-eyebrow">
                           Dual-Mode Institutional Chart Engine · {effectivePage.symbol} ({effectivePage.source})
                         </span>
-                        <h2 className="panel-title">Market Trajectory, Forecast Fan & TradingView Live Feed</h2>
+                        <h2 className="panel-title">Market Trajectory & ATLAS Chart</h2>
                       </div>
                       <div className="btn-row">
                         <button
@@ -6090,7 +6008,7 @@ export function AtlasTerminal({
                       </div>
                     </div>
                     <div className="panel-body">
-                      <TradingViewChart symbol={effectivePage.symbol} timeframe="1h" height={420} />
+                      <AtlasChart symbol={effectivePage.symbol} timeframe="1h" height={420} />
                       <div className="telemetry-console" style={{ padding: "8px 12px" }}>
                         <div className="console-line">&gt; {internetSyncNotice}</div>
                       </div>
@@ -6147,7 +6065,7 @@ export function AtlasTerminal({
                               <span className="badge badge-emerald">DUAL-MODE</span>
                             </div>
                             <p className="arch-card-desc">
-                              ATLAS PIT + Forecast Fan, TradingView Live Internet Charts, and Yahoo Finance / Coinbase Live API sync.
+                              ATLAS PIT + Forecast Fan, the ATLAS chart, and Yahoo Finance / Coinbase Live API sync.
                             </p>
                           </div>
                           <span className="panel-eyebrow">Launch /market →</span>
@@ -6578,7 +6496,7 @@ export function AtlasTerminal({
                     <div className="panel-header">
                       <div className="panel-header-left">
                         <span className="panel-eyebrow">Point-in-Time OHLCV & Live Exchange Feed · {effectivePage.symbol}</span>
-                        <h2 className="panel-title">Candlestick Trajectory, TradingView Live & Observation Ledger</h2>
+                        <h2 className="panel-title">Candlestick Trajectory, ATLAS Chart & Observation Ledger</h2>
                       </div>
                       <div className="btn-row">
                         <button
@@ -6591,7 +6509,7 @@ export function AtlasTerminal({
                       </div>
                     </div>
                     <div className="panel-body">
-                      <TradingViewChart symbol={effectivePage.symbol} timeframe="1h" height={420} />
+                      <AtlasChart symbol={effectivePage.symbol} timeframe="1h" height={420} />
                       <div className="telemetry-console" style={{ padding: "8px 12px" }}>
                         <div className="console-line">&gt; {internetSyncNotice}</div>
                       </div>
@@ -6795,7 +6713,7 @@ export function AtlasTerminal({
                         CME/Databento datasets) paired locally with <strong>DuckDB + Apache Parquet</strong> for
                         sub-millisecond zero-copy <code>ASOF JOIN</code> backtesting, <strong>ClickHouse</strong> for
                         high-frequency tick compression, <strong>Databento / Polygon.io / Coinbase Public API</strong>{" "}
-                        for live market ingestion, and <strong>TradingView Live Charts + Native PIT SVG</strong> for
+                        for live market ingestion, and <strong>the ATLAS chart + Native PIT SVG</strong> for
                         visualization.
                       </p>
                     </div>
@@ -6822,7 +6740,7 @@ export function AtlasTerminal({
                       <div className="kv-box">
                         <span className="kv-label">Stage 4 · Dual Chart Surface</span>
                         <span className="kv-val" style={{ fontSize: "11.5px" }}>
-                          ATLAS PIT + Forecast Fan &amp; TradingView Live Embed
+                          ATLAS PIT + Forecast Fan &amp; ATLAS Chart
                         </span>
                       </div>
                     </div>

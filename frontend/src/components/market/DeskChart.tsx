@@ -2,7 +2,7 @@
 
 import { ModelFlowPanel } from "./ModelFlowPanel";
 import { LiveMarketViewer, type LiveSnapshot } from "./LiveMarketViewer";
-import { TradingViewChart } from "./TradingViewChart";
+import { AtlasChart } from "./AtlasChart";
 import { useLayoutEffect, useRef } from "react";
 
 const BUCKETS: Record<string, number> = {
@@ -70,22 +70,11 @@ export function DeskChart({
   }, [widgetPicture]);
   return (
     <div ref={frame} className={`${frameClassName}${widgetPicture ? "" : " is-realtime"}`}>
-      {widgetPicture ? <TradingViewChart symbol={symbol} timeframe="1m" showTape showChart={false} quiet /> : null}
       <div className="desk-chart-stage">
         {widgetPicture ? (
-          <>
-            <div className="desk-tv-picture">
-              <TradingViewChart
-                symbol={symbol}
-                timeframe={timeframe}
-                showChart
-                showTape={false}
-                showCompanions={false}
-                quiet
-                fill
-              />
-            </div>
-          </>
+          <div className="desk-atlas-picture">
+            <AtlasChart symbol={modelSymbol ?? symbol} timeframe={timeframe} height={480} />
+          </div>
         ) : (
           <LiveMarketViewer symbol={modelSymbol ?? symbol} onOpenMinute={onOpenMinute} onSnapshot={onSnapshot} />
         )}
