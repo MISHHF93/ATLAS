@@ -34,6 +34,22 @@ class FeedBar:
     confirmed: bool
     provider_symbol: str = ""
 
+    # Provider-router tags read by the ATLAS chart (/api/ai/chart/overlays): derived from the free-source table.
+    @property
+    def realtime(self) -> bool | None:
+        from .free_sources import is_realtime
+        return is_realtime(self.provider)
+
+    @property
+    def delayed(self) -> bool | None:
+        rt = self.realtime
+        return None if rt is None else not rt
+
+    @property
+    def delay_s(self) -> int | None:
+        from .free_sources import delay_s
+        return delay_s(self.provider)
+
     @property
     def bar_end(self) -> int:
         return self.event_time + INTERVALS[self.interval]

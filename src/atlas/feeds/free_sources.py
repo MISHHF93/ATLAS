@@ -69,6 +69,19 @@ def latency(name: str) -> str:
     return t.latency if t else "unknown"
 
 
+_DELAY_S = {"realtime": 0, "delayed_15m": 900, "eod": 86400, "daily_reference": 86400, "release": None}
+
+
+def delay_s(name: str) -> int | None:
+    """Nominal data delay in seconds for a provider (0 = real time, None = unknown)."""
+    return _DELAY_S.get(latency(name))
+
+
+def is_realtime(name: str) -> bool | None:
+    lat = latency(name)
+    return None if lat == "unknown" else lat == "realtime"
+
+
 def describe(name: str) -> dict:
     t = SOURCES.get(name)
-    return {"provider": name, **(asdict(t) if t else {}), "allowed": allowed(name)}
+    return {"provider": name, **(asdict(t) if t else {}), "allowed": allowed(name), "realtime": is_realtime(name), "delay_s": delay_s(name)}

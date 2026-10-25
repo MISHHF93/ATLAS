@@ -76,3 +76,14 @@ def test_alpaca_aliases_and_guards():
     import atlas.execution.adapters.alpaca as new
     assert old.AlpacaPaperBroker is new.AlpacaPaperBroker and old.PAPER_URL == new.PAPER_URL
     assert "paper-api.alpaca.markets" in new.PAPER_URL
+
+
+def test_bars_carry_router_tags_for_chart():
+    from atlas.feeds.core import FeedBar
+    from atlas.api.chart_overlays import provider_info
+    rt = FeedBar("BTCUSDT", "1h", NOW, 1, 2, 0.5, 1.5, 1, "alpaca_crypto", NOW, True)
+    assert rt.realtime is True and rt.delayed is False and rt.delay_s == 0
+    eod = FeedBar("SPY", "1d", NOW, 1, 2, 0.5, 1.5, 1, "polygon", NOW, True)
+    assert eod.realtime is False and eod.delay_s == 86400
+    assert provider_info([rt], "x")["delay_label"] == "real-time"
+    assert provider_info([eod], "x")["delay_label"].startswith("delayed")
