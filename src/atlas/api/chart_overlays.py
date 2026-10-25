@@ -47,25 +47,39 @@ def _to_bars(rows, dur: int):
     return out
 
 
-def _resample(bars, dur: int):
+def _resample(bars, dur: int, need: int | None = None):
+    """Bucket bars into ``dur``. ``need``: required constituent count (drops buckets with gaps, e.g. 4 x 15m per 1h)."""
     from atlas.features.price_action.bars import Bar
     out, cur = [], None
+
+    def _emit(c):
+        if need is None or c[6] >= need:
+            out.append(Bar(c[0], dur, *c[1:6]))
     for b in bars:
         k = b.start - b.start % dur
         if cur is None or cur[0] != k:
             if cur:
-                out.append(Bar(cur[0], dur, *cur[1:]))
-            cur = [k, b.open, b.high, b.low, b.close, b.volume]
+                _emit(cur)
+            cur = [k, b.open, b.high, b.low, b.close, b.volume, 1]
         else:
-            cur[2] = max(cur[2], b.high); cur[3] = min(cur[3], b.low); cur[4] = b.close; cur[5] += b.volume
+            cur[2] = max(cur[2], b.high); cur[3] = min(cur[3], b.low); cur[4] = b.close; cur[5] += b.volume; cur[6] += 1
     if cur and cur[0] + dur <= int(time.time()):  # only completed buckets
-        out.append(Bar(cur[0], dur, *cur[1:]))
+        _emit(cur)
     return out
 
 
 def load(sym: str, interval: str):
-    """Bars + provider info. 4h is built from completed 1h (else 15m) feed bars; labelled as such."""
+    """Bars + provider info. 4h is built from completed 1h (else 15m) feed bars; 1h uses stored 1h bars, else is
+    resampled from complete 15m hours (4 of 4 bars). Resampled series are labelled as such in ``built``."""
     feed = _feed()
+    if interval == "1h":
+        rows = _raw(feed, sym, "1h")
+        if rows:
+            return _to_bars(rows, 3600), rows, "feed bars"
+        rows = _raw(feed, sym, "15m")
+        if rows:
+            return _resample(_to_bars(rows, 900), 3600, need=4), rows, "resampled from 15m feed bars (complete hours only)"
+        return [], [], "no 1h/15m feed bars"
     if interval == "4h":
         for src in ("1h", "15m"):
             rows = _raw(feed, sym, src)
@@ -206,6 +220,8 @@ def _ml_panel(sym, interval, markers):
         m = best.get("metrics") or {}
         panel["evolution"] = {"run_id": run["run_id"], "created_at": run.get("created_at"), "decision": run.get("decision"),
                               "no_model_beats_baseline": run.get("no_model_beats_baseline"), "challenger": best.get("genome_id"),
+                              "no_model_passes_strict_gate": run.get("no_model_passes_strict_gate"),
+                              "strict_gate": {k: (m.get("strict_gate") or {}).get(k) for k in ("passed", "failed", "gate_version")} if m.get("strict_gate") else None,
                               "metrics": {k: m.get(k) for k in ("brier", "brier_baseline", "brier_skill", "auc", "ece", "n_oos", "n_taken", "ev_r_per_opportunity", "beats_baseline")}}
     else:
         panel["evolution"] = None

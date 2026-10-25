@@ -70,3 +70,30 @@ def test_4h_resampled_and_provider_tag(monkeypatch, tmp_path):
     assert all(b["time"] % 14400 == 0 for b in d["bars"])
     d2 = TestClient(app).get("/api/ai/chart/overlays?symbol=BTCUSDT&interval=1h&bar_type=tick").json()
     assert d2["display"]["status"] == "unavailable"
+
+
+class AltFeed:
+    """An alt with only 15m stored (like the evo7 alts): 1h must be resampled from complete 15m hours."""
+
+    def bars(self, sym, iv):
+        if sym != "SOLUSDT" or iv != "15m":
+            return []
+        rows = _rows(900, 900)
+        return rows[:5] + rows[6:]  # one gap: that hour must be dropped, not invented
+
+
+def test_1h_resampled_from_15m_when_no_stored_1h(monkeypatch, tmp_path):
+    monkeypatch.setenv("ATLAS_ML_REGISTRY", str(tmp_path))
+    monkeypatch.setattr(co, "_feed", lambda: AltFeed())
+    d = TestClient(app).get("/api/ai/chart/overlays?symbol=SOLUSDT&interval=1h").json()
+    assert d["status"] == "ok"
+    assert d["provider"]["built"].startswith("resampled from 15m")
+    assert all(b["time"] % 3600 == 0 for b in d["bars"])
+    assert len(d["bars"]) == 900 // 4 - 1  # the hour with a missing 15m bar is dropped
+
+
+def test_1h_prefers_stored_1h(monkeypatch, tmp_path):
+    monkeypatch.setenv("ATLAS_ML_REGISTRY", str(tmp_path))
+    monkeypatch.setattr(co, "_feed", lambda: FakeFeed())
+    d = TestClient(app).get("/api/ai/chart/overlays?symbol=BTCUSDT&interval=1h").json()
+    assert d["provider"]["built"] == "feed bars"

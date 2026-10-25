@@ -346,6 +346,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         <span className={`atlas-chart-badge${p?.realtime || tapeOk ? " is-live" : ""}`} title={p ? `${p.built}; providers: ${p.providers.join(", ") || "none"}` : ""}>
           {live ? (tapeOk ? `live · ${tape.snap!.feed_origin ?? "public feed"}` : tape.err ? "live feed unavailable" : "connecting…") : p?.provider ? `${p.provider} · ${badge}` : loading ? "loading…" : "no provider"}
         </span>
+        {p?.built?.startsWith("resampled") ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
         <span className="atlas-chart-badge is-safe" title="ML output is advisory research. It can never place an order.">execution_permission: {data?.execution_permission ?? "none"}</span>
         <span className="atlas-chart-links">
           <a href={tradingViewUrl(sym)} target="_blank" rel="noopener noreferrer">Open in TradingView ↗</a>
