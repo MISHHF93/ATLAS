@@ -111,3 +111,8 @@ Deferred (behaviour-sensitive or not identical): other same-name pairs listed ab
 - **Shared primitives moved:** `atlas.models.schemas` now lives at neutral `atlas.schemas`, with both old paths aliased. The control plane imports it directly, so `import atlas.control` still loads nothing from `atlas.ai`; the import-boundary test is unchanged and passes.
 - **Tests:** `tests/test_ai_aliases.py` (4 tests).
 - **Deferred:** `atlas.intel` stays in place until chart-2 and evo-8 are done (both are actively editing it). Moving `atlas.ml` is deferred too because the evo workers own files under it.
+
+## Pass 4 outcome (atlas-unify-4)
+- **Split `api/app.py`:** the operator profile, connectors, live listings, sync pipelines and platform configuration endpoints moved to `src/atlas/api/routes_platform.py` as an `APIRouter`. `app.py` went from 3199 to 2466 lines; the new module has 765 lines.
+- **Behaviour unchanged.** The router is included at the same position, so all 218 routes keep their order and names, and the OpenAPI schema is byte-identical. Shared singletons (`bot_orchestrator`, `control_engine`, `live_market_gateway`) are read from `atlas.api.app` at call time. The module-level state dicts are re-exported from `app.py` as the same objects.
+- **Not touched:** chart_overlays, integrations routes and evo files. `vertical_slice.py` is not split: tests monkeypatch its internals (`_xgboost_module`, `require_data_use`, `fit_softmax`, `purged_walk_forward`, `execute_forecast_paper_trade`), so moving them would silently bypass those patches.
