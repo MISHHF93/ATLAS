@@ -75,10 +75,23 @@ def test_approved_item_executes_once_across_processes(tmp_path):
     aq = ApprovalQueue(3600, "owner", AuditLog(), store=StateStore(path))
     p = aq.enqueue(intent())
     aq.mark_owner_approved(p.approval_id, "owner", True)
-    ctx = mp.get_context("fork"); q = ctx.Queue()
-    ps = [ctx.Process(target=_claim_worker, args=(path, p.approval_id, q)) for _ in range(4)]
-    [x.start() for x in ps]; [x.join(30) for x in ps]
-    assert sorted(q.get() for _ in ps) == [0, 0, 0, 1]
+    if "fork" in mp.get_all_start_methods():
+        ctx = mp.get_context("fork"); q = ctx.Queue()
+        ps = [ctx.Process(target=_claim_worker, args=(path, p.approval_id, q)) for _ in range(4)]
+        [x.start() for x in ps]; [x.join(30) for x in ps]
+        counts = sorted(q.get() for _ in ps)
+    else:
+        import subprocess
+        import sys
+        code = (
+            "import sys; from atlas.risk.state_store import StateStore; "
+            "from atlas.governance.audit import AuditLog; from atlas.risk.approvals import ApprovalQueue; "
+            "aq = ApprovalQueue(3600, 'owner', AuditLog(), store=StateStore(sys.argv[1])); "
+            "print(len(aq.process_owner_approved(lambda i: {'executes': True})))"
+        )
+        ps = [subprocess.Popen([sys.executable, "-c", code, path], stdout=subprocess.PIPE, text=True) for _ in range(4)]
+        counts = sorted(int(proc.communicate(timeout=30)[0].strip()) for proc in ps)
+    assert counts == [0, 0, 0, 1]
     assert aq.get(p.approval_id).status == "executed"
 
 

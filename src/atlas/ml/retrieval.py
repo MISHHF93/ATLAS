@@ -113,7 +113,7 @@ def build_index(repo_root: str | Path = ".", registry_root: str | Path | None = 
         except OSError:
             continue
         try:
-            rel = str(f.resolve().relative_to(r))
+            rel = f.resolve().relative_to(r).as_posix()
         except ValueError:
             rel = str(f)
         ps += split_passages(rel, txt)

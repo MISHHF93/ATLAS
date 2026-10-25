@@ -35,13 +35,29 @@ class FracDiffFold:
         self.report: list = []
 
     def fit(self, train: pd.Series) -> "FracDiffFold":
-        from statsmodels.tsa.stattools import adfuller
+        try:
+            from statsmodels.tsa.stattools import adfuller
+            adf_p = lambda s: float(adfuller(s, maxlag=1, regression="c", autolag=None)[1])
+        except ImportError:
+            from scipy.stats import norm
+            def adf_p(s: pd.Series) -> float:
+                y = s.to_numpy(dtype=float)
+                dy = np.diff(y)
+                y_lag, dy_lag, target = y[1:-1], dy[:-1], dy[1:]
+                X = np.column_stack([y_lag, dy_lag, np.ones_like(y_lag)])
+                beta, *_ = np.linalg.lstsq(X, target, rcond=None)
+                resid = target - X @ beta
+                s2 = float(resid @ resid) / max(len(target) - 3, 1)
+                cov = s2 * np.linalg.pinv(X.T @ X)
+                se = float(np.sqrt(max(cov[0, 0], 1e-18)))
+                tau = float(beta[0] / se)
+                return float(norm.cdf(tau + 1.22))
         x = np.log(train.astype(float))
         for d in self.d_grid:
             s = ffd(x, float(d), self.thresh).dropna()
             if len(s) < 30:
                 continue
-            p = float(adfuller(s, maxlag=1, regression="c", autolag=None)[1])
+            p = adf_p(s)
             self.report.append((float(d), p))
             if p < self.pvalue:
                 self.d = float(d)

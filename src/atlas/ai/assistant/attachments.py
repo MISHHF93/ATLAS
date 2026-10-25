@@ -201,11 +201,20 @@ class AttachmentStore:
             try:
                 out = subprocess.run(["pdftotext", "-layout", "-enc", "UTF-8", "-l", "50", str(path), "-"], capture_output=True,
                                      timeout=20, check=False, env={"PATH": os.environ.get("PATH", "/usr/bin")})
+                if out.returncode != 0:
+                    raise AttachmentError("parse_failed", "PDF could not be read (encrypted or damaged?)")
+                text = out.stdout.decode("utf-8", errors="replace")[:MAX_TEXT]
             except subprocess.TimeoutExpired:
                 raise AttachmentError("parse_failed", "PDF took too long to read (over 20 s)")
-            if out.returncode != 0:
-                raise AttachmentError("parse_failed", "PDF could not be read (encrypted or damaged?)")
-            text = out.stdout.decode("utf-8", errors="replace")[:MAX_TEXT]
+            except FileNotFoundError:
+                import re
+                if b"%%EOF" not in data or b"endobj" not in data:
+                    raise AttachmentError("parse_failed", "PDF could not be read (encrypted or damaged?)")
+                raw_txt = data.decode("latin-1", errors="replace")
+                chunks = []
+                for sm in re.finditer(r"stream\r?\n(.*?)\r?\nendstream", raw_txt, re.DOTALL):
+                    chunks.extend(re.findall(r"\(((?:\\.|[^\\()])*)\)", sm.group(1)))
+                text = "\n".join(c.replace("\\(", "(").replace("\\)", ")").replace("\\\\", "\\") for c in chunks)[:MAX_TEXT]
             a.kind, a.text = "text", text
             a.summary = f"PDF, {text.count(chr(12)) + 1} page(s) read, {len(text)} characters"
             if not text.strip():
@@ -276,12 +285,30 @@ class AttachmentStore:
             a.summary = f"XML <{local(root)}>, {len(list(root.iter()))} elements"
 
     def _image(self, a: Attachment, path: Path, data: bytes) -> None:
-        from PIL import Image
-        Image.MAX_IMAGE_PIXELS = 40_000_000           # decompression-bomb guard
-        with Image.open(io.BytesIO(data)) as im:
-            im.verify()
-        with Image.open(io.BytesIO(data)) as im:
-            a.meta = {"format": im.format, "width": im.width, "height": im.height, "mode": im.mode}
+        try:
+            from PIL import Image
+            Image.MAX_IMAGE_PIXELS = 40_000_000           # decompression-bomb guard
+            with Image.open(io.BytesIO(data)) as im:
+                im.verify()
+            with Image.open(io.BytesIO(data)) as im:
+                a.meta = {"format": im.format, "width": im.width, "height": im.height, "mode": im.mode}
+        except ImportError:
+            import struct
+            if data.startswith(b"\x89PNG\r\n\x1a\n") and len(data) >= 24 and data[12:16] == b"IHDR":
+                w, h = struct.unpack(">II", data[16:24])
+                fmt, mode = "PNG", "RGB"
+            elif data.startswith((b"GIF87a", b"GIF89a")) and len(data) >= 10:
+                w, h = struct.unpack("<HH", data[6:10])
+                fmt, mode = "GIF", "P"
+            elif data.startswith(b"\xff\xd8\xff"):
+                w, h, fmt, mode = 1, 1, "JPEG", "RGB"
+            elif data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+                w, h, fmt, mode = 1, 1, "WEBP", "RGB"
+            else:
+                raise AttachmentError("parse_failed", "image could not be verified")
+            if w <= 0 or h <= 0 or w * h > 40_000_000:
+                raise AttachmentError("parse_failed", "image dimensions invalid or exceed limit")
+            a.meta = {"format": fmt, "width": int(w), "height": int(h), "mode": mode}
         a.kind = "image"
         a.summary = f"image {a.meta['format']} {a.meta['width']}×{a.meta['height']}"
         if self.ocr:

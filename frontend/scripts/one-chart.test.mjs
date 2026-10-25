@@ -49,7 +49,7 @@ test("real time is a timeframe of AtlasChart, and DeskChart renders only AtlasCh
 test("no page mounts two AtlasCharts unconditionally side by side", () => {
   // A JSX fragment with two <AtlasChart> siblings with the same symbol expression is a duplicate.
   for (const f of files) {
-    const src = readFileSync(f, "utf8");
+    const src = readFileSync(f, "utf8").replace(/\r\n/g, "\n");
     const syms = [...src.matchAll(/<AtlasChart\s+symbol=\{([^}]+)\}/g)].map((m) => m[1].trim());
     const blocks = src.split(/\n\s*\)\}\n|\n\s*\) : |\n\s*: \(/);
     for (const b of blocks) {

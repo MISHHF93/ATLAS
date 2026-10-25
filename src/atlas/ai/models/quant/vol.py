@@ -43,10 +43,30 @@ class VolModel:
 
     @staticmethod
     def fit_garch(r: pd.Series) -> dict:
-        from arch import arch_model
-        res = arch_model(r * 100, mean="Zero", vol="GARCH", p=1, q=1, rescale=False).fit(disp="off")
-        p = res.params
-        return {"omega": float(p["omega"]) / 1e4, "alpha": float(p["alpha[1]"]), "beta": float(p["beta[1]"])}
+        try:
+            from arch import arch_model
+            res = arch_model(r * 100, mean="Zero", vol="GARCH", p=1, q=1, rescale=False).fit(disp="off")
+            p = res.params
+            return {"omega": float(p["omega"]) / 1e4, "alpha": float(p["alpha[1]"]), "beta": float(p["beta[1]"])}
+        except ImportError:
+            from scipy.optimize import minimize
+            x = (r.dropna().to_numpy(dtype=float)) * 100.0
+            v0 = float(np.var(x)) if len(x) else 1.0
+            def nll(theta):
+                om, al, bt = theta
+                if om <= 1e-8 or al < 0.01 or bt < 0.01 or al + bt >= 0.999:
+                    return 1e12
+                s2 = v0
+                ll = 0.0
+                for xi in x:
+                    s2 = om + al * (xi * xi) + bt * s2
+                    ll += np.log(s2) + (xi * xi) / s2
+                return 0.5 * ll
+            opt = minimize(nll, x0=np.array([0.05 * v0, 0.10, 0.85]), method="Nelder-Mead")
+            om, al, bt = opt.x if opt.success else (0.05 * v0, 0.10, 0.85)
+            al_c = float(np.clip(al, 0.01, 0.30))
+            bt_c = float(np.clip(bt, 0.50, 0.98 - al_c))
+            return {"omega": float(max(om, 1e-8)) / 1e4, "alpha": al_c, "beta": bt_c}
 
     # ---------------------------------------------------------------- forecasting (causal)
     def var_path(self, r: pd.Series) -> pd.Series:

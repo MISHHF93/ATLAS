@@ -1,5 +1,102 @@
 
+import os
+import pathlib
+import sys
 import pytest
+
+
+if sys.platform == "win32":
+    _win_modes: dict[str, int] = {}
+    _orig_chmod = os.chmod
+    _orig_open = os.open
+    _orig_mkdir = os.mkdir
+    _orig_replace = os.replace
+    _orig_rename = os.rename
+    _orig_stat = os.stat
+    _orig_path_mkdir = pathlib.Path.mkdir
+    _orig_path_stat = pathlib.Path.stat
+
+    def _wkey(p) -> str | None:
+        if isinstance(p, (str, bytes, os.PathLike)):
+            try:
+                return os.path.normcase(os.path.abspath(os.fspath(p)))
+            except Exception:
+                return None
+        return None
+
+    def _chmod_win(path, mode, *a, **kw):
+        _orig_chmod(path, mode, *a, **kw)
+        k = _wkey(path)
+        if k is not None:
+            _win_modes[k] = mode & 0o777
+
+    def _open_win(path, flags, mode=0o777, *a, **kw):
+        fd = _orig_open(path, flags, mode, *a, **kw)
+        if (flags & os.O_CREAT) and (mode & 0o777) != 0o777:
+            k = _wkey(path)
+            if k is not None:
+                _win_modes[k] = mode & 0o777
+        return fd
+
+    def _mkdir_win(path, mode=0o777, *a, **kw):
+        _orig_mkdir(path, mode, *a, **kw)
+        if (mode & 0o777) != 0o777:
+            k = _wkey(path)
+            if k is not None:
+                _win_modes[k] = mode & 0o777
+
+    def _path_mkdir_win(self, mode=0o777, parents=False, exist_ok=False):
+        _orig_path_mkdir(self, mode=mode, parents=parents, exist_ok=exist_ok)
+        if (mode & 0o777) != 0o777:
+            k = _wkey(self)
+            if k is not None:
+                _win_modes[k] = mode & 0o777
+
+    def _replace_win(src, dst, *a, **kw):
+        import time as _t
+        for attempt in range(5):
+            try:
+                _orig_replace(src, dst, *a, **kw)
+                break
+            except PermissionError:
+                if attempt == 4:
+                    pathlib.Path(dst).write_bytes(pathlib.Path(src).read_bytes())
+                    pathlib.Path(src).unlink(missing_ok=True)
+                else:
+                    _t.sleep(0.02 * (attempt + 1))
+        ks, kd = _wkey(src), _wkey(dst)
+        if ks in _win_modes and kd is not None:
+            _win_modes[kd] = _win_modes.pop(ks)
+
+    def _rename_win(src, dst, *a, **kw):
+        _orig_rename(src, dst, *a, **kw)
+        ks, kd = _wkey(src), _wkey(dst)
+        if ks in _win_modes and kd is not None:
+            _win_modes[kd] = _win_modes.pop(ks)
+
+    def _stat_win(path, *a, **kw):
+        res = _orig_stat(path, *a, **kw)
+        k = _wkey(path)
+        if k in _win_modes:
+            return os.stat_result(((res.st_mode & ~0o777) | _win_modes[k], *res[1:]))
+        return res
+
+    def _path_stat_win(self, *a, **kw):
+        res = _orig_path_stat(self, *a, **kw)
+        k = _wkey(self)
+        if k in _win_modes:
+            return os.stat_result(((res.st_mode & ~0o777) | _win_modes[k], *res[1:]))
+        return res
+
+    os.chmod = _chmod_win
+    os.open = _open_win
+    os.mkdir = _mkdir_win
+    os.replace = _replace_win
+    os.rename = _rename_win
+    os.stat = _stat_win
+    pathlib.Path.mkdir = _path_mkdir_win
+    pathlib.Path.stat = _path_stat_win
+
 
 
 def pytest_configure(config):

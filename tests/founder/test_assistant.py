@@ -186,7 +186,7 @@ def test_files_quarantined_0600_and_delete_retention(env):
     ("archive.zip", b"PK\x03\x04", "unsupported"),
     ("empty.csv", b"", "empty"),
     ("broken.pdf", b"%PDF-1.4 garbage", "parse_failed"),
-])
+], ids=lambda v: v if isinstance(v, str) else f"{len(v)}B")
 def test_rejections(env, name, data, code):
     *_, att, _ = env
     with pytest.raises(AttachmentError) as e:
@@ -227,7 +227,15 @@ def test_pdf_xlsx_image(env):
     b = io.BytesIO(); wb.save(b)
     x = att.save("owner", "w.xlsx", b.getvalue())
     assert x.table["rows"][0][0] == "RY.TO" and x.table["rows"][0][1] in ("", "None", "=1+1")   # formulas never evaluated
-    from PIL import Image
-    im = io.BytesIO(); Image.new("RGB", (20, 10), "white").save(im, "PNG")
-    p = att.save("owner", "chart.png", im.getvalue())
+    try:
+        from PIL import Image
+        im = io.BytesIO(); Image.new("RGB", (20, 10), "white").save(im, "PNG")
+        png_bytes = im.getvalue()
+    except ImportError:
+        import struct, zlib
+        def _chunk(tag: bytes, body: bytes) -> bytes:
+            return struct.pack(">I", len(body)) + tag + body + struct.pack(">I", zlib.crc32(tag + body) & 0xFFFFFFFF)
+        raw = b"".join(b"\x00" + b"\xff\xff\xff" * 20 for _ in range(10))
+        png_bytes = b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", struct.pack(">IIBBBBB", 20, 10, 8, 2, 0, 0, 0)) + _chunk(b"IDAT", zlib.compress(raw)) + _chunk(b"IEND", b"")
+    p = att.save("owner", "chart.png", png_bytes)
     assert p.kind == "image" and p.meta["width"] == 20 and "no OCR" in p.summary

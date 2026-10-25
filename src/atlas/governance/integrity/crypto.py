@@ -33,4 +33,14 @@ def write_secret_json(path: str | Path, data) -> None:
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
         json.dump(data, f); f.flush(); os.fsync(f.fileno())
-    os.replace(tmp, path)
+    for attempt in range(5):
+        try:
+            os.replace(tmp, path)
+            break
+        except PermissionError:
+            if attempt == 4:
+                path.write_bytes(tmp.read_bytes())
+                os.chmod(path, 0o600)
+                tmp.unlink(missing_ok=True)
+            else:
+                time.sleep(0.02 * (attempt + 1))

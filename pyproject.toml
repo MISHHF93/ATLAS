@@ -57,5 +57,6 @@ where = ["src"]
 "atlas.ops.dashboard" = ["static/*"]
 
 [tool.pytest.ini_options]
+pythonpath = [".", "src"]
 testpaths = ["tests"]
 addopts = "-p no:cacheprovider --basetemp=.test-runs/pytest-default"

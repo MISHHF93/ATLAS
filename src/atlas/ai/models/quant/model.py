@@ -25,6 +25,39 @@ def shap_available() -> bool:
         return False
 
 
+class _XgbBoosterAdapter:
+    """Deterministic XGBoost fallback with identical interface to LightGBM Booster (JSON text storage, no pickle)."""
+
+    def __init__(self, bst, features: list[str], best_iteration: int):
+        self.bst = bst
+        self.features = list(features)
+        self.best_iteration = int(best_iteration)
+
+    def predict(self, X: pd.DataFrame, num_iteration: int | None = None, pred_contrib: bool = False) -> np.ndarray:
+        import xgboost as xgb
+        dm = xgb.DMatrix(X[self.features], feature_names=self.features)
+        end = int(num_iteration or self.best_iteration or 0)
+        kw = {"iteration_range": (0, end)} if end > 0 else {}
+        if pred_contrib:
+            return np.asarray(self.bst.predict(dm, pred_contribs=True, **kw), dtype=float)
+        return np.asarray(self.bst.predict(dm, **kw), dtype=float)
+
+    def feature_importance(self, kind: str = "gain") -> np.ndarray:
+        scores = self.bst.get_score(importance_type=kind)
+        return np.array([float(scores.get(f, 0.0)) for f in self.features], dtype=float)
+
+    def model_to_string(self) -> str:
+        return "XGB_JSON:" + self.bst.save_raw(raw_format="json").decode("utf-8")
+
+    @classmethod
+    def from_string(cls, txt: str, features: list[str], best_iteration: int) -> "_XgbBoosterAdapter":
+        import xgboost as xgb
+        bst = xgb.Booster()
+        raw = txt[len("XGB_JSON:"):] if txt.startswith("XGB_JSON:") else txt
+        bst.load_model(bytearray(raw.encode("utf-8")))
+        return cls(bst, features, best_iteration)
+
+
 @dataclass
 class TradeFilterModel:
     booster: object
@@ -36,21 +69,35 @@ class TradeFilterModel:
     # ---------------------------------------------------------------- training
     @classmethod
     def train(cls, X: pd.DataFrame, y, num_rounds: int = 300, calib_frac: float = 0.2) -> "TradeFilterModel":
-        import lightgbm as lgb
         from sklearn.isotonic import IsotonicRegression
         X = X[FEATURES]
         y = np.asarray(y, float)
         n = len(X)
         cut = int(n * (1 - calib_frac))
         es = int(cut * 0.85)
-        dtr = lgb.Dataset(X.iloc[:es], y[:es])
-        dva = lgb.Dataset(X.iloc[es:cut], y[es:cut], reference=dtr)
-        bst = lgb.train(PARAMS, dtr, num_boost_round=num_rounds, valid_sets=[dva],
-                        callbacks=[lgb.early_stopping(30, verbose=False)])
-        raw = bst.predict(X.iloc[cut:], num_iteration=bst.best_iteration)
+        try:
+            import lightgbm as lgb
+            dtr = lgb.Dataset(X.iloc[:es], y[:es])
+            dva = lgb.Dataset(X.iloc[es:cut], y[es:cut], reference=dtr)
+            bst = lgb.train(PARAMS, dtr, num_boost_round=num_rounds, valid_sets=[dva],
+                            callbacks=[lgb.early_stopping(30, verbose=False)])
+            best_it = int(bst.best_iteration or num_rounds)
+            raw = bst.predict(X.iloc[cut:], num_iteration=best_it)
+        except ImportError:
+            import xgboost as xgb
+            dtr = xgb.DMatrix(X.iloc[:es], label=y[:es], feature_names=list(FEATURES))
+            dva = xgb.DMatrix(X.iloc[es:cut], label=y[es:cut], feature_names=list(FEATURES))
+            xparams = dict(objective="binary:logistic", eval_metric="logloss", eta=0.05, max_depth=4,
+                           min_child_weight=40, subsample=0.8, colsample_bytree=0.8, reg_lambda=1.0,
+                           seed=7, nthread=1, verbosity=0)
+            xbst = xgb.train(xparams, dtr, num_boost_round=num_rounds, evals=[(dva, "val")],
+                             early_stopping_rounds=30, verbose_eval=False)
+            best_it = int(getattr(xbst, "best_iteration", num_rounds - 1)) + 1
+            bst = _XgbBoosterAdapter(xbst, list(FEATURES), best_it)
+            raw = bst.predict(X.iloc[cut:], num_iteration=best_it)
         iso = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0).fit(raw, y[cut:])
         return cls(bst, list(map(float, iso.X_thresholds_)), list(map(float, iso.y_thresholds_)),
-                   meta={"best_iteration": int(bst.best_iteration or num_rounds), "n_train": n})
+                   meta={"best_iteration": best_it, "n_train": n})
 
     # ---------------------------------------------------------------- inference
     def raw(self, X: pd.DataFrame) -> np.ndarray:
@@ -95,6 +142,11 @@ class TradeFilterModel:
 
     @classmethod
     def load(cls, d: Path) -> "TradeFilterModel":
-        import lightgbm as lgb
         c = json.loads((d / "calib.json").read_text())
-        return cls(lgb.Booster(model_str=(d / "model.txt").read_text()), c["iso_x"], c["iso_y"], c["features"], c["meta"])
+        txt = (d / "model.txt").read_text()
+        if txt.startswith("XGB_JSON:"):
+            bst = _XgbBoosterAdapter.from_string(txt, c["features"], int(c["meta"].get("best_iteration", 0)))
+        else:
+            import lightgbm as lgb
+            bst = lgb.Booster(model_str=txt)
+        return cls(bst, c["iso_x"], c["iso_y"], c["features"], c["meta"])

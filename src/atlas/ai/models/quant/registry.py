@@ -78,7 +78,14 @@ class ModelRegistry:
         if reference is not None:
             from atlas.ai.models.quant.drift import reference_stats
             (tmp / "reference.json").write_text(json.dumps(reference_stats(reference)))
-        tmp.rename(self.root / mid)
+        dst = self.root / mid
+        if dst.exists():
+            shutil.rmtree(dst, ignore_errors=True)
+        try:
+            tmp.rename(dst)
+        except PermissionError:
+            shutil.copytree(tmp, dst, dirs_exist_ok=True)
+            shutil.rmtree(tmp, ignore_errors=True)
         if card is not None:
             card.write(self.root / mid, model_id=mid, metrics=_jsonable(metrics), data_hash=data_hash)
         self.idx["models"][mid] = {"stage": "candidate", "created": self.clock().isoformat(), "digest": digest, "kind": self.kind,

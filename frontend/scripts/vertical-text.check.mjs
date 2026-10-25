@@ -13,7 +13,7 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
 // Every page and every non-default tab, read from the one page registry (src/components/shell/pagesMap.ts),
 // so new pages are covered automatically. Falls back to nothing silently = never: an empty list fails the run.
 export function pagesFromRegistry(file = new URL("../src/components/shell/pagesMap.ts", import.meta.url)) {
-  const src = fs.readFileSync(file, "utf8");
+  const src = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   const body = src.slice(src.indexOf("export const PAGES"));
   const out = {};
   for (const blk of body.split(/\n  \{\n    id: /).slice(1)) {

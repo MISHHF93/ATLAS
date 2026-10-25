@@ -146,6 +146,10 @@ def up(a) -> int:
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)          # also when started in the background (SIGINT otherwise ignored)
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, _stop)
+    stop_file = Path(var) / ".stop"
+    stop_file.unlink(missing_ok=True)
     procs = []
     try:
         for name, argv in launch_plan(var, a.config, a.port, a.demo, core=not a.no_core):
@@ -159,6 +163,9 @@ def up(a) -> int:
         if a.demo:
             print(f"demo logins: {Path(var) / 'DEMO_CREDENTIALS.txt'}")
         while True:
+            if stop_file.exists():
+                stop_file.unlink(missing_ok=True)
+                raise KeyboardInterrupt
             for name, p, _ in procs:
                 if p.poll() is not None:
                     print(f"{name} exited with code {p.returncode}; stopping (see {logs / (name + '.log')})", file=sys.stderr)
@@ -169,14 +176,20 @@ def up(a) -> int:
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)   # a second Ctrl-C / SIGTERM must not abort the shutdown and orphan children
         signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if hasattr(signal, "SIGBREAK"):
+            signal.signal(signal.SIGBREAK, signal.SIG_IGN)
+        from atlas.ops.procutil import terminate_pid_tree
         # reverse start order: console, watchdog, core (a core without its watchdog refuses orders)
         for name, p, out in reversed(procs):
             if p.poll() is None:
+                terminate_pid_tree(p.pid)
                 p.terminate()
                 try:
                     p.wait(10)
                 except subprocess.TimeoutExpired:
                     p.kill()
+            else:
+                terminate_pid_tree(p.pid)
             out.close()
 
 

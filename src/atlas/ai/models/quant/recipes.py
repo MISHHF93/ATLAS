@@ -173,10 +173,15 @@ def stack_panel(F: dict[str, pd.DataFrame], target: pd.DataFrame | None = None) 
 
 # ------------------------------------------------------------------------------------------------ models
 def _lgbm(seed: int = 0):
-    import lightgbm as lgb
-    return lgb.LGBMRegressor(n_estimators=120, learning_rate=0.05, num_leaves=15, min_child_samples=50, subsample=0.8,
-                             subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0, random_state=seed, verbose=-1,
-                             n_jobs=4, deterministic=True, force_row_wise=True)
+    try:
+        import lightgbm as lgb
+        return lgb.LGBMRegressor(n_estimators=120, learning_rate=0.05, num_leaves=15, min_child_samples=50, subsample=0.8,
+                                 subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0, random_state=seed, verbose=-1,
+                                 n_jobs=4, deterministic=True, force_row_wise=True)
+    except ImportError:
+        from sklearn.ensemble import HistGradientBoostingRegressor
+        return HistGradientBoostingRegressor(max_iter=120, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf=50,
+                                             l2_regularization=1.0, random_state=seed)
 
 
 class FoldModel:

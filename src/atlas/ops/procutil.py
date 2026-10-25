@@ -60,3 +60,75 @@ def pid_alive(pid: int | None) -> bool:
     if sys.platform == "win32":
         return _pid_alive_windows(pid)
     return _pid_alive_posix(pid)
+
+
+def child_pids(root_pid: int | None) -> list[int]:
+    """Return exact descendant PIDs of ``root_pid`` (used to clean up Windows venv launcher children)."""
+    if not root_pid or root_pid <= 0:
+        return []
+    if sys.platform != "win32":
+        return []
+    import ctypes
+    from ctypes import wintypes
+
+    TH32CS_SNAPPROCESS = 0x00000002
+
+    class PROCESSENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_char * 260),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    snap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    if snap == wintypes.HANDLE(-1).value:
+        return []
+    parent_map: dict[int, list[int]] = {}
+    try:
+        pe = PROCESSENTRY32()
+        pe.dwSize = ctypes.sizeof(PROCESSENTRY32)
+        if kernel32.Process32First(snap, ctypes.byref(pe)):
+            while True:
+                parent_map.setdefault(int(pe.th32ParentProcessID), []).append(int(pe.th32ProcessID))
+                if not kernel32.Process32Next(snap, ctypes.byref(pe)):
+                    break
+    finally:
+        kernel32.CloseHandle(snap)
+    descendants: list[int] = []
+    queue = list(parent_map.get(int(root_pid), ()))
+    seen = {int(root_pid)}
+    while queue:
+        cid = queue.pop(0)
+        if cid in seen:
+            continue
+        seen.add(cid)
+        descendants.append(cid)
+        queue.extend(parent_map.get(cid, ()))
+    return descendants
+
+
+def terminate_pid_tree(root_pid: int | None) -> None:
+    """Terminate exact descendant PIDs of ``root_pid`` and ``root_pid`` itself on Windows."""
+    if not root_pid or root_pid <= 0 or sys.platform != "win32":
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    PROCESS_TERMINATE = 0x0001
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    for target in reversed([int(root_pid), *child_pids(root_pid)]):
+        h = kernel32.OpenProcess(PROCESS_TERMINATE, False, wintypes.DWORD(target))
+        if h:
+            try:
+                kernel32.TerminateProcess(h, wintypes.UINT(0))
+            finally:
+                kernel32.CloseHandle(h)
+
