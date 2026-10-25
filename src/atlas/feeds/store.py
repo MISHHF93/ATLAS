@@ -85,29 +85,54 @@ class FeedStore:
 
     def ingest(self, bars: Iterable[FeedBar], note: str = "") -> dict:
         """Idempotent. A version is inserted only if OHLCV/confirmed differs from the latest stored version."""
+        batch = list(bars)
+        if not batch:
+            return {"received": 0, "inserted": 0, "revised": 0}
         rec = ins = rev = 0
-        last = None
+        last = batch[-1]
         with self._lock, self._db:
-            for b in bars:
+            groups: dict[tuple[str, str, str], list[int]] = {}
+            for b in batch:
+                k = (b.provider, b.instrument, b.interval)
+                ts = groups.get(k)
+                if ts is None:
+                    groups[k] = [b.event_time, b.event_time]
+                else:
+                    if b.event_time < ts[0]:
+                        ts[0] = b.event_time
+                    if b.event_time > ts[1]:
+                        ts[1] = b.event_time
+            latest: dict[tuple[str, str, str, int], tuple[int, float, float, float, float, float, int]] = {}
+            for (prov, inst, iv), (t0, t1) in groups.items():
+                for et, rt, o, h, l_, c, v, conf in self._db.execute(
+                    "SELECT event_time,receipt_time,open,high,low,close,volume,confirmed FROM bar_revisions "
+                    "WHERE provider=? AND instrument=? AND interval=? AND event_time>=? AND event_time<=? "
+                    "ORDER BY event_time ASC, receipt_time ASC",
+                    (prov, inst, iv, t0, t1),
+                ):
+                    latest[(prov, inst, iv, et)] = (rt, o, h, l_, c, v, conf)
+            to_insert = []
+            for b in batch:
                 rec += 1
-                last = b
-                cur = self._fetchone(
-                    "SELECT open,high,low,close,volume,confirmed FROM bar_revisions WHERE provider=? AND instrument=? AND interval=? "
-                    "AND event_time=? ORDER BY receipt_time DESC LIMIT 1", (b.provider, b.instrument, b.interval, b.event_time))
+                key = (b.provider, b.instrument, b.interval, b.event_time)
+                cur_entry = latest.get(key)
                 new = (b.open, b.high, b.low, b.close, b.volume, int(b.confirmed))
-                if cur is not None:
-                    if tuple(cur) == new or (cur[5] == 1 and not b.confirmed and tuple(cur[:5]) == new[:5]):
+                if cur_entry is not None:
+                    cur = cur_entry[1:]
+                    if cur == new or (cur[5] == 1 and not b.confirmed and cur[:5] == new[:5]):
                         continue
                     if cur[5] == 1 and not b.confirmed:
                         continue  # never downgrade a confirmed bar with a provisional version
                     rev += 1
                 else:
                     ins += 1
-                self._db.execute("INSERT OR IGNORE INTO bar_revisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                 (b.provider, b.instrument, b.interval, b.event_time, b.receipt_time, *new, b.provider_symbol))
-            if last is not None:
-                self._db.execute("INSERT INTO ingest_log VALUES (?,?,?,?,?,?,?,?)",
-                                 (last.receipt_time, last.provider, last.instrument, last.interval, rec, ins, rev, note))
+                to_insert.append((b.provider, b.instrument, b.interval, b.event_time, b.receipt_time, *new, b.provider_symbol))
+                if cur_entry is None or b.receipt_time >= cur_entry[0]:
+                    latest[key] = (b.receipt_time, *new)
+            if to_insert:
+                self._db.executemany("INSERT OR IGNORE INTO bar_revisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", to_insert)
+            self._db.execute("INSERT INTO ingest_log VALUES (?,?,?,?,?,?,?,?)",
+                             (last.receipt_time, last.provider, last.instrument, last.interval, rec, ins, rev, note))
         return {"received": rec, "inserted": ins, "revised": rev}
 
     def upsert_quotes(self, rows: Iterable[dict]) -> int:
@@ -150,9 +175,21 @@ class FeedStore:
         return best
 
     def daily_closes(self, instrument: str, limit: int = 3) -> list[tuple[int, float]]:
-        rows = self._fetchall("SELECT event_time, close FROM bar_revisions WHERE instrument=? AND interval='1d' "
-                                "GROUP BY event_time ORDER BY event_time DESC LIMIT ?", (instrument, limit))
-        return [(int(t), float(c)) for t, c in rows]
+        rows = self._fetchall(
+            "SELECT event_time, close FROM bar_revisions WHERE instrument=? AND interval='1d' "
+            "ORDER BY event_time DESC, receipt_time DESC LIMIT ?",
+            (instrument, max(limit * 8, 16)),
+        )
+        out: list[tuple[int, float]] = []
+        seen: set[int] = set()
+        for t, c in rows:
+            ti = int(t)
+            if ti not in seen:
+                seen.add(ti)
+                out.append((ti, float(c)))
+                if len(out) >= limit:
+                    break
+        return out
 
     def ingest_observations(self, obs: Iterable[FeedObservation]) -> int:
         with self._lock, self._db:
@@ -179,12 +216,19 @@ class FeedStore:
         where = " AND ".join(q)
         rows = self._fetchall(
             f"SELECT provider,instrument,interval,event_time,open,high,low,close,volume,receipt_time,confirmed,provider_symbol "
-            f"FROM bar_revisions r WHERE {where} AND receipt_time = (SELECT MAX(receipt_time) FROM bar_revisions r2 WHERE "
-            f"r2.provider=r.provider AND r2.instrument=r.instrument AND r2.interval=r.interval AND r2.event_time=r.event_time"
-            f"{' AND r2.receipt_time<=' + str(int(as_of)) if as_of is not None else ''}) ORDER BY event_time", a)
+            f"FROM bar_revisions WHERE {where} ORDER BY event_time ASC, receipt_time ASC", a)
+        latest_rev: dict[tuple[str, int], tuple] = {}
+        for r in rows:
+            latest_rev[(r[0], r[3])] = r
+        if len({r[0] for r in latest_rev}) <= 1:
+            return [
+                FeedBar(r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[0], r[9], bool(r[10]), r[11] or "")
+                for r in latest_rev.values()
+                if not confirmed_only or r[10]
+            ]
         prio = self.provider_rank(instrument, interval) if not provider else [provider]
         best: dict[int, tuple] = {}
-        for r in rows:
+        for r in latest_rev.values():
             if confirmed_only and not r[10]:
                 continue
             cur = best.get(r[3])

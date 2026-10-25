@@ -14,8 +14,16 @@ from datetime import datetime, timezone
 
 from atlas.feeds import get_feed
 
-DAYS = {"15m": {"crypto": 180, "etf": 59}, "1h": {"crypto": 730, "etf": 720}, "1d": {"crypto": 1095, "etf": 1095},
+DAYS = {"15m": {"crypto": 730, "etf": 59}, "1h": {"crypto": 730, "etf": 720}, "1d": {"crypto": 1095, "etf": 1095},
         "1m": {"crypto": 2, "etf": 6}}
+
+
+def default_days(feed, inst, iv: str) -> int:
+    if inst.asset_class in ("equity", "etf") and iv == "15m":
+        alp = feed.registry.get("alpaca")
+        if alp and alp.enabled:
+            return 730
+    return DAYS.get(iv, {}).get(inst.asset_class if inst.asset_class == "crypto" else "etf", 30)
 
 
 def iso(t):
@@ -48,7 +56,7 @@ def main():
         inst = feed.instruments.get(inst_id)
         for iv in a.intervals.split(","):
           try:
-              days = a.days or DAYS.get(iv, {}).get(inst.asset_class if inst.asset_class == "crypto" else "etf", 30)
+              days = a.days or default_days(feed, inst, iv)
               start = now - days * 86400
               r = feed.backfill(inst_id, iv, start, now)
               cc = {} if a.no_cross_check else feed.cross_check(inst_id, iv, max(start, now - 7 * 86400), now)

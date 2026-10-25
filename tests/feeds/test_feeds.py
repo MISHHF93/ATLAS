@@ -387,3 +387,33 @@ def test_yahoo_1h_half_hour_offset_normalized_forward_and_off_grid_flagged():
     off = [replace(mkbar(_ny(10, 0)), instrument="SPY")]
     assert not on_grid(off[0].event_time, "us_equity_rth", "1h")
     assert FLAG_OFF_GRID in assess(off, "us_equity_rth", "1h", _ny(11, 30)).flags
+
+
+def test_backfill_fills_prefix_and_suffix_from_fallback_providers():
+    from atlas.feeds.providers.alpaca import AlpacaCryptoAdapter
+    import datetime as dt
+
+    store = FeedStore(":memory:")
+    iso = lambda x: dt.datetime.fromtimestamp(x, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # alpaca_crypto only covers middle bars [T0 + 2*900 .. T0 + 6*900); binance covers prefix [T0 .. T0 + 2*900)
+    # and okx covers suffix [T0 + 6*900 .. T0 + 10*900).
+    alp_bars = [{"t": iso(T0 + i * 900), "o": 100, "h": 101, "l": 99, "c": 100, "v": 1} for i in range(2, 6)]
+    alp, _ = mk(AlpacaCryptoAdapter, {"crypto/us/bars": [(200, {}, {"bars": {"BTC/USD": alp_bars}, "next_page_token": None})]})
+    bin_rows = [[(T0 + i * 900) * 1000, "100", "101", "99", "100", "1", 0] for i in range(0, 2)]
+    binance, _ = mk(BinanceAdapter, {"vision": [(200, {}, bin_rows), (200, {}, []), (200, {}, [])]})
+    okx_rows = [[str((T0 + i * 900) * 1000), "100", "101", "99", "100", "1", "", "", "1"] for i in reversed(range(6, 10))]
+    okx, _ = mk(OKXAdapter, {"okx": [(200, {}, {"code": "0", "data": okx_rows}), (200, {}, {"code": "0", "data": []})]})
+    feed = AtlasFeed(store, ProviderRegistry([alp, binance, okx]), InstrumentMaster(), clock=lambda: NOW)
+    r = feed.backfill("BTCUSDT", "15m", T0, NOW)
+    assert r["provider"] == "alpaca_crypto"
+    ser = feed.bars("BTCUSDT", "15m", T0, NOW)
+    assert len(ser) == 10
+    assert {b.provider for b in ser} == {"alpaca_crypto", "binance", "okx"}
+
+    from scripts.backfill_feeds import default_days
+    assert default_days(feed, feed.instruments.get("SOLUSDT"), "15m") == 730
+    assert default_days(feed, feed.instruments.get("SPY"), "15m") == 59
+    alp_eq, _ = mk(AlpacaAdapter, {}, env={"ALPACA_API_KEY_ID": "k", "ALPACA_API_SECRET_KEY": "s"})
+    feed_with_alp = AtlasFeed(store, ProviderRegistry([alp_eq]), InstrumentMaster(), clock=lambda: NOW)
+    assert default_days(feed_with_alp, feed_with_alp.instruments.get("SPY"), "15m") == 730
+

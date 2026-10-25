@@ -93,6 +93,18 @@ class AtlasFeed:
         out = {"instrument": instrument, "interval": interval, "provider": prov, **res, "gap_fills": []}
         if fill_gaps and prov:
             out["gap_fills"] = self.fill_gaps(instrument, interval, start, end)
+            step = INTERVALS[interval]
+            bars = self.bars(instrument, interval, start, end)
+            others = [c.name for c in self.candidates(instrument, interval) if c.name != prov]
+            if bars and others:
+                if bars[0].event_time - start >= step:
+                    p2, r2 = self.fetch(instrument, interval, start, bars[0].event_time, providers=others)
+                    if p2:
+                        out["gap_fills"].append({"gap": [start, bars[0].event_time], "provider": p2, "inserted": r2.get("inserted", 0)})
+                if end - bars[-1].bar_end >= 2 * step:
+                    p2, r2 = self.fetch(instrument, interval, bars[-1].bar_end, end, providers=others)
+                    if p2:
+                        out["gap_fills"].append({"gap": [bars[-1].bar_end, end], "provider": p2, "inserted": r2.get("inserted", 0)})
         return out
 
     def fill_gaps(self, instrument: str, interval: str, start: int, end: int, max_gaps: int = 20) -> list[dict]:

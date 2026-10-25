@@ -8,7 +8,16 @@ modelled: on a CME holiday the series shows ``stale``, never a fake ``live``). C
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
+from functools import lru_cache
 from zoneinfo import ZoneInfo
+
+try:
+    import exchange_calendars as _xc  # noqa: F401
+    from atlas.marketdata.pit import calendars as _pit_calendars
+    _HAS_XC = True
+except ImportError:
+    _pit_calendars = None  # type: ignore[assignment]
+    _HAS_XC = False
 
 NY = ZoneInfo("America/New_York")
 TORONTO = ZoneInfo("America/Toronto")
@@ -39,30 +48,32 @@ def _utc(t: float) -> datetime:
     return datetime.fromtimestamp(t, timezone.utc)
 
 
+@lru_cache(maxsize=512)
+def _nyse_open_min(t_min: int) -> bool:
+    t = float(t_min * 60)
+    if _HAS_XC and _pit_calendars is not None:
+        return _pit_calendars.is_open("XNYS", _utc(t))
+    ny = _utc(t).astimezone(NY)
+    return ny.weekday() < 5 and ny.date() not in _NYSE_HOLIDAYS and time(9, 30) <= ny.time() < time(16, 0)
+
+
 def nyse_open(t: float) -> bool:
-    try:
-        from atlas.marketdata.pit import calendars
-        import exchange_calendars  # noqa: F401  (make sure the real calendar is used, not the CLOSED-on-error path)
-        return calendars.is_open("XNYS", _utc(t))
-    except ImportError:
-        ny = _utc(t).astimezone(NY)
-        return ny.weekday() < 5 and ny.date() not in _NYSE_HOLIDAYS and time(9, 30) <= ny.time() < time(16, 0)
+    return _nyse_open_min(int(t) // 60)
 
 
-def last_nyse_close(t: float) -> float:
-    """Epoch of the most recent XNYS session close at or before ``t`` (early closes honoured)."""
-    try:
-        from atlas.marketdata.pit import calendars
-        d = _utc(t).astimezone(NY).date()
+@lru_cache(maxsize=512)
+def _last_nyse_close_min(t_min: int) -> float:
+    t = float(t_min * 60)
+    d = _utc(t).astimezone(NY).date()
+    if _HAS_XC and _pit_calendars is not None:
         for back in range(0, 15):
             day = d - timedelta(days=back)
-            ss = calendars.sessions("XNYS", day, day)
+            ss = _pit_calendars.sessions("XNYS", day, day)
             if ss:
-                c = calendars.session_close("XNYS", ss[0]).timestamp()
+                c = _pit_calendars.session_close("XNYS", ss[0]).timestamp()
                 if c <= t:
                     return c
-    except ImportError:
-        d = _utc(t).astimezone(NY).date()
+    else:
         for back in range(0, 15):
             day = d - timedelta(days=back)
             if day.weekday() < 5 and day not in _NYSE_HOLIDAYS:
@@ -70,6 +81,11 @@ def last_nyse_close(t: float) -> float:
                 if c <= t:
                     return c
     return t - 3 * 86400
+
+
+def last_nyse_close(t: float) -> float:
+    """Epoch of the most recent XNYS session close at or before ``t`` (early closes honoured)."""
+    return _last_nyse_close_min(int(t) // 60)
 
 
 def globex_open(t: float) -> bool:
