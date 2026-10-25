@@ -317,12 +317,15 @@ export function TracksView() {
 
 /* ---------- Model evolution ---------- */
 type EvoM = { status: string; reason?: string; fitness?: number; ev_r_per_opportunity?: number; brier_skill?: number; stability?: number;
-  n_oos?: number; n_taken?: number; take_all_ev?: number; beats_baseline?: boolean; auc?: number | null };
+  n_oos?: number; n_taken?: number; take_all_ev?: number; beats_baseline?: boolean; auc?: number | null;
+  strict_gate?: { passed: boolean; failed: string[]; values?: Record<string, number | null> } };
 type EvoRow = { genome_id: string; genome: Record<string, string>; generation: number; parent: string | null; mutation: string; metrics: EvoM };
 type Evo = WithFresh & { run_id?: string; decision?: string; no_model_beats_baseline?: boolean; leaderboard?: EvoRow[];
   by_bar_type?: Record<string, { best_genome: string; fitness: number; ev: number; brier_skill: number }>;
   folds?: { fold: number; n_train: number; n_test: number; test_from: number; test_to: number }[]; data?: { n_rows?: number; series?: { instrument: string; interval: string; n_rows: number }[] };
-  champion?: EvoRow | null; created_at?: number };
+  champion?: EvoRow | null; created_at?: number; no_model_passes_strict_gate?: boolean; gate_version?: string;
+  strict_gate_rules?: { min_trades_per_fold: number; dsr_min: number; bonferroni_alpha: number };
+  demoted?: { run_id: string; genome_id: string; status: string; reason?: string }[] };
 
 export function EvolutionView() {
   const s = useApi<Evo>("/api/intel/evolution", 120000);
@@ -335,17 +338,21 @@ export function EvolutionView() {
           {(d) => (<>
             <p>{d.no_model_beats_baseline
               ? <><Badge tone="warn">No model beats baseline</Badge> No genome had positive out-of-sample R per opportunity after costs together with positive Brier skill. The baseline is taking nothing (0 R); taking every setup averaged {f(d.leaderboard?.[0]?.metrics.take_all_ev)} R.</>
-              : <><Badge tone="good">Research champion</Badge> {d.champion?.genome_id}. It is not promoted to trading; ML has no execution permission.</>}</p>
+              : d.champion
+                ? <><Badge tone="good">Research champion</Badge> {d.champion.genome_id}. It passed the strict gate. It is not promoted to trading; ML has no execution permission.</>
+                : <><Badge tone="warn">No research champion</Badge> At least one genome beats the baseline, but none passes the strict gate. The gate needs at least {d.strict_gate_rules?.min_trades_per_fold ?? 20} trades in every fold, a positive result in most folds, DSR ≥ {d.strict_gate_rules?.dsr_min ?? 0.95}, and a Bonferroni p ≤ {d.strict_gate_rules?.bonferroni_alpha ?? 0.05} across every genome tried.</>}</p>
+            {(d.demoted ?? []).map((x) => <p key={x.run_id} className="ux-muted"><Badge tone="warn">Demoted to research-only</Badge> Run {x.run_id} ({x.genome_id}): {x.reason}</p>)}
             <p className="ux-muted">Run {d.run_id} · {d.data?.n_rows ?? 0} out-of-sample rows from {(d.data?.series ?? []).map((x) => `${x.instrument} ${x.interval}`).join(", ")} · {d.folds?.length ?? 0} folds · decision: {d.decision}</p>
             <DataTable rows={(d.leaderboard ?? []).map((v, i) => ({ rank: i + 1, gen: v.generation, model: v.genome.model, feats: v.genome.features, reg: v.genome.regime,
                 bar: v.genome.bar_type, st: v.metrics.status === "ok" ? "" : `${v.metrics.status}: ${v.metrics.reason ?? ""}`, fit: v.metrics.fitness, ev: v.metrics.ev_r_per_opportunity,
                 bss: v.metrics.brier_skill, stab: v.metrics.stability, taken: v.metrics.n_taken, beats: v.metrics.beats_baseline ? "yes" : "no",
+                gate: v.metrics.strict_gate ? (v.metrics.strict_gate.passed ? "pass" : `fail: ${v.metrics.strict_gate.failed.join(", ")}`) : "not run",
                 parent: v.parent ? v.mutation : "seed" })) as R[]} columns={[
               { key: "rank", label: "#", align: "right" }, { key: "gen", label: "Gen", align: "right" }, { key: "model", label: "Model" }, { key: "feats", label: "Features" },
               { key: "reg", label: "Regime" }, { key: "bar", label: "Bar type" }, { key: "fit", label: "Fitness", align: "right", render: (r) => f(r.fit) },
               { key: "ev", label: "OOS R / opp.", align: "right", render: (r) => f(r.ev, 4) }, { key: "bss", label: "Brier skill", align: "right", render: (r) => f(r.bss, 4) },
               { key: "stab", label: "Stable folds", align: "right", render: (r) => f(r.stab, 2) }, { key: "taken", label: "Taken", align: "right" },
-              { key: "beats", label: "Beats baseline" }, { key: "parent", label: "Lineage" }, { key: "st", label: "Status" }]} />
+              { key: "beats", label: "Beats baseline" }, { key: "gate", label: "Strict gate" }, { key: "parent", label: "Lineage" }, { key: "st", label: "Status" }]} />
           </>)}
         </Async>
       </Card>

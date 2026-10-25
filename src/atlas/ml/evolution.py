@@ -24,6 +24,15 @@ each, deterministic RNG, no re-evaluation of seen genomes). Leaderboard + lineag
 metrics) are appended to the ML registry root (``<registry>/evolution/``). Champion/challenger: the best genome that
 beats baseline becomes the *research* champion only if it beats the previous research champion; nothing is ever
 promoted to execution (``promoted_to_execution`` is always False).
+
+evo8 strict champion gate (stricter only; applied on top of beats_baseline, see ``strict_gate``):
+  * min_trades_per_fold: every one of the N_FOLDS folds must be evaluated and take >= MIN_TRADES_PER_FOLD trades;
+  * majority: strictly more than half of ALL folds must have fold ev > 0 (skipped folds count as non-positive);
+  * multiple testing over every genome tried in the run (n_trials = genomes with status ok):
+      DSR (Bailey & Lopez de Prado) of the per-trade after-cost R of taken trades, benchmark = expected max Sharpe
+      of all trials, must be >= DSR_MIN; AND the one-sided t-test p-value of mean taken R > 0 times n_trials
+      (Bonferroni) must be <= BONFERRONI_ALPHA.
+A genome must pass ALL checks to become research champion. A stored champion that fails is demoted (``regate``).
 """
 from __future__ import annotations
 
@@ -89,6 +98,10 @@ UNIVERSE_EVO7 = [(i, "4h") for i in EVO7_SYMBOLS]
 UNIVERSE_EVO7_1H = [(i, "1h") for i in EVO7_SYMBOLS]
 N_FOLDS = 5
 EMBARGO = 86400
+MIN_TRADES_PER_FOLD = 20
+DSR_MIN = 0.95
+BONFERRONI_ALPHA = 0.05
+GATE_VERSION = "evo8-strict-1"
 TIME_FEATS = ("hod_sin", "hod_cos", "dow_sin", "dow_cos")
 SIGNED_X = tuple(f"{s}_x_dir" for s in SIGNED)
 
@@ -133,9 +146,12 @@ def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, 
     for s in SIGNED_X:
         data[f"{s}_x_hi"] = data[s] * hi
     data = add_macro(data, getattr(feed, "store", None), meta)
-    h = hashlib.sha256(pd.util.hash_pandas_object(data[["t", "instrument", "candidate_id", "r"]], index=False).values.tobytes())
-    meta["data_hash"], meta["n_rows"] = h.hexdigest(), len(data)
+    meta["data_hash"], meta["n_rows"] = data_hash(data), len(data)
     return data, meta
+
+
+def data_hash(data: pd.DataFrame) -> str:
+    return hashlib.sha256(pd.util.hash_pandas_object(data[["t", "instrument", "candidate_id", "r"]], index=False).values.tobytes()).hexdigest()
 
 
 def add_macro(data: pd.DataFrame, store, meta: dict) -> pd.DataFrame:
@@ -215,7 +231,58 @@ def evaluate_genome(data: pd.DataFrame, g: dict[str, str], fs: list) -> dict[str
             "ev_r_per_opportunity": ev, "mean_r_taken": float(r[take].mean()) if take.any() else None,
             "take_all_ev": take_all, "brier": bsc, "brier_baseline": bb, "brier_skill": bss, "ece": M.ece(p, y), "auc": M.auc(p, y),
             "stability": stab, "fitness": fitness, "beats_baseline": bool(ev > max(0.0, take_all) and bss > 0), "folds": per_fold,
-            "n_features": len(feats)}
+            "n_features": len(feats), "_taken_r": r[take]}
+
+
+def _t_pvalue(x: np.ndarray) -> float:
+    """One-sided p-value for mean(x) > 0 (Student t)."""
+    from scipy import stats
+    x = np.asarray(x, float)
+    if len(x) < 3 or x.std(ddof=1) == 0:
+        return 1.0
+    return float(stats.t.sf(x.mean() / (x.std(ddof=1) / np.sqrt(len(x))), len(x) - 1))
+
+
+def _sr(x) -> float:
+    x = np.asarray(x, float)
+    return float(x.mean() / x.std(ddof=1)) if len(x) > 2 and x.std(ddof=1) > 0 else 0.0
+
+
+def strict_gate(m: dict[str, Any], taken_r: np.ndarray, trial_srs: list[float], n_folds: int = N_FOLDS) -> dict[str, Any]:
+    """evo8 champion gate (see module doc). Returns every check with its value so a failure is explainable."""
+    from atlas.models.quant.metrics import deflated_sharpe
+    fl = m.get("folds") or []
+    ev_folds = [f for f in fl if "ev" in f]
+    min_taken = min((f["n_taken"] for f in ev_folds), default=0)
+    n_pos = sum(1 for f in ev_folds if f["ev"] > 0)
+    n_trials = max(1, len(trial_srs))
+    d = deflated_sharpe(taken_r, trial_srs) if len(taken_r) > 2 else {"dsr": 0.0, "sr_per_period": 0.0, "sr0_expected_max_per_period": None}
+    pv = _t_pvalue(taken_r)
+    checks = {
+        "beats_baseline": bool(m.get("beats_baseline")),
+        "all_folds_evaluated": len(ev_folds) == n_folds,
+        "min_trades_per_fold": min_taken >= MIN_TRADES_PER_FOLD,
+        "majority_folds_positive": n_pos > n_folds / 2,
+        "dsr": float(d["dsr"]) >= DSR_MIN,
+        "bonferroni": min(1.0, pv * n_trials) <= BONFERRONI_ALPHA,
+    }
+    failed = [k for k, v in checks.items() if not v]
+    return {"gate_version": GATE_VERSION, "passed": not failed, "checks": checks, "failed": failed,
+            "values": {"min_taken_per_fold": int(min_taken), "required_min_taken_per_fold": MIN_TRADES_PER_FOLD,
+                       "positive_folds": n_pos, "n_folds": n_folds, "n_trials": n_trials, "dsr": float(d["dsr"]), "dsr_min": DSR_MIN,
+                       "sr_per_trade": float(d.get("sr_per_period") or 0.0), "sr0_expected_max": d.get("sr0_expected_max_per_period"),
+                       "t_pvalue": pv, "bonferroni_p": min(1.0, pv * n_trials), "bonferroni_alpha": BONFERRONI_ALPHA,
+                       "n_taken_total": int(len(taken_r))}}
+
+
+def apply_gate(board: list[dict], n_folds: int = N_FOLDS) -> None:
+    """Attach ``strict_gate`` to every ok genome in place (n_trials = all ok genomes of the run); drops raw arrays."""
+    ok = [v for v in board if v["metrics"].get("status") == "ok"]
+    srs = [_sr(v["metrics"].get("_taken_r", [])) for v in ok]
+    for v in ok:
+        v["metrics"]["strict_gate"] = strict_gate(v["metrics"], v["metrics"].get("_taken_r", np.array([])), srs, n_folds)
+    for v in board:
+        v["metrics"].pop("_taken_r", None)
 
 
 def mutate(g: dict[str, str], rng: random.Random) -> tuple[dict[str, str], str]:
@@ -257,10 +324,13 @@ def evolve(data: pd.DataFrame, meta: dict, generations: int = 3, seed: int = 11,
         if v["metrics"].get("status") == "ok" and bt not in by_bt:
             by_bt[bt] = {"best_genome": v["genome_id"], "fitness": v["metrics"]["fitness"], "ev": v["metrics"]["ev_r_per_opportunity"],
                          "brier_skill": v["metrics"]["brier_skill"]}
+    apply_gate(board, len(fs))
     winners = [v for v in board if v["metrics"].get("beats_baseline")]
+    strict = [v for v in board if (v["metrics"].get("strict_gate") or {}).get("passed")]
     return {"leaderboard": board, "by_bar_type": by_bt, "best": board[0] if board else None,
             "best_beating_baseline": winners[0] if winners else None,
-            "no_model_beats_baseline": not winners, "folds": [{"fold": k, "n_train": int(len(tr)), "n_test": int(len(te)),
+            "best_passing_strict_gate": strict[0] if strict else None, "gate_version": GATE_VERSION,
+            "no_model_beats_baseline": not winners, "no_model_passes_strict_gate": not strict, "folds": [{"fold": k, "n_train": int(len(tr)), "n_test": int(len(te)),
                                                               "test_from": int(data.t.iloc[te[0]]), "test_to": int(data.t.iloc[te[-1]])} for k, tr, te in fs],
             "data": meta, "generations": generations, "seed": seed}
 
@@ -275,9 +345,11 @@ def record(result: dict[str, Any], path=None, now: int | None = None, oos: pd.Da
     now = now or int(time.time())
     run_id = hashlib.sha256(f"{result['data'].get('data_hash')}|{result['seed']}|{result['generations']}|{now}".encode()).hexdigest()[:12]
     prev = champion(path)
-    chal = result.get("best_beating_baseline")
-    decision = "no_challenger_beats_baseline"
+    chal = result.get("best_passing_strict_gate")
+    decision = "no_challenger_beats_baseline" if not result.get("best_beating_baseline") else "no_challenger_passes_strict_gate"
     new_champ = prev
+    if prev is not None and not (prev.get("metrics", {}).get("strict_gate") or {}).get("passed"):
+        prev = None  # a champion crowned under an older/looser gate never blocks a strict-gate challenger
     if chal:
         if prev is None or chal["metrics"]["fitness"] > prev["metrics"]["fitness"]:
             decision = "challenger_becomes_research_champion"
@@ -326,3 +398,40 @@ def oos_predictions(data: pd.DataFrame, g: dict[str, str], n_folds: int = N_FOLD
                                    "outcome": X.outcome, "r": X.r, "p": d["p"], "ev_r": d["ev_r"], "take": d["take"],
                                    "conformal_qhat": lo, "fold": k, "calibrator": mm.calibrator.kind}))
     return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+
+def regate(run: dict, data: pd.DataFrame, path=None, now: int | None = None, data_hash: str | None = None) -> dict[str, Any]:
+    """Re-evaluate every genome of a stored run on the same rebuilt data and folds under the strict gate.
+    If the stored champion came from this run and fails, it is demoted to research-only (champion.json removed,
+    demotion record written). Never promotes anything."""
+    if data_hash and run["data"].get("data_hash") and data_hash != run["data"]["data_hash"]:
+        raise ValueError("rebuilt data hash differs from the run's data hash; refusing to re-gate on different data")
+    fs = folds(data, len(run.get("folds") or []) or N_FOLDS)
+    board = []
+    for v in run["leaderboard"]:
+        if v["metrics"].get("status") != "ok":
+            continue
+        m = evaluate_genome(data, v["genome"], fs)
+        board.append({"genome_id": v["genome_id"], "genome": v["genome"], "metrics": m,
+                      "stored_fitness": v["metrics"].get("fitness")})
+    apply_gate(board, len(fs))
+    d = evo_dir(path)
+    champ = champion(path)
+    target = (run.get("best_beating_baseline") or {}).get("genome_id")
+    entry = next((b for b in board if b["genome_id"] == target), None)
+    g = (entry or {}).get("metrics", {}).get("strict_gate")
+    out = {"run_id": run["run_id"], "gate_version": GATE_VERSION, "regated_at": now or int(time.time()), "n_trials": len(board),
+           "genome_id": target, "strict_gate": g, "reproduced_fitness": (entry or {}).get("metrics", {}).get("fitness"),
+           "stored_fitness": (entry or {}).get("stored_fitness"), "any_genome_passes": any(b["metrics"]["strict_gate"]["passed"] for b in board),
+           "leaderboard_gate": [{"genome_id": b["genome_id"], "passed": b["metrics"]["strict_gate"]["passed"],
+                                 "failed": b["metrics"]["strict_gate"]["failed"]} for b in board],
+           "execution_permission": "none", "promoted_to_execution": False}
+    if champ and champ.get("run_id") == run["run_id"] and g is not None and not g["passed"]:
+        out["decision"] = "champion_demoted_to_research_only"
+        out["reason"] = "fails evo8 strict gate: " + ", ".join(g["failed"])
+        (d / f"demoted_{run['run_id']}.json").write_text(json.dumps(_clean({**champ, "status": "research_only", "demotion": out}), default=str))
+        (d / "champion.json").unlink()
+    else:
+        out["decision"] = "champion_retained" if g and g["passed"] else "not_champion"
+    (d / f"regate_{run['run_id']}.json").write_text(json.dumps(_clean(out), default=str))
+    return out

@@ -225,10 +225,35 @@ def evolution() -> dict[str, Any]:
           | {"metrics": {k: x for k, x in (v.get("metrics") or {}).items() if k != "folds"}} for v in run["leaderboard"]]
     return {"status": "ok", "run_id": run["run_id"], "created_at": run["created_at"], "code_sha": run.get("code_sha"),
             "decision": run["decision"], "no_model_beats_baseline": run["no_model_beats_baseline"], "by_bar_type": run["by_bar_type"],
+            "no_model_passes_strict_gate": run.get("no_model_passes_strict_gate"), "gate_version": run.get("gate_version"),
+            "strict_gate_rules": _gate_rules(), "demoted": _demoted(),
             "folds": run["folds"], "data": run["data"], "leaderboard": lb, "champion": champion(), "genes": GENES,
             "promoted_to_execution": False, "execution_permission": EXECUTION_PERMISSION,
             "freshness": {"label": "historical", "last_bar_end": last, "age_s": (now - last) if last else None,
                           "source": "walk-forward OOS on a fixed feed snapshot", "computed_at": now}}
+
+
+def _gate_rules() -> dict[str, Any]:
+    from atlas.ml import evolution as E
+    return {"gate_version": E.GATE_VERSION, "min_trades_per_fold": E.MIN_TRADES_PER_FOLD, "majority_folds_positive": True,
+            "dsr_min": E.DSR_MIN, "bonferroni_alpha": E.BONFERRONI_ALPHA, "n_trials": "all genomes evaluated in the run"}
+
+
+def _demoted() -> list[dict[str, Any]]:
+    import json as _j
+    from atlas.ml.evolution import evo_dir
+    d = evo_dir()
+    out = []
+    for p in sorted(d.glob("demoted_*.json")) if d.exists() else []:
+        try:
+            x = _j.loads(p.read_text())
+        except ValueError:
+            continue
+        dm = x.get("demotion") or {}
+        out.append({"run_id": x.get("run_id"), "genome_id": x.get("genome_id"), "status": x.get("status"), "reason": dm.get("reason"),
+                    "gate_version": dm.get("gate_version"), "regated_at": dm.get("regated_at"),
+                    "values": (dm.get("strict_gate") or {}).get("values")})
+    return out
 
 
 @router.post("/evolution/run")
