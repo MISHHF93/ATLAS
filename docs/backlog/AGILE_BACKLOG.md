@@ -27,10 +27,10 @@ local experiment history. See the [implementation map](../architecture/UNIVERSAL
    `financial_datasets_mcp`, and `fin_data_mcp`), mutating server rejection
    (`irohan0/quant-mcp`), FRED training prohibition, and deterministic
    `DataQualityReport` (`src/atlas/marketdata/quality.py`).
-3. Authoritative `MarketCalendar` (`src/atlas/models/calendars.py`) for traditional
+3. Authoritative `MarketCalendar` (`src/atlas/ai/models/calendars.py`) for traditional
    exchange sessions (auctions, holidays, early closes, maintenance) and 24/7 crypto
    calendars (funding windows, maintenance), plus causal regime classification
-   (`src/atlas/models/regimes.py`).
+   (`src/atlas/ai/models/regimes.py`).
 4. Deterministic control-plane rulebook and remaining-room engine
    (`src/atlas/control/rules.py`) with default-deny on unconfigured fields and
    strict isolation from LLMs.
@@ -51,7 +51,7 @@ local experiment history. See the [implementation map](../architecture/UNIVERSAL
 1. **Module 02 Real-Time Market Composition & Streaming Engine (`src/atlas/marketdata/live_stream.py` & `src/atlas/api/ws.py`)**:
    - 10,000-slot lock-free `OrderBookRingBuffer` (`collections.deque(maxlen=10000)`) with causal `exchange_timestamp <= system_receipt_timestamp <= as_of` verification.
    - Streaming Rolling VPIN, Top-5 L2 OFI (`ofi` and `ofi_z`), Kyle's $\lambda$, and 500ms `competition` staleness circuit breaker over `/ws/market-stream`.
-2. **Custom Microstructure & Whale Policy Model (`src/atlas/models/whale_policy.py`) & Bracket Order Bridge (`src/atlas/control/engine.py`)**:
+2. **Custom Microstructure & Whale Policy Model (`src/atlas/ai/models/whale_policy.py`) & Bracket Order Bridge (`src/atlas/control/engine.py`)**:
    - Triple-Barrier labeling + Purged/Embargoed Walk-Forward CV outputting air-gapped `StrategySignal` intents (`execution_permission == "none"`).
    - `ActionableControlPlaneEngine.submit_whale_signal()` enforcing 0.50%–0.75% equity risk sizing, Remaining-Room HUD cushions, mandatory ATR stops, 1.5x VPIN stop widening (`VPIN > 0.45`), and toxicity quote pause (`VPIN > 0.70`).
 3. **4-Role Client Segment Taxonomy (`src/atlas/api/rbac.py` & `frontend/src/context/RoleContext.tsx`)**:

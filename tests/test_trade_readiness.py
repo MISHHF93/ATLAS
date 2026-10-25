@@ -91,7 +91,7 @@ def test_current_failure_modes_keep_the_light_withheld() -> None:
 
 
 def test_trade_readiness_route_submits_nothing() -> None:
-    source = Path("src/atlas/models/trade_readiness.py").read_text(encoding="utf-8")
+    source = Path("src/atlas/ai/models/trade_readiness.py").read_text(encoding="utf-8")
     assert "submit_order" not in source
     assert "process_strategy_signal" not in source
     assert "ActionableControlPlane" not in source

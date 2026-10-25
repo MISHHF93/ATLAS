@@ -36,7 +36,7 @@ from atlas.models.drift_detection import (
     create_drift_monitor,
     create_performance_monitor,
 )
-from atlas.models.schemas import Record, Text
+from atlas.schemas import Record, Text
 from atlas.models.transformer_forecaster import FittedTransformerModel
 from atlas.models.uncertainty_calibration import UncertaintyAwareCalibration
 

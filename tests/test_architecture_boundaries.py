@@ -97,7 +97,7 @@ def test_websocket_pushes_without_client_ping_and_cleans_up():
 
 
 def test_models_cannot_import_brokers_or_dispatch_orders():
-    root = Path(__file__).resolve().parents[1] / "src/atlas/models"
+    root = Path(__file__).resolve().parents[1] / "src/atlas/ai/models"
     for path in root.glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):

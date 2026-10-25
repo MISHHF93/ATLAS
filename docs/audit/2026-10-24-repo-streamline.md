@@ -103,3 +103,11 @@ Deferred (behaviour-sensitive or not identical): other same-name pairs listed ab
   - `symbol_info`: `feeds.udf` uses the AtlasFeed instrument registry; `api.udf` uses the desk asset catalog.
   - No change was made. The pairs are recorded here so they are not re-flagged.
 - **Untested packages now covered** by `tests/test_untested_packages.py` (8 tests): experiments, fundamentals, main (import only, no start), lifecycle and backlog_tracker. `integrations` is left to the integrations worker.
+
+## Pass 3 outcome (atlas-unify-3)
+- **Moved with `git mv`:** `atlas.models` → `atlas.ai.models`.
+- **Old import paths still work.** `src/atlas/_aliases.py` is an import hook installed from `atlas/__init__`. It maps `atlas.models.*` to the same module objects as the new paths, so there is no duplicate state. Old imports, `mock.patch` targets and existing pickles all still resolve.
+- **Callers outside `atlas.ai` were left unchanged** so other workers' branches rebase cleanly. Code inside `atlas.ai`, the `pyproject` entry point `atlas-ml`, and path strings in docs and tests now use the canonical paths. `frontend/app/AtlasTerminal.tsx` keeps its old path strings while chart-2 is working in that file.
+- **Shared primitives moved:** `atlas.models.schemas` now lives at neutral `atlas.schemas`, with both old paths aliased. The control plane imports it directly, so `import atlas.control` still loads nothing from `atlas.ai`; the import-boundary test is unchanged and passes.
+- **Tests:** `tests/test_ai_aliases.py` (4 tests).
+- **Deferred:** `atlas.intel` stays in place until chart-2 and evo-8 are done (both are actively editing it). Moving `atlas.ml` is deferred too because the evo workers own files under it.

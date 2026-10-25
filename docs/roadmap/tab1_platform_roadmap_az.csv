@@ -11,7 +11,7 @@ I,Integrations & MCP Isolation,src/atlas/integrations,"Quarantined tools, read-o
 J,Journaling & Immutable Audit Trails,src/atlas/journal,"SQLite event store, decision checkpoints, order logs",Both,Implemented+tested,Audit Gate,P0
 K,Key Management & Secret Scrubbing,src/atlas/keys,"Signing keys, zero-leak credential masking",Both,Partial,Security Scan,P0
 L,Liquidity Analysis & Depth Modeling,src/atlas/liquidity,"L2/L3 order book reconstruction, Kyle's Lambda impact models",Both,Partial,Pytest,P1
-M,Machine Learning & Challenger Benchmarks (CB-01..06),src/atlas/models,"GBDT, Boosted Stump, Ridge, Tick GBDT & Anti-Gravity Self-Training; DSR >= 0.95 & Prop Loss L(theta)",Both,Implemented+tested,Walk-Forward + DSR,P0
+M,Machine Learning & Challenger Benchmarks (CB-01..06),src/atlas/ai/models,"GBDT, Boosted Stump, Ridge, Tick GBDT & Anti-Gravity Self-Training; DSR >= 0.95 & Prop Loss L(theta)",Both,Implemented+tested,Walk-Forward + DSR,P0
 N,Non-Custodial Safety & Risk Bounds,src/atlas/risk,"Single-day profit consistency, trailing drawdown floors",Both,Implemented+tested,Deterministic Gate,P0
 O,Order Types & Execution Tactics,src/atlas/execution/tactics,"Almgren-Chriss TWAP/VWAP, iceberg, ATR bracket orders",Both,Partial,Pytest,P1
 P,Probability Calibration & ECE Benchmark Gate,src/atlas/calibration,"Empirical bin / Platt scaling, isotonic calibration, Brier <= 0.18 & ECE <= 0.035",Both,Implemented+tested,Calibration Gate,P1

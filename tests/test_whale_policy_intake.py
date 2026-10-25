@@ -1,4 +1,4 @@
-"""Tests for ATLAS Autonomous Whale Model Training (`src/atlas/models/whale_policy.py`),
+"""Tests for ATLAS Autonomous Whale Model Training (`src/atlas/ai/models/whale_policy.py`),
 Microstructure Feature Extractor (`src/atlas/features/microstructure.py`), and
 Deterministic Control Plane Signal Intake & Bracket Order Bridge (`src/atlas/control/engine.py`).
 """

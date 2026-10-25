@@ -560,7 +560,7 @@ pytest tests/
 pytest tests/test_transformer_forecaster.py
 
 # Run with coverage
-pytest tests/ --cov=src/atlas/models --cov=src/atlas/control --cov=src/atlas/features
+pytest tests/ --cov=src/atlas/ai/models --cov=src/atlas/control --cov=src/atlas/features
 ```
 
 ## Dependencies

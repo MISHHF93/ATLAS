@@ -103,7 +103,7 @@ side effects at a pinned commit before allowlisting any method.
    no-lookahead split rules. Obtain data/legal approval for retention and model
    training before collection. If approval is absent, stop at synthetic tests.
 2. Define `DataSource`/`ReadOnlyDataProvider` and provenance records in
-   `src/atlas/models/providers.py` and `src/atlas/models/schemas.py`; add a
+   `src/atlas/ai/models/providers.py` and `src/atlas/schemas.py`; add a
    provider capability only for implemented, tested behavior. Create
    `src/atlas/marketdata/` adapters for explicitly allowlisted data tools.
 3. Add deterministic validators/calendar interfaces and a quality report in
@@ -116,7 +116,7 @@ side effects at a pinned commit before allowlisting any method.
    responses.
 5. Preregister one baseline-versus-tree experiment and regime taxonomy in
    `docs/research/experiments/`, then implement the walk-forward runner in
-   `src/atlas/models/experiments.py`/`evaluation.py`. Keep regimes causal and
+   `src/atlas/ai/models/experiments.py`/`evaluation.py`. Keep regimes causal and
    include `unknown`; report both overall and per-regime results. No online
    weight mutation, automatic promotion or ensemble.
 6. Add mocked MCP contract tests before any network test: exact tool allowlist,

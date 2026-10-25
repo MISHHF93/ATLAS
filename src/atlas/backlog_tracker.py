@@ -276,7 +276,7 @@ def build_master_todo_backlog_report(repo_root: Path | None = None) -> dict[str,
             "phase": "Phase 4 · Autonomous Whale ML",
             "title": "WhalePolicyModel (Triple-Barrier + Purged CV) & Control Plane Bracket Bridge",
             "status": "COMPLETED",
-            "module_path": "src/atlas/models/whale_policy.py | src/atlas/control/engine.py",
+            "module_path": "src/atlas/ai/models/whale_policy.py | src/atlas/control/engine.py",
             "verification": "0.50%-0.75% risk cap, mandatory ATR stop, VPIN > 0.45 1.5x widening, VPIN > 0.70 pause",
         },
         {
@@ -318,7 +318,7 @@ def build_master_todo_backlog_report(repo_root: Path | None = None) -> dict[str,
             "title": "Preregistered Microstructure Feature Ablations & Second Holdout Calibration",
             "status": "COMPLETED",
             "category": "Quant Evaluation",
-            "module_path": "src/atlas/backlog_tracker.py | src/atlas/models/evaluation.py",
+            "module_path": "src/atlas/backlog_tracker.py | src/atlas/ai/models/evaluation.py",
             "summary": (
                 "Evaluated ABL-01..ABL-04 (dropping VPIN, OFI_z, Kyle's Lambda, Hawkes) across "
                 "BTC-USD, ETH-USD (4h), and NVDA (1h) holdouts with human review persistence."
@@ -344,7 +344,7 @@ def build_master_todo_backlog_report(repo_root: Path | None = None) -> dict[str,
             "title": "Cloud Training Job Reconciler, Budget/Time Enforcer & SHA-256 Checkpointing",
             "status": "COMPLETED",
             "category": "ML Infrastructure",
-            "module_path": "src/atlas/models/training.py | src/atlas/backlog_tracker.py",
+            "module_path": "src/atlas/ai/models/training.py | src/atlas/backlog_tracker.py",
             "summary": (
                 "Enforces region/quota/privacy checks, FRED training firewall, wall-clock & USD budget "
                 "caps, cancellation hooks, and deterministic SHA-256 model checkpointing."
@@ -357,7 +357,7 @@ def build_master_todo_backlog_report(repo_root: Path | None = None) -> dict[str,
             "title": "Apache-2.0 Foundation Model License Gate (Chronos-2 Allowed; TimesFM/Moirai Blocked)",
             "status": "COMPLETED",
             "category": "Licensing & Compliance",
-            "module_path": "src/atlas/models/adapters.py | src/atlas/backlog_tracker.py",
+            "module_path": "src/atlas/ai/models/adapters.py | src/atlas/backlog_tracker.py",
             "summary": (
                 "Verifies Apache-2.0 license eligibility for Chronos-2 zero-shot challenger while "
                 "permanently blocking non-commercial TimesFM 3.0 and Moirai 2.0 weights."
@@ -370,7 +370,7 @@ def build_master_todo_backlog_report(repo_root: Path | None = None) -> dict[str,
             "title": "Horizon-Specific Costed Ensemble Weight Gate (15m, 1h, 4h, 1D)",
             "status": "COMPLETED",
             "category": "Ensemble Orchestration",
-            "module_path": "src/atlas/models/orchestrator.py | src/atlas/backlog_tracker.py",
+            "module_path": "src/atlas/ai/models/orchestrator.py | src/atlas/backlog_tracker.py",
             "summary": (
                 "Enables ensemble weights only after costed OOS Sharpe (2.69) beats both naive baseline "
                 "(0.72) and best individual member (2.48); promotion remains human-gated."

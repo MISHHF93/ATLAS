@@ -20,7 +20,7 @@ from typing import Literal
 import numpy as np
 from pydantic import AwareDatetime, Field
 
-from atlas.models.schemas import Probability, Record, Text
+from atlas.schemas import Probability, Record, Text
 
 
 @dataclass(frozen=True)

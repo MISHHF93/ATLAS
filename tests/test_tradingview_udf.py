@@ -152,7 +152,7 @@ def test_pine_vwap_ignores_future_prices() -> None:
 
 
 def test_chart_policy_signal_cannot_submit() -> None:
-    source = (ROOT / "src" / "atlas" / "models" / "chart_policy.py").read_text(encoding="utf-8")
+    source = (ROOT / "src" / "atlas" / "ai" / "models" / "chart_policy.py").read_text(encoding="utf-8")
     assert "submit_order" not in source
     assert "process_strategy_signal" not in source
     assert "ActionableControlPlane" not in source

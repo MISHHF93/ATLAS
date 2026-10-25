@@ -33,7 +33,7 @@ Status values: `scaffold`, `selected`, `blocked`, `rejected`. Nothing here is co
 ## Universal research foundation update � 2026-10-19
 
 The earlier rows describe vendor adoption, not the complete current module set.
-`src/atlas/models/` now implements provider contracts/discovery, runtime controls,
+`src/atlas/ai/models/` now implements provider contracts/discovery, runtime controls,
 instrument and horizon registries, baseline forecasting, research orchestration,
 calibration/evaluation helpers, immutable model metadata with research rollback,
 and SQLite experiment history. No additional vendor is connected. Training,

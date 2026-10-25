@@ -47,7 +47,7 @@ flowchart TD
     S -. separate future approval boundary .-> C[Deterministic control plane]
 ```
 
-`src/atlas/models/providers.py` uses small Python protocols rather than a giant
+`src/atlas/ai/models/providers.py` uses small Python protocols rather than a giant
 base class with unsupported methods. `PredictionProvider` serves local tabular
 models and cloud endpoints; location is metadata, not a second incompatible
 prediction payload. `TrainingProvider` has submit/status/cancel. Embedding and

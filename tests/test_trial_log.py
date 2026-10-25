@@ -60,7 +60,7 @@ def test_a_damaged_line_stays_in_place(tmp_path: Path) -> None:
 
 
 def test_trial_log_source_cannot_submit() -> None:
-    source = Path("src/atlas/models/trial_log.py").read_text(encoding="utf-8")
+    source = Path("src/atlas/ai/models/trial_log.py").read_text(encoding="utf-8")
     assert "submit_order" not in source
     assert "process_strategy_signal" not in source
     assert "ActionableControlPlane" not in source

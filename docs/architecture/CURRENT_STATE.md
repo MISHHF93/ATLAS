@@ -12,7 +12,7 @@ ATLAS is a dual-track research and paper desk: a deterministic Python control pl
 
 1. **Open-Market Stock & ETF Trading Desk (`open_market` track)**
    - **Universe**: U.S. Equities & Benchmark ETFs on NYSE Arca & Nasdaq (`SPY`, `NVDA`, `AAPL`, `MSFT`, `QQQ`, `TSLA`).
-   - **Calendars & Fundamentals**: Regular NYSE/Nasdaq session schedules (`src/atlas/models/calendars.py`) and SEC EDGAR as-filed XBRL facts (`src/atlas/marketdata/sec_edgar.py`, `acceptance_time <= as_of`). Equity chart bars come from Yahoo's public chart API when it answers. Polygon, Databento, and broker sessions are not configured.
+   - **Calendars & Fundamentals**: Regular NYSE/Nasdaq session schedules (`src/atlas/ai/models/calendars.py`) and SEC EDGAR as-filed XBRL facts (`src/atlas/marketdata/sec_edgar.py`, `acceptance_time <= as_of`). Equity chart bars come from Yahoo's public chart API when it answers. Polygon, Databento, and broker sessions are not configured.
 2. **Prop Trading Competition & Funded Challenge Desk (`competition` track)**
    - **Universe**: 24/7 Prop Competition Perpetuals (`BTC-USD`, `ETH-USD`, `SOL-USD`) and funded evaluation books.
    - **Deterministic Prop Rulebook (`src/atlas/control/rules.py` & `engine.py`)**: Enforces `$100,000` evaluation tracking (`$101,850` current equity), `4.0%` daily loss circuit breaker, `8.0%` trailing drawdown floor, `<= 35%` single-day profit consistency rule, `>= 5` minimum trading days, `0.50%–0.75%` per-trade fractional risk cap, mandatory ATR/structure stop-loss distances, and a `500ms` feed staleness circuit breaker.
@@ -38,7 +38,7 @@ ATLAS is a dual-track research and paper desk: a deterministic Python control pl
 ## 3. Backend Modules & Endpoints (`src/atlas/`)
 
 - **`src/atlas/marketdata/live_stream.py` & `src/atlas/api/ws.py`**: 10,000-slot lock-free `OrderBookRingBuffer` (`collections.deque(maxlen=10000)`), `LiveMarketDataGateway`, and `/ws/market-stream` WebSocket broadcaster (`execution_permission: none`).
-- **`src/atlas/models/whale_policy.py` & `src/atlas/control/engine.py`**: Custom Microstructure & Whale Policy Model (`WhalePolicyModel`) trained with Triple-Barrier labeling and purged walk-forward CV, paired with deterministic `ActionableControlPlaneEngine.submit_whale_signal()` bracket intake.
+- **`src/atlas/ai/models/whale_policy.py` & `src/atlas/control/engine.py`**: Custom Microstructure & Whale Policy Model (`WhalePolicyModel`) trained with Triple-Barrier labeling and purged walk-forward CV, paired with deterministic `ActionableControlPlaneEngine.submit_whale_signal()` bracket intake.
 - **`src/atlas/features/microstructure.py`**: Canonical mathematical kernels for Rolling VPIN, Multi-Level L2 OFI, Streaming & Ridge Kyle's $\lambda$, Hawkes Self-Exciting Intensity $\lambda(t)$, and `compute_institutional_quantitative_measurements()` (`QM-01..QM-08`).
 - **`src/atlas/backlog_tracker.py`**: Master To-Do & Agile Backlog Execution Engine verifying `M01..M06` and `TODO-01..TODO-07` (`GET /api/backlog/todos` and `POST /api/backlog/todos/verify`).
 

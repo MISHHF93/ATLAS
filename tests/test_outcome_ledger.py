@@ -117,7 +117,7 @@ def test_one_open_forecast_per_symbol_and_tracks_stay_separate() -> None:
 
 
 def test_outcome_ledger_route_submits_nothing() -> None:
-    source = Path("src/atlas/models/outcome_ledger.py").read_text(encoding="utf-8")
+    source = Path("src/atlas/ai/models/outcome_ledger.py").read_text(encoding="utf-8")
     assert "submit_order" not in source
     assert "process_strategy_signal" not in source
     assert "ActionableControlPlane" not in source

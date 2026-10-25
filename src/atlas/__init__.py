@@ -4,3 +4,7 @@ Actionable deterministic control-plane execution, regime-aware research, and sel
 """
 
 __version__ = "0.2.0"
+
+from atlas import _aliases as _aliases
+
+_aliases.install()

@@ -12,7 +12,7 @@ from typing import Literal, Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
-from atlas.models.schemas import NonnegativeDecimal, PositiveDecimal, Probability, Record, Text
+from atlas.schemas import NonnegativeDecimal, PositiveDecimal, Probability, Record, Text
 
 
 class TradingRuleBook(Record):

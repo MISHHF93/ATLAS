@@ -11,7 +11,7 @@ flowchart LR
   N --> REG[REGISTRY: 14 components]
   N --> AUD[audit trail var/ai/audit.jsonl]
   REG --> ML[atlas.ml: dataset, features, CV, train, registry, evolution, selector, drift, retrieval]
-  REG --> MOD[atlas.models: serving, challengers, continuous learning, chart reader, calibration]
+  REG --> MOD[atlas.ai.models: serving, challengers, continuous learning, chart reader, calibration]
   REG --> INT[atlas.intel + atlas.ai.assistant + LLM providers]
   REG --> EXT[atlas.ext: dossier, personas, debate pipeline]
   MW -->|execution_permission = none| OUT[advisory output]

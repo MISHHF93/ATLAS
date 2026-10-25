@@ -23,7 +23,7 @@ from atlas.control.rules import (
     TradingRuleBook,
     evaluate_trading_rules,
 )
-from atlas.models.schemas import Record, Text
+from atlas.schemas import Record, Text
 from atlas.ops.correlation import current as _correlation_id
 
 
