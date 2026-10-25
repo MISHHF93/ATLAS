@@ -412,7 +412,7 @@ class HawkesIntensityReport(Record):
     execution_permission: Literal["none"] = "none"
 
 
-def compute_hawkes_intensity(
+def compute_hawkes_intensity_causal_report(
     event_times_sec: tuple[float, ...] | list[float],
     *,
     eval_time_sec: float,
@@ -443,5 +443,9 @@ def compute_hawkes_intensity(
         iceberg_clustering_detected=(lam_t >= clustering_threshold) or (branching >= 0.75 and len(causal_events) >= 3),
         stationarity_valid=branching < 1.0,
     )
+
+
+# Deprecated name; use ``compute_hawkes_intensity_causal_report``. Not the same as atlas.whale_saas_az.compute_hawkes_intensity.
+compute_hawkes_intensity = compute_hawkes_intensity_causal_report
 
 

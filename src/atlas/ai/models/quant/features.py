@@ -45,6 +45,10 @@ def dataset(bars: dict[str, pd.DataFrame], horizon: int = 5, cost_bps: float = 1
     return out
 
 
-def bars_frame(bars) -> pd.DataFrame:
+def bars_frame_close_volume_time_index(bars) -> pd.DataFrame:
     return pd.DataFrame({"close": [b.close for b in bars], "volume": [b.volume for b in bars]},
                         index=pd.DatetimeIndex([b.ts for b in bars]))
+
+
+# Deprecated name; use ``bars_frame_close_volume_time_index`` (close+volume, DatetimeIndex). Not the same as atlas.ml.features.bars_frame.
+bars_frame = bars_frame_close_volume_time_index

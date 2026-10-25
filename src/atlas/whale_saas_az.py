@@ -168,7 +168,7 @@ def compute_predatory_square_root_impact(
     }
 
 
-def compute_hawkes_intensity(
+def compute_hawkes_intensity_from_deltas_summary(
     event_deltas_sec: list[float],
     mu_0: float = 0.50,
     alpha: float = 0.85,
@@ -192,6 +192,10 @@ def compute_hawkes_intensity(
         "iceberg_clustering_detected": bool(float(rep.intensity_lambda_t) >= 1.85),
         "execution_permission": "none",
     }
+
+
+# Deprecated name; use ``compute_hawkes_intensity_from_deltas_summary``. Not the same as atlas.marketdata.microstructure.compute_hawkes_intensity.
+compute_hawkes_intensity = compute_hawkes_intensity_from_deltas_summary
 
 
 def compute_rl_execution_policy(

@@ -31,6 +31,16 @@ def ai_component(name: str) -> dict[str, Any]:
         raise HTTPException(404, f"unknown AI component {name}") from None
 
 
+@router.get("/helpers")
+def ai_helpers(component: str | None = None, family: str | None = None) -> dict[str, Any]:
+    """Same-named ML helper variants, what each does, and which components/pipelines use it."""
+    from atlas.ai.helpers_registry import HELPERS, as_dict, families
+
+    rows = [as_dict(h) for h in HELPERS
+            if (component is None or component in h.used_by_components) and (family is None or h.family == family)]
+    return {"helpers": rows, "families": families(), "execution_permission": EXECUTION_PERMISSION}
+
+
 @router.get("/audit")
 def ai_audit(limit: int = 100) -> dict[str, Any]:
     return {"events": read_audit(max(1, min(limit, 1000))), "execution_permission": EXECUTION_PERMISSION}

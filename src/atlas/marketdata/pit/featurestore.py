@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 
-class FeatureStore:
+class PointInTimeFeatureStoreSQLite:
     def __init__(self, path: str = ":memory:"):
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.execute("""CREATE TABLE IF NOT EXISTS features (entity TEXT, fset TEXT, event_ts TEXT, available_at TEXT,
@@ -50,3 +50,7 @@ class FeatureStore:
         idx = pd.DatetimeIndex(times)
         rows = [self.get(entity, fset, t.to_pydatetime()) or {} for t in idx]
         return pd.DataFrame(rows, index=idx)
+
+
+# Deprecated name; use ``PointInTimeFeatureStoreSQLite``. Not the same as atlas.features.feature_store.FeatureStore.
+FeatureStore = PointInTimeFeatureStoreSQLite

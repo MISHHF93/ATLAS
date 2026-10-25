@@ -18,7 +18,7 @@ def _label_end(t: np.ndarray, horizon: int) -> np.ndarray:
     return uniq[np.minimum(rank + horizon, len(uniq) - 1)]
 
 
-def purged_walk_forward(times, n_splits: int = 5, horizon: int = 5, embargo: int = 0,
+def purged_walk_forward_splits_by_time(times, n_splits: int = 5, horizon: int = 5, embargo: int = 0,
                         min_train_frac: float = 0.3) -> Iterator[tuple[np.ndarray, np.ndarray]]:
     t = np.asarray(times)
     uniq = np.unique(t)
@@ -31,6 +31,10 @@ def purged_walk_forward(times, n_splits: int = 5, horizon: int = 5, embargo: int
         train = np.where((t < lo) & (end < lo))[0]       # purge labels reaching into test
         if len(train) and len(test):
             yield train, test
+
+
+# Deprecated name; use ``purged_walk_forward_splits_by_time`` (index splitter). Not the same as atlas.research.vertical_slice.purged_walk_forward.
+purged_walk_forward = purged_walk_forward_splits_by_time
 
 
 def purged_kfold(times, n_splits: int = 5, horizon: int = 5, embargo: int = 5) -> Iterator[tuple[np.ndarray, np.ndarray]]:

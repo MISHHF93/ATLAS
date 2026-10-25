@@ -1070,7 +1070,7 @@ def _dataset_fingerprint(rows: Sequence[FeatureRow], symbol: str, config: SliceC
     return digest.hexdigest()
 
 
-def purged_walk_forward(
+def purged_walk_forward_model_selection_by_rows(
     rows: Sequence[FeatureRow],
     symbol: str,
     *,
@@ -1282,6 +1282,10 @@ def purged_walk_forward(
             "of the winner or deployment approval."
         ),
     }
+
+
+# Deprecated name; use ``purged_walk_forward_model_selection_by_rows`` (fits and scores candidates). Callers in this module keep using the old global name so tests that monkeypatch it still apply.
+purged_walk_forward = purged_walk_forward_model_selection_by_rows
 
 
 def _drop_feature_columns(

@@ -98,7 +98,7 @@ def _to_storage_timestamp(value: datetime) -> datetime:
     return _as_utc(value).replace(tzinfo=None)
 
 
-class FeatureStore:
+class VersionedFeatureStoreDuckDBParquet:
     """Centralized feature store using DuckDB and Parquet."""
 
     def __init__(self, store_id: str, db_path: str, parquet_dir: str) -> None:
@@ -483,6 +483,10 @@ class FeatureStore:
             if self._conn:
                 self._conn.close()
                 self._conn = None
+
+
+# Deprecated name; use ``VersionedFeatureStoreDuckDBParquet``. Not the same as atlas.marketdata.pit.featurestore.FeatureStore.
+FeatureStore = VersionedFeatureStoreDuckDBParquet
 
 
 def create_feature_store(

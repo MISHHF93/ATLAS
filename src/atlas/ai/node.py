@@ -68,6 +68,12 @@ REGISTRY: tuple[AIComponent, ...] = (
                 api=("/api/ext/dossier", "/api/ext/personas", "/api/ext/pipeline"),
                 notes="deterministic conviction score, persona scorers, bull/bear debate; risk step is control-plane preview_order"),
     AIComponent("rl_agents", "rl", ("atlas.strategies.rl_agent", "atlas.execution.rl_agent")),
+    AIComponent("quant_models", "ml", ("atlas.ai.models.quant.model", "atlas.ai.models.quant.meta", "atlas.ai.models.quant.evaluate",
+                                       "atlas.ai.models.quant.sleeves", "atlas.ai.models.quant.retrain", "atlas.ai.models.quant.cv",
+                                       "atlas.ai.models.quant.features"),
+                scripts=("atlas-ml",), notes="quant retrain/evaluate/sleeves stack"),
+    AIComponent("vertical_slice", "ml", ("atlas.research.vertical_slice",), api=("/api/research/vertical-slice",),
+                notes="research model selection: frequency baseline, softmax, optional XGBoost"),
 )
 
 
@@ -86,7 +92,10 @@ def component_status(c: AIComponent) -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001 - status probe
             missing.append(f"{m}: {type(exc).__name__}")
     status: Status = "ok" if not missing else ("unavailable" if len(missing) == len(c.modules) else "degraded")
-    return {**asdict(c), "status": status, "missing": missing, "execution_permission": EXECUTION_PERMISSION}
+    from atlas.ai.helpers_registry import helpers_for
+
+    return {**asdict(c), "helpers": helpers_for(c.name), "status": status, "missing": missing,
+            "execution_permission": EXECUTION_PERMISSION}
 
 
 class AdvisoryViolation(RuntimeError):
@@ -156,7 +165,9 @@ class AINode:
     registry: tuple[AIComponent, ...] = field(default=REGISTRY)
 
     def components(self) -> list[dict[str, Any]]:
-        return [asdict(c) | {"execution_permission": EXECUTION_PERMISSION} for c in self.registry]
+        from atlas.ai.helpers_registry import helpers_for
+
+        return [asdict(c) | {"helpers": helpers_for(c.name), "execution_permission": EXECUTION_PERMISSION} for c in self.registry]
 
     def status(self) -> dict[str, Any]:
         rows = [component_status(c) for c in self.registry]
