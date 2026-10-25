@@ -151,3 +151,9 @@ New package `atlas.intel` (EXECUTION_PERMISSION="none") + `/api/intel/*` router 
 - Probe: 540 trials, 0 pass, PBO 0.109, DSR 0 for the top cells. Core 4h walk-forward OOS net +0.039 R [-0.109, +0.186]. Alts and 1h are negative.
 - ML: 4h run 489861863694 has no champion. 1h run 432dba69a77e is a fragile research champion (Brier skill +0.0009). execution_permission none. Markers come from 432dba69a77e.
 - Verify (after rebase on 8ca9375): pytest 1679 passed / 9 skipped; tsc ok; next build ok; route tests 5/5; vertical-text 168/168, 0 instances; local prod curl 200; /api/ai/chart/overlays reports evolution run 432dba69a77e; screenshots /workspace/shots/evo7/.
+
+## Pass 14 / evo8 (2026-10-24, branch atlas-evo-8)
+- Strict gate evo8-strict-1 added (stricter only; risk_policy.yaml untouched). 432dba69a77e demoted to research-only; no research champion.
+- Run d0e147849051: 0/42 genomes pass. Chart 1h resampling from complete 15m hours, labelled.
+- Robustness: CIs span 0, last-fold concentration. Paper only; execution_permission none; no profitability claim.
+- Verify: full pytest (2 threads, ATLAS_FEED_DB unset), tsc, next build, test:routes, check:vertical-text, local prod curl.

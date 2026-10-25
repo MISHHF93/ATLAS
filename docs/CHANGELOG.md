@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-24: branch `atlas-evo-8` (strict evolution gate)
+- (a) `ml/evolution.strict_gate` (gate_version evo8-strict-1, stricter only): beats_baseline + all folds evaluated + >=20 taken trades per fold + positive in a majority of folds + DSR >= 0.95 and Bonferroni p x n_trials < 0.05 over all genomes tried. Champions are crowned only from strict passes.
+  - `scripts/regate_evolution.py`: 432dba69a77e reproduced exactly and was DEMOTED to research-only (failed min_trades_per_fold 2<20, DSR 0.0015, Bonferroni p 1.0). No research champion now.
+- (b) Chart overlays: 1h resampled from complete 15m hours when no stored 1h exists, labelled "1h resampled".
+- (c) Robustness (`research/champion_robustness.py`): block-bootstrap CIs span 0; edge is concentrated in the last fold (115% of taken R) and in alts. No more history exists in the feed. See `docs/research/evo8-champion-robustness.md`.
+  - New evolve run d0e147849051 (evo7_1h, 5 gens, 42 genomes incl. bar types and context genes): 0/42 pass the strict gate. execution_permission none.
+
 ## 2026-10-24: branch `atlas-evo-7` (PDR reversal probe)
 - `research/reversal_probe.py` + `scripts/run_reversal_probe.py`:
   - limit entries, partial targets, time stops, and closed-bar HTF/volatility filters;

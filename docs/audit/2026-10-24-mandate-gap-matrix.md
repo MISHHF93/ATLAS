@@ -82,3 +82,7 @@ so "existing" means "found", not "audited".
 | Broken scripts (5) and setup_evidence recursion | Fixed |
 | Dead modules / generated artifacts / unused deps | Removed (3 files, 5 deps) |
 | AI as one node (`atlas.ai`, `/api/ai/*`, single advisory guard) | Done; physical package move of atlas.ml/models/intel deferred |
+| Evolution gate multiple-testing correction (DSR + Bonferroni), min trades/fold, majority folds | Done (evo8-strict-1) |
+| 432dba69a77e champion | Demoted to research-only (fails strict gate) |
+| Chart 1h from 15m when no stored 1h | Done, labelled resampled |
+| Candidate robustness (bootstrap, stability) | Done; not stable; more history unavailable in feed |
