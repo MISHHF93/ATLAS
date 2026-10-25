@@ -202,6 +202,32 @@ def status(env: dict[str, str] | None = None, probe: bool = False, probes: dict[
                      "detail": reach["detail"], "probe_available": s.probe is not None, "default_on": s.default_on,
                      "signup": s.signup, "notes": s.notes})
     return {"services": rows, "probed": probe, "paper_only": True, "secrets_echoed": False,
+            "data_providers": data_providers(env),
             "execution_permission": EXECUTION_PERMISSION,
             "summary": {"total": len(rows), "configured": sum(r["configured"] for r in rows),
                         "live_refused": [r["id"] for r in rows if r["mode"] == "live_refused"]}}
+
+
+PROVIDER_AUTH = {"alpaca": ("ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY"), "polygon": ("POLYGON_API_KEY",), "tiingo": ("TIINGO_API_KEY",),
+                 "twelvedata": ("TWELVEDATA_API_KEY",), "finnhub": ("FINNHUB_API_KEY",), "tradier": ("TRADIER_ACCESS_TOKEN",),
+                 "alphavantage": ("ALPHAVANTAGE_API_KEY",), "oanda": ("OANDA_API_TOKEN",), "databento": ("DATABENTO_API_KEY",)}
+
+
+def data_providers(env: dict[str, str]) -> list[dict]:
+    """Bar/quote provider choice per asset class: priority order and the one in use now (first with its keys set).
+    Alpaca is preferred for US equities/ETFs (IEX, keys) and crypto (keyless history); public sources are fallbacks."""
+    from atlas.feeds.instruments import DEFAULT_INSTRUMENTS
+    seen, out = set(), []
+    for ins in DEFAULT_INSTRUMENTS.values():
+        if ins.asset_class in seen:
+            continue
+        seen.add(ins.asset_class)
+        from atlas.feeds.free_sources import allowed, describe
+        allp = list(ins.provider_priority)
+        pri = [p for p in allp if allowed(p, env)]
+        ready = [p for p in pri if all(_is_set(env, k) for k in PROVIDER_AUTH.get(p, ()))]
+        out.append({"asset_class": ins.asset_class, "example": ins.id, "priority": pri, "active": ready[0] if ready else None,
+                    "fallbacks": ready[1:], "needs_keys": [p for p in pri if p not in ready],
+                    "excluded": [p for p in allp if p not in pri],
+                    "sources": {p: describe(p) for p in allp}})
+    return out

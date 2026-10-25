@@ -34,6 +34,7 @@ def cfg():
 def cfg_dir(tmp_path):
     d = tmp_path / "config"
     shutil.copytree(CONFIG_DIR, d)
+    shutil.copy(CONFIG_DIR.parent.parent / ".env.example", d / ".env.example")  # the single root env template
     return d
 
 

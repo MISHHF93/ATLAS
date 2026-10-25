@@ -13,3 +13,55 @@ router = APIRouter()
 def integrations_status(probe: bool = Query(False)) -> dict[str, Any]:
     from atlas.integrations.registry import status
     return status(probe=probe)
+
+
+# ---- chart sources: Alpaca IEX bars become selectable once ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY are set ----
+CHART_TF = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1d": 86400}
+
+
+def chart_sources(environ: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    from atlas.feeds.providers.alpaca import AlpacaAdapter
+    a = AlpacaAdapter(env=environ)
+    feed = (a.env.get("ALPACA_DATA_FEED") or "iex").lower()
+    return [{"id": "atlas", "label": "ATLAS feed (default)", "available": True, "reason": None},
+            {"id": "alpaca", "label": f"Alpaca {feed.upper()} stock/ETF bars", "available": a.enabled,
+             "reason": None if a.enabled else "not_configured: set ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY in .env, then restart"},
+            {"id": "alpaca_crypto", "label": "Alpaca crypto bars (keyless)", "available": True, "reason": None}]
+
+
+def alpaca_bars(symbol: str, tf: str, limit: int, crypto: bool = False, environ: dict[str, str] | None = None, transport=None, now: float | None = None) -> dict[str, Any]:
+    import time
+    from atlas.feeds.providers.alpaca import AlpacaAdapter, AlpacaCryptoAdapter
+    if tf not in CHART_TF:
+        return {"status": "error", "reason": "unknown tf", "bars": []}
+    cls = AlpacaCryptoAdapter if crypto else AlpacaAdapter
+    a = cls(env=environ, transport=transport) if transport else cls(env=environ)
+    sym = symbol.upper().strip()
+    if not a.enabled:
+        return {"status": "not_configured", "source": "alpaca", "symbol": sym, "bars": [],
+                "reason": "set ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY in .env, then restart"}
+    end = int(now or time.time())
+    span = CHART_TF[tf] * limit * (5 if tf == "1d" else 4)  # cover nights/weekends
+    try:
+        bars = a.history(sym, tf, end - span, end)[-limit:]
+    except Exception as ex:  # never echo headers/keys
+        return {"status": "error", "source": "alpaca", "symbol": sym, "bars": [], "reason": type(ex).__name__ + ": " + str(ex)[:200]}
+    from atlas.feeds.free_sources import latency as _lat
+    lat = _lat(a.name)
+    return {"status": "ok", "source": a.name, "provider": a.name, "latency": lat, "feed": (a.env.get("ALPACA_DATA_FEED") or "iex"), "symbol": sym, "tf": tf,
+            "execution_permission": "none",
+            "bars": [{"time": b.event_time, "open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume,
+                      "confirmed": b.confirmed, "provider": getattr(b, "provider", a.name), "latency": lat} for b in bars]}
+
+
+@router.get("/chart/sources")
+def api_chart_sources() -> dict[str, Any]:
+    return {"sources": chart_sources()}
+
+
+@router.get("/chart/bars")
+def api_chart_bars(source: str = Query("alpaca"), symbol: str = Query("SPY"), tf: str = Query("15m"),
+                   limit: int = Query(300, ge=10, le=2000)) -> dict[str, Any]:
+    if source not in ("alpaca", "alpaca_crypto"):
+        return {"status": "error", "reason": "use the ATLAS chart for the default feed", "bars": []}
+    return alpaca_bars(symbol, tf, limit, crypto=source == "alpaca_crypto")

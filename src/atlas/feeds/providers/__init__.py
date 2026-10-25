@@ -1,7 +1,8 @@
 """Provider-adapter library. Each module exposes one ProviderAdapter subclass with a Capabilities manifest."""
-from .alpaca import AlpacaAdapter
+from .alpaca import AlpacaAdapter, AlpacaCryptoAdapter
 from .alphavantage import AlphaVantageAdapter
 from .binance import BinanceAdapter
+from .boc import BankOfCanadaFXAdapter
 from .bybit import BybitAdapter
 from .coinbase import CoinbaseAdapter
 from .finnhub import FinnhubAdapter
@@ -18,5 +19,5 @@ from .twelvedata import TwelveDataAdapter
 from .yahoo import YahooAdapter
 
 ALL_ADAPTERS = (BinanceAdapter, CoinbaseAdapter, KrakenAdapter, OKXAdapter, BybitAdapter, YahooAdapter, FREDAdapter,
-                AlpacaAdapter, TiingoAdapter, PolygonAdapter, FinnhubAdapter, TwelveDataAdapter, AlphaVantageAdapter,
-                DatabentoAdapter, IBKRAdapter, OandaAdapter, QuestradeAdapter, TradierAdapter, CMEStub, TMXStub)
+                AlpacaAdapter, AlpacaCryptoAdapter, TiingoAdapter, PolygonAdapter, FinnhubAdapter, TwelveDataAdapter, AlphaVantageAdapter,
+                DatabentoAdapter, IBKRAdapter, OandaAdapter, QuestradeAdapter, TradierAdapter, CMEStub, TMXStub, BankOfCanadaFXAdapter)

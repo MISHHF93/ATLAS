@@ -58,6 +58,17 @@ def _apply_profile(p):
     return apply_limit_profile(p)
 
 
+def _env_example(d: Path) -> Path:
+    """The single env template is the repo-root .env.example; a config-dir copy (tests) wins if it defines variables."""
+    local = d / ".env.example"
+    if local.exists() and parse_env_file(local):
+        return local
+    for up in (d, *d.parents):
+        if (up / ".env.example").exists() and up != d and (up / "pyproject.toml").exists():
+            return up / ".env.example"
+    return local
+
+
 def load_all(config_dir: str | Path, env_file: str | Path | None = None, verify_signature: bool = True) -> LoadedConfig:
     from atlas.control.policy.validate import cross_validate  # local import to avoid cycle
 
@@ -79,7 +90,7 @@ def load_all(config_dir: str | Path, env_file: str | Path | None = None, verify_
             errors.append(f"{name}: {e}")
     if errors:
         raise ConfigError(errors)
-    env_path = Path(env_file) if env_file else d / ".env.example"
+    env_path = Path(env_file) if env_file else _env_example(d)
     cfg = LoadedConfig(
         risk=parsed["risk_policy.yaml"],
         brokers=parsed["brokers.yaml"],

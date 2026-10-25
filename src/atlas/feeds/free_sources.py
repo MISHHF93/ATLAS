@@ -1,0 +1,74 @@
+"""Free-data policy: every market-data provider's cost, latency and limits, and the free-only gate the router applies.
+
+HARD RULE (owner): all data is FREE. Paid providers are never selected, and unofficial/scraped endpoints are off,
+unless ATLAS_ALLOW_PAID_DATA / ATLAS_ALLOW_UNOFFICIAL_DATA is explicitly "true" (neither is set by default; do not set).
+Limits are the providers' published free-tier limits (checked 2026-10-24; see docs/data/free-sources.md)."""
+from __future__ import annotations
+
+import os
+from dataclasses import asdict, dataclass
+from typing import Mapping
+
+
+@dataclass(frozen=True)
+class SourceTerms:
+    cost: str          # free | free_key | free_account | paid
+    latency: str       # realtime | delayed_15m | eod | daily_reference | release
+    limits: str
+    terms_ok: bool     # official API whose terms allow automated personal use
+    register: str = ""  # where to get the free key/account (blank = keyless)
+
+
+SOURCES: dict[str, SourceTerms] = {
+    "alpaca": SourceTerms("free_key", "realtime", "Basic: 200 req/min, 30 WS symbols, IEX only (SIP last 15 min restricted)", True, "https://app.alpaca.markets (paper account)"),
+    "alpaca_crypto": SourceTerms("free", "realtime", "History keyless; 200 req/min", True),
+    "coinbase": SourceTerms("free", "realtime", "Public REST ~10 req/s per IP; WS free", True),
+    "kraken": SourceTerms("free", "realtime", "Public REST ~1 req/s; WS free", True),
+    "binance": SourceTerms("free", "realtime", "Public REST 6000 weight/min; geo-restricted in US/Ontario", True),
+    "okx": SourceTerms("free", "realtime", "Public REST 20 req/2s", True),
+    "bybit": SourceTerms("free", "realtime", "Public REST 600 req/5s per IP; geo-restricted in some regions", True),
+    "polygon": SourceTerms("free_key", "eod", "Massive/Polygon Basic: 5 calls/min, end-of-day, 2 years", True, "https://massive.com"),
+    "tiingo": SourceTerms("free_key", "eod", "Free: 50 req/hour, 1000/day, personal use only; IEX intraday delayed", True, "https://www.tiingo.com"),
+    "finnhub": SourceTerms("free_key", "realtime", "Free: 60 calls/min; US quotes real time, candles limited", True, "https://finnhub.io/register"),
+    "twelvedata": SourceTerms("free_key", "delayed_15m", "Basic: 8 credits/min, 800/day", True, "https://twelvedata.com/register"),
+    "alphavantage": SourceTerms("free_key", "eod", "Free: 25 requests/day", True, "https://www.alphavantage.co/support/#api-key"),
+    "fmp": SourceTerms("free_key", "eod", "Free: 250 calls/day, US only, EOD", True, "https://site.financialmodelingprep.com/register"),
+    "fred": SourceTerms("free_key", "release", "120 req/min", True, "https://fredaccount.stlouisfed.org/apikeys"),
+    "boc_valet": SourceTerms("free", "daily_reference", "No published cap (ATLAS 1 req/s)", True),
+    "oanda": SourceTerms("free_account", "realtime", "Practice account: 120 req/s; FX + CFDs incl. XAU", True, "https://www.oanda.com (demo account)"),
+    "tradier": SourceTerms("free_account", "delayed_15m", "Sandbox: 60 req/min, delayed", True, "https://developer.tradier.com"),
+    "questrade": SourceTerms("free_account", "delayed_15m", "Needs a Questrade account; real-time is a paid data package", True),
+    "yahoo": SourceTerms("free", "delayed_15m", "Unofficial endpoint; no public API terms", False),
+    "databento": SourceTerms("paid", "realtime", "Usage-billed", True),
+    "ibkr": SourceTerms("paid", "realtime", "Needs a funded IBKR account + paid market-data subscriptions", True),
+    "eodhd": SourceTerms("paid", "eod", "Free is 20 calls/day only; useful plans are paid", True),
+    "cme": SourceTerms("paid", "realtime", "Licensed", True),
+    "tmx": SourceTerms("paid", "realtime", "Licensed", True),
+}
+
+
+def _flag(env: Mapping[str, str], k: str) -> bool:
+    return str(env.get(k, "")).strip().lower() in ("1", "true", "on", "yes")
+
+
+def allowed(name: str, env: Mapping[str, str] | None = None) -> bool:
+    """The free-only gate. Unknown providers are refused (fail closed)."""
+    env = os.environ if env is None else env
+    t = SOURCES.get(name)
+    if t is None:
+        return False
+    if t.cost == "paid" and not _flag(env, "ATLAS_ALLOW_PAID_DATA"):
+        return False
+    if not t.terms_ok and not _flag(env, "ATLAS_ALLOW_UNOFFICIAL_DATA"):
+        return False
+    return True
+
+
+def latency(name: str) -> str:
+    t = SOURCES.get(name)
+    return t.latency if t else "unknown"
+
+
+def describe(name: str) -> dict:
+    t = SOURCES.get(name)
+    return {"provider": name, **(asdict(t) if t else {}), "allowed": allowed(name)}

@@ -46,9 +46,9 @@ KRAKEN_BASE = {"BTC": "XBT", "DOGE": "XDG"}
 def crypto_instrument(base: str) -> Instrument:
     sym = f"{base}USDT"
     return Instrument(sym, "crypto", "BINANCE", "USDT", "UTC", "24x7", 0.00000001, 0.00001,
-                      provider_symbols={"binance": sym, "okx": f"{base}-USDT", "kraken": f"{KRAKEN_BASE.get(base, base)}USDT",
+                      provider_symbols={"alpaca_crypto": f"{base}/USD", "binance": sym, "okx": f"{base}-USDT", "kraken": f"{KRAKEN_BASE.get(base, base)}USDT",
                                         "coinbase": f"{base}-USD", "bybit": sym, "yahoo": f"{base}-USD"},
-                      provider_priority=("binance", "okx", "bybit", "kraken"),
+                      provider_priority=("alpaca_crypto", "binance", "okx", "bybit", "kraken"),
                       sanity_providers=("coinbase", "kraken", "okx"), description=f"{base}/USDT spot (UI shows {base}-USD)")
 
 

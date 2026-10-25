@@ -23,6 +23,7 @@ def main(argv: list[str] | None = None, env: dict[str, str] | None = None, probe
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--env-file", default=str(ROOT / ".env"))
+    ap.add_argument("--live-crypto", action="store_true", help="optional live smoke: keyless Alpaca crypto bars (BTC/USD)")
     a = ap.parse_args(argv)
     env = load_env(a.env_file) if env is None else env
     rep = status(env=env, probe=True, probes=probes)
@@ -45,6 +46,12 @@ def main(argv: list[str] | None = None, env: dict[str, str] | None = None, probe
         if not todo:
             print("  nothing missing")
         print(f"\n{rep['summary']['configured']}/{rep['summary']['total']} configured; probes failed: {failed or 'none'}; live refused: {refused or 'none'}")
+    if a.live_crypto:
+        from atlas.api.integrations_api import alpaca_bars
+        r = alpaca_bars("BTCUSDT", "1h", 5, crypto=True, environ=env)
+        print(f"\nLive Alpaca crypto smoke (keyless, read-only): {r['status']} {len(r['bars'])} bars provider={r.get('provider')}")
+        if r["status"] != "ok":
+            failed.append("alpaca_crypto_live")
     return 1 if failed or refused else 0
 
 

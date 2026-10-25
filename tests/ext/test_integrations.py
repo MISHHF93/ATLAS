@@ -57,8 +57,9 @@ def test_env_example_lists_every_var_with_no_secret_values():
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
             keys[k] = v
+    paid = {l.split(": ", 1)[1].split("=", 1)[0] for l in text.splitlines() if l.startswith("# not used (paid): ")}
     for v in registry.ALL_VARS:
-        assert v in keys, v
+        assert v in keys or v in paid, v
     for k, v in keys.items():
         if any(t in k for t in ("KEY", "SECRET", "TOKEN", "WEBHOOK", "CHAT_ID")) or k == "ATLAS_SEC_USER_AGENT":
             assert v == "", k

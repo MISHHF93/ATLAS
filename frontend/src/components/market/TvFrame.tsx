@@ -20,7 +20,7 @@ export function TvProvenance({ kind }: { kind: "tradingview" | "atlas" }) {
         color: tv ? "#E69F00" : "#56B4E9",
       }}
     >
-      {tv ? "TradingView display — not ATLAS data" : "ATLAS data"}
+      {tv ? "TradingView: display only, not ATLAS data" : "ATLAS data"}
     </span>
   );
 }

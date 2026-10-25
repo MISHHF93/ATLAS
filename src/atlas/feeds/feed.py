@@ -15,6 +15,7 @@ from .aggregate import aggregate
 from .core import INTERVALS, FeedBar, ProviderAdapter, ProviderError
 from .instruments import Instrument, InstrumentMaster
 from .providers import ALL_ADAPTERS
+from .free_sources import allowed as free_allowed
 from .quality import Quality, assess, find_gaps
 from .store import FeedStore
 
@@ -57,7 +58,7 @@ class AtlasFeed:
         out = []
         for name in inst.provider_priority:
             a = self.registry.get(name)
-            if a and a.enabled and interval in a.caps.intervals and a.health().consecutive_errors < 5:
+            if a and a.enabled and free_allowed(name) and interval in a.caps.intervals and a.health().consecutive_errors < 5:
                 out.append(a)
         return out
 
@@ -68,7 +69,7 @@ class AtlasFeed:
     def fetch(self, instrument: str, interval: str, start: int, end: int, providers: Sequence[str] | None = None) -> tuple[str | None, dict]:
         """Fetch from the first healthy provider in priority order, failing over on error/empty. Ingest into store."""
         inst = self.instruments.get(instrument)
-        cands = [self.registry.get(p) for p in providers] if providers else self.candidates(instrument, interval)
+        cands = [self.registry.get(p) for p in providers if free_allowed(p)] if providers else self.candidates(instrument, interval)
         errors = {}
         for a in cands:
             if a is None or not a.enabled:

@@ -31,9 +31,9 @@ class Instrument:
 
 def _crypto(sym, base, tick):
     return Instrument(sym, "crypto", "BINANCE", "USDT", "UTC", "24x7", tick, 0.00001,
-                      provider_symbols={"binance": sym, "okx": f"{base}-USDT", "kraken": f"{'XBT' if base == 'BTC' else base}USDT",
+                      provider_symbols={"alpaca_crypto": f"{base}/USD", "binance": sym, "okx": f"{base}-USDT", "kraken": f"{'XBT' if base == 'BTC' else base}USDT",
                                         "coinbase": f"{base}-USD", "bybit": sym},
-                      provider_priority=("binance", "okx", "bybit", "kraken"), sanity_providers=("coinbase", "kraken", "okx"),
+                      provider_priority=("alpaca_crypto", "binance", "okx", "bybit", "kraken"), sanity_providers=("coinbase", "kraken", "okx"),
                       description=f"{base}/USDT spot")
 
 
@@ -53,7 +53,7 @@ DEFAULT_INSTRUMENTS = {i.id: i for i in (
     _etf("SPY", "SPDR S&P 500 ETF"), _etf("QQQ", "Invesco QQQ Trust"), _etf("IWM", "iShares Russell 2000 ETF"),
     Instrument("EUR_USD", "fx", "OTC", "USD", "UTC", "fx_24x5", 0.00001, 1,
                provider_symbols={"oanda": "EUR_USD", "twelvedata": "EUR/USD", "yahoo": "EURUSD=X"},
-               provider_priority=("oanda", "twelvedata", "yahoo"), description="EUR/USD spot FX"),
+               provider_priority=("oanda", "twelvedata", "finnhub", "yahoo"), description="EUR/USD spot FX"),
     Instrument("ES", "future", "XCME", "USD", "America/Chicago", "cme_globex", _ES_TICK, 1, _ES_MULT,
                provider_symbols={"databento": "ES.c.0", "yahoo": "ES=F"}, provider_priority=("databento", "yahoo"),
                description="E-mini S&P 500 continuous front month"),
