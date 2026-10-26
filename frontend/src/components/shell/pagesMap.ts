@@ -85,6 +85,8 @@ export const PAGES: AtlasPage[] = [
         summary: "Alpaca paper equity, cash, positions, orders and fills, reconciled. Read-only; live accounts are refused." },
       { id: "depth", label: "Order book estimate", workspaceRoute: "/trade/depth-dom", aliases: ["/trade/depth-dom"],
         summary: "An estimated order book built from the last close and the catalog spread. It is not a real exchange book." },
+      { id: "pump", label: "Pump & Solana", aliases: ["/pump", "/solana"],
+        summary: "Pump.fun and PumpSwap token discovery, bonding curves, safety checks, strategy/ML EV ranking and paper execution." },
     ],
   },
   {

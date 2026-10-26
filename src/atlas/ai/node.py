@@ -23,7 +23,7 @@ EXECUTION_PERMISSION = "none"
 # ``/api/<ns>/...``; both are guarded by the same boundary.
 AI_NAMESPACES: tuple[str, ...] = ("ml", "research", "intel", "advanced-ml", "agent")
 # AI endpoints living outside those namespaces: guarded (not aliased).
-AI_GUARDED_PREFIXES: tuple[str, ...] = ("/api/ext/dossier", "/api/ext/personas", "/api/ext/pipeline")
+AI_GUARDED_PREFIXES: tuple[str, ...] = ("/api/ext/dossier", "/api/ext/personas", "/api/ext/pipeline", "/api/pump")
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,9 @@ REGISTRY: tuple[AIComponent, ...] = (
                 scripts=("atlas-ml",), notes="quant retrain/evaluate/sleeves stack"),
     AIComponent("vertical_slice", "ml", ("atlas.research.vertical_slice",), api=("/api/research/vertical-slice",),
                 notes="research model selection: frequency baseline, softmax, optional XGBoost"),
+    AIComponent("pump_intelligence", "ml", ("atlas.pump", "atlas.pump.features", "atlas.pump.models", "atlas.pump.strategies"),
+                api=("/api/pump",), ui=("PumpIntelligenceView",),
+                notes="Solana Pump.fun/PumpSwap discovery, safety, EV ranking; execution_permission=none on ML output; paper-only control plane"),
 )
 
 
