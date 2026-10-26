@@ -16,8 +16,11 @@ def _data(n=1200, seed=0):
     df["detector"], df["instrument"], df["candidate_id"] = "orb_retest", "X", [f"c{i}" for i in range(n)]
     hi = (df.rv_pctile_480 >= 2 / 3).astype(float)
     df["reg_hi"], df["reg_lo"] = hi, (df.rv_pctile_480 <= 1 / 3).astype(float)
+    tr_w = (df.trend_sign * np.where(df.dir_long > 0, 1.0, -1.0) > 0).astype(float)
+    df["reg_trend_with"], df["reg_trend_counter"] = tr_w, 1.0 - tr_w
     for s in E.SIGNED_X:
         df[f"{s}_x_hi"] = df[s] * hi
+        df[f"{s}_x_trend"] = df[s] * tr_w
     for c in E.REP_FEATURES:
         df[f"renko_atr:{c}"] = rng.normal(size=n)
     return df
@@ -43,6 +46,9 @@ def test_feature_list_genes():
     g = {"model": "hgb", "features": "no_setup", "regime": "vol_conditioned", "bar_type": "heikin_ashi"}
     f = E.feature_list(g)
     assert "reward_risk" not in f and "reg_hi" in f and "heikin_ashi:rep_run" in f
+    gt = {"model": "hgb", "features": "full", "regime": "trend_conditioned", "bar_type": "time"}
+    ft = E.feature_list(gt)
+    assert "reg_trend_with" in ft and "reg_trend_counter" in ft and f"{E.SIGNED_X[0]}_x_trend" in ft
 
 
 def test_markers_causal_anchor_and_never_ml_authorized():

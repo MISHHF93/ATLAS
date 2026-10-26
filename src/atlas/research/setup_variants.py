@@ -42,6 +42,9 @@ VARIANTS: tuple[SetupVariant, ...] = (
     SetupVariant("atr2_rr2", 2.0, 2.0, None, 2, "stop 2 ATR, target 2R, 2-day hold"),
     SetupVariant("atr2_rr2_cf15", 2.0, 2.0, 0.15, 2, "stop 2 ATR, target 2R, cost/R <= 0.15, 2-day hold"),
     SetupVariant("atr3_rr1.5_cf15", 3.0, 1.5, 0.15, 2, "stop 3 ATR, target 1.5R, cost/R <= 0.15, 2-day hold"),
+    SetupVariant("atr2.5_rr2_cf10", 2.5, 2.0, 0.10, 2, "stop 2.5 ATR, target 2R, cost/R <= 0.10, 2-day hold"),
+    SetupVariant("atr3_rr2_cf08", 3.0, 2.0, 0.08, 3, "stop 3 ATR, target 2R, cost/R <= 0.08, 3-day hold"),
+    SetupVariant("atr2_rr1.5_cf12", 2.0, 1.5, 0.12, 2, "stop 2 ATR, target 1.5R, cost/R <= 0.12, 2-day hold"),
 )
 VARIANT_BY_ID = {v.id: v for v in VARIANTS}
 SYMBOLS = ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM")

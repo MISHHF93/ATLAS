@@ -76,3 +76,26 @@ def test_block_bootstrap_and_stability():
                         "p": 0.5, "take": [True, True, False, True, True, True, False, True], "fold": [0, 0, 1, 1, 2, 2, 3, 3]})
     st = R.stability(oos)
     assert {g["key"] for g in st["by_group"]} == {"btc_eth", "alts"} and st["symbols_with_trades"] == 2
+
+
+def test_from_evolution_labels_markers_research_only_without_champion(tmp_path):
+    from atlas.intel.markers import class_summary, from_evolution
+    d = E.evo_dir(tmp_path)
+    d.mkdir(parents=True)
+    run = {"run_id": "r9", "created_at": 10, "decision": "no_challenger_passes_strict_gate",
+           "no_model_beats_baseline": True, "no_model_passes_strict_gate": True,
+           "best": {"genome_id": "model=hgb|features=full|regime=vol_conditioned|bar_type=time|context=none"},
+           "leaderboard": []}
+    (d / "run_r9.json").write_text(json.dumps(run))
+    (d / "oos_r9.json").write_text(json.dumps([
+        {"instrument": "BTCUSDT", "interval": "4h", "detector": "prior_day_range_reversal", "candidate_id": "c1",
+         "t": 28800, "exit_at": 43200, "direction": "long", "entry": 100.0, "stop": 95.0, "target": 110.0,
+         "outcome": "target", "r": 1.9, "p": 0.58, "ev_r": 0.12, "take": True, "calibrator": "platt"}
+    ]))
+    mk, meta = from_evolution("BTCUSDT", "4h", path=tmp_path)
+    assert len(mk) == 1 and mk[0]["research_only"] is True
+    assert "research-only" in mk[0]["risk_status"] and "no research champion" in mk[0]["risk_status"]
+    assert "research-only" in mk[0]["probability_label"]
+    assert meta["has_champion"] is False and meta["research_only"] is True
+    cs = class_summary(mk, 0, has_oos=True, has_champion=False)
+    assert "research-only" in cs["ml_suggested"]["note"] and "no model passed strict champion gate" in cs["ml_suggested"]["note"]

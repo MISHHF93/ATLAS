@@ -70,7 +70,7 @@ def _zone_label(z) -> str | None:
 
 
 def from_evolution(inst: str, interval: str, path=None) -> tuple[list[dict[str, Any]], dict | None]:
-    from atlas.ml.evolution import evo_dir, latest_run
+    from atlas.ml.evolution import champion, evo_dir, latest_run
     run = latest_run(path)
     if not run:
         return [], None
@@ -78,40 +78,53 @@ def from_evolution(inst: str, interval: str, path=None) -> tuple[list[dict[str, 
     if not p.exists():
         return [], {"run_id": run["run_id"]}
     rows = [r for r in json.loads(p.read_text()) if r["instrument"] == inst and r["interval"] == interval]
-    best = run.get("best_beating_baseline") or run.get("best") or {}
+    best = run.get("best_passing_strict_gate") or run.get("best_beating_baseline") or run.get("best") or {}
+    champ = champion(path)
+    has_champion = bool(champ and ((champ.get("metrics") or {}).get("strict_gate") or {}).get("passed"))
     tf = {"15m": 900, "1h": 3600, "4h": 14400}.get(interval, 900)
     mv = f"evolution:{run['run_id']}:{best.get('genome_id')}"
+    risk_status = (
+        "not_submitted (research champion only; ML cannot authorize)"
+        if has_champion
+        else "research-only (no research champion; failed strict gate; ML cannot authorize)"
+    )
     out = []
     for r in rows:
         take = bool(r["take"])
         out.append({"id": f"ml:{r['candidate_id']}", "source": "evolution_oos", "strategy": r["detector"], "direction": r["direction"],
                     "time": int(r["t"] - tf), "detected_at": int(r["t"]), "price": r["entry"], "stop": r["stop"], "target": r["target"],
-                    "probability": r["p"], "probability_label": f"{r['p']:.2f} (OOS, {r.get('calibrator')})",
-                    "uncertainty": f"conformal alpha 0.2; take requires set {{1}}", "ev_r": r["ev_r"], "model_version": mv,
-                    "risk_status": "not_submitted (research champion only; ML cannot authorize)",
+                    "probability": r["p"],
+                    "probability_label": f"{r['p']:.2f} (OOS, {r.get('calibrator')}{'' if has_champion else ', research-only'})",
+                    "uncertainty": "conformal alpha 0.2; take requires set {1}", "ev_r": r["ev_r"], "model_version": mv,
+                    "risk_status": risk_status, "research_only": True,
                     "class": "ml_suggested" if take else "ml_skip", "outcome": r["outcome"], "r": r["r"]})
     return out, {"run_id": run["run_id"], "genome": best.get("genome_id"), "no_model_beats_baseline": run.get("no_model_beats_baseline"),
-                 "decision": run.get("decision")}
+                 "no_model_passes_strict_gate": run.get("no_model_passes_strict_gate", True),
+                 "has_champion": has_champion, "research_only": True, "decision": run.get("decision")}
 
 
 CLASS_ORDER = ("ml_suggested", "ml_skip", "rule_only", "risk_rejected")
 
 
-def class_summary(markers: list[dict[str, Any]], n_rule_candidates: int, has_oos: bool) -> dict[str, dict[str, Any]]:
+def class_summary(markers: list[dict[str, Any]], n_rule_candidates: int, has_oos: bool, has_champion: bool = False) -> dict[str, dict[str, Any]]:
     """Per-category legend data. ``applicable`` is False when that category could not occur for this chart, so the UI
     shows "n/a" with the reason instead of a misleading zero."""
     counts = {k: 0 for k in CLASS_ORDER}
     for m in markers:
         counts[m["class"]] = counts.get(m["class"], 0) + 1
     out: dict[str, dict[str, Any]] = {}
+    oos_note = (
+        "out-of-sample predictions from the evolution champion"
+        if has_champion
+        else "research-only out-of-sample predictions from latest evolution run (no model passed strict champion gate)"
+    )
     for k in ("ml_suggested", "ml_skip"):
-        out[k] = {"count": counts[k], "applicable": has_oos,
-                  "note": "out-of-sample predictions from the evolution champion" if has_oos
-                  else "no out-of-sample ML predictions for this symbol/timeframe"}
-    out["rule_only"] = {"count": counts["rule_only"], "applicable": n_rule_candidates > 0,
+        out[k] = {"count": counts[k], "applicable": has_oos, "research_only": True,
+                  "note": oos_note if has_oos else "no out-of-sample ML predictions for this symbol/timeframe"}
+    out["rule_only"] = {"count": counts["rule_only"], "applicable": n_rule_candidates > 0, "research_only": True,
                         "note": "rule setups the gate abstained on because no validated model exists" if n_rule_candidates
                         else "no rule candidates in this window"}
-    out["risk_rejected"] = {"count": counts["risk_rejected"], "applicable": n_rule_candidates > 0,
+    out["risk_rejected"] = {"count": counts["risk_rejected"], "applicable": n_rule_candidates > 0, "research_only": True,
                             "note": (f"rejected on geometry or costs, out of {n_rule_candidates} rule candidates checked (the edge check needs a validated model)"
                                      if n_rule_candidates else "no rule candidates in this window")}
     return out

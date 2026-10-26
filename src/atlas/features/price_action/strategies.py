@@ -43,7 +43,10 @@ STRATEGIES: tuple[StrategySpec, ...] = (
 _EVO6 = (("atr2_rr2", "stop 2 ATR(14), target 2R, 2-day hold"),
          ("atr2_rr2_cf15", "stop 2 ATR(14), target 2R, skip when cost/R > 0.15, 2-day hold"),
          ("atr3_rr1.5_cf15", "stop 3 ATR(14), target 1.5R, skip when cost/R > 0.15, 2-day hold"),
-         ("base_cf15", "legacy stop/target, skip when cost/R > 0.15"))
+         ("base_cf15", "legacy stop/target, skip when cost/R > 0.15"),
+         ("atr2.5_rr2_cf10", "stop 2.5 ATR(14), target 2R, skip when cost/R > 0.10, 2-day hold"),
+         ("atr3_rr2_cf08", "stop 3 ATR(14), target 2R, skip when cost/R > 0.08, 3-day hold"),
+         ("atr2_rr1.5_cf12", "stop 2 ATR(14), target 1.5R, skip when cost/R > 0.12, 2-day hold"))
 STRATEGIES = STRATEGIES + tuple(
     StrategySpec(f"{det}__{vid}", "research_variant", (det,), "all" if det in ("dual_band_breakout", "wick_reversal") else "all with a session",
                  False, "research", f"{det} research variant: {desc} (evo6)", variant=vid,

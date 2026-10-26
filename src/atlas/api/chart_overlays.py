@@ -125,7 +125,8 @@ def _markers(sym, interval, bars):
     t0 = bars[0].start
     allm = sorted([m for m in mk + ml if m["time"] >= t0], key=lambda m: m["time"])[-800:]
     n_rule = sum(1 for m in allm if m["source"] == "candidate_engine")
-    return allm, class_summary(allm, n_rule, any(m["source"] == "evolution_oos" for m in allm)), meta
+    has_champ = bool((meta or {}).get("has_champion"))
+    return allm, class_summary(allm, n_rule, any(m["source"] == "evolution_oos" for m in allm), has_champion=has_champ), meta
 
 
 def _zones(sym, interval, bars, feed):

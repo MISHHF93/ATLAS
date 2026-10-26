@@ -1,0 +1,187 @@
+{
+  "gate_version": "evo8-strict-1",
+  "runs": [
+    {
+      "label": "evo7_1h_full_2y_history",
+      "run_id": "ae9f7c4dbbe2",
+      "variant": "atr2_rr2",
+      "n_rows": 46249,
+      "n_trials": 25,
+      "decision": "no_challenger_beats_baseline",
+      "no_model_beats_baseline": true,
+      "no_model_passes_strict_gate": true,
+      "best_genome_id": "model=xgb|features=full|regime=none|bar_type=time|context=none",
+      "best_genome": {
+        "context": "none",
+        "model": "xgb",
+        "features": "full",
+        "regime": "none",
+        "bar_type": "time"
+      },
+      "fitness": -0.018080452523703758,
+      "ev_r_per_opportunity": -0.0026123773242479565,
+      "brier_skill": -0.005468075199455802,
+      "auc": 0.5184880370804432,
+      "ece": 0.01737825779661499,
+      "n_oos": 38541,
+      "n_taken": 647,
+      "strict_gate": {
+        "gate_version": "evo8-strict-1",
+        "passed": false,
+        "checks": {
+          "beats_baseline": false,
+          "all_folds_evaluated": true,
+          "min_trades_per_fold": true,
+          "majority_folds_positive": false,
+          "dsr": false,
+          "bonferroni": false
+        },
+        "failed": [
+          "beats_baseline",
+          "majority_folds_positive",
+          "dsr",
+          "bonferroni"
+        ],
+        "values": {
+          "min_taken_per_fold": 28,
+          "required_min_taken_per_fold": 20,
+          "positive_folds": 2,
+          "n_folds": 5,
+          "n_trials": 23,
+          "dsr": 6.7092573330374e-08,
+          "dsr_min": 0.95,
+          "sr_per_trade": -0.1302223342905458,
+          "sr0_expected_max": 0.08744823978683192,
+          "t_pvalue": 0.9995116429717626,
+          "bonferroni_p": 1.0,
+          "bonferroni_alpha": 0.05,
+          "n_taken_total": 647
+        }
+      },
+      "mean_r_taken": -0.15561612744024805,
+      "take_all_ev": -0.28172813281383824
+    },
+    {
+      "label": "evo9_4h_atr3_rr2_cf08",
+      "run_id": "62ab9b27a61f",
+      "variant": "atr3_rr2_cf08",
+      "n_rows": 13417,
+      "n_trials": 25,
+      "decision": "no_challenger_beats_baseline",
+      "no_model_beats_baseline": true,
+      "no_model_passes_strict_gate": true,
+      "best_genome_id": "model=hgb|features=no_setup|regime=none|bar_type=time|context=none",
+      "best_genome": {
+        "context": "none",
+        "model": "hgb",
+        "features": "no_setup",
+        "regime": "none",
+        "bar_type": "time"
+      },
+      "fitness": -0.05778982058581189,
+      "ev_r_per_opportunity": -0.011172081479908643,
+      "brier_skill": -0.01661773910590325,
+      "auc": 0.5150231184902431,
+      "ece": 0.028140862213173072,
+      "n_oos": 11181,
+      "n_taken": 1381,
+      "strict_gate": {
+        "gate_version": "evo8-strict-1",
+        "passed": false,
+        "checks": {
+          "beats_baseline": false,
+          "all_folds_evaluated": true,
+          "min_trades_per_fold": false,
+          "majority_folds_positive": false,
+          "dsr": false,
+          "bonferroni": false
+        },
+        "failed": [
+          "beats_baseline",
+          "min_trades_per_fold",
+          "majority_folds_positive",
+          "dsr",
+          "bonferroni"
+        ],
+        "values": {
+          "min_taken_per_fold": 0,
+          "required_min_taken_per_fold": 20,
+          "positive_folds": 1,
+          "n_folds": 5,
+          "n_trials": 24,
+          "dsr": 4.617113358307279e-10,
+          "dsr_min": 0.95,
+          "sr_per_trade": -0.1075784299405371,
+          "sr0_expected_max": 0.06314943542588433,
+          "t_pvalue": 0.9999663428906479,
+          "bonferroni_p": 1.0,
+          "bonferroni_alpha": 0.05,
+          "n_taken_total": 1381
+        }
+      },
+      "mean_r_taken": -0.09045260175731973,
+      "take_all_ev": -0.11781263540711487
+    },
+    {
+      "label": "evo9_4h_atr2.5_rr2_cf10",
+      "run_id": "9ddc89415d40",
+      "variant": "atr2.5_rr2_cf10",
+      "n_rows": 13462,
+      "n_trials": 25,
+      "decision": "no_challenger_beats_baseline",
+      "no_model_beats_baseline": true,
+      "no_model_passes_strict_gate": true,
+      "best_genome_id": "model=hgb|features=full|regime=trend_conditioned|bar_type=time|context=none",
+      "best_genome": {
+        "context": "none",
+        "model": "hgb",
+        "features": "full",
+        "regime": "trend_conditioned",
+        "bar_type": "time"
+      },
+      "fitness": 0.0012013963348157727,
+      "ev_r_per_opportunity": -0.00754580606908969,
+      "brier_skill": -0.0012527975960945348,
+      "auc": 0.5289950752708674,
+      "ece": 0.028101124004667754,
+      "n_oos": 11219,
+      "n_taken": 1061,
+      "strict_gate": {
+        "gate_version": "evo8-strict-1",
+        "passed": false,
+        "checks": {
+          "beats_baseline": false,
+          "all_folds_evaluated": true,
+          "min_trades_per_fold": false,
+          "majority_folds_positive": true,
+          "dsr": false,
+          "bonferroni": false
+        },
+        "failed": [
+          "beats_baseline",
+          "min_trades_per_fold",
+          "dsr",
+          "bonferroni"
+        ],
+        "values": {
+          "min_taken_per_fold": 0,
+          "required_min_taken_per_fold": 20,
+          "positive_folds": 3,
+          "n_folds": 5,
+          "n_trials": 24,
+          "dsr": 4.0172428362739154e-06,
+          "dsr_min": 0.95,
+          "sr_per_trade": -0.09485144751957672,
+          "sr0_expected_max": 0.0467126739839861,
+          "t_pvalue": 0.9989717439825232,
+          "bonferroni_p": 1.0,
+          "bonferroni_alpha": 0.05,
+          "n_taken_total": 1061
+        }
+      },
+      "mean_r_taken": -0.07978925380689654,
+      "take_all_ev": -0.14079058520627802
+    }
+  ],
+  "champion": null
+}

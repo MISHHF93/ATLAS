@@ -55,7 +55,7 @@ from atlas.ml.registry import _clean, code_sha, root
 GENES: dict[str, tuple[str, ...]] = {
     "model": ("logit", "ridge", "hgb", "xgb", "lgbm"),
     "features": ("full", "no_setup", "no_signed", "no_time", "bar_only"),
-    "regime": ("none", "vol_conditioned"),
+    "regime": ("none", "vol_conditioned", "trend_conditioned"),
     "bar_type": ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "kagi_atr", "pnf_atr"),
     "context": ("none", "htf", "macro", "htf_macro"),
 }
@@ -66,6 +66,7 @@ SEEDS = [
     {"model": "xgb", "features": "full", "regime": "none", "bar_type": "time"},
     {"model": "lgbm", "features": "full", "regime": "none", "bar_type": "time"},
     {"model": "hgb", "features": "full", "regime": "vol_conditioned", "bar_type": "time"},
+    {"model": "hgb", "features": "full", "regime": "trend_conditioned", "bar_type": "time"},
     {"model": "hgb", "features": "full", "regime": "none", "bar_type": "heikin_ashi"},
     {"model": "hgb", "features": "full", "regime": "none", "bar_type": "renko_atr"},
     {"model": "hgb", "features": "full", "regime": "none", "bar_type": "range_atr"},
@@ -96,6 +97,12 @@ EVO7_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "DOGEUSDT
                 "SUIUSDT", "NEARUSDT", "OPUSDT", "INJUSDT", "TIAUSDT", "SEIUSDT", "FETUSDT", "RENDERUSDT", "ALGOUSDT", "WIFUSDT")
 UNIVERSE_EVO7 = [(i, "4h") for i in EVO7_SYMBOLS]
 UNIVERSE_EVO7_1H = [(i, "1h") for i in EVO7_SYMBOLS]
+# evo9: full 34-symbol 2-year crypto universe (2024-10..2026-10) + multi-asset 4h/1h pool with wider ATR/cost variants.
+EVO9_SYMBOLS = EVO7_SYMBOLS + ("PEPEUSDT", "ICPUSDT", "HBARUSDT", "TONUSDT")
+UNIVERSE_EVO9_4H = [(i, "4h") for i in EVO9_SYMBOLS]
+UNIVERSE_EVO9_1H = [(i, "1h") for i in EVO9_SYMBOLS]
+UNIVERSE_EVO9_MULTI = UNIVERSE_EVO9_4H + [(i, "1h") for i in ("SPY", "QQQ", "IWM")]
+EVO9_VARIANT = "atr2.5_rr2_cf10"
 N_FOLDS = 5
 EMBARGO = 86400
 MIN_TRADES_PER_FOLD = 20
@@ -133,7 +140,11 @@ def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, 
             rf = rep_features(sd.bars, bt)
             rf.columns = [f"{bt}:{c}" for c in rf.columns]
             df = df.join(rf, on="t")
-        df = df.join(htf_frame(sd.bars), on="t")
+        hf = htf_frame(sd.bars)
+        if len(hf) == len(sd.bars):
+            hf = hf.copy()
+            hf.index = pd.Index([b.end for b in sd.bars], name="t")
+        df = df.join(hf, on="t")
         df["risk_d1atr"] = df.risk_bps / df.d1_atr_bps
         frames.append(df)
     if not frames:
@@ -145,6 +156,13 @@ def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, 
     data["reg_hi"], data["reg_lo"] = hi, lo
     for s in SIGNED_X:
         data[f"{s}_x_hi"] = data[s] * hi
+    dir_sign = np.where(data.dir_long > 0, 1.0, -1.0)
+    tr_align = (data.trend_sign * dir_sign).fillna(0.0)
+    tr_with = (tr_align > 0).astype(float)
+    data["reg_trend_with"] = tr_with
+    data["reg_trend_counter"] = (tr_align < 0).astype(float)
+    for s in SIGNED_X:
+        data[f"{s}_x_trend"] = data[s] * tr_with
     data = add_macro(data, getattr(feed, "store", None), meta)
     meta["data_hash"], meta["n_rows"] = data_hash(data), len(data)
     return data, meta
@@ -155,10 +173,9 @@ def data_hash(data: pd.DataFrame) -> str:
 
 
 def add_macro(data: pd.DataFrame, store, meta: dict) -> pd.DataFrame:
-    """Join section-22 macro as known at each detection time (detection-bar end); all-NaN if no observations."""
+    """Join section-22 macro as known at each detection time (data.t is already detection-bar end); all-NaN if no observations."""
     from atlas.ml.context import MACRO_FEATURES, macro_frame
-    dur = data.interval.map({"15m": 900, "1h": 3600, "4h": 14400}).fillna(0).astype(int)
-    end = data.t + dur
+    end = data.t.astype(int)
     mf = macro_frame(store, end) if store is not None else pd.DataFrame(index=pd.Index([], name="t"), columns=list(MACRO_FEATURES))
     data = data.join(mf.reindex(end.to_numpy()).reset_index(drop=True).set_axis(data.index))
     meta["macro_coverage"] = {c: float(data[c].notna().mean()) for c in MACRO_FEATURES}
@@ -178,6 +195,8 @@ def feature_list(g: dict[str, str]) -> tuple[str, ...]:
         f = [c for c in BAR_FEATURES]
     if g["regime"] == "vol_conditioned":
         f += ["reg_hi", "reg_lo"] + [f"{s}_x_hi" for s in SIGNED_X]
+    elif g["regime"] == "trend_conditioned":
+        f += ["reg_trend_with", "reg_trend_counter"] + [f"{s}_x_trend" for s in SIGNED_X]
     if g["bar_type"] != "time":
         f += [f"{g['bar_type']}:{c}" for c in REP_FEATURES]
     ctx = g.get("context", "none")
