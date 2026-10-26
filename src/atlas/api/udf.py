@@ -97,6 +97,8 @@ FEED_ALIASES = {
     "BTC-USD": "BTCUSDT", "ETH-USD": "ETHUSDT", "BTCUSD": "BTCUSDT", "ETHUSD": "ETHUSDT",
     "EURUSD": "EUR_USD", "EUR/USD": "EUR_USD", "EUR-USD": "EUR_USD",
     "USDCAD": "USD_CAD", "USD/CAD": "USD_CAD", "USD-CAD": "USD_CAD",
+    "XAU_USD": "GC", "XAUUSD": "GC", "XAU/USD": "GC", "XAU-USD": "GC", "GOLD": "GC",
+    "XAG_USD": "SI", "XAGUSD": "SI", "XAG/USD": "SI", "XAG-USD": "SI", "SILVER": "SI",
 }
 UDF_LIMIT = 240
 
@@ -127,7 +129,10 @@ def udf_feed_bars(gateway: Any, symbol: str, bucket_seconds: int) -> dict[str, A
     feed = _feed() if interval else None
     if feed is not None and instrument in feed.instruments:
         now = int(datetime.now(timezone.utc).timestamp())
-        bars = feed.bars(instrument, interval, now - UDF_LIMIT * int(bucket_seconds) * 2, now + 1, as_of=now)[-UDF_LIMIT:]
+        lookback = max(UDF_LIMIT * int(bucket_seconds) * 6, 7 * 86400)
+        bars = feed.bars(instrument, interval, now - lookback, now + 1, as_of=now)[-UDF_LIMIT:]
+        if not bars:
+            bars = feed.bars(instrument, interval, None, now + 1, as_of=now)[-UDF_LIMIT:]
         if bars:
             providers = sorted({b.provider for b in bars})
             return {

@@ -56,11 +56,25 @@ const money = (v: unknown) => (typeof v === "number" ? v.toLocaleString("en-US",
  *  Alpaca (IEX stocks/ETFs once paper keys are set; keyless crypto history) and falls back to other free sources.
  *  Each bar carries its provider and real-time/delayed tag. Display and research only: execution_permission none. */
 export function AlpacaChartCard() {
-  const [symbol, setSymbol] = useState("BTCUSDT");
+  const [symbol, setSymbol] = useState("GC");
   return (
     <Card title="Paper account chart" span="full" subtitle="Bars from the ATLAS provider router (Alpaca first, free fallbacks), tagged with provider and latency. No orders from this chart."
       actions={<select aria-label="Symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-        {["BTCUSDT", "ETHUSDT", "SOLUSDT", "SPY", "QQQ", "IWM"].map((x) => <option key={x}>{x}</option>)}
+        <optgroup label="Gold & Silver (Futures + Bullion ETFs)">
+          {["GC", "MGC", "SI", "GLD", "SLV"].map((x) => <option key={x} value={x}>{x}</option>)}
+        </optgroup>
+        <optgroup label="Authentic ETFs (Index, Treasury/Bond & Sector)">
+          {["SPY", "QQQ", "IWM", "DIA", "VOO", "VTI", "TLT", "IEF", "SHY", "AGG", "BND", "LQD", "HYG", "XLK", "XLF", "XLE", "XLV", "XLI", "SOXX", "SMH", "VNQ"].map((x) => <option key={x} value={x}>{x}</option>)}
+        </optgroup>
+        <optgroup label="CME Futures & Spot FX">
+          {["ES", "NQ", "YM", "RTY", "CL", "NG", "ZN", "ZB", "6E", "6J", "EUR_USD", "USD_CAD"].map((x) => <option key={x} value={x}>{x}</option>)}
+        </optgroup>
+        <optgroup label="US Stocks">
+          {["NVDA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "TSLA", "AMD", "AVGO", "JPM", "GS", "LLY", "XOM"].map((x) => <option key={x} value={x}>{x}</option>)}
+        </optgroup>
+        <optgroup label="Major Crypto">
+          {["BTCUSDT", "ETHUSDT", "SOLUSDT"].map((x) => <option key={x} value={x}>{x}</option>)}
+        </optgroup>
       </select>}>
       <AtlasChart symbol={symbol} timeframe="15m" height={360} />
     </Card>

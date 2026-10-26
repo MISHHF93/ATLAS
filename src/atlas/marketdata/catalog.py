@@ -265,7 +265,63 @@ FLAGSHIP_CME_FUTURES: tuple[tuple[str, str, str, float, float, float, float, flo
     ("ZB", "30-Year US Treasury Bond Futures", "CBOT", 0.03125, 1000.0, 1000.0, 118.50, -0.38, "Compression"),
     ("6E", "Euro FX Futures", "CME", 0.00005, 125000.0, 1250.0, 1.0865, 0.18, "Compression"),
     ("6J", "Japanese Yen Futures", "CME", 0.0000005, 12500000.0, 1250.0, 0.00668, -0.31, "Mean-Reverting"),
+    ("EUR_USD", "Euro / US Dollar Spot FX (ECB & Interbank)", "OTC_FX", 0.00001, 1.0, 100.0, 1.0865, 0.18, "Compression"),
+    ("USD_CAD", "US Dollar / Canadian Dollar Spot FX (Bank of Canada & Interbank)", "OTC_FX", 0.00001, 1.0, 100.0, 1.4028, 0.12, "Compression"),
 )
+
+PRECIOUS_METALS_CATALOG: tuple[str, ...] = ("GC", "MGC", "SI", "GLD", "SLV")
+COMMODITIES_CATALOG: tuple[str, ...] = ("GC", "MGC", "SI", "GLD", "SLV", "CL", "MCL", "NG")
+ETFS_CATALOG: tuple[str, ...] = (
+    "SPY", "QQQ", "IWM", "DIA", "TLT", "GLD", "SLV", "XLF", "XLK", "XLE", "SOXX", "MUB", "VTEB", "TFI", "HYMB", "CMF", "NYF",
+    "SGOV", "BIL", "SHY", "IEF", "VOO", "VNQ", "VTI", "VEA", "VWO", "EEM", "EFA", "HYG", "LQD", "ARKK", "SMH", "XBI", "KRE",
+    "XLV", "XLI", "XLY", "XLP", "XLU", "XLRE", "IEMG", "AGG", "BND",
+)
+BONDS_RATES_CATALOG: tuple[str, ...] = (
+    "TLT", "IEF", "SHY", "BIL", "SGOV", "AGG", "BND", "LQD", "HYG", "MUB", "VTEB", "TFI", "HYMB", "CMF", "NYF", "ZN", "ZB",
+)
+FX_CATALOG: tuple[str, ...] = ("EUR_USD", "USD_CAD", "6E", "6J")
+
+ETF_SUBCATEGORY: dict[str, str] = {
+    "GLD": "Precious Metals ETF", "SLV": "Precious Metals ETF",
+    "SPY": "Broad Index ETF", "QQQ": "Broad Index ETF", "IWM": "Broad Index ETF", "DIA": "Broad Index ETF",
+    "VOO": "Broad Index ETF", "VTI": "Broad Index ETF", "VEA": "International Index ETF", "VWO": "Emerging Markets ETF",
+    "EEM": "Emerging Markets ETF", "EFA": "International Index ETF", "IEMG": "Emerging Markets ETF",
+    "TLT": "Treasury & Bond ETF", "IEF": "Treasury & Bond ETF", "SHY": "Treasury & Bond ETF", "BIL": "Treasury & Bond ETF",
+    "SGOV": "Treasury & Bond ETF", "AGG": "Treasury & Bond ETF", "BND": "Treasury & Bond ETF", "LQD": "Corporate Bond ETF",
+    "HYG": "High-Yield Bond ETF", "MUB": "Municipal Bond ETF", "VTEB": "Municipal Bond ETF", "TFI": "Municipal Bond ETF",
+    "HYMB": "Municipal Bond ETF", "CMF": "Municipal Bond ETF", "NYF": "Municipal Bond ETF",
+    "XLK": "Sector & Thematic ETF", "XLF": "Sector & Thematic ETF", "XLE": "Sector & Thematic ETF",
+    "XLV": "Sector & Thematic ETF", "XLI": "Sector & Thematic ETF", "XLY": "Sector & Thematic ETF",
+    "XLP": "Sector & Thematic ETF", "XLU": "Sector & Thematic ETF", "XLRE": "Real Estate ETF", "VNQ": "Real Estate ETF",
+    "SOXX": "Semiconductor ETF", "SMH": "Semiconductor ETF", "XBI": "Biotech ETF", "KRE": "Regional Banking ETF",
+    "ARKK": "Innovation ETF",
+}
+
+
+def classify_catalog_category(symbol: str, asset_class: str, exchange: str = "") -> tuple[str, str]:
+    """Return (primary_category, sub_category) for authentic asset catalog filtering and UI display."""
+    sym = symbol.upper()
+    if exchange.upper() == "UNLISTED":
+        return ("unlisted", "Unlisted Private Company")
+    if sym.startswith("EQ") and sym[2:].isdigit():
+        return ("placeholder", "Directory Placeholder")
+    if sym.startswith("PERP") and sym.endswith("-USD") and sym[4:-4].isdigit():
+        return ("placeholder", "Directory Placeholder")
+    if sym in PRECIOUS_METALS_CATALOG:
+        return ("metals", "Precious Metals ETF" if sym in ETFS_CATALOG else "Precious Metals Futures")
+    if sym in FX_CATALOG:
+        return ("fx", "Spot FX" if sym in ("EUR_USD", "USD_CAD") else "CME FX Futures")
+    if sym in ETFS_CATALOG:
+        return ("etfs", ETF_SUBCATEGORY.get(sym, "Exchange-Traded Fund"))
+    if asset_class == "futures":
+        if sym in ("CL", "MCL", "NG"):
+            return ("futures", "Energy Commodity Futures")
+        if sym in ("ZN", "ZB"):
+            return ("futures", "US Treasury Futures")
+        return ("futures", "CME Equity Index Futures")
+    if asset_class == "crypto_perps" or sym.endswith("-USD"):
+        return ("crypto_perps", "Major Digital Asset")
+    return ("equities", "US Listed Equity")
 
 # Flagship CCXT Pro Crypto Perpetuals & Spot Pairs (Binance / Coinbase / Hyperliquid)
 FLAGSHIP_CRYPTO_PERPS: tuple[tuple[str, str, str, float, float, float, str], ...] = (
@@ -572,6 +628,40 @@ class UniversalAssetCatalog:
             )
             self._conn.commit()
 
+    def _apply_asset_class_filter(self, asset_class: str | None, clauses: list[str], params: list[Any]) -> None:
+        if not asset_class or asset_class.lower() in ("all", ""):
+            return
+        ac = asset_class.lower().strip()
+        if ac in ("metals", "gold_silver", "precious_metals"):
+            placeholders = ",".join("?" for _ in PRECIOUS_METALS_CATALOG)
+            clauses.append(f"symbol IN ({placeholders})")
+            params.extend(PRECIOUS_METALS_CATALOG)
+        elif ac == "commodities":
+            placeholders = ",".join("?" for _ in COMMODITIES_CATALOG)
+            clauses.append(f"symbol IN ({placeholders})")
+            params.extend(COMMODITIES_CATALOG)
+        elif ac in ("etf", "etfs"):
+            placeholders = ",".join("?" for _ in ETFS_CATALOG)
+            clauses.append(f"symbol IN ({placeholders})")
+            params.extend(ETFS_CATALOG)
+        elif ac in ("bonds", "rates", "bonds_rates"):
+            placeholders = ",".join("?" for _ in BONDS_RATES_CATALOG)
+            clauses.append(f"symbol IN ({placeholders})")
+            params.extend(BONDS_RATES_CATALOG)
+        elif ac == "fx":
+            placeholders = ",".join("?" for _ in FX_CATALOG)
+            clauses.append(f"symbol IN ({placeholders})")
+            params.extend(FX_CATALOG)
+        elif ac == "stocks":
+            placeholders = ",".join("?" for _ in ETFS_CATALOG)
+            clauses.append(f"asset_class = 'equities' AND symbol NOT LIKE 'EQ%' AND exchange != 'UNLISTED' AND symbol NOT IN ({placeholders})")
+            params.extend(ETFS_CATALOG)
+        elif ac == "authentic":
+            clauses.append("symbol NOT LIKE 'EQ%' AND symbol NOT LIKE 'PERP%' AND exchange != 'UNLISTED'")
+        else:
+            clauses.append("asset_class = ?")
+            params.append(ac)
+
     def universe_counts(self) -> dict[str, int]:
         with self._lock:
             cur = self._conn.cursor()
@@ -585,11 +675,28 @@ class UniversalAssetCatalog:
             )
             by_class = {str(r["asset_class"]): int(r["cnt"]) for r in cur.fetchall()}
             total = sum(by_class.values())
+            cur.execute(
+                """
+                SELECT COUNT(*) as cnt
+                FROM catalog_assets
+                WHERE is_active = 1
+                  AND symbol NOT LIKE 'EQ%'
+                  AND symbol NOT LIKE 'PERP%'
+                  AND exchange != 'UNLISTED'
+                """
+            )
+            authentic_cnt = int(cur.fetchone()["cnt"])
             return {
                 "total_assets": total,
                 "equities": by_class.get("equities", 0),
                 "crypto_perps": by_class.get("crypto_perps", 0),
                 "futures": by_class.get("futures", 0),
+                "metals": len(PRECIOUS_METALS_CATALOG),
+                "commodities": len(COMMODITIES_CATALOG),
+                "etfs": len(ETFS_CATALOG),
+                "bonds_rates": len(BONDS_RATES_CATALOG),
+                "fx": len(FX_CATALOG),
+                "authentic_assets": authentic_cnt,
             }
 
     def get_asset(self, symbol: str) -> CatalogAssetRecord | None:
@@ -667,9 +774,7 @@ class UniversalAssetCatalog:
             clauses.append("track = ?")
             where_params.append(track.lower())
 
-        if asset_class and asset_class.lower() not in ("all", ""):
-            clauses.append("asset_class = ?")
-            where_params.append(asset_class.lower())
+        self._apply_asset_class_filter(asset_class, clauses, where_params)
 
         if q_clean:
             clauses.append("(symbol LIKE ? OR UPPER(name) LIKE ? OR UPPER(exchange) LIKE ?)")
@@ -744,9 +849,7 @@ class UniversalAssetCatalog:
             clauses.append("track = ?")
             params.append(track.lower())
 
-        if asset_class and asset_class.lower() not in ("all", ""):
-            clauses.append("asset_class = ?")
-            params.append(asset_class.lower())
+        self._apply_asset_class_filter(asset_class, clauses, params)
 
         where_sql = " AND ".join(clauses)
 

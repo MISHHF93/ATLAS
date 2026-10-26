@@ -79,14 +79,12 @@ export const PAGES: AtlasPage[] = [
     tabs: [
       { id: "chart", label: "Chart & ticket", workspaceRoute: "/trade/cockpit", aliases: ["/workbench", "/trade/cockpit", "/market"],
         summary: "The symbol list, the price chart and the paper order ticket." },
-      { id: "markets", label: "Market list", aliases: ["/listings"],
-        summary: "Search the instrument catalog. Entries are catalog data, not a live exchange feed." },
+      { id: "markets", label: "Market list", aliases: ["/listings"], tabAliases: ["/trade?tab=pump"],
+        summary: "Search the authentic instrument catalog: Gold & Silver, ETFs, CME Futures, FX, US Stocks and Liquid Crypto." },
       { id: "paper", label: "Paper account",
         summary: "Alpaca paper equity, cash, positions, orders and fills, reconciled. Read-only; live accounts are refused." },
       { id: "depth", label: "Order book estimate", workspaceRoute: "/trade/depth-dom", aliases: ["/trade/depth-dom"],
         summary: "An estimated order book built from the last close and the catalog spread. It is not a real exchange book." },
-      { id: "pump", label: "Pump & Solana", aliases: ["/pump", "/solana"],
-        summary: "Pump.fun and PumpSwap token discovery, bonding curves, safety checks, strategy/ML EV ranking and paper execution." },
     ],
   },
   {

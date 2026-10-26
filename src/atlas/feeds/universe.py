@@ -45,6 +45,8 @@ KRAKEN_BASE = {"BTC": "XBT", "DOGE": "XDG"}
 FX_ALIASES = {
     "EUR_USD": "EUR_USD", "EURUSD": "EUR_USD", "EUR/USD": "EUR_USD", "EUR-USD": "EUR_USD",
     "USD_CAD": "USD_CAD", "USDCAD": "USD_CAD", "USD/CAD": "USD_CAD", "USD-CAD": "USD_CAD",
+    "XAU_USD": "GC", "XAUUSD": "GC", "XAU/USD": "GC", "XAU-USD": "GC", "GOLD": "GC",
+    "XAG_USD": "SI", "XAGUSD": "SI", "XAG/USD": "SI", "XAG-USD": "SI", "SILVER": "SI",
 }
 
 

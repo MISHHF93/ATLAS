@@ -14,7 +14,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from typing import Any
 
-from atlas.marketdata.catalog import GLOBAL_ASSET_CATALOG
+from atlas.marketdata.catalog import GLOBAL_ASSET_CATALOG, classify_catalog_category
 
 catalog_router = APIRouter(tags=["catalog"])
 
@@ -27,9 +27,11 @@ def overlay_feed_prices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     q = feed_quotes([str(r.get("symbol")) for r in rows]) if rows else {}
     out = []
     for r in rows:
-        v = q.get(str(r.get("symbol"))) or {}
+        sym = str(r.get("symbol"))
+        v = q.get(sym) or {}
         has = v.get("price") is not None
-        out.append({**r, "last_price": v.get("price") if has else None, "change_pct": v.get("change_pct") if has else None,
+        asset_cat, sub_cat = classify_catalog_category(sym, str(r.get("asset_class") or ""), str(r.get("exchange") or ""))
+        out.append({**r, "asset_category": asset_cat, "sub_category": sub_cat, "last_price": v.get("price") if has else None, "change_pct": v.get("change_pct") if has else None,
                     "fixture_price_hidden": r.get("last_price") not in (None, 0, 0.0),
                     "quote_source": v.get("source"), "quote_status": v.get("status", "no_data"),
                     "quote_time": v.get("observed_at_toronto"), "quote_epoch": v.get("observed_at"),

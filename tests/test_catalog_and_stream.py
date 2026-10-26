@@ -224,3 +224,43 @@ def test_named_directory_is_searchable_and_private_names_are_not_listings() -> N
     assert bars["candles"] == []
     assert bars["execution_permission"] == "none"
     assert bars["last_close"] == 0
+
+
+def test_authentic_assets_catalog_categories_and_spot_metal_aliases() -> None:
+    """Verify Gold & Silver (GC, MGC, SI, GLD, SLV), ETFs (43 index/bond/sector ETFs),
+    Bonds/Rates, and Spot FX (EUR_USD, USD_CAD) are categorized and searchable via
+    UniversalAssetCatalog and /api/catalog/search.
+    """
+    from atlas.feeds.universe import resolve
+
+    # Spot metal aliases map to COMEX Gold & Silver futures
+    assert resolve("XAU_USD") == "GC"
+    assert resolve("XAUUSD") == "GC"
+    assert resolve("GOLD") == "GC"
+    assert resolve("XAG_USD") == "SI"
+    assert resolve("XAGUSD") == "SI"
+    assert resolve("SILVER") == "SI"
+    assert resolve("EUR_USD") == "EUR_USD"
+    assert resolve("USD_CAD") == "USD_CAD"
+
+    catalog = UniversalAssetCatalog(target_equities_count=10000, target_crypto_count=520)
+    counts = catalog.universe_counts()
+    assert counts["metals"] == 5
+    assert counts["etfs"] >= 40
+    assert counts["bonds_rates"] >= 15
+    assert counts["fx"] >= 4
+    assert counts["authentic_assets"] >= 200
+
+    metals = catalog.search("", asset_class="metals", limit=20)
+    metal_syms = {r["symbol"] for r in metals["results"]}
+    assert {"GC", "MGC", "SI", "GLD", "SLV"} == metal_syms
+
+    etfs = catalog.search("", asset_class="etfs", limit=60)
+    etf_syms = {r["symbol"] for r in etfs["results"]}
+    for required_etf in ("SPY", "QQQ", "IWM", "DIA", "TLT", "IEF", "SHY", "AGG", "GLD", "SLV", "XLK", "XLF", "XLE", "SOXX"):
+        assert required_etf in etf_syms
+
+    fx_res = catalog.search("", asset_class="fx", limit=20)
+    fx_syms = {r["symbol"] for r in fx_res["results"]}
+    assert {"EUR_USD", "USD_CAD", "6E", "6J"}.issubset(fx_syms)
+

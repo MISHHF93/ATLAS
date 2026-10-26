@@ -125,18 +125,39 @@ class AtlasFeed:
         inst = self.instruments.get(instrument)
         return list(inst.provider_priority) + [p for p in inst.sanity_providers if p not in inst.provider_priority]
 
+    _AGG_FALLBACKS: dict[str, tuple[str, ...]] = {
+        "5m": ("1m",),
+        "1h": ("15m", "1m"),
+        "4h": ("1h", "15m", "1m"),
+    }
+
     def bars(self, instrument: str, interval: str, start: int | None = None, end: int | None = None,
              as_of: int | None = None, confirmed_only: bool = True, provider: str | None = None) -> list[FeedBar]:
         """Authoritative series: per bar, the highest-priority provider's latest confirmed version known at ``as_of``.
-        Sanity-only providers (e.g. Coinbase USD for a USDT pair) are never merged into the series."""
+        Sanity-only providers (e.g. Coinbase USD for a USDT pair) are never merged into the series.
+        When an intermediate intraday interval (5m, 1h, 4h) has no stored rows, deterministically aggregates
+        confirmed lower-timeframe bars from the authoritative series."""
         if provider:
             return self.store.bars(instrument, interval, start, end, provider=provider, as_of=as_of, confirmed_only=confirmed_only)
-        prio = list(self.instruments.get(instrument).provider_priority)
+        inst = self.instruments.get(instrument)
+        prio = list(inst.provider_priority)
         merged: dict[int, FeedBar] = {}
         for p in reversed(prio):
             for b in self.store.bars(instrument, interval, start, end, provider=p, as_of=as_of, confirmed_only=confirmed_only):
                 merged[b.event_time] = b
-        return [merged[k] for k in sorted(merged)]
+        if merged:
+            return [merged[k] for k in sorted(merged)]
+        for sub_iv in self._AGG_FALLBACKS.get(interval, ()):
+            sub_map: dict[int, FeedBar] = {}
+            for p in reversed(prio):
+                for b in self.store.bars(instrument, sub_iv, start, end, provider=p, as_of=as_of, confirmed_only=confirmed_only):
+                    sub_map[b.event_time] = b
+            if sub_map:
+                now_ts = int(as_of if as_of is not None else self.clock())
+                anchor = 1800 if (inst.session == "us_equity_rth" and interval == "1h") else 0
+                agg = aggregate([sub_map[k] for k in sorted(sub_map)], interval, now_ts, anchor=anchor)
+                return [b for b in agg if (not confirmed_only or b.confirmed)]
+        return []
 
     def quality(self, instrument: str, interval: str, now: int | None = None, lookback_bars: int = 200,
                 max_age_seconds: int | None = None, cross_check: bool = True) -> Quality:

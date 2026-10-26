@@ -99,7 +99,7 @@ class LiveIngest:
         self.coinbase = {i.provider_symbols["coinbase"]: i.id for i in crypto if "coinbase" in i.provider_symbols}
         self.kraken = {i.provider_symbols["coinbase"].replace("-", "/"): i.id for i in crypto if "coinbase" in i.provider_symbols}
         self.yahoo = {i.provider_symbols["yahoo"]: i for i in self.master.all()
-                      if i.asset_class in ("equity", "etf", "future") and "yahoo" in i.provider_symbols}
+                      if i.asset_class in ("equity", "etf", "future", "fx") and "yahoo" in i.provider_symbols}
 
     async def _flush_loop(self):
         while True:

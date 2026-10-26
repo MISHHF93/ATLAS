@@ -57,7 +57,7 @@ export function markForAsset(assetClass: string, exchange?: string): GuideIconNa
 export function markForSymbol(symbol: string): GuideIconName {
   const upper = symbol.toUpperCase();
   if (upper.endsWith("-USD")) return "crypto";
-  if (upper === "ES" || upper === "NQ" || upper === "CL" || upper === "GC") return "futures";
+  if (["ES", "NQ", "YM", "RTY", "MES", "MNQ", "MYM", "M2K", "GC", "MGC", "SI", "CL", "MCL", "NG", "ZN", "ZB", "6E", "6J", "EUR_USD", "USD_CAD"].includes(upper)) return "futures";
   return "equity";
 }
 

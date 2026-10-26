@@ -295,6 +295,116 @@ const DEFAULT_STUDIO_LISTINGS: CatalogListingItem[] = [
     provider: "databento",
     execution_permission: "none",
   },
+  {
+    symbol: "SI",
+    name: "Silver Futures (COMEX Front Month)",
+    asset_class: "futures",
+    exchange: "COMEX",
+    tick_size: 0.005,
+    lot_size: 5000,
+    min_notional: 2500,
+    track: "competition",
+    is_active: true,
+    last_price: 0,
+    change_pct: 0,
+    volume_1m: 8400,
+    volume_24h: 7200000,
+    vpin: 0.34,
+    ofi_z: 0.65,
+    kyles_lambda: 0.0014,
+    spread_bps: 1.4,
+    regime: "Expansion",
+    provider: "databento",
+    execution_permission: "none",
+  },
+  {
+    symbol: "GLD",
+    name: "SPDR Gold Shares Physical Bullion Trust ETF",
+    asset_class: "equities",
+    exchange: "NYSE_ARCA",
+    tick_size: 0.01,
+    lot_size: 1,
+    min_notional: 10,
+    track: "open_market",
+    is_active: true,
+    last_price: 0,
+    change_pct: 0,
+    volume_1m: 18500,
+    volume_24h: 19500000,
+    vpin: 0.22,
+    ofi_z: 0.48,
+    kyles_lambda: 0.0011,
+    spread_bps: 1.0,
+    regime: "Compression",
+    provider: "databento",
+    execution_permission: "none",
+  },
+  {
+    symbol: "SLV",
+    name: "iShares Silver Trust Physical Bullion ETF",
+    asset_class: "equities",
+    exchange: "NYSE_ARCA",
+    tick_size: 0.01,
+    lot_size: 1,
+    min_notional: 10,
+    track: "open_market",
+    is_active: true,
+    last_price: 0,
+    change_pct: 0,
+    volume_1m: 22400,
+    volume_24h: 24500000,
+    vpin: 0.25,
+    ofi_z: 0.52,
+    kyles_lambda: 0.0012,
+    spread_bps: 1.3,
+    regime: "Compression",
+    provider: "databento",
+    execution_permission: "none",
+  },
+  {
+    symbol: "TLT",
+    name: "iShares 20+ Year Treasury Bond ETF",
+    asset_class: "equities",
+    exchange: "NASDAQ",
+    tick_size: 0.01,
+    lot_size: 1,
+    min_notional: 10,
+    track: "open_market",
+    is_active: true,
+    last_price: 0,
+    change_pct: 0,
+    volume_1m: 26000,
+    volume_24h: 31000000,
+    vpin: 0.21,
+    ofi_z: 0.34,
+    kyles_lambda: 0.001,
+    spread_bps: 1.1,
+    regime: "Compression",
+    provider: "databento",
+    execution_permission: "none",
+  },
+  {
+    symbol: "EUR_USD",
+    name: "Euro / US Dollar Spot Foreign Exchange",
+    asset_class: "futures",
+    exchange: "FX_SPOT",
+    tick_size: 0.0001,
+    lot_size: 1000,
+    min_notional: 1000,
+    track: "open_market",
+    is_active: true,
+    last_price: 0,
+    change_pct: 0,
+    volume_1m: 15000,
+    volume_24h: 18000000,
+    vpin: 0.19,
+    ofi_z: 0.28,
+    kyles_lambda: 0.0009,
+    spread_bps: 0.8,
+    regime: "Compression",
+    provider: "databento",
+    execution_permission: "none",
+  },
 ];
 
 function nyseSessionCountdown(now: Date): string {
@@ -364,7 +474,9 @@ function placeholderListing(symbol: string, lastPrice = 0): CatalogListingItem {
 export function StreamlinedTradingStudio() {
   const { role, setRole, profile } = useRoleContext();
   const [activeTrack, setActiveTrack] = useState<"all" | "open_market" | "competition">("all");
-  const [assetClassFilter, setAssetClassFilter] = useState<"all" | "equities" | "crypto_perps" | "futures">("all");
+  const [assetClassFilter, setAssetClassFilter] = useState<
+    "all" | "metals" | "etfs" | "futures" | "fx" | "stocks" | "equities" | "crypto_perps"
+  >("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchLatencyMs, setSearchLatencyMs] = useState<number | null>(null);
   const [universeCounts, setUniverseCounts] = useState<{
@@ -1402,7 +1514,10 @@ export function StreamlinedTradingStudio() {
           >
             <button
               type="button"
-              onClick={() => setActiveTrack("all")}
+              onClick={() => {
+                setActiveTrack("all");
+                setAssetClassFilter("all");
+              }}
               style={{
                 padding: "5px 10px",
                 borderRadius: "6px",
@@ -1413,8 +1528,8 @@ export function StreamlinedTradingStudio() {
                 gap: "6px",
                 fontSize: "11.5px",
                 fontWeight: 600,
-                background: activeTrack === "all" ? "var(--c-surface-3)" : "transparent",
-                color: activeTrack === "all" ? "var(--c-text)" : "var(--c-muted)",
+                background: activeTrack === "all" && assetClassFilter === "all" ? "var(--c-surface-3)" : "transparent",
+                color: activeTrack === "all" && assetClassFilter === "all" ? "var(--c-text)" : "var(--c-muted)",
               }}
             >
               <GuideIcon name="all" />
@@ -1423,7 +1538,56 @@ export function StreamlinedTradingStudio() {
             <button
               type="button"
               onClick={() => {
+                setActiveTrack("all");
+                setAssetClassFilter("metals");
+                handleSelectSymbol("GC");
+              }}
+              style={{
+                padding: "5px 10px",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "11.5px",
+                fontWeight: 600,
+                background: assetClassFilter === "metals" ? "rgba(244, 196, 96, 0.22)" : "transparent",
+                color: assetClassFilter === "metals" ? "var(--c-warn)" : "var(--c-muted)",
+              }}
+            >
+              <GuideIcon name="futures" color={assetClassFilter === "metals" ? "var(--c-warn)" : markColor("futures")} />
+              Gold &amp; Silver
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 setActiveTrack("open_market");
+                setAssetClassFilter("etfs");
+                handleSelectSymbol("SPY");
+              }}
+              style={{
+                padding: "5px 10px",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "11.5px",
+                fontWeight: 600,
+                background: assetClassFilter === "etfs" ? "rgba(0, 200, 255, 0.18)" : "transparent",
+                color: assetClassFilter === "etfs" ? "var(--c-accent)" : "var(--c-muted)",
+              }}
+            >
+              <GuideIcon name="equity" color={assetClassFilter === "etfs" ? "var(--c-accent)" : markColor("equity")} />
+              ETFs
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTrack("open_market");
+                setAssetClassFilter("stocks");
                 handleSelectSymbol("NVDA");
               }}
               style={{
@@ -1436,17 +1600,18 @@ export function StreamlinedTradingStudio() {
                 gap: "6px",
                 fontSize: "11.5px",
                 fontWeight: 600,
-                background: activeTrack === "open_market" ? "rgba(0, 200, 255, 0.18)" : "transparent",
-                color: activeTrack === "open_market" ? "var(--c-accent)" : "var(--c-muted)",
+                background: activeTrack === "open_market" && assetClassFilter === "stocks" ? "rgba(0, 200, 255, 0.18)" : "transparent",
+                color: activeTrack === "open_market" && assetClassFilter === "stocks" ? "var(--c-accent)" : "var(--c-muted)",
               }}
             >
-              <GuideIcon name="equity" color={activeTrack === "open_market" ? "var(--c-accent)" : markColor("equity")} />
-              Equities
+              <GuideIcon name="equity" color={activeTrack === "open_market" && assetClassFilter === "stocks" ? "var(--c-accent)" : markColor("equity")} />
+              Stocks
             </button>
             <button
               type="button"
               onClick={() => {
                 setActiveTrack("competition");
+                setAssetClassFilter("crypto_perps");
                 handleSelectSymbol("BTC-USD");
               }}
               style={{
@@ -1703,15 +1868,22 @@ export function StreamlinedTradingStudio() {
             </div>
           </div>
 
-          {/* Asset Class Filter Tabs: All, Equities, Crypto Perps, Futures */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 80px), 1fr))", gap: "4px" }}>
+          {/* Asset Class Filter Tabs: All, Gold & Silver, ETFs, Futures, FX, Stocks, Crypto */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 68px), 1fr))", gap: "4px" }}>
             {(
               [
                 { id: "all", label: "All", mark: "all" },
-                { id: "equities", label: "Equities", mark: "equity" },
-                { id: "crypto_perps", label: "Crypto", mark: "crypto" },
+                { id: "metals", label: "Metals", mark: "futures" },
+                { id: "etfs", label: "ETFs", mark: "equity" },
                 { id: "futures", label: "Futures", mark: "futures" },
-              ] as const satisfies ReadonlyArray<{ id: "all" | "equities" | "crypto_perps" | "futures"; label: string; mark: GuideIconName }>
+                { id: "fx", label: "FX", mark: "futures" },
+                { id: "stocks", label: "Stocks", mark: "equity" },
+                { id: "crypto_perps", label: "Crypto", mark: "crypto" },
+              ] as const satisfies ReadonlyArray<{
+                id: "all" | "metals" | "etfs" | "futures" | "fx" | "stocks" | "crypto_perps";
+                label: string;
+                mark: GuideIconName;
+              }>
             ).map((tab) => {
               const on = assetClassFilter === tab.id;
               return (
