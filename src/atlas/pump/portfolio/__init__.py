@@ -283,7 +283,7 @@ class PumpDeterministicRiskEngine:
             )
 
         lim = self.limits
-        safe_stop_tripped = bool(shared_safe_stop.state().get("tripped", False))
+        safe_stop_tripped = bool(shared_safe_stop().engaged)
         summary = portfolio.summary()
         equity = max(0.01, float(summary["equity_sol"]))
         new_exposure = portfolio.total_exposure_sol() + (size_sol if side == "buy" else 0.0)

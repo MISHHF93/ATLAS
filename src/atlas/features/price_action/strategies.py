@@ -35,8 +35,13 @@ STRATEGIES: tuple[StrategySpec, ...] = (
     StrategySpec("sfp", "sfp", ("sfp_reversal",), "all", False, "implemented", "Swing failure pattern at potential liquidity reference levels"),
     StrategySpec("gold_snapback", "snapback", ("gold_snapback",), "gold futures (GC, MGC)", False, "implemented", "Gold opening-box breakout -> retest -> continuation"),
     StrategySpec("gold_orb_breakout", "orb", ("gold_orb_breakout",), "gold futures (GC, MGC)", False, "implemented", "Gold opening-box accepted breakout"),
+    StrategySpec("failed_breakout_reversal", "zone_rejection", ("failed_breakout_reversal",), "all", False, "implemented", "Multi-bar failed breakout reversal back inside prior structural range"),
+    StrategySpec("nasdaq_opening_drive", "orb", ("nasdaq_opening_drive",), "Nasdaq (NQ, MNQ, QQQ, TQQQ, NDX)", False, "implemented", "Nasdaq 09:30-10:00 ET Initial Balance (IB-30) opening drive"),
+    StrategySpec("fair_price_session_anchor", "mean_reversion", ("fair_price_session_anchor",), "all", False, "implemented", "Causal session VWAP and opening anchor stretched-value reversion"),
+    StrategySpec("scheduled_news_post_release", "event_box", ("scheduled_news_post_release",), "all with verified EconomicEvent", False, "implemented", "Causal post-release scheduled-news volatility box breakout"),
+    StrategySpec("whale_orderflow_research", "order_flow", ("whale_orderflow_research",), "all", False, "implemented", "Institutional/whale volume z-score + CLV accumulation/distribution"),
     StrategySpec("four_box", "box", ("orb_retest", "dual_bollinger", "wick_reversal"), "all", False, "reserved",
-                 "Four-Box research view (atlas.intel.fourbox): Opening=orb_retest, Breakout=dual_bollinger, Anchor=wick_reversal; Event box disabled (no verified event calendar). Not a suite toggle."),
+                 "Four-Box research view (atlas.intel.fourbox): Opening=orb_retest, Breakout=dual_bollinger, Anchor=wick_reversal; Event box disabled unless verified event calendar is supplied. Not a suite toggle."),
 )
 # evo6 research variants (docs/research/evo6-setup-variants.md). Off by default, toggleable, never run by the live
 # suite (enabled_detectors ignores them) and grant no execution permission. The legacy specs above are unchanged.

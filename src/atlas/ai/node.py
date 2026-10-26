@@ -77,6 +77,9 @@ REGISTRY: tuple[AIComponent, ...] = (
     AIComponent("pump_intelligence", "ml", ("atlas.pump", "atlas.pump.features", "atlas.pump.models", "atlas.pump.strategies"),
                 api=("/api/pump",), ui=("PumpIntelligenceView",),
                 notes="Solana Pump.fun/PumpSwap discovery, safety, EV ranking; execution_permission=none on ML output; paper-only control plane"),
+    AIComponent("unified_intelligence_loop", "intel", ("atlas.ai.intel.unified_loop", "atlas.features.price_action.extended_strategies", "atlas.integrations.protocol_manifest"),
+                api=("/api/ai/intelligence-loop", "/api/ai/protocol-manifest"), ui=("PumpIntelligenceView", "IntelViews"),
+                notes="14-Stage ATLAS Intelligence Loop across multi-asset bars and Solana Pump.fun/PumpSwap tokens; execution_permission=none"),
 )
 
 

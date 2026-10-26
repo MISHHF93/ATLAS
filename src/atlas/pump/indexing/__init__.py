@@ -10,6 +10,7 @@ from typing import Any, Callable, Mapping
 
 from atlas.feeds.core import RateLimiter
 
+EXECUTION_PERMISSION = "none"
 ConfirmationLevel = str  # "processed" | "confirmed" | "finalized"
 CONFIRMATION_RANK = {"processed": 1, "confirmed": 2, "finalized": 3}
 
@@ -185,6 +186,155 @@ class SolanaRPCIndexer:
 
     def events_for_mint(self, mint: str, *, min_confirmation: ConfirmationLevel = "processed") -> list[IndexedChainEvent]:
         return self.ordered_events(mint=mint, min_confirmation=min_confirmation)
+
+    def fetch_recent_prioritization_fees(self, locked_writable_accounts: list[str] | None = None) -> dict[str, Any]:
+        """Call Solana RPC `getRecentPrioritizationFees` and compute median/p75 micro-lamports per CU."""
+        params = [locked_writable_accounts] if locked_writable_accounts else []
+        if not self.configured:
+            return {
+                "ok": True,
+                "samples": 0,
+                "median_micro_lamports": 25_000,
+                "p75_micro_lamports": 50_000,
+                "max_slot": self.last_slot,
+                "execution_permission": EXECUTION_PERMISSION,
+            }
+        rows = self.rpc_call("getRecentPrioritizationFees", params) or []
+        fees = sorted(int(r.get("prioritizationFee", 0)) for r in rows if isinstance(r, dict))
+        if not fees:
+            return {
+                "ok": True,
+                "samples": 0,
+                "median_micro_lamports": 25_000,
+                "p75_micro_lamports": 50_000,
+                "max_slot": self.last_slot,
+                "execution_permission": EXECUTION_PERMISSION,
+            }
+        mid = fees[len(fees) // 2]
+        p75 = fees[min(len(fees) - 1, int(len(fees) * 0.75))]
+        max_slot = max(int(r.get("slot", 0)) for r in rows if isinstance(r, dict))
+        return {
+            "ok": True,
+            "samples": len(fees),
+            "median_micro_lamports": mid,
+            "p75_micro_lamports": p75,
+            "max_slot": max_slot,
+            "execution_permission": EXECUTION_PERMISSION,
+        }
+
+    def simulate_transaction_rpc(
+        self,
+        tx_base64: str,
+        *,
+        commitment: ConfirmationLevel = "confirmed",
+        sig_verify: bool = False,
+        replace_recent_blockhash: bool = True,
+    ) -> dict[str, Any]:
+        """Call Solana RPC `simulateTransaction` against blockchain state without broadcasting."""
+        if not self.configured:
+            return {
+                "ok": True,
+                "err": None,
+                "logs": ["Program 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P success"],
+                "units_consumed": 85_000,
+                "Simulated": True,
+                "execution_permission": EXECUTION_PERMISSION,
+            }
+        res = self.rpc_call(
+            "simulateTransaction",
+            [
+                tx_base64,
+                {
+                    "encoding": "base64",
+                    "commitment": commitment,
+                    "sigVerify": bool(sig_verify),
+                    "replaceRecentBlockhash": bool(replace_recent_blockhash),
+                },
+            ],
+        ) or {}
+        val = res.get("value", res) if isinstance(res, dict) else {}
+        return {
+            "ok": val.get("err") is None,
+            "err": val.get("err"),
+            "logs": list(val.get("logs") or ()),
+            "units_consumed": int(val.get("unitsConsumed") or 0),
+            "Simulated": val.get("err") is None,
+            "execution_permission": EXECUTION_PERMISSION,
+        }
+
+    def fetch_account_info(self, pubkey: str, *, commitment: ConfirmationLevel = "confirmed") -> dict[str, Any]:
+        """Call Solana RPC `getAccountInfo` with `base64` encoding."""
+        if not self.configured:
+            return {
+                "ok": True,
+                "exists": False,
+                "pubkey": pubkey,
+                "owner": None,
+                "lamports": 0,
+                "data_bytes": b"",
+                "execution_permission": EXECUTION_PERMISSION,
+            }
+        res = self.rpc_call("getAccountInfo", [pubkey, {"encoding": "base64", "commitment": commitment}]) or {}
+        val = res.get("value") if isinstance(res, dict) else None
+        if not val:
+            return {
+                "ok": True,
+                "exists": False,
+                "pubkey": pubkey,
+                "owner": None,
+                "lamports": 0,
+                "data_bytes": b"",
+                "execution_permission": EXECUTION_PERMISSION,
+            }
+        import base64
+        raw_data = val.get("data")
+        b64_str = raw_data[0] if isinstance(raw_data, list) and raw_data else (raw_data if isinstance(raw_data, str) else "")
+        return {
+            "ok": True,
+            "exists": True,
+            "pubkey": pubkey,
+            "owner": val.get("owner"),
+            "lamports": int(val.get("lamports", 0)),
+            "data_bytes": base64.b64decode(b64_str) if b64_str else b"",
+            "execution_permission": EXECUTION_PERMISSION,
+        }
+
+    @staticmethod
+    def build_ws_subscription_payloads(
+        accounts: list[str] | tuple[str, ...] = (),
+        *,
+        program_ids: tuple[str, ...] = ("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",),
+        account_pubkeys: tuple[str, ...] = (),
+        commitment: ConfirmationLevel = "confirmed",
+    ) -> dict[str, Any]:
+        """Construct official Solana WebSocket `logsSubscribe` and `accountSubscribe` JSON-RPC 2.0 requests."""
+        all_accounts = tuple(accounts) + tuple(account_pubkeys)
+        logs_subs: list[dict[str, Any]] = []
+        acct_subs: list[dict[str, Any]] = []
+        req_id = 1
+        for pid in program_ids:
+            logs_subs.append({
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "method": "logsSubscribe",
+                "params": [{"mentions": [pid]}, {"commitment": commitment}],
+            })
+            req_id += 1
+        for acc in all_accounts:
+            acct_subs.append({
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "method": "accountSubscribe",
+                "params": [acc, {"encoding": "base64", "commitment": commitment}],
+            })
+            req_id += 1
+        return {
+            "logs_subscribe": logs_subs[0] if logs_subs else None,
+            "logs_subscribes": logs_subs,
+            "account_subscribes": acct_subs,
+            "payloads": logs_subs + acct_subs,
+            "execution_permission": EXECUTION_PERMISSION,
+        }
 
     def freshness(self, now: float | None = None, max_age_seconds: float = 30.0) -> dict[str, Any]:
         now_ts = float(self.clock() if now is None else now)

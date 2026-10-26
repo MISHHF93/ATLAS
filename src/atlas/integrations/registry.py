@@ -44,9 +44,9 @@ SERVICES: tuple[Service, ...] = (
             "No key: a User-Agent 'AppName you@example.com' is required by SEC fair-access rules."),
     Service("fred", "FRED / ALFRED (St. Louis Fed macro, vintages)", "macro", ("FRED_API_KEY",), (), "free",
             "https://fredaccount.stlouisfed.org/apikeys", "src/atlas/feeds/providers/fred.py, src/atlas/autopilot/feeds.py", "fred"),
-    Service("polygon", "Massive (formerly Polygon.io)", "market_data", ("POLYGON_API_KEY",), ("POLYGON_BASE_URL", "MASSIVE_API_KEY"), "free_tier",
+    Service("polygon", "Massive (formerly Polygon.io)", "market_data", ("POLYGON_API_KEY",), ("POLYGON_BASE_URL", "MASSIVE_API_KEY", "MASSIVE_BASE_URL"), "free_tier",
             "https://massive.com/dashboard/keys", "src/atlas/feeds/providers/polygon.py, src/atlas/marketdata/pit/providers/polygon.py",
-            notes="Free tier: 5 calls/min, end-of-day. MASSIVE_API_KEY is the same key for the optional Massive MCP server."),
+            notes="Free tier: 5 calls/min, end-of-day. Accepts either POLYGON_API_KEY or MASSIVE_API_KEY; primary host api.massive.com."),
     Service("finnhub", "Finnhub (quotes, news, fundamentals)", "market_data", ("FINNHUB_API_KEY",), (), "free_tier",
             "https://finnhub.io/dashboard", "src/atlas/feeds/providers/finnhub.py, src/atlas/marketdata/pit/providers/finnhub.py"),
     Service("tiingo", "Tiingo (EOD + IEX intraday)", "market_data", ("TIINGO_API_KEY",), (), "free_tier",
@@ -54,7 +54,7 @@ SERVICES: tuple[Service, ...] = (
     Service("twelvedata", "Twelve Data", "market_data", ("TWELVEDATA_API_KEY",), (), "free_tier",
             "https://twelvedata.com/account/api-keys", "src/atlas/feeds/providers/twelvedata.py"),
     Service("alphavantage", "Alpha Vantage", "market_data", ("ALPHAVANTAGE_API_KEY",), (), "free_tier",
-            "https://www.alphavantage.co/support/#api-key", "src/atlas/feeds/providers/alphavantage.py, external MCP"),
+            "https://www.alphavantage.com/support/#api-key", "src/atlas/feeds/providers/alphavantage.py, external MCP"),
     Service("fmp", "Financial Modeling Prep", "market_data", ("FMP_API_KEY",), (), "free_tier",
             "https://site.financialmodelingprep.com/developer/docs/dashboard", "src/atlas/autopilot/feeds.py"),
     Service("eodhd", "EODHD (TSX/TSXV end-of-day)", "market_data", ("EODHD_API_KEY",), (), "paid",
@@ -73,6 +73,9 @@ SERVICES: tuple[Service, ...] = (
             notes="Local gateway URL, not a key. Use a paper (DU...) login."),
     Service("public_crypto", "Binance / Bybit / Coinbase / Kraken / OKX public data", "market_data", (), ("ATLAS_BINANCE_REST_HOSTS",), "free",
             "", "src/atlas/feeds/providers/{binance,bybit,coinbase,kraken,okx}.py", notes="Keyless public endpoints."),
+    Service("solana_rpc", "Solana JSON-RPC + Pump.fun / PumpSwap on-chain indexing", "market_data", (), ("SOLANA_RPC_URL", "SOLANA_WS_URL"), "free",
+            "https://solana.com/docs/rpc", "src/atlas/pump/indexing/__init__.py", "solana_rpc",
+            notes="Keyless default https://api.mainnet-beta.solana.com; supports custom RPC/WS endpoints. Paper execution only."),
     Service("yahoo", "Yahoo Finance (unofficial, keyless)", "market_data", (), (), "free", "", "src/atlas/feeds/providers/yahoo.py",
             notes="Unofficial; may break or rate-limit."),
     Service("alerts_telegram", "Telegram alerts", "alerts", ("ATLAS_ALERTS_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"), (), "free",
@@ -105,6 +108,8 @@ def _is_set(env: dict[str, str], k: str) -> bool:
     v = (env.get(k) or "").strip()
     if k == "ATLAS_ALERTS_ENABLED" or k == "ATLAS_EXTERNAL_MCP":
         return v.lower() in ("true", "on", "1")
+    if k == "POLYGON_API_KEY" and not v:
+        v = (env.get("MASSIVE_API_KEY") or "").strip()
     return bool(v) and not v.startswith("<")
 
 
@@ -174,7 +179,17 @@ def probe_fred(env: dict[str, str], get: Getter = _http_get_json) -> dict[str, A
     return {"reachable": bool(js and js.get("seriess")), "detail": "series metadata OK (GDP)"}
 
 
-PROBES = {"alpaca": probe_alpaca, "sec_edgar": probe_sec_edgar, "fred": probe_fred}
+def probe_solana_rpc(env: dict[str, str], rpc_fn=None) -> dict[str, Any]:
+    from atlas.pump.indexing import SolanaRPCIndexer
+    url = (env.get("SOLANA_RPC_URL") or "").strip()
+    if not url and rpc_fn is None:
+        return {"reachable": None, "detail": "SOLANA_RPC_URL not set (simulated reference mode)"}
+    indexer = SolanaRPCIndexer(rpc_url=url or "https://api.mainnet-beta.solana.com")
+    slot = rpc_fn("getSlot", []) if rpc_fn is not None else indexer.rpc_call("getSlot", [])
+    return {"reachable": slot is not None, "detail": f"slot={slot}" if slot is not None else "probe_failed"}
+
+
+PROBES = {"alpaca": probe_alpaca, "sec_edgar": probe_sec_edgar, "fred": probe_fred, "solana_rpc": probe_solana_rpc}
 
 
 def status(env: dict[str, str] | None = None, probe: bool = False, probes: dict[str, Callable[..., dict]] | None = None) -> dict[str, Any]:

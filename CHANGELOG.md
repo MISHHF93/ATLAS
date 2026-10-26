@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-26: ATLAS Internet Research, Protocol Manifest, Extended Institutional Strategies & 14-Stage Unified Intelligence Loop
+- **Version-Pinned Protocol & Adapter Manifest (`src/atlas/integrations/protocol_manifest.py`, `GET /api/ai/protocol-manifest`)**:
+  - Codifies verified upstream protocol specifications, binary account discriminators, rate limits, licensing, and security invariants across `Databento GLBX.MDP3`, `Massive.com (formerly Polygon.io)`, `Alpaca Markets Paper & Crypto`, `Coinbase Exchange`, `Bank of Canada Valet & ECB SDMX 2.1`, `TradingView UDF / Pine v5`, `Solana JSON-RPC 2.0 & WebSocket`, `Pump.fun Bonding Curve (@pump-fun/pump-sdk@^4.1.0)`, `PumpSwap AMM (@pump-fun/pump-swap-sdk@^2.1.0)`, and the `ATLAS Point-in-Time ML & Analytics Stack`.
+  - Adds `verify_protocol_compatibility()` and `detect_protocol_drift()` to catch smart-contract discriminator changes, unknown program owners, or forbidden live endpoints.
+- **Massive.com & Solana JSON-RPC Adapter Enhancements (`src/atlas/feeds/providers/polygon.py`, `src/atlas/integrations/registry.py`, `src/atlas/pump/indexing/__init__.py`)**:
+  - `PolygonAdapter` and `integrations.registry` now accept both `POLYGON_API_KEY` and `MASSIVE_API_KEY` (and `POLYGON_BASE_URL` / `MASSIVE_BASE_URL`, defaulting to `https://api.massive.com`).
+  - Added `solana_rpc` to `SERVICES` and `PROBES` in `src/atlas/integrations/registry.py`.
+  - Added `fetch_recent_prioritization_fees`, `simulate_transaction_rpc`, `fetch_account_info`, and `build_ws_subscription_payloads` (`logsSubscribe` and `accountSubscribe`) to `SolanaRPCIndexer`.
+- **Extended Institutional Strategy Detectors & Prop-Firm Risk Pacing (`src/atlas/features/price_action/extended_strategies.py`, `src/atlas/features/price_action/strategies.py`, `src/atlas/ai/intel/fourbox.py`)**:
+  - Implemented causal bar-by-bar detectors with `execution_permission="none"`:
+    - `FailedBreakoutReversalDetector` (`failed_breakout_reversal`)
+    - `NasdaqOpeningSessionDetector` (`nasdaq_opening_drive`, strictly scoped to `NQ`, `MNQ`, `QQQ`, `TQQQ`, `NDX`, 09:30–10:00 `America/New_York` IB-30)
+    - `FairPriceSessionAnchorDetector` (`fair_price_session_anchor`, causal session VWAP and volume-weighted dispersion bands)
+    - `ScheduledNewsPostReleaseDetector` (`scheduled_news_post_release`, strictly causal via `EconomicEvent.as_of(bar.end)` post-release volatility box)
+    - `WhaleOrderFlowDetector` (`whale_orderflow_research`, causal rolling volume z-score, CLV, and effort-vs-result absorption)
+    - `PropFirmCompetitionAdvisor` (`prop_firm_competition_intel`, deterministic risk-reducing `size_scalar <= 1.0` for trailing drawdown buffer, daily loss pacing, and consistency rule; never loosens `config/founder/risk_policy.yaml`).
+  - Enhanced `fourbox.scan` (`src/atlas/ai/intel/fourbox.py`) to activate the 4th `Event` box causally when verified `EconomicEvent` objects are provided while remaining `disabled` by default when no events are supplied.
+- **14-Stage ATLAS Unified Intelligence Loop (`src/atlas/ai/intel/unified_loop.py`, `GET/POST /api/ai/intelligence-loop`)**:
+  - Connects multi-asset confirmed bars (`GC`, `NQ`, `QQQ`, `SPY`, `BTCUSDT`) and Solana/Pump.fun/PumpSwap tokens across all 14 stages (`AUTHORIZED_INTERNET_AND_MARKET_DATA` through `MODEL_EVALUATION_AND_RESEARCH`), registered as `unified_intelligence_loop` in `src/atlas/ai/node.py`.
+
 ## 2026-10-26: ATLAS Pump Intelligence — Solana Token Discovery, Risk, ML & Paper Execution (`atlas.pump`)
 - **Pump.fun & Solana Trading Subsystem (`src/atlas/pump/*`, `/api/pump/*`, `/trade?tab=pump`)**:
   - **Discovery & Lifecycle (`atlas.pump.tokens`, `atlas.pump.discovery`, `atlas.pump.migrations`)**: Mint-address primary identity (`assert_mint_identifier`, rejecting bare symbols and disambiguating ticker collisions), `create`/`create_v2` custom quote-mint hierarchy validation (`MAX_QUOTE_DEPTH = 3`), and causal lifecycle state machine (`DISCOVERED -> CURVE_ACTIVE -> MIGRATION_PENDING -> PUMPSWAP_ACTIVE`, plus `UNSUPPORTED`, `SUSPENDED`, `DATA_UNAVAILABLE`, `RISK_REJECTED`).

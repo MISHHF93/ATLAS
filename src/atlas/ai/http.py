@@ -6,10 +6,16 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from atlas.ai.node import AI_GUARDED_PREFIXES, AI_NAMESPACES, EXECUTION_PERMISSION, NODE, component, component_status, enforce_advisory, read_audit
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
+
+
+class IntelligenceLoopRequest(BaseModel):
+    instruments: list[str] = ["GC", "NQ", "BTCUSDT"]
+    execute_top_paper: bool = True
 
 
 @router.get("")
@@ -39,6 +45,41 @@ def ai_helpers(component: str | None = None, family: str | None = None) -> dict[
     rows = [as_dict(h) for h in HELPERS
             if (component is None or component in h.used_by_components) and (family is None or h.family == family)]
     return {"helpers": rows, "families": families(), "execution_permission": EXECUTION_PERMISSION}
+
+
+@router.get("/protocol-manifest")
+def ai_protocol_manifest() -> dict[str, Any]:
+    """Version-pinned external protocol & adapter manifest with automated compatibility and drift checks."""
+    from atlas.integrations.protocol_manifest import detect_protocol_drift, verify_protocol_compatibility
+
+    compat = verify_protocol_compatibility()
+    drift = detect_protocol_drift()
+    clean, _ = enforce_advisory(
+        {"compatibility": compat, "drift": drift, "execution_permission": EXECUTION_PERMISSION},
+        source="/api/ai/protocol-manifest",
+    )
+    return clean
+
+
+@router.get("/intelligence-loop")
+def ai_intelligence_loop_get(instruments: str = "GC,NQ,BTCUSDT", execute_top_paper: bool = True) -> dict[str, Any]:
+    """Execute the 14-Stage ATLAS Intelligence Loop across multi-asset bars and Solana Pump.fun/PumpSwap tokens."""
+    from atlas.ai.intel.unified_loop import run_unified_intelligence_loop
+
+    inst_list = [s.strip().upper() for s in instruments.split(",") if s.strip()] or ["GC", "NQ", "BTCUSDT"]
+    res = run_unified_intelligence_loop(instruments=inst_list, execute_top_paper=execute_top_paper)
+    clean, _ = enforce_advisory(res, source="/api/ai/intelligence-loop")
+    return clean
+
+
+@router.post("/intelligence-loop")
+def ai_intelligence_loop_post(req: IntelligenceLoopRequest) -> dict[str, Any]:
+    """Execute the 14-Stage ATLAS Intelligence Loop with custom instrument list."""
+    from atlas.ai.intel.unified_loop import run_unified_intelligence_loop
+
+    res = run_unified_intelligence_loop(instruments=req.instruments, execute_top_paper=req.execute_top_paper)
+    clean, _ = enforce_advisory(res, source="/api/ai/intelligence-loop")
+    return clean
 
 
 @router.get("/audit")

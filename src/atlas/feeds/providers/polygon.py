@@ -24,15 +24,24 @@ class PolygonAdapter(ProviderAdapter):
         auth_env=('POLYGON_API_KEY',),
         official_docs=('https://massive.com/docs/rest/stocks/aggregates/custom-bars', 'https://massive.com/docs/websocket/stocks/aggregates-per-minute'),
         terms_url='https://massive.com/legal/terms',
-        notes='')
+        notes='Supports both POLYGON_API_KEY and MASSIVE_API_KEY; primary host api.massive.com.')
+
+    def __init__(self, transport=None, env=None, **kwargs):
+        if env is not None and env.get("MASSIVE_API_KEY") and not env.get("POLYGON_API_KEY"):
+            env = {**env, "POLYGON_API_KEY": env["MASSIVE_API_KEY"]}
+        if env is not None and env.get("MASSIVE_BASE_URL") and not env.get("POLYGON_BASE_URL"):
+            env = {**env, "POLYGON_BASE_URL": env["MASSIVE_BASE_URL"]}
+        super().__init__(transport=transport, env=env, **kwargs)
 
     def _history(self, instrument, interval, start, end, now):
         mult, span = {"1m": (1, "minute"), "5m": (5, "minute"), "15m": (15, "minute"), "1h": (1, "hour"), "1d": (1, "day")}[interval]
-        url = f"{self.env.get('POLYGON_BASE_URL', 'https://api.massive.com')}/v2/aggs/ticker/{self.provider_symbol(instrument)}/range/{mult}/{span}/{start*1000}/{end*1000-1}"
-        out, params = [], {"adjusted": "false", "sort": "asc", "limit": 50000, "apiKey": self.env["POLYGON_API_KEY"]}
+        base = self.env.get("POLYGON_BASE_URL") or self.env.get("MASSIVE_BASE_URL") or "https://api.massive.com"
+        api_key = self.env.get("POLYGON_API_KEY") or self.env.get("MASSIVE_API_KEY") or ""
+        url = f"{base}/v2/aggs/ticker/{self.provider_symbol(instrument)}/range/{mult}/{span}/{start*1000}/{end*1000-1}"
+        out, params = [], {"adjusted": "false", "sort": "asc", "limit": 50000, "apiKey": api_key}
         while url:
             js = self.get_json(url, params)
             out += [self._bar(instrument, interval, r["t"] // 1000, r["o"], r["h"], r["l"], r["c"], r.get("v", 0), now) for r in js.get("results") or []]
             url = js.get("next_url")
-            params = {"apiKey": self.env["POLYGON_API_KEY"]}
+            params = {"apiKey": api_key}
         return out
