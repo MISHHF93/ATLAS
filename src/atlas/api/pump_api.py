@@ -52,6 +52,12 @@ def get_workbench(q: str = Query(default="")) -> dict[str, Any]:
     return eng.workbench_snapshot(query=q)
 
 
+@router.post("/sync-live")
+def post_sync_live(max_tokens: int = Query(default=6, ge=1, le=20)) -> dict[str, Any]:
+    eng = get_pump_engine()
+    return eng.sync_live_solana(max_tokens=max_tokens)
+
+
 @router.get("/tokens/{mint}")
 def get_token_detail(mint: str, order_size_sol: float = Query(default=0.5, gt=0.0, le=50.0)) -> dict[str, Any]:
     if not is_valid_pubkey(mint):

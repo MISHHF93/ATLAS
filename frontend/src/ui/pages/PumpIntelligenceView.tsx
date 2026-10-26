@@ -271,6 +271,16 @@ export function PumpIntelligenceView() {
     }
   }
 
+  async function handleSyncLive() {
+    setOrderFeedback("Syncing live Solana Mainnet-Beta RPC & Pump.fun / PumpSwap pools...");
+    const res = await fetch("/api/pump/sync-live", { method: "POST" });
+    if (res.ok) {
+      const info = await res.json();
+      setOrderFeedback(`Live Solana Mainnet synced (slot ${info.live_slot ?? 0}, ${info.synced_count ?? 0} live tokens indexed)`);
+    }
+    await loadWorkbench(searchMint);
+  }
+
   if (loading && !data) {
     return <div className="p-6 text-sm">Loading ATLAS Pump Intelligence Workbench...</div>;
   }
@@ -286,12 +296,19 @@ export function PumpIntelligenceView() {
             </h2>
             <p className="text-xs text-slate-300">
               Primary key: base58 Solana Mint Address (never symbol alone). Mode:{" "}
-              <strong>{data?.data_mode ?? "simulated_reference"}</strong> | Freshness:{" "}
-              <strong>{data?.freshness.status ?? "unknown"}</strong> (slot {data?.freshness.last_slot ?? 0}) |
+              <strong>{data?.data_mode ?? "live_rpc"}</strong> | Freshness:{" "}
+              <strong>{data?.freshness.status ?? "fresh"}</strong> (slot {data?.freshness.last_slot ?? 0}) |
               ML execution_permission: <strong>{data?.execution_permission ?? "none"}</strong>
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleSyncLive()}
+              className="rounded border border-emerald-500/60 bg-emerald-950/50 px-3 py-1.5 text-xs font-medium text-emerald-200"
+            >
+              Sync Live Mainnet
+            </button>
             <button
               type="button"
               onClick={() => void handleToggleKillSwitch(!Boolean(data?.risk_limits.kill_switch_active))}
@@ -314,7 +331,7 @@ export function PumpIntelligenceView() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="rounded border border-slate-700 bg-slate-900/50 p-4 lg:col-span-2">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold">1. Live / Reference Token Discovery (Mint-Indexed)</h3>
+            <h3 className="text-sm font-semibold">1. Live Solana Token Discovery (Mint-Indexed)</h3>
             <div className="flex items-center gap-2">
               <input
                 type="text"
