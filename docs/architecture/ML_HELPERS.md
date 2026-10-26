@@ -41,8 +41,8 @@ All entries are `execution_permission: none`.
 - Implementation: `atlas.ai.models.quant.cv:purged_walk_forward_splits_by_time`
 - Old name: `atlas.ai.models.quant.cv:purged_walk_forward`
 - Signature: `(times, n_splits=5, horizon=5, embargo=0, min_train_frac=0.3) -> Iterator[(train_idx, test_idx)]`
-- Purpose: Cross-validation splitter: expanding-window folds over unique timestamps, purging training rows whose label (horizon unique timestamps ahead) reaches into the test window.
-- Key difference: Only yields index arrays (fits nothing). Folds are cut on unique time ranks. The embargo argument is accepted but not applied by this splitter (purged_kfold does apply it).
+- Purpose: Cross-validation splitter: expanding-window folds over unique timestamps, purging training rows whose label (horizon unique timestamps ahead) plus embargo reaches into the test window.
+- Key difference: Only yields index arrays (fits nothing). Folds are cut on unique time ranks and apply both horizon purge and embargo.
 - Used by modules: `atlas.ai.models.quant.evaluate`, `atlas.ai.models.quant.sleeves`
 - AI node components: `quant_models`
 - Pipelines: quant model evaluation; sleeve backtests
@@ -134,5 +134,5 @@ All entries are `execution_permission: none`.
 ## Notes
 
 - Evolution cross-validation uses `atlas.ml.cv.walk_forward_splits`, which is neither `purged_walk_forward` variant. Evolution depends only on `bars_frame_ohlcv_range_index`, through every features/bar_type genome option.
-- `purged_walk_forward_splits_by_time` accepts `embargo` but does not apply it (`purged_kfold` does). This is documented and pinned by a test, not changed.
+- `purged_walk_forward_splits_by_time` applies both `horizon` purge and `embargo` unique time steps before each test fold (`purged_kfold` also applies `embargo` after each test fold).
 - `atlas.research.vertical_slice` keeps calling the old global name `purged_walk_forward` so that tests which monkeypatch it still work.

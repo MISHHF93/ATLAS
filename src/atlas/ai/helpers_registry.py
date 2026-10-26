@@ -61,9 +61,8 @@ HELPERS: tuple[HelperVariant, ...] = (
         "atlas.ai.models.quant.cv:purged_walk_forward_splits_by_time", "atlas.ai.models.quant.cv:purged_walk_forward",
         "(times, n_splits=5, horizon=5, embargo=0, min_train_frac=0.3) -> Iterator[(train_idx, test_idx)]",
         "Cross-validation splitter: expanding-window folds over unique timestamps, purging training rows whose label "
-        "(horizon unique timestamps ahead) reaches into the test window.",
-        "Only yields index arrays (fits nothing). Folds are cut on unique time ranks. The embargo argument is accepted but "
-        "not applied by this splitter (purged_kfold does apply it).",
+        "(horizon unique timestamps ahead) plus embargo reaches into the test window.",
+        "Only yields index arrays (fits nothing). Folds are cut on unique time ranks and apply both horizon purge and embargo.",
         ("atlas.ai.models.quant.evaluate", "atlas.ai.models.quant.sleeves"), ("quant_models",),
         pipelines=("quant model evaluation", "sleeve backtests")),
     HelperVariant(

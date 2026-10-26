@@ -1,9 +1,9 @@
 """Purged / embargoed cross-validation for overlapping labels (López de Prado).
 
 Sample i's label spans times [t_i, t_i + horizon]. A training sample is PURGED if its
-label window overlaps the test window; after the test window an EMBARGO of `embargo`
-time units removes training samples too (only matters for k-fold where train follows
-test). Walk-forward never trains on the future. Never shuffled."""
+label window overlaps the test window; an EMBARGO of `embargo` unique time steps further
+separates training label ends from the start of the walk-forward test window (and removes
+post-test samples in k-fold). Walk-forward never trains on the future. Never shuffled."""
 from __future__ import annotations
 
 from typing import Iterator
@@ -25,10 +25,12 @@ def purged_walk_forward_splits_by_time(times, n_splits: int = 5, horizon: int = 
     start = int(len(uniq) * min_train_frac)
     edges = np.linspace(start, len(uniq), n_splits + 1).astype(int)
     end = _label_end(t, horizon)
+    emb = max(0, int(embargo))
     for k in range(n_splits):
         lo, hi = uniq[edges[k]], uniq[min(edges[k + 1], len(uniq)) - 1]
+        emb_lo = uniq[max(0, edges[k] - emb)]
         test = np.where((t >= lo) & (t <= hi))[0]
-        train = np.where((t < lo) & (end < lo))[0]       # purge labels reaching into test
+        train = np.where((t < emb_lo) & (end < emb_lo))[0]   # purge labels reaching into test + pre-test embargo
         if len(train) and len(test):
             yield train, test
 

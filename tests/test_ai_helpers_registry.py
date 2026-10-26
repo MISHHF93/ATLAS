@@ -75,16 +75,19 @@ def test_bars_frame_variants_differ():
     assert cv["close"].tolist() == ohlcv["close"].tolist() == [1.5, 2.5, 3.5]
 
 
-def test_purged_walk_forward_splits_by_time_purges_and_ignores_embargo():
+def test_purged_walk_forward_splits_by_time_purges_and_applies_embargo():
     split = hr.resolve("purged_walk_forward_splits_by_time")
     t = np.arange(100)
     folds = list(split(t, n_splits=4, horizon=5))
     assert len(folds) == 4
     for train, test in folds:
         assert train.max() + 5 < test.min()  # label ends purged before the test window
-    # embargo is accepted but not applied (documented)
-    again = list(split(t, n_splits=4, horizon=5, embargo=10))
-    assert all((a[0] == b[0]).all() and (a[1] == b[1]).all() for a, b in zip(folds, again))
+    embargoed = list(split(t, n_splits=4, horizon=5, embargo=10))
+    assert len(embargoed) == 4
+    for (tr0, te0), (tr_emb, te_emb) in zip(folds, embargoed):
+        assert (te0 == te_emb).all()
+        assert tr_emb.max() + 5 + 10 < te_emb.min()
+        assert tr_emb.max() == tr0.max() - 10
 
 
 def test_purged_walk_forward_model_selection_is_a_model_report():
