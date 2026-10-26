@@ -93,7 +93,11 @@ def causal_bars(
 
 FEED_INTERVALS = {60: "1m", 300: "5m", 900: "15m", 3600: "1h", 14400: "4h", 86400: "1d"}
 # Desk symbols -> ATLAS feed instrument ids. BTC-USD/ETH-USD map to the USDT spot series the feed carries (labelled).
-FEED_ALIASES = {"BTC-USD": "BTCUSDT", "ETH-USD": "ETHUSDT", "BTCUSD": "BTCUSDT", "ETHUSD": "ETHUSDT", "EURUSD": "EUR_USD"}
+FEED_ALIASES = {
+    "BTC-USD": "BTCUSDT", "ETH-USD": "ETHUSDT", "BTCUSD": "BTCUSDT", "ETHUSD": "ETHUSDT",
+    "EURUSD": "EUR_USD", "EUR/USD": "EUR_USD", "EUR-USD": "EUR_USD",
+    "USDCAD": "USD_CAD", "USD/CAD": "USD_CAD", "USD-CAD": "USD_CAD",
+}
 UDF_LIMIT = 240
 
 

@@ -15,6 +15,11 @@
   - Added wider-stop, tighter cost-filter variants (`atr2.5_rr2_cf10`, `atr3_rr2_cf08`, `atr2_rr1.5_cf12`) and the `trend_conditioned` regime gene (`reg_trend_with`, `reg_trend_counter`, `{s}_x_trend`).
   - Over the full 2-year 34-symbol history, `model=hgb|features=full|regime=trend_conditioned|bar_type=time|context=none` achieves positive fitness (`+0.0012`) and `3/5` positive folds on `4h` `atr2.5_rr2_cf10`, while `evo7_1h` on the full 2-year history is negative (`-0.2817 R` take-all, `-0.0026 R` EV/opp), confirming `evo8`'s demotion of `432dba69a77e`.
   - 0 models pass all 6 checks of `evo8-strict-1`; `champion()` remains `None`, and all evolution chart markers are explicitly labelled `research-only`.
+- **Purged walk-forward embargo fix (`203b8f1`)**:
+  - `atlas.ai.models.quant.cv.purged_walk_forward_splits_by_time` now enforces `embargo` on the unique timestamp grid (`emb_lo = uniq[max(0, edges[k] - max(0, int(embargo)))]`, requiring `t < emb_lo` and `end < emb_lo`), with updated docs and pinned unit test in `tests/test_ai_helpers_registry.py`.
+- **Keyless central-bank FX feeds (`boc_valet` & `ecb_fx`)**:
+  - Wired `USD_CAD` into `DEFAULT_INSTRUMENTS` (`src/atlas/feeds/instruments.py`), `FX_ALIASES` (`src/atlas/feeds/universe.py`), and `FEED_ALIASES` (`src/atlas/api/udf.py`) with `boc_valet` (`FXUSDCAD`) and `ecb_fx` as keyless daily reference providers and sanity cross-checks.
+  - Built `ECBFXAdapter` (`src/atlas/feeds/providers/ecb.py`) against the official ECB Data Portal SDMX-JSON API (`data-api.ecb.europa.eu/service/data/EXR`) with `certifi` TLS fallback (`ecb_transport`) and static `eurofxref-hist-90d.xml` failover, supporting direct `EUR_*` pairs (`EUR_USD`, `EUR_CAD`, `EUR_GBP`, `EUR_JPY`, `EUR_CHF`) and cross-rates (`USD_CAD`, `CAD_USD`).
 
 ## 2026-10-24: branch `atlas-evo-8` (strict evolution gate)
 - (a) `ml/evolution.strict_gate` (gate_version evo8-strict-1, stricter only): beats_baseline + all folds evaluated + >=20 taken trades per fold + positive in a majority of folds + DSR >= 0.95 and Bonferroni p x n_trials < 0.05 over all genomes tried. Champions are crowned only from strict passes.

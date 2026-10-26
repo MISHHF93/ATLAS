@@ -11,7 +11,7 @@ SERIES = {"USD_CAD": ("FXUSDCAD", False), "EUR_CAD": ("FXEURCAD", False), "CAD_U
 
 class BankOfCanadaFXAdapter(ProviderAdapter):
     caps = Capabilities(
-        name="boc_valet", title="Bank of Canada Valet (daily FX reference rates)", status="interface_fixture_tested",
+        name="boc_valet", title="Bank of Canada Valet (daily FX reference rates)", status="working",
         asset_classes=("fx",), schemas=("bars",), intervals=("1d",),
         history_depth="FX daily since 2017 (older series archived)", live_stream="none (published once per business day ~16:30 ET)",
         rate_limits="No published cap; ATLAS limits to 1 req/s", auth_env=(),
@@ -23,9 +23,15 @@ class BankOfCanadaFXAdapter(ProviderAdapter):
         super().__init__(*a, **kw)
 
     def _history(self, instrument, interval, start, end, now):
-        if instrument not in SERIES:
+        sym = self.provider_symbol(instrument)
+        if instrument in SERIES:
+            series, inv = SERIES[instrument]
+        elif sym in SERIES:
+            series, inv = SERIES[sym]
+        elif sym.startswith("FX"):
+            series, inv = sym, False
+        else:
             return []
-        series, inv = SERIES[instrument]
         d = lambda x: dt.datetime.fromtimestamp(x, dt.timezone.utc).strftime("%Y-%m-%d")
         js = self.get_json(f"https://www.bankofcanada.ca/valet/observations/{series}/json", {"start_date": d(start), "end_date": d(end)})
         out = []

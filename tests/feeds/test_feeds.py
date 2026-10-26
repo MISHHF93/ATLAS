@@ -62,7 +62,8 @@ def test_every_adapter_has_complete_manifest():
         assert all(d.startswith("https://") for d in c.official_docs)
         assert all(e.isupper() for e in c.auth_env)
     assert {"binance", "coinbase", "kraken", "okx", "bybit", "yahoo", "fred", "alpaca", "tiingo", "polygon", "finnhub",
-            "twelvedata", "alphavantage", "databento", "ibkr", "oanda", "questrade", "tradier", "cme", "tmx"} <= names
+            "twelvedata", "alphavantage", "databento", "ibkr", "oanda", "questrade", "tradier", "cme", "tmx",
+            "boc_valet", "ecb_fx"} <= names
 
 
 def test_keyed_adapters_activate_only_with_env():

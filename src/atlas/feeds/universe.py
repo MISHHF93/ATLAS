@@ -42,6 +42,11 @@ CRYPTO = ("BTC ETH SOL BNB XRP DOGE ADA AVAX LINK SUI DOT NEAR LTC UNI APT ICP A
           "ATOM FIL TON HBAR BCH XLM ALGO ETC").split()
 KRAKEN_BASE = {"BTC": "XBT", "DOGE": "XDG"}
 
+FX_ALIASES = {
+    "EUR_USD": "EUR_USD", "EURUSD": "EUR_USD", "EUR/USD": "EUR_USD", "EUR-USD": "EUR_USD",
+    "USD_CAD": "USD_CAD", "USDCAD": "USD_CAD", "USD/CAD": "USD_CAD", "USD-CAD": "USD_CAD",
+}
+
 
 def crypto_instrument(base: str) -> Instrument:
     sym = f"{base}USDT"
@@ -82,6 +87,8 @@ def ui_instruments() -> dict[str, Instrument]:
 def resolve(symbol: str) -> str | None:
     """UI symbol -> feed instrument id (BTC-USD -> BTCUSDT, ES1! -> ES, AAPL -> AAPL). None if not in the universe."""
     s = (symbol or "").strip().upper()
+    if s in FX_ALIASES:
+        return FX_ALIASES[s]
     if s.endswith("-USD") and s[:-4] in CRYPTO:
         return f"{s[:-4]}USDT"
     if s.endswith("USDT") and s[:-4] in CRYPTO:

@@ -85,6 +85,8 @@ Crypto cross-check over 7 days of 1h bars (median bps): okx ~0.5, kraken ~1–2.
 | [tradier](data-providers/tradier.md) | interface_fixture_tested | equity, etf, option | `TRADIER_ACCESS_TOKEN` |
 | [cme](data-providers/cme.md) | documented_stub | future, option | none (keyless) |
 | [tmx](data-providers/tmx.md) | documented_stub | equity, etf, future, option | none (keyless) |
+| [boc_valet](data-providers/boc_valet.md) | working | fx | none (keyless) |
+| [ecb_fx](data-providers/ecb_fx.md) | working | fx | none (keyless) |
 
 Status meanings: `working` = live-tested keyless; `interface_fixture_tested` = adapter complete, unit-tested with labelled SYNTHETIC fixtures, activates only when its env vars are set; `documented_stub` = manifest + docs only. Unit tests (`tests/feeds`) never touch the network.
 

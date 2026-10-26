@@ -43,6 +43,85 @@ def test_boc_parse_and_invert():
     assert len(b) == 1 and abs(b[0].close - 1 / 1.4) < 1e-9 and b[0].provider == "boc_valet"
 
 
+def test_boc_wired_to_usd_cad_instrument():
+    from atlas.feeds import AtlasFeed, FeedStore, InstrumentMaster, ProviderRegistry
+    from atlas.feeds.instruments import DEFAULT_INSTRUMENTS
+    from atlas.feeds.universe import resolve
+
+    assert "USD_CAD" in DEFAULT_INSTRUMENTS
+    inst = InstrumentMaster().get("USD_CAD")
+    assert "boc_valet" in inst.provider_priority
+    assert inst.provider_symbols["boc_valet"] == "FXUSDCAD"
+    assert resolve("USD_CAD") == "USD_CAD" and resolve("USD/CAD") == "USD_CAD"
+
+    seen = []
+    p = {"observations": [{"d": "2025-10-08", "FXUSDCAD": {"v": "1.3750"}}]}
+    boc = _mk(BankOfCanadaFXAdapter, p, seen)
+    feed = AtlasFeed(FeedStore(":memory:"), ProviderRegistry([boc]), InstrumentMaster(), clock=lambda: NOW)
+    r = feed.backfill("USD_CAD", "1d", NOW - 86400 * 5, NOW, fill_gaps=False)
+    assert r["provider"] == "boc_valet" and r["inserted"] == 1
+    bars = feed.bars("USD_CAD", "1d", NOW - 86400 * 5, NOW)
+    assert len(bars) == 1 and bars[0].close == 1.375 and bars[0].provider == "boc_valet"
+
+
+def test_ecb_fx_sdmx_json_cross_rate_and_tls_xml_fallback():
+    import pytest
+    from atlas.feeds.core import ProviderError
+    from atlas.feeds.providers.ecb import ECBFXAdapter
+
+    sdmx_usd = {
+        "dataSets": [{"series": {"0:0:0:0:0": {"observations": {"0": [1.10, 0], "1": [1.12, 0]}}}}],
+        "structure": {"dimensions": {"observation": [{"id": "TIME_PERIOD", "values": [{"id": "2025-10-07"}, {"id": "2025-10-08"}]}]}},
+    }
+    sdmx_cad = {
+        "dataSets": [{"series": {"0:0:0:0:0": {"observations": {"0": [1.54, 0], "1": [1.568, 0]}}}}],
+        "structure": {"dimensions": {"observation": [{"id": "TIME_PERIOD", "values": [{"id": "2025-10-07"}, {"id": "2025-10-08"}]}]}},
+    }
+
+    def route_transport(url, headers, timeout=20.0):
+        if "D.USD.EUR" in url:
+            return 200, {}, json.dumps(sdmx_usd).encode()
+        if "D.CAD.EUR" in url:
+            return 200, {}, json.dumps(sdmx_cad).encode()
+        raise OSError(f"unexpected url: {url}")
+
+    ecb = ECBFXAdapter(transport=route_transport, env={}, clock=lambda: NOW, sleep=lambda s: None,
+                       limiter=RateLimiter(1000, sleep=lambda s: None))
+    eur_usd = ecb.history("EUR_USD", "1d", NOW - 86400 * 5, NOW)
+    assert [b.close for b in eur_usd] == [1.10, 1.12]
+    assert eur_usd[0].provider == "ecb_fx" and eur_usd[0].delayed is True
+
+    usd_cad = ecb.history("USD_CAD", "1d", NOW - 86400 * 5, NOW)
+    assert len(usd_cad) == 2
+    assert abs(usd_cad[0].close - (1.54 / 1.10)) < 1e-9
+    assert abs(usd_cad[1].close - (1.568 / 1.12)) < 1e-9
+
+    # Simulate legacy SDW TLS failure falling back to eurofxref XML feed
+    xml_body = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+      <Cube><Cube time="2025-10-08"><Cube currency="USD" rate="1.1150"/><Cube currency="CAD" rate="1.5200"/></Cube></Cube>
+    </gesmes:Envelope>"""
+
+    def tls_fail_then_xml(url, headers, timeout=20.0):
+        if "eurofxref" in url:
+            return 200, {}, xml_body
+        raise OSError("SSL: CERTIFICATE_VERIFY_FAILED")
+
+    ecb_fb = ECBFXAdapter(transport=tls_fail_then_xml, env={}, clock=lambda: NOW, sleep=lambda s: None,
+                          limiter=RateLimiter(1000, sleep=lambda s: None))
+    fb_bars = ecb_fb.history("EUR_USD", "1d", NOW - 86400 * 5, NOW)
+    assert len(fb_bars) == 1 and fb_bars[0].close == 1.1150
+
+    # When both SDMX REST and XML fallback fail with TLS error, raises ProviderError cleanly
+    def total_tls_fail(url, headers, timeout=20.0):
+        raise OSError("SSL: CERTIFICATE_VERIFY_FAILED")
+
+    ecb_err = ECBFXAdapter(transport=total_tls_fail, env={}, clock=lambda: NOW, sleep=lambda s: None,
+                           limiter=RateLimiter(1000, sleep=lambda s: None))
+    with pytest.raises(ProviderError):
+        ecb_err.history("EUR_USD", "1d", NOW - 86400 * 5, NOW)
+
+
 def test_free_gate():
     assert free_sources.allowed("alpaca_crypto", {})
     assert not free_sources.allowed("yahoo", {})

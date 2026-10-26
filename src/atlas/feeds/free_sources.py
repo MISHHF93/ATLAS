@@ -35,6 +35,7 @@ SOURCES: dict[str, SourceTerms] = {
     "fmp": SourceTerms("free_key", "eod", "Free: 250 calls/day, US only, EOD", True, "https://site.financialmodelingprep.com/register"),
     "fred": SourceTerms("free_key", "release", "120 req/min", True, "https://fredaccount.stlouisfed.org/apikeys"),
     "boc_valet": SourceTerms("free", "daily_reference", "No published cap (ATLAS 1 req/s)", True),
+    "ecb_fx": SourceTerms("free", "daily_reference", "No published cap (ATLAS 1 req/s)", True),
     "oanda": SourceTerms("free_account", "realtime", "Practice account: 120 req/s; FX + CFDs incl. XAU", True, "https://www.oanda.com (demo account)"),
     "tradier": SourceTerms("free_account", "delayed_15m", "Sandbox: 60 req/min, delayed", True, "https://developer.tradier.com"),
     "questrade": SourceTerms("free_account", "delayed_15m", "Needs a Questrade account; real-time is a paid data package", True),

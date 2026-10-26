@@ -5,6 +5,7 @@ from .binance import BinanceAdapter
 from .boc import BankOfCanadaFXAdapter
 from .bybit import BybitAdapter
 from .coinbase import CoinbaseAdapter
+from .ecb import ECBFXAdapter
 from .finnhub import FinnhubAdapter
 from .fred import FREDAdapter
 from .kraken import KrakenAdapter
@@ -20,4 +21,5 @@ from .yahoo import YahooAdapter
 
 ALL_ADAPTERS = (BinanceAdapter, CoinbaseAdapter, KrakenAdapter, OKXAdapter, BybitAdapter, YahooAdapter, FREDAdapter,
                 AlpacaAdapter, AlpacaCryptoAdapter, TiingoAdapter, PolygonAdapter, FinnhubAdapter, TwelveDataAdapter, AlphaVantageAdapter,
-                DatabentoAdapter, IBKRAdapter, OandaAdapter, QuestradeAdapter, TradierAdapter, CMEStub, TMXStub, BankOfCanadaFXAdapter)
+                DatabentoAdapter, IBKRAdapter, OandaAdapter, QuestradeAdapter, TradierAdapter, CMEStub, TMXStub, BankOfCanadaFXAdapter,
+                ECBFXAdapter)
