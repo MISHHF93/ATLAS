@@ -22,10 +22,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from atlas.ml import metrics as M
-from atlas.ml.calibration import Calibrator, Conformal, fit_calibrator, fit_conformal
-from atlas.ml.cv import inner_split, walk_forward_splits
-from atlas.ml.dataset import FEATURES
+from atlas.ai.ml import metrics as M
+from atlas.ai.ml.calibration import Calibrator, Conformal, fit_calibrator, fit_conformal
+from atlas.ai.ml.cv import inner_split, walk_forward_splits
+from atlas.ai.ml.dataset import FEATURES
 
 PRIMARY = "hgb_conformal"
 VARIANTS = ("logit_ev", "logit_conformal", "hgb_ev", "hgb_conformal")

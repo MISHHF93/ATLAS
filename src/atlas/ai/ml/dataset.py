@@ -22,8 +22,8 @@ from atlas.features.price_action.engine import EngineConfig
 from atlas.features.price_action.prior_day import PriorDayRangeConfig
 from atlas.features.price_action.replay import ReplayConfig, paper_replay_config, replay, trade_cost
 from atlas.features.price_action.sessions import US_EQUITY_RTH, SessionSpec
-from atlas.ml.costs import VENUE_COSTS, venue_for
-from atlas.ml.features import BAR_FEATURES, bar_features
+from atlas.ai.ml.costs import VENUE_COSTS, venue_for
+from atlas.ai.ml.features import BAR_FEATURES, bar_features
 
 UTC_DAY = SessionSpec("utc_day", "UTC", datetime.min.time(), datetime.min.time(), weekdays=(0, 1, 2, 3, 4, 5, 6))
 DETECTORS = ("dual_band_breakout", "orb_retest", "prior_day_range_reversal", "wick_reversal")

@@ -1,12 +1,163 @@
+# Changelog
 
-## atlas-full-1 (2026-10-24, unmerged)
-- Added `features/price_action/library.py` (indicator + quant math library), `structure.py` (causal market-structure events), `gold_models.py` (gold-only Early Bird / range-bound / ORB alignment / Asian context).
-- Added gap matrix, indicator catalog, checkpoint, `scripts/run_structure_evidence.py`, tests `tests/price_action/test_mandate_full1.py`.
-- `gold_models.window_range` gap tolerance (Asian ≤10% missing 1m bars, early ≤5%, 08:00/08:20 boxes strict); every window reports `n/expected/coverage`. Gaps are never filled.
-- `/api/quant/levels` now returns `overlays` (indicator series, structure events, gold-only session ranges from ATLAS feed 1m only, `freshness` label). Levels & sweeps chart gains SMA / trend band / Donchian / structure toggles, freshness badges and a Gold session ranges card.
-- `atlas.ops.correlation`: `x-correlation-id` request/response header and JSON-line `atlas.request` logs.
+## 2026-10-25: repo consolidation (`unify-3b..6`), 2y feed backfill, and `atlas-evo-9`
+- **Unified AI package layout (`src/atlas/ai/`)**:
+  - `atlas.models`, `atlas.intel`, and `atlas.ml` now live under `src/atlas/ai/{models,intel,ml}` with backward-compatible import/pickle aliases in `src/atlas/_aliases.py` (`atlas.models.*`, `atlas.intel.*`, `atlas.ml.*` resolve to the exact same module objects). Shared schemas live at neutral `atlas.schemas` so `atlas.control` never loads `atlas.ai`.
+  - Disambiguated same-named ML helpers in `src/atlas/ai/helpers_registry.py`, `docs/architecture/ML_HELPERS.md`, and `GET /api/ai/helpers`.
+- **Module splits & changelog merge**:
+  - Split `src/atlas/api/app.py` platform/operator routes into `src/atlas/api/routes_platform.py`.
+  - Split `src/atlas/research/vertical_slice.py` (4,008 lines) into `vertical_slice_features.py`, `vertical_slice_models.py`, `vertical_slice_ledger.py`, `vertical_slice_scheduler.py`, and `vertical_slice.py` (`VerticalSliceService` + facade exports).
+  - Merged `CHANGELOG.md` and `docs/CHANGELOG.md` into this single canonical `CHANGELOG.md` (with `docs/CHANGELOG.md` synced).
+- **2-year free crypto history backfill (`dfb9cb5`)**:
+  - Backfilled 730 days (`2024-10-25..2026-10-25`) of `15m` (`~70,080` bars/symbol) and `1h` (`~17,519` bars/symbol) plus 1,095 days of `1d` bars across all 34 crypto symbols via keyless `alpaca_crypto` and prefix/suffix exchange failover (`binance`, `okx`, `kraken`).
+- **Evolution round 9 (`f3710d2`, `docs/research/evo9-longer-history-and-variants.{md,json}`)**:
+  - Fixed causal `htf_frame` bar-end alignment and `add_macro` timestamps in `atlas.ai.ml.evolution`.
+  - Added wider-stop, tighter cost-filter variants (`atr2.5_rr2_cf10`, `atr3_rr2_cf08`, `atr2_rr1.5_cf12`) and the `trend_conditioned` regime gene (`reg_trend_with`, `reg_trend_counter`, `{s}_x_trend`).
+  - Over the full 2-year 34-symbol history, `model=hgb|features=full|regime=trend_conditioned|bar_type=time|context=none` achieves positive fitness (`+0.0012`) and `3/5` positive folds on `4h` `atr2.5_rr2_cf10`, while `evo7_1h` on the full 2-year history is negative (`-0.2817 R` take-all, `-0.0026 R` EV/opp), confirming `evo8`'s demotion of `432dba69a77e`.
+  - 0 models pass all 6 checks of `evo8-strict-1`; `champion()` remains `None`, and all evolution chart markers are explicitly labelled `research-only`.
 
-## atlas-full-1 pass 3 (2026-10-24, unmerged, not pushed)
+## 2026-10-24: branch `atlas-evo-8` (strict evolution gate)
+- (a) `ml/evolution.strict_gate` (gate_version evo8-strict-1, stricter only): beats_baseline + all folds evaluated + >=20 taken trades per fold + positive in a majority of folds + DSR >= 0.95 and Bonferroni p x n_trials < 0.05 over all genomes tried. Champions are crowned only from strict passes.
+  - `scripts/regate_evolution.py`: 432dba69a77e reproduced exactly and was DEMOTED to research-only (failed min_trades_per_fold 2<20, DSR 0.0015, Bonferroni p 1.0). No research champion now.
+- (b) Chart overlays: 1h resampled from complete 15m hours when no stored 1h exists, labelled "1h resampled".
+- (c) Robustness (`research/champion_robustness.py`): block-bootstrap CIs span 0; edge is concentrated in the last fold (115% of taken R) and in alts. No more history exists in the feed. See `docs/research/evo8-champion-robustness.md`.
+  - New evolve run d0e147849051 (evo7_1h, 5 gens, 42 genomes incl. bar types and context genes): 0/42 pass the strict gate. execution_permission none.
+
+## 2026-10-24: branch `atlas-evo-7` (PDR reversal probe)
+- `research/reversal_probe.py` + `scripts/run_reversal_probe.py`:
+  - limit entries, partial targets, time stops, and closed-bar HTF/volatility filters;
+  - a labelled `maker_assumed` cost model;
+  - 540 trials over BTC/ETH, 28 alts and SPY/QQQ/IWM, with CIs, DSR, PBO and purged walk-forward.
+- Result: 0/540 pass, PBO 0.109. Core 4h OOS net +0.039 R, CI spans 0. Alts and 1h are negative. See `docs/research/evo7-reversal-probe.md`.
+- `ml/dataset.resample_buckets`: crypto 1h derived from complete 15m hours when no feed bars exist.
+- ML: `--universe evo7|evo7_1h` (30 crypto).
+  - 4h run 489861863694: no challenger beats baseline.
+  - 1h run 432dba69a77e: research champion, EV +0.019 R vs take-all -0.170 R, Brier skill +0.0009. Fragile: the edge comes from the last fold.
+  - execution_permission none. Markers come from 432dba69a77e. See `docs/ml/evo7-reversal-probe.md`.
+
+## 2026-10-24: branch `atlas-unify-1` (streamline pass 1, AI as one node)
+- AI node: `atlas.ai.node` (one registry of 14 AI/ML/LLM components, uniform statuses, audit trail) + `atlas.ai.http` (`/api/ai/*`; `/api/ai/{ml,research,intel,advanced-ml,agent}/*` alias the legacy paths). One middleware forces `execution_permission: none` on every AI JSON response (old and new paths); the control plane stays the sole authorizer. Docs: `docs/architecture/AI_NODE.md` and `docs/audit/2026-10-24-repo-streamline.md`.
+- Fixed 5 scripts failing `--help`; fixed RecursionError in `setup_evidence.load_datasets` legacy JSON branch.
+- Removed dead `research/warmup.py`, `marketdata/drift_integration.py`, `frontend/build_output.txt`; moved `frontend/ATLAS_AUDIT.md` to `docs/audit/`. One `brier` implementation. Dropped unused deps databento, polygon-api-client, ccxt, polars, aiohttp.
+- UI: ML models page uses `/api/ai/ml/*` and shows the AI node card.
+
+## 2026-10-24: branch `atlas-ext-1`
+- Seven-repo gap audit: `docs/audit/2026-10-24-seven-repo-gap.md`.
+- `atlas.ext`: Black-Scholes greeks/IV, parametric/historical/component VaR+ES, DCF (FCFF/FCFE), SEC EDGAR point-in-time fundamentals, VWAP/volume profile/S-R/scan, Pine v5 export, conviction dossier, rule-based investor personas, a deterministic analyst-debate-trader-risk-PM pipeline (never submits), an Alpaca PAPER broker (live refused, control plane first), alerts (off by default), and a read-only MCP tool server (`scripts/atlas_mcp_stdio.py`). `/api/ext/*`.
+- Control plane: `preview_order` (no booking) shares `_evaluate_request` with `submit_order`. Rules are unchanged.
+- UI tabs: Research Lab gets Valuation / Dossier & agents / Options; Research gets Scan & Pine; Settings gets Broker & alerts.
+- Blocked: live option chains, news/sentiment, maritime. Deferred to evo-5: yield curve/macro.
+
+## 2026-10-24: branch `atlas-evo-6` (from main 8cea007)
+- Setup redesign research (new, toggleable; legacy setups unchanged):
+  - `ReplayConfig.stop_atr_mult / target_rr / max_cost_r` (default None): ATR(14) stops on closed bars, R-multiple targets, and a cost filter that skips setups whose round-trip cost exceeds a fraction of risk (`cost_skipped`).
+  - `research/setup_variants.py` + `scripts/run_setup_variants.py`: 5 variants x 15m/1h/4h (4h = complete UTC buckets of 1h bars, crypto only) x BTCUSDT/ETHUSDT/SPY/QQQ/IWM with paper realism, gross and net R, bootstrap CIs, DSR across 230 trials, PBO (CSCV) and purged walk-forward selection. Output `docs/research/evo6-setup-variants.{md,json}`.
+  - 16 `research` strategy specs `<detector>__<variant>` (off by default; excluded from the live suite).
+  - `orb_retest` 15m research-retired with a documented reason, reversible (`Registry.set_retired`, `POST /api/quant/strategies/{sid}/retired/{interval}`).
+- Findings: 0/230 configs pass the gates. Costs drop from ~0.3-0.7 R to ~0.04-0.12 R with wider stops, but gross R stays negative for orb_retest, dual_band_breakout and wick_reversal on every timeframe. Only prior_day_range_reversal 4h crypto is positive before costs (+0.05 to +0.07 R; CI spans 0) and about break-even after costs. See `docs/ml/evo6-setup-redesign.md`.
+- ML: `--universe evo6` (PDR 4h atr2_rr2 labels, 457 rows). AUC 0.485, shuffled 0.481. Evolution de86779da75c: no challenger beats baseline (best EV +0.058 R but Brier skill -0.031). Extended run f8e7de55c108 (15,157 rows) refreshes the 15m/1h chart markers: no challenger beats baseline. Nothing promoted; execution_permission none.
+- `ml/dataset.py`, `intel/markers.py`: 4h interval support (crypto only).
+
+## 2026-10-24: branch `atlas-evo-5` (from main 771863a)
+- §22 macro data: `feeds/providers/fred_public.py` reads keyless FRED `fredgraph.csv` (DGS10, DGS2, VIXCLS, DTWEXBGS, CPIAUCNS, chosen because they are rarely or never revised). Every value gets a conservative availability date as `realtime_start`:
+  - daily series: next business day + 1 day
+  - H.10 dollar index: + 10 days
+  - CPI: first day of M+2
+  Values are stored through `FeedStore.ingest_observations` (`scripts/fetch_fred_public.py`).
+- `ml/context.py`:
+  - HTF features come from closed UTC-day and 4h buckets of the series itself: d1 returns, trend in ATR, daily ATR, position in the prior-day range, 4h return and trend, and risk relative to the daily ATR.
+  - Macro features (10y level and 20d change, 2s10s, VIX level and z-score, 20d USD return, CPI YoY) are joined only from 00:00 UTC of the availability date. With no observations they are NaN, and the genome is gated as unavailable.
+- Evolution adds the gene `context` (none|htf|macro|htf_macro) with 4 seeds. Old genomes default to `context=none`. `--universe extended` adds 1h bars for the same 5 symbols.
+- `scripts/ml_diagnose.py` and `docs/ml/evo5-diagnosis.md`: why nothing beats baseline.
+  - The primary setups lose before costs (gross −0.24 R), costs are about 0.48 R median, and the meta-label AUC is about 0.53.
+  - The shuffled-label check shows no leakage.
+  - Fixed the biased permutation importance from the scratch analysis (calibrated base vs raw permuted score).
+- Evolution:
+  - 44f40efd9e65 (default, 9,531 rows) and 30721a3ccb32 (extended, 15,157 rows): **no challenger beats baseline**.
+  - On extended data, HTF context improves hgb fitness from −0.027 to −0.008, but EV stays negative.
+  - Nothing promoted; execution_permission none. Chart markers now come from 30721a3ccb32.
+- `ml/features.py`: `dt.dayofweek` → `dt.day_of_week` (pandas deprecation).
+
+## 2026-10-24: branch `atlas-evo-4` (from main b299511)
+- Control plane reduce-only partial close: `close_position(position_id, exit_price, fraction=…)`. 0 < fraction ≤ 1 only (else `invalid_fraction_reduce_only`); books P&L on the closed slice, frees gross and correlated exposure, keeps the remainder open; audited `position_reduced` / `position_closed` with closed and remaining notional. No risk check changed.
+- Setup autopilot: a volume-capped partial entry now cancels the unfilled remainder through that partial close at the booked entry price (zero P&L, audit `setup_autopilot.partial_fill`), so exits book the real filled quantity. The evo3 fill-ratio exit-price approximation is removed.
+- `research/backtester.py` (`StrategyBacktester`) uses the same paper realism as replay by default (1-bar latency, trade-through entry/target limits, 10% participation, zero volume no fill, fill-weighted net P&L, `fill_ratio` on `TradeOutcome`); `realism=None` keeps the legacy model. `scripts/backtester_realism_compare.py` prints before/after.
+- Fixed `strategies/snapback.py`: `SnapbackSetup` subclassed the frozen pydantic `Record`, so the detector raised on its first bar and the backtester/coordinator snapback path could never run.
+- §6: `feeds/universe.py` FUTURES and `feeds/instruments.py` ES read tick/multiplier from `feeds/contracts.CONTRACT_TERMS` (the duplicates were there, not in `marketdata/futures.py`/`models/quant/multi.py`).
+- Before/after on real feed bars (3,000 bars each, cost_bps 0): BTCUSDT 15m 8→8 trades, +35.2 bps expectancy both; ETHUSDT 15m 6→6, +30.8 both; ES 1m 20→19 trades (1 unfilled), net +1,161→+1,101 bps; GC 1m 9→9 (1 unfilled signal that legacy had expired). Samples are tiny and say nothing about edge; on these liquid markets realism removes little.
+- ML not re-run: dataset labels come from PA replay, which did not change in this pass.
+
+## 2026-10-24: branch `atlas-evo-3` (from main 62bf221)
+- §13 cumulative-loss cap for re-entry. `ReentryConfig` adds `max_loss_r_per_family_day`, `max_loss_r_per_day` and `max_consecutive_losses`. They load from the new tighten-only overlay `config/risk_overlays/reentry_tighten.yaml` (2.0 R, 3.0 R, 2) via `load_reentry_config`. A looser, null, unknown or non-positive overlay value is ignored and listed in `overlay_notes`. `config/founder/risk_policy.yaml` is unchanged.
+  - Feedback: replay feeds each exit's after-cost, fill-weighted R to `PriceActionEngine.record_outcome` before the bar reaches the detectors (causal). The setup autopilot feeds realized paper exits to an OMS-level governor and refuses new proposals with the audited decision `reentry_loss_cap`. `risk_view` shows the governor state.
+- §6 one contract-spec source. `feeds/contracts.py` is the source. `intel.data.SPEC` futures rows and `scripts/run_level_research.py` now derive from it. The new `risk.sizing.contracts_for_risk` sizes from it. Where two duplicates disagreed, the more conservative cost was kept: MGC $3.5 RT (was 2.5 in contracts), ES $30 (was 25), SI price-unit cost 0.025 (was 0.015 in intel). Every spec is still flagged `verified: false`.
+- §25 paper realism by default. `PAPER_REALISM` / `paper_replay_config` (1-bar latency, trade-through limits, 10% participation; zero or unknown volume does not fill) is now used by the intel lab, `/api/intel` replays, the ML dataset and the setup autopilot. The autopilot sets the real order quantity per trade. A partial fill is booked as the exit price that gives fill_ratio × full P&L, because the control plane closes whole positions only (documented limitation).
+  - `PaperBroker` gains opt-in `ExecRealism` (latency in price updates, trade-through, volume-capped partials with the remainder left working). The default is unchanged.
+- API `/api/intel/contracts` and `/api/intel/reentry`. Risk → Track rules now shows "Re-entry loss caps" and "Contract specs" cards.
+- ML labels changed (realism in the dataset), so evolution was re-run: run acfd9abb65cc, **no challenger beats baseline** (details in the checkpoint, pass 9). Nothing promoted; execution_permission none.
+
+## 2026-10-24: branch `atlas-evo-2` (from main 727975f)
+- Chart opportunity markers: categories are now accurate per class.
+  - Rule-only markers no longer say "rejected"; their risk status reads "gate abstained, no validated model (not a risk rejection)".
+  - `/api/intel/markers` returns `classes` with count, `applicable` and a note per category. The legend shows "n/a" (disabled, with the reason on hover) for categories that cannot occur on that chart, e.g. ML take/skip where there are no out-of-sample predictions.
+  - "Gate rejected (geometry/costs)" now states that its count is out of N rule candidates checked, and that the edge check needs a validated model.
+  - Labels: ML take / ML skip (out-of-sample), Rule setup with no model verdict, Gate rejected (geometry/costs).
+- New causal bar types `kagi_atr` and `pnf_atr` (3-box reversal, ATR box frozen per column) in `features/representations`. Only completed lines/columns are emitted. Prefix-invariance (no-lookahead) tests and fixed-size worked examples were added.
+- Both are in the evolution `bar_type` gene and seeds, and in the chart bar-type switcher (Levels chart, desk chart).
+- Evolution run 3bdaaf38ba24 (same data snapshot and seed as d6a35224ceef): **no challenger beats baseline**. Best kagi genome fitness -0.053, best P&F -0.065; both are below renko (-0.034) and time bars (-0.039). Nothing was promoted, and execution_permission stays none.
+- Removed the dead pathname-to-workspace map in `InstitutionalWorkspacesView.tsx`. Legacy paths 308 before render. On canonical hub paths it overrode the tab's workspace view (e.g. `/settings` → rulebook, `/data?tab=reserve` → lakehouse).
+- Gap matrix re-audited (pass 8).
+
+## 2026-10-24: branch `atlas-routes-1` (from main 8cabd13)
+- Consolidated pages that did the same job under different names. Audit: `docs/audit/2026-10-24-route-consolidation.md`.
+  - Risk & positions: the "Positions" tab (former `/trade/blotter`, `/control/dealing-desk`) is merged into "Account & positions". It keeps the exposure, recorded-decision and stop-protection figures and the full positions table, with one Flatten button.
+  - Research lab "Microstructure" moved into Research → Chart read, next to the candle measurements.
+  - Research lab "Four-Box" moved into Research → Price zones, next to the opening-range and wick-zone detectors.
+  - Overview and Money → Summary now share one P&L strip (`src/ui/PnlTiles.tsx`) instead of two copies.
+- Old addresses are now permanent (308) redirects generated from `pagesMap.ts` in `next.config.ts`. The 40 stub `redirect()` page files and `scripts/gen-redirects.mjs` are gone. Retired tabs (`/control?tab=positions`, `/research/lab?tab=microstructure`, `/research/lab?tab=fourbox`) redirect to the tab that took them over.
+- No backend, API or risk-rule changes.
+
+## 2026-10-24: branch `atlas-evo-1` (from atlas-full-2 97bf58f)
+- Added alternative bar builders in `features/representations`: Heikin-Ashi (features and display only), Renko (ATR), range (ATR), volume and dollar bars. They are causal and indexed by completion time. Tick bars are gated as unavailable because the feed stores bars only.
+- Added a governed model-evolution loop in `ml/evolution.py`, run with `scripts/evolve_models.py`:
+  - Genes: model (hgb/ridge/xgb/lgbm), regime conditioning, feature ablations and bar type.
+  - Evaluation uses shared purged/embargoed walk-forward folds.
+  - Fitness = OOS EV after costs + Brier skill + stability.
+  - Lineage and the champion are recorded in the ML registry. There is no auto-promotion, and execution_permission is none.
+- New API routes: `/api/intel/evolution`, `/evolution/run`, `/markers` and `/bars_alt`.
+- Research lab now has a "Model evolution" tab. It shows "No model beats baseline" when that is the case, which it is for run d6a35224ceef.
+- Opportunity markers now appear on the Levels & sweeps chart and on the desk "Model opportunities" chart:
+  - Classes: ML-suggested, rule-only, risk-rejected and ML-skip.
+  - Each tooltip shows probability or "uncalibrated/LOW_CONFIDENCE", EV, model, risk status and outcome.
+  - Markers can be toggled, and they carry the label "research signal, paper only, not advice".
+- Both charts can switch the display bar type between candles, HA, Renko, range and volume, on the real time axis.
+- Lab variants now report `zero_trade_reason`. Gold snapback/ORB on 15m give `timeframe_mismatch`, because the 08:20–08:50 box is not tiled by 15m bars.
+- Fixed: daily data no longer shows as "live" on weekends. "Live" now requires the last bar to be at most min(2×bucket, 1h) old.
+- Merged `intel/memory.py` into `research/memory.py`.
+
+## 2026-10-24: branch `atlas-sfp-1`
+- Added a price-level suite: CME/COMEX calendar, liquidity level registry, shared level interaction engine, SFP, gold opening box ORB and snapback (GC/MGC only), HTF bias, re-entry governor, unified candidate contracts with resolve.
+- Added a strategy registry with per-technique toggles (`/api/quant/strategies`). New techniques default to off.
+- Added a strategy selector (`ml/selector.py`): context features plus per-family calibrated meta-labels, purged walk-forward, and baselines. Added xgb/lgbm challengers.
+- Added `/api/quant/levels` and the Research → "Levels & sweeps" tab.
+- Added the NO_TRADE reason `COST_TOO_HIGH` (cost/risk > 0.5).
+- Fixed: the re-entry per-level limit never applied (wrong key).
+- Research: no technique or selector beats NO_TRADE on the available data (`docs/research/levels-2026-10-24.md`).
+
+## 2026-10-24: `atlas-full-2` pass 5
+- `atlas.intel`: research lab (DSR, PBO, bootstrap, cost sensitivity, reproducible report IDs), causal regimes + strategy-by-regime, portfolio exposure/correlation/VaR/CVaR/stress, track rulebook diff + enforcement probes, grounded evidence-ID assistant (LLM never used), market memory/attribution/governance view, microstructure tier gating, Four-Box scan. `/api/intel/*`.
+- UI: `/research/lab` hub (6 tabs) and Risk tabs Portfolio risk / Track rules, with freshness chips.
+- Exchange holidays via `exchange_calendars` (COMEX/CMES) for futures last-trade/roll dates.
+
+## 2026-10-24: `atlas-full-1` pass 4
+- Control plane: lot-sized orders now report whole-contract `quantity` (0 on a zero-lot rejection; previously a fractional value derived from the 0.01 placeholder notional). Tests: `tests/test_control_futures_sizing.py` (GC/MGC/SI/ES whole contracts, notional = qty x entry x multiplier, 1 GC > open-track cap rejected, unknown symbol -> lot metadata unavailable).
+- Levels: dynamic `ma<N>` (shared `indicators.EMA`) and `vwap` (shared `indicators.BarVWAP`, session reset, absent without volume) zone types; one live level per type, valid one bar; `priority_of()`. Off by default (`RegistryConfig.ma_periods=()`, `session_vwap=False`).
+- `vertical-text.check.mjs`: pages and tabs read from `pagesMap.ts` (30 pages x 4 widths = 120 combos); load failures / near-empty pages are counted and exit 2. Rerun: 120/120 checked, 0 instances, 0 load failures.
+- UI: curtain merged into 4 sections (Home & trading, Research & models, Money & compliance, Settings, help & tools incl. advanced); `Card fresh=` prop renders the shared freshness badge on Levels, Gold sessions, Candidates, Inspect, No-trade, Setup candidates, Zones and Paper replay cards; market AssetCard shows only symbol/name/price/change/quote status (fixture microstructure details removed).
+- Research `scripts/run_mgc_sizing_eval.py` -> `shots/full1/e2e/mgc_sizing_eval.json`: MGC does not make the E2E candidates pass. All 6 have stops of 2.4-12.1 bps vs the 30 bps open-track minimum, and one MGC (~$41.2k-42.3k) already exceeds the $40k open-track position cap. GC and MGC: 0/6 authorized. No rule changed.
+- Exchange holidays: `last_trade_date` remains weekday-only prior to pass 5.
+
+## 2026-10-24: `atlas-full-1` pass 3
 - `models/serving.py`: one serving path over the ml / quant / serving registries; statuses TRADE_CANDIDATE, LOW_CONFIDENCE, CONFLICTING_EVIDENCE, INSUFFICIENT_DATA, UNFAVORABLE_COSTS, NO_TRADE; PSI+ADWIN DriftGuard; `GET /api/ml/serving`. Only TRADE_CANDIDATE reaches the deterministic control plane.
 - Correlation id (`ops.correlation.bind`) on control-plane decisions/intake reports, PaperConnector receipts, signal telemetry, autopilot audit decisions and paper exits.
 - Fix: opportunity geometry is now directional (a long with stop above entry was accepted).
@@ -17,25 +168,9 @@
 - Replay: `latency_bars`, `limit_fill="trade_through"`, volume-capped partial fills (`fill_ratio`, weighted R); `scripts/run_replay_realism.py`.
 - `GET /api/feeds/freshness` + shared `FreshBadge` / `DataFreshnessChip` in the header and curtain menu.
 
-## atlas-full-1 pass 4 (2026-10-24, unmerged, not pushed)
-- Control plane: lot-sized orders now report whole-contract `quantity` (0 on a zero-lot rejection; previously a fractional value derived from the 0.01 placeholder notional). Tests: `tests/test_control_futures_sizing.py` (GC/MGC/SI/ES whole contracts, notional = qty x entry x multiplier, 1 GC > open-track cap rejected, unknown symbol -> lot metadata unavailable).
-- Levels: dynamic `ma<N>` (shared `indicators.EMA`) and `vwap` (shared `indicators.BarVWAP`, session reset, absent without volume) zone types; one live level per type, valid one bar; `priority_of()`. Off by default (`RegistryConfig.ma_periods=()`, `session_vwap=False`).
-- `vertical-text.check.mjs`: pages and tabs read from `pagesMap.ts` (30 pages x 4 widths = 120 combos); load failures / near-empty pages are counted and exit 2. The earlier "0 page/width combos" line counted only failing combos and the run had no server on the default port, so it covered nothing. Rerun: 120/120 checked, 0 instances, 0 load failures.
-- UI: curtain merged into 4 sections (Home & trading, Research & models, Money & compliance, Settings, help & tools incl. advanced); `Card fresh=` prop renders the shared freshness badge on Levels, Gold sessions, Candidates, Inspect, No-trade, Setup candidates, Zones and Paper replay cards; market AssetCard shows only symbol/name/price/change/quote status (fixture microstructure details removed).
-- Research `scripts/run_mgc_sizing_eval.py` -> `shots/full1/e2e/mgc_sizing_eval.json`: MGC does not make the E2E candidates pass. All 6 have stops of 2.4-12.1 bps vs the 30 bps open-track minimum, and one MGC (~$41.2k-42.3k) already exceeds the $40k open-track position cap. GC and MGC: 0/6 authorized. No rule changed.
-- Exchange holidays: no holiday/exchange-calendar library installed in the venv; not added. `last_trade_date` remains weekday-only.
-
-## atlas-full-2 pass 5 (2026-10-24, branch from 17ea2cc, unmerged, not pushed)
-- `atlas.intel`: research lab (DSR, PBO, bootstrap, cost sensitivity, reproducible report IDs), causal regimes + strategy-by-regime, portfolio exposure/correlation/VaR/CVaR/stress, track rulebook diff + enforcement probes, grounded evidence-ID assistant (LLM never used), market memory/attribution/governance view, microstructure tier gating, Four-Box scan. `/api/intel/*`.
-- UI: `/research/lab` hub (6 tabs) and Risk tabs Portfolio risk / Track rules, with freshness chips.
-- Exchange holidays via `exchange_calendars` (COMEX/CMES) for futures last-trade/roll dates.
-
-## atlas-ext-1 (2026-10-24, unmerged, not pushed)
-- Seven-repo gap audit: `docs/audit/2026-10-24-seven-repo-gap.md`.
-- `atlas.ext`: Black-Scholes greeks/IV, parametric/historical/component VaR+ES, DCF (FCFF/FCFE), SEC EDGAR point-in-time fundamentals, VWAP/volume profile/S-R/scan, Pine v5 export, conviction dossier, rule-based investor personas, a deterministic analyst-debate-trader-risk-PM pipeline (never submits), an Alpaca PAPER broker (live refused, control plane first), alerts (off by default), and a read-only MCP tool server (`scripts/atlas_mcp_stdio.py`). `/api/ext/*`.
-- Control plane: `preview_order` (no booking) shares `_evaluate_request` with `submit_order`. Rules are unchanged.
-- UI tabs: Research Lab gets Valuation / Dossier & agents / Options; Research gets Scan & Pine; Settings gets Broker & alerts.
-- Blocked: live option chains, news/sentiment, maritime. Deferred to evo-5: yield curve/macro.
-
-## atlas-unify-1 (2026-10-24)
-- AI consolidated into one node (`atlas.ai`, `/api/ai/*`); dead code and unused deps removed. Details in docs/CHANGELOG.md and docs/audit/2026-10-24-repo-streamline.md.
+## 2026-10-24: `atlas-full-1`
+- Added `features/price_action/library.py` (indicator + quant math library), `structure.py` (causal market-structure events), `gold_models.py` (gold-only Early Bird / range-bound / ORB alignment / Asian context).
+- Added gap matrix, indicator catalog, checkpoint, `scripts/run_structure_evidence.py`, tests `tests/price_action/test_mandate_full1.py`.
+- `gold_models.window_range` gap tolerance (Asian ≤10% missing 1m bars, early ≤5%, 08:00/08:20 boxes strict); every window reports `n/expected/coverage`. Gaps are never filled.
+- `/api/quant/levels` now returns `overlays` (indicator series, structure events, gold-only session ranges from ATLAS feed 1m only, `freshness` label). Levels & sweeps chart gains SMA / trend band / Donchian / structure toggles, freshness badges and a Gold session ranges card.
+- `atlas.ops.correlation`: `x-correlation-id` request/response header and JSON-line `atlas.request` logs.

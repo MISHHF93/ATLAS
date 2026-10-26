@@ -17,6 +17,8 @@ ALIASES: dict[str, str] = {
     "atlas.models.schemas": "atlas.schemas",
     "atlas.ai.models.schemas": "atlas.schemas",
     "atlas.models": "atlas.ai.models",
+    "atlas.intel": "atlas.ai.intel",
+    "atlas.ml": "atlas.ai.ml",
 }
 
 

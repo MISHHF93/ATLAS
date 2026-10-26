@@ -47,10 +47,10 @@ import numpy as np
 import pandas as pd
 
 from atlas.features.representations import REP_FEATURES, availability, rep_features
-from atlas.ml import metrics as M
-from atlas.ml.cv import walk_forward_splits
-from atlas.ml.dataset import BAR_FEATURES, FEATURES, SETUP_FEATURES, SIGNED, build_rows, load_series
-from atlas.ml.registry import _clean, code_sha, root
+from atlas.ai.ml import metrics as M
+from atlas.ai.ml.cv import walk_forward_splits
+from atlas.ai.ml.dataset import BAR_FEATURES, FEATURES, SETUP_FEATURES, SIGNED, build_rows, load_series
+from atlas.ai.ml.registry import _clean, code_sha, root
 
 GENES: dict[str, tuple[str, ...]] = {
     "model": ("logit", "ridge", "hgb", "xgb", "lgbm"),
@@ -120,7 +120,7 @@ def gid(g: dict[str, str]) -> str:
 def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, as_of: int | None = None,
                           variant: str | None = None, detectors: Sequence[str] | None = None) -> tuple[pd.DataFrame, dict]:
     """``variant``/``detectors``: evo6 re-labelling on a research setup variant (research.setup_variants)."""
-    from atlas.ml.context import htf_frame
+    from atlas.ai.ml.context import htf_frame
     frames, meta = [], {"series": [], "bar_type_availability": {}, "variant": variant, "detectors": list(detectors) if detectors else None}
     v = None
     if variant is not None:
@@ -174,7 +174,7 @@ def data_hash(data: pd.DataFrame) -> str:
 
 def add_macro(data: pd.DataFrame, store, meta: dict) -> pd.DataFrame:
     """Join section-22 macro as known at each detection time (data.t is already detection-bar end); all-NaN if no observations."""
-    from atlas.ml.context import MACRO_FEATURES, macro_frame
+    from atlas.ai.ml.context import MACRO_FEATURES, macro_frame
     end = data.t.astype(int)
     mf = macro_frame(store, end) if store is not None else pd.DataFrame(index=pd.Index([], name="t"), columns=list(MACRO_FEATURES))
     data = data.join(mf.reindex(end.to_numpy()).reset_index(drop=True).set_axis(data.index))
@@ -183,7 +183,7 @@ def add_macro(data: pd.DataFrame, store, meta: dict) -> pd.DataFrame:
 
 
 def feature_list(g: dict[str, str]) -> tuple[str, ...]:
-    from atlas.ml.context import HTF_FEATURES, MACRO_FEATURES
+    from atlas.ai.ml.context import HTF_FEATURES, MACRO_FEATURES
     f = list(FEATURES)
     if g["features"] == "no_setup":
         f = [c for c in f if c not in SETUP_FEATURES]
@@ -212,7 +212,7 @@ def folds(data: pd.DataFrame, n_folds: int = N_FOLDS) -> list[tuple[int, np.ndar
 
 
 def evaluate_genome(data: pd.DataFrame, g: dict[str, str], fs: list) -> dict[str, Any]:
-    from atlas.ml.train import fit_meta
+    from atlas.ai.ml.train import fit_meta
     feats = feature_list(g)
     missing = [c for c in feats if c not in data.columns]
     if missing:
@@ -269,7 +269,7 @@ def _sr(x) -> float:
 
 def strict_gate(m: dict[str, Any], taken_r: np.ndarray, trial_srs: list[float], n_folds: int = N_FOLDS) -> dict[str, Any]:
     """evo8 champion gate (see module doc). Returns every check with its value so a failure is explainable."""
-    from atlas.models.quant.metrics import deflated_sharpe
+    from atlas.ai.models.quant.metrics import deflated_sharpe
     fl = m.get("folds") or []
     ev_folds = [f for f in fl if "ev" in f]
     min_taken = min((f["n_taken"] for f in ev_folds), default=0)
@@ -402,7 +402,7 @@ def latest_run(path=None) -> dict | None:
 
 def oos_predictions(data: pd.DataFrame, g: dict[str, str], n_folds: int = N_FOLDS) -> pd.DataFrame:
     """OOS (walk-forward) calibrated p / EV / take for one genome: the only ML numbers ever shown as chart markers."""
-    from atlas.ml.train import fit_meta
+    from atlas.ai.ml.train import fit_meta
     feats = feature_list(g)
     parts = []
     for k, tr, te in folds(data, n_folds):

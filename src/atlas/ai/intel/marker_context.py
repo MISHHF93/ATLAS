@@ -63,7 +63,7 @@ def _r(x, d=4):
 
 def snapshots(bars) -> list[dict[str, Any]]:
     """Indicator state at the close of each bar, using only bars up to and including it."""
-    from atlas.intel.regime import classify
+    from atlas.ai.intel.regime import classify
     rsi, atr, adx = WilderRSI(14), WilderATR(14), _ADX(14)
     e12, e26, sig = EMA(12), EMA(26), EMA(9)
     regimes = classify(bars)

@@ -14,10 +14,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from atlas.ml import drift as D
-from atlas.ml import registry as R
-from atlas.ml.dataset import FEATURES, build_dataset
-from atlas.ml.train import PRIMARY, fit_final, run_training
+from atlas.ai.ml import drift as D
+from atlas.ai.ml import registry as R
+from atlas.ai.ml.dataset import FEATURES, build_dataset
+from atlas.ai.ml.train import PRIMARY, fit_final, run_training
 
 UNIVERSE = [(i, iv) for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM") for iv in ("15m", "1h")]
 DRIFT_WINDOW_S = 30 * 86400

@@ -38,16 +38,16 @@ class HelperVariant:
 
 HELPERS: tuple[HelperVariant, ...] = (
     HelperVariant(
-        "bars_frame_ohlcv_range_index", "bars_frame", "atlas.ml.features:bars_frame", "atlas.ml.features:bars_frame",
+        "bars_frame_ohlcv_range_index", "bars_frame", "atlas.ai.ml.features:bars_frame", "atlas.ai.ml.features:bars_frame",
         "(bars: Sequence[Bar]) -> DataFrame[start, end, open, high, low, close, volume]",
         "Turn feed bars into the OHLCV frame that the ML feature pipeline builds every feature from.",
         "Keeps all OHLCV columns plus integer start/end times on a plain RangeIndex.",
-        ("atlas.ml.features.bar_features", "atlas.ml.dataset", "atlas.ml.selector"),
+        ("atlas.ai.ml.features.bar_features", "atlas.ai.ml.dataset", "atlas.ai.ml.selector"),
         ("ml_pipeline", "evolution", "selector_regime"),
         pipelines=("ml dataset build (scripts/ml_refresh.py)", "evolution runs (scripts/evolve_models.py)", "selector evidence"),
         genome_options=("features: full, no_setup, no_signed, no_time, bar_only",
                         "bar_type: time, heikin_ashi, renko_atr, range_atr, volume, dollar, kagi_atr, pnf_atr"),
-        renamed_in_place=False, notes="atlas.ml is owned by the evo workers; registered, not renamed."),
+        renamed_in_place=False, notes="Registered under atlas.ai.ml.features (atlas.ml aliased)."),
     HelperVariant(
         "bars_frame_close_volume_time_index", "bars_frame",
         "atlas.ai.models.quant.features:bars_frame_close_volume_time_index", "atlas.ai.models.quant.features:bars_frame",

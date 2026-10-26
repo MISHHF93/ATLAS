@@ -26,10 +26,10 @@ import pandas as pd
 
 from atlas.features.price_action.engine import EngineConfig
 from atlas.features.price_action.replay import ReplayConfig, replay, trade_cost
-from atlas.ml.cv import walk_forward_splits
-from atlas.ml.features import BAR_FEATURES, bar_features
-from atlas.ml.metrics import brier, ece, logloss, reliability
-from atlas.ml.train import EMBARGO, fit_meta
+from atlas.ai.ml.cv import walk_forward_splits
+from atlas.ai.ml.features import BAR_FEATURES, bar_features
+from atlas.ai.ml.metrics import brier, ece, logloss, reliability
+from atlas.ai.ml.train import EMBARGO, fit_meta
 
 NY = ZoneInfo("America/New_York")
 BIASES = ("bullish", "bearish", "neutral", "conflicting", "insufficient")

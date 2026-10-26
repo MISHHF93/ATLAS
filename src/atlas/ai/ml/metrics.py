@@ -4,13 +4,13 @@ from __future__ import annotations
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-from atlas.models.quant.metrics import deflated_sharpe
-from atlas.models.quant.validation import pbo_cscv
+from atlas.ai.models.quant.metrics import deflated_sharpe
+from atlas.ai.models.quant.validation import pbo_cscv
 
 EPS = 1e-6
 
 
-from atlas.models.quant.metrics import brier  # noqa: E402,F401  single implementation (2026-10-24 streamline)
+from atlas.ai.models.quant.metrics import brier  # noqa: E402,F401  single implementation (2026-10-24 streamline)
 
 
 def logloss(p, y) -> float:

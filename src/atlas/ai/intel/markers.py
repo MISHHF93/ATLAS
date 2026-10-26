@@ -70,7 +70,7 @@ def _zone_label(z) -> str | None:
 
 
 def from_evolution(inst: str, interval: str, path=None) -> tuple[list[dict[str, Any]], dict | None]:
-    from atlas.ml.evolution import champion, evo_dir, latest_run
+    from atlas.ai.ml.evolution import champion, evo_dir, latest_run
     run = latest_run(path)
     if not run:
         return [], None

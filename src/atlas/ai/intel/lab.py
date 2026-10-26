@@ -38,7 +38,7 @@ def lab_dir() -> Path:
 
 
 def _code_sha() -> str:
-    from atlas.ml.registry import code_sha
+    from atlas.ai.ml.registry import code_sha
     return code_sha()
 
 
@@ -118,7 +118,7 @@ def run_experiment(inst: str, bars, *, daily=(), variants: dict[str, dict[str, b
                       "sharpe_per_trade": float(r.mean() / r.std(ddof=1)) if len(r) > 2 and r.std(ddof=1) > 0 else None,
                       "bootstrap_mean_r": bootstrap_mean_ci(r, n_boot, seed), "cost_sensitivity": sens}
     # deflated Sharpe: best variant vs all variants tried (per-trade series)
-    from atlas.ml.metrics import dsr, pbo
+    from atlas.ai.ml.metrics import dsr, pbo
     ranked = [v for v in per if per[v]["sharpe_per_trade"] is not None]
     dsr_out = None
     if ranked and len(ranked) >= 2:

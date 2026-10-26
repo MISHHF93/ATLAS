@@ -31,7 +31,7 @@ def code_sha() -> str:
     try:
         sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5,
                              cwd=Path(__file__).resolve().parent).stdout.strip()
-        dirty = subprocess.run(["git", "status", "--porcelain", "--", "src/atlas/ml"], capture_output=True, text=True, timeout=5,
+        dirty = subprocess.run(["git", "status", "--porcelain", "--", "src/atlas/ai/ml"], capture_output=True, text=True, timeout=5,
                                cwd=Path(__file__).resolve().parent).stdout.strip()
         return (sha or "unknown") + ("-dirty" if dirty else "")
     except Exception:
@@ -86,8 +86,8 @@ def model_card(man: dict[str, Any]) -> str:
 
 
 def register(group: str, out: dict[str, Any], meta: dict[str, Any], model: Any, path=None, now: datetime | None = None) -> dict[str, Any]:
-    from atlas.ml.dataset import FEATURES
-    from atlas.ml.train import ALPHA, PRIMARY
+    from atlas.ai.ml.dataset import FEATURES
+    from atlas.ai.ml.train import ALPHA, PRIMARY
     r = root(path)
     sha = code_sha()
     series = [s for s in meta["series"] if f"{s['asset_class']}-{s['interval']}" == group]
@@ -148,7 +148,7 @@ def load_eligible(registry=None, path=None) -> list[str]:
     """Register every *eligible* version into a predict() ModelRegistry. not_eligible versions are never loaded."""
     import pandas as pd
 
-    from atlas.models.predict import DEFAULT_REGISTRY, RegisteredModel
+    from atlas.ai.models.predict import DEFAULT_REGISTRY, RegisteredModel
     reg = registry or DEFAULT_REGISTRY
     loaded = []
     for man in list_models(path):

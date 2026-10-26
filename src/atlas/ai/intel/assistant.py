@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from atlas.ml.retrieval import BM25Index, build_index, split_passages
+from atlas.ai.ml.retrieval import BM25Index, build_index, split_passages
 
 
 def evidence_id(cite: str, text: str) -> str:

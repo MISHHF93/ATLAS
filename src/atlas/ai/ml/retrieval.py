@@ -99,6 +99,8 @@ def _snippet(text: str, q: list[str], width: int = 320) -> str:
 def corpus_files(repo_root: str | Path, registry_root: str | Path | None = None) -> list[Path]:
     r = Path(repo_root)
     files = [p for p in sorted((r / "docs").rglob("*")) if p.suffix in EXTS and p.is_file() and p.stat().st_size < 2_000_000]
+    if (r / "CHANGELOG.md").is_file():
+        files.append(r / "CHANGELOG.md")
     if registry_root and Path(registry_root).exists():
         files += sorted(Path(registry_root).glob("*/model_card.md"))
     return files

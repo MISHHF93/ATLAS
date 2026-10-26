@@ -15,7 +15,7 @@ from typing import Any, Iterable
 import numpy as np
 import pandas as pd
 
-from atlas.models.quant.drift import psi_from_ref, reference_stats
+from atlas.ai.models.quant.drift import psi_from_ref, reference_stats
 
 PSI_MODERATE, PSI_SIGNIFICANT = 0.1, 0.25
 
