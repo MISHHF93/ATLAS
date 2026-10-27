@@ -224,7 +224,7 @@ export function DynamicPositionSizingBench() {
   const [atr, setAtr] = useState(12.5);
   const [atrMult, setAtrMult] = useState(1.5);
   const [riskFrac, setRiskFrac] = useState(0.005);
-  const [winProb, setWinProb] = useState(0.58);
+  const [winProb, setWinProb] = useState<number | null>(null); // no default: enter a calibrated probability or leave blank
   const [track, setTrack] = useState("competition");
   const sizer = useAction<R>("/api/research-integration/position-sizing");
 
@@ -263,7 +263,7 @@ export function DynamicPositionSizingBench() {
           Risk frac <input type="number" step="0.001" value={riskFrac} onChange={(e) => setRiskFrac(Number(e.target.value))} style={{ width: 80 }} />
         </label>
         <label className="ux-form-row">
-          Win p <input type="number" step="0.01" value={winProb} onChange={(e) => setWinProb(Number(e.target.value))} style={{ width: 75 }} />
+          Win p <input type="number" step="0.01" value={winProb ?? ""} placeholder="none" onChange={(e) => setWinProb(e.target.value === "" ? null : Number(e.target.value))} style={{ width: 75 }} />
         </label>
         <ActionButton
           action={sizer}

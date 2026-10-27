@@ -146,6 +146,44 @@ const OUTCOME_TEXT: Record<string, { text: string; badge: string; tone: string }
 const CLASS_TEXT: Record<OppMarker["class"], string> = { ml_suggested: "Taken (ML)", ml_skip: "ML-skipped", risk_rejected: "Risk-rejected", rule_only: "Rule only" };
 const outcomeOf = (m: OppMarker) => m.outcome_label ?? (m.outcome === "target" ? "hit_target" : m.outcome === "stop" ? "stopped_out" : m.outcome === "timeout" ? "timed_out" : "open");
 
+/** Client-side PNG capture: lightweight-charts canvas + the HTML overlays (volume profile, prediction zone, marker chips) + a header strip. */
+function captureChartPng(chart: IChartApi, stage: HTMLElement, meta: { symbol: string; timeframe: string; barType: string }) {
+  const shot = chart.takeScreenshot();
+  const dpr = shot.width / Math.max(1, stage.querySelector(".atlas-chart-canvas")?.getBoundingClientRect().width || shot.width);
+  const head = Math.round(30 * dpr);
+  const out = document.createElement("canvas");
+  out.width = shot.width; out.height = shot.height + head;
+  const g = out.getContext("2d");
+  if (!g) return;
+  const now = new Date();
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" }).formatToParts(now).map((x) => [x.type, x.value]));
+  const stamp = `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute} ${parts.timeZoneName ?? "ET"}`;
+  g.fillStyle = "#0b1118"; g.fillRect(0, 0, out.width, head);
+  g.fillStyle = "#E8EEF5"; g.font = `${Math.round(13 * dpr)}px system-ui, sans-serif`; g.textBaseline = "middle";
+  g.fillText(`ATLAS  ${meta.symbol}  ·  ${meta.timeframe}  ·  ${meta.barType} bars  ·  ${stamp}  ·  Paper / research only`, 10 * dpr, head / 2);
+  g.drawImage(shot, 0, head);
+  const base = (stage.querySelector(".atlas-chart-canvas") ?? stage).getBoundingClientRect();
+  const sel = ".atlas-chart-vp-bin, .atlas-pz-outer, .atlas-pz-inner, .atlas-pz-mid, .atlas-chip";
+  stage.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    if (!r.width && !r.height) return;
+    const x = (r.left - base.left) * dpr, y = (r.top - base.top) * dpr + head, w = Math.max(1, r.width * dpr), h = Math.max(1, r.height * dpr);
+    g.save(); g.globalAlpha = Number(cs.opacity) || 1;
+    if (cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)") { g.fillStyle = cs.backgroundColor; g.fillRect(x, y, w, h); }
+    if (cs.borderTopStyle !== "none" && parseFloat(cs.borderTopWidth) > 0) { g.strokeStyle = cs.borderTopColor; g.lineWidth = parseFloat(cs.borderTopWidth) * dpr; g.strokeRect(x, y, w, h); }
+    const txt = el.classList.contains("atlas-chip") ? (el.textContent ?? "").trim() : "";
+    if (txt) { g.fillStyle = cs.color; g.font = `${Math.round(parseFloat(cs.fontSize || "11") * dpr)}px system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(txt, x + w / 2, y + h / 2); }
+    g.restore();
+  });
+  const fn = `ATLAS_${meta.symbol.replace(/[^A-Za-z0-9_-]/g, "")}_${meta.timeframe}_${parts.year}${parts.month}${parts.day}-${parts.hour}${parts.minute}.png`;
+  out.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = fn; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, "image/png");
+}
+
 /** One-chart-per-symbol registry: a page must mount at most one full chart for a symbol. Dev builds shout. */
 const MOUNTED = new Map<string, number>();
 export function mountedChartCount(sym: string) { return MOUNTED.get(sym) ?? 0; }
@@ -169,6 +207,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const box = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const candlesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const [geo, setGeo] = useState<Geo>({ chips: [], band: null });
   const [sel, setSel] = useState<string | null>(null);
@@ -367,6 +406,11 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         )}
         {p?.built?.startsWith("resampled") ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
         <span className="atlas-chart-badge is-safe" title="ML output is advisory research. It can never place an order.">execution_permission: {data?.execution_permission ?? "none"}</span>
+        <button type="button" className="atlas-chart-capture" title="Save chart as PNG" aria-label="Save chart as PNG"
+          disabled={!data?.bars.length}
+          onClick={() => { const c = chartRef.current, st = stageRef.current; if (c && st) captureChartPng(c, st, { symbol: sym, timeframe: live ? "live-1m" : interval, barType: live ? "time" : barType }); }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+        </button>
         <span className="atlas-chart-links">
           <a href={tradingViewUrl(sym)} target="_blank" rel="noopener noreferrer">Open in TradingView ↗</a>
           <a href="/research?tab=scan">Pine v5 export</a>
@@ -382,7 +426,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
           );
         })}
       </div>
-      <div className="atlas-chart-stage" style={{ height }}>
+      <div ref={stageRef} className="atlas-chart-stage" style={{ height }}>
         <div ref={box} className="atlas-chart-canvas" />
         <div ref={profileRef} className="atlas-chart-vp" aria-hidden />
         {geo.band && (() => { const b = geo.band; const w = Math.max(8, b.x1 - b.x0); return (

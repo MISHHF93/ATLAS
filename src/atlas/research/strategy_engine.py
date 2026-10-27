@@ -17,7 +17,7 @@ from typing import Any, Sequence
 
 from atlas.ext import pine as ext_pine
 from atlas.intel.data import TF_SECONDS, freshness_for, load_bars
-from atlas.market.contracts import SPEC_BY_ID
+from atlas.feeds.contracts import contract_for
 from atlas.market.sessions import evaluate_candidate_market_gate
 
 EXECUTION_PERMISSION = "none"
@@ -352,29 +352,15 @@ def parse_and_validate_pine(
     }
 
 
-def _evaluate_pine_subset_signals(strategy_id: str, bars: Sequence[Any]) -> list[dict[str, Any]]:
-    """Evaluate Pine subset IR directly on OHLC bars to compare 1-to-1 with ATLAS Python detectors."""
-    from atlas.features.price_action.engine import EngineConfig, candidates_from_bars
+def _python_candidates(symbol: str, bars: Sequence[Any]) -> list[Any]:
+    """Run the real ATLAS PriceActionEngine over closed bars and return its candidates."""
+    from atlas.features.price_action.engine import EngineConfig, PriceActionEngine
 
-    det_name = ext_pine.DETECTOR.get(strategy_id, strategy_id)
-    cands = candidates_from_bars(
-        bars[0].instrument if bars else "BTC-USD",
-        bars[0].duration if bars else 900,
-        bars,
-        EngineConfig(),
-    )
-    matched = [c for c in cands if c.detector == det_name]
-    return [
-        {
-            "bar_ts": int(c.t),
-            "direction": str(c.direction),
-            "entry": float(c.entry),
-            "stop": float(c.stop),
-            "target": float(c.target),
-            "detector": str(c.detector),
-        }
-        for c in matched
-    ]
+    if not bars:
+        return []
+    eng = PriceActionEngine(symbol, bars[0].duration, EngineConfig())
+    eng.run_batch(bars)
+    return list(eng.candidates)
 
 
 def verify_pine_to_python_parity(
@@ -385,7 +371,6 @@ def verify_pine_to_python_parity(
 ) -> dict[str, Any]:
     """Section 7: Verify Pine logic vs Python detector signal equivalence on identical historical data."""
     from atlas.api.feeds_api import _feed
-    from atlas.features.price_action.engine import EngineConfig, candidates_from_bars
 
     if strategy_id not in ext_pine.BODIES:
         return {
@@ -420,47 +405,33 @@ def verify_pine_to_python_parity(
     )
 
     det_name = ext_pine.DETECTOR[strategy_id]
-    py_cands = [
-        c
-        for c in candidates_from_bars(symbol.upper(), bars[0].duration, bars, EngineConfig())
-        if c.detector == det_name
-    ]
-    pine_signals = _evaluate_pine_subset_signals(strategy_id, bars)
+    py_cands = [c for c in _python_candidates(symbol.upper(), bars) if c.detector == det_name]
 
-    py_by_ts = {int(c.t): (str(c.direction), round(float(c.entry), 6), round(float(c.stop), 6)) for c in py_cands}
-    pine_by_ts = {int(s["bar_ts"]): (str(s["direction"]), round(float(s["entry"]), 6), round(float(s["stop"]), 6)) for s in pine_signals}
-
-    all_ts = sorted(set(py_by_ts) | set(pine_by_ts))
-    mismatches = [ts for ts in all_ts if py_by_ts.get(ts) != pine_by_ts.get(ts)]
-    match_rate = 1.0 if not all_ts else (len(all_ts) - len(mismatches)) / len(all_ts)
-
-    golden_payload = "|".join(f"{b.t}:{b.open}:{b.high}:{b.low}:{b.close}" for b in bars[:50])
+    golden_payload = "|".join(f"{b.start}:{b.open}:{b.high}:{b.low}:{b.close}" for b in bars[:50])
     golden_hash = _sha256(golden_payload)[:16]
 
-    parity_passed = parsed["valid"] and len(mismatches) == 0
+    # ATLAS has no independent Pine Script interpreter, so Pine-side signals cannot be evaluated here.
+    # Comparing the Python detector against itself would be a fabricated "parity"; report UNVERIFIED instead.
     return {
         "strategy_id": strategy_id,
         "detector": det_name,
         "symbol": symbol.upper(),
         "timeframe": timeframe,
-        "status": "verified_parity" if parity_passed else "parity_failed",
-        "parity_passed": parity_passed,
+        "status": "UNVERIFIED_NO_PINE_EVALUATOR",
+        "parity_passed": False,
+        "reason": "No independent Pine evaluator in ATLAS; Pine source was parsed/validated but its signals were not executed.",
+        "pine_source_valid": bool(parsed["valid"]),
         "bars_tested": len(bars),
-        "warmup_bars": 20,
         "python_signal_count": len(py_cands),
-        "pine_ir_signal_count": len(pine_signals),
-        "match_rate": round(match_rate, 4),
-        "mismatch_bar_timestamps": mismatches[:10],
+        "pine_ir_signal_count": None,
+        "match_rate": None,
+        "mismatch_bar_timestamps": [],
         "golden_dataset_hash": golden_hash,
         "checks": {
-            "indicator_warmup": True,
-            "bar_timestamps_aligned": True,
-            "candle_completion_causal": True,
-            "parameter_defaults_matched": True,
-            "entry_conditions_matched": len(mismatches) == 0,
-            "exit_and_stop_matched": len(mismatches) == 0,
             "repainting_free": parsed["repainting_risk"] == "LOW",
             "lookahead_free": parsed["lookahead_risk"] == "LOW",
+            "entry_conditions_matched": None,
+            "exit_and_stop_matched": None,
         },
         "canonical_ir": parsed["canonical_ir"],
         "execution_permission": EXECUTION_PERMISSION,
@@ -508,13 +479,15 @@ def run_realistic_strategy_backtest(
     }
     detector = det_map.get(strategy_id, strategy_id)
 
-    base_cfg = paper_replay_config()
-    cfg = ReplayConfig(
-        slippage_bps=base_cfg.slippage_bps * max(0.0, float(cost_multiplier)),
-        fee_bps=base_cfg.fee_bps * max(0.0, float(cost_multiplier)),
-        spread_bps=base_cfg.spread_bps * max(0.0, float(cost_multiplier)),
-        max_hold_bars=base_cfg.max_hold_bars,
-    )
+    # Costs come from the same per-instrument cost table the research lab uses (atlas.intel.data.SPEC).
+    from atlas.intel.data import SPEC as _COST_SPEC
+    _cm = max(0.0, float(cost_multiplier))
+    _cost_row = _COST_SPEC.get(symbol.upper())
+    if _cost_row is not None:
+        _, _, _cpu, _cbps, _hold = _cost_row
+    else:
+        _cpu, _cbps, _hold = 0.0, 0.0, paper_replay_config().max_hold_bars
+    cfg = paper_replay_config(max_hold_bars=_hold, cost_per_unit=_cpu * _cm, cost_bps=_cbps * _cm)
 
     recent_bars = bars[-1500:]
     res = replay(
@@ -531,16 +504,26 @@ def run_realistic_strategy_backtest(
         all_trades = [t for t in res.trades if t.r_multiple is not None]
 
     r_vals = [float(t.r_multiple) for t in all_trades if t.r_multiple is not None]
-    gross_r_vals = [float(getattr(t, "gross_r_multiple", None) or (float(t.r_multiple) + 0.08 * cost_multiplier)) for t in all_trades]
+    from atlas.features.price_action.replay import trade_cost
+    # Gross R = net R + the replay's own modelled round-trip cost expressed in R (no invented cost figures).
+    gross_r_vals = [
+        float(t.r_multiple) + (trade_cost(t, cfg) / abs(t.entry - t.stop) if abs(t.entry - t.stop) > 0 else 0.0)
+        for t in all_trades
+    ]
 
     n_trades = len(r_vals)
-    spec = SPEC_BY_ID.get(symbol.upper())
+    spec = contract_for(symbol.upper())
     contract_info = {
         "instrument_id": symbol.upper(),
-        "multiplier": spec.multiplier if spec else 1.0,
-        "tick_size": spec.tick_size if spec else 0.01,
-        "tick_value_usd": spec.tick_value if spec else 0.01,
-        "round_trip_cost_usd": spec.cost_per_contract_rt_usd if spec else 1.50,
+        "contract_spec_available": spec is not None,
+        "multiplier": spec.multiplier if spec else None,
+        "tick_size": spec.tick_size if spec else None,
+        "tick_value_usd": spec.tick_value if spec else None,
+        "round_trip_cost_usd": spec.cost_per_contract_rt_usd if spec else None,
+        "round_trip_cost_source": spec.cost_source if spec else None,
+        "replay_cost_per_unit": cfg.cost_per_unit,
+        "replay_cost_bps": cfg.cost_bps,
+        "reason": None if spec else "no_contract_spec_in_atlas.feeds.contracts",
     }
 
     if n_trades == 0:
@@ -579,13 +562,14 @@ def run_realistic_strategy_backtest(
     net_profit_r = sum(r_vals)
     gross_profit_r = sum(gross_r_vals)
     total_cost_r = max(0.0, gross_profit_r - net_profit_r)
-    fees_r = round(total_cost_r * 0.45, 4)
-    slippage_r = round(total_cost_r * 0.55, 4)
+    # The replay models a single combined round-trip cost; it does not separate fees from slippage.
+    fees_r = None
+    slippage_r = None
     win_rate = len(wins) / n_trades
     avg_win_r = (sum(wins) / len(wins)) if wins else 0.0
     avg_loss_r = (sum(losses) / len(losses)) if losses else 0.0
     ev_r = net_profit_r / n_trades
-    profit_factor = (sum(wins) / abs(sum(losses))) if losses and sum(losses) != 0 else (99.0 if wins else 0.0)
+    profit_factor = (sum(wins) / abs(sum(losses))) if losses and sum(losses) != 0 else None
 
     # Equity curve & drawdown in R
     eq = 0.0
@@ -648,13 +632,15 @@ def run_realistic_strategy_backtest(
         "avg_win_r": round(avg_win_r, 4),
         "avg_loss_r": round(avg_loss_r, 4),
         "expected_value_r": round(ev_r, 4),
-        "profit_factor": round(profit_factor, 4),
+        "profit_factor": round(profit_factor, 4) if profit_factor is not None else None,
+        "total_cost_r": round(total_cost_r, 4),
+        "cost_breakdown_note": "replay models combined round-trip cost; fee/slippage split unavailable",
         "max_drawdown_r": round(max_dd, 4),
         "sharpe_ratio": round(sharpe, 4),
         "sortino_ratio": round(sortino, 4),
         "tail_risk_cvar95_r": round(cvar95_r, 4),
-        "exposure_pct": round(min(100.0, (n_trades * 4.0 / max(1, len(recent_bars))) * 100.0), 2),
-        "turnover": round(n_trades / max(1.0, len(recent_bars) / 96.0), 4),
+        "exposure_pct": round(min(100.0, 100.0 * sum(1 for b in recent_bars if any(t.filled_at is not None and t.exit_at is not None and t.filled_at <= b.start <= t.exit_at for t in all_trades)) / max(1, len(recent_bars))), 2),
+        "turnover_trades_per_day": round(n_trades / max(1e-9, len(recent_bars) * float(TF_SECONDS.get(timeframe, 900)) / 86400.0), 4),
         "statistical_uncertainty_ci": ci_95,
         "walk_forward_oos": {
             "purge_bars": purge_bars,

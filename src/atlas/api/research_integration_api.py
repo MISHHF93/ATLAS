@@ -91,7 +91,7 @@ class SizingRequestPayload(BaseModel):
     atr_multiplier: float = 1.5
     account_equity_usd: float | None = None
     risk_fraction: float = 0.005
-    win_probability: float | None = 0.58
+    win_probability: float | None = None
     payoff_ratio_b: float | None = 2.0
     calibration_ece: float = 0.04
     spread_bps: float = 2.5
@@ -101,6 +101,7 @@ class SizingRequestPayload(BaseModel):
     sector_exposure_usd: float = 0.0
     daily_loss_used_usd: float = 0.0
     event_risk_active: bool = False
+    data_age_ms: float | None = None
 
 
 class MemoryRecordPayload(BaseModel):

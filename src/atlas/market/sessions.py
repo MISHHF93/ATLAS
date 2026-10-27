@@ -1147,7 +1147,7 @@ def evaluate_candidate_market_gate(
         venue_reported_status=venue_reported_status,
         data_feed_health=data_feed_health,
     )
-    eff = str(inst.get("effective_status") or "UNKNOWN").upper()
+    eff = str(inst.get("venue_reported_trading_status") or inst.get("market_status") or "UNKNOWN").upper()
 
     if not broker_available:
         gate_state = "BROKER_UNAVAILABLE"
@@ -1193,7 +1193,7 @@ def evaluate_candidate_market_gate(
     return {
         "symbol": inst["symbol"],
         "exchange": inst["exchange"],
-        "exchange_mic": inst["exchange_mic"],
+        "exchange_mic": inst.get("venue_id"),
         "candidate_gate_status": gate_state,
         "candidate_eligible": eligible,
         "gate_reason": gate_reason,
