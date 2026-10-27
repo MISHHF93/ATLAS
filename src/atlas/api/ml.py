@@ -118,3 +118,79 @@ def ml_serving() -> dict[str, Any]:
     from atlas.models.serving import catalog
     qroot = Path(os.environ.get("ATLAS_MODELS_ROOT", REPO / "var" / "models"))
     return catalog(quant_root=qroot)
+
+
+@ml_router.get("/live-prediction")
+def ml_live_prediction_get(
+    symbol: str = Query("BTC-USD"),
+    interval: str = Query("15m"),
+    venue_reported_status: str | None = Query(None),
+    data_feed_health: str | None = Query(None),
+) -> dict[str, Any]:
+    """Sections 4–8 & 12: Validated live ML prediction service with calibration, EV after costs, and market status."""
+    from atlas.ai.ml.live_intelligence import generate_live_prediction
+    return generate_live_prediction(
+        symbol=symbol,
+        interval=interval,
+        venue_reported_status=venue_reported_status,
+        data_feed_health=data_feed_health,
+    )
+
+
+@ml_router.post("/live-prediction")
+def ml_live_prediction_post(payload: dict[str, Any]) -> dict[str, Any]:
+    """POST variant for live ML prediction service."""
+    from atlas.ai.ml.live_intelligence import generate_live_prediction
+    return generate_live_prediction(
+        symbol=str(payload.get("symbol", "BTC-USD")),
+        interval=str(payload.get("interval", "15m")),
+        venue_reported_status=payload.get("venue_reported_status"),
+        data_feed_health=payload.get("data_feed_health"),
+    )
+
+
+@ml_router.get("/prediction-health")
+def ml_prediction_health(symbol: str | None = Query(None)) -> dict[str, Any]:
+    """Section 8: Live Prediction Health Monitoring Service."""
+    from atlas.ai.ml.live_intelligence import get_prediction_health
+    return get_prediction_health(symbol=symbol)
+
+
+@ml_router.get("/ev-evolution")
+def ml_ev_evolution(symbol: str = Query("BTC-USD"), interval: str = Query("15m")) -> dict[str, Any]:
+    """Section 16: EV Evolution Monitor comparing estimated EV at signal vs realized expectancy after outcome."""
+    from atlas.ai.ml.live_intelligence import get_ev_evolution_monitor
+    return get_ev_evolution_monitor(symbol=symbol, interval=interval)
+
+
+@ml_router.get("/champion-challenger")
+def ml_champion_challenger() -> dict[str, Any]:
+    """Sections 17 & 18: Champion–Challenger Model Lifecycle registry."""
+    from atlas.ai.ml.live_intelligence import get_champion_challenger_registry
+    return get_champion_challenger_registry()
+
+
+@ml_router.post("/champion-challenger/transition")
+def ml_champion_challenger_transition(payload: dict[str, Any]) -> dict[str, Any]:
+    """Section 17 & 24: Governed model rollback and version transition."""
+    from atlas.ai.ml.live_intelligence import rollback_or_transition_model
+    target_version = str(payload.get("target_version") or "")
+    if not target_version:
+        raise HTTPException(status_code=400, detail="target_version is required")
+    action = str(payload.get("action") or "rollback")
+    reason = str(payload.get("reason") or "operator_governed_rollback")
+    return rollback_or_transition_model(target_version=target_version, action=action, reason=reason)
+
+
+@ml_router.get("/strategy-evolution")
+def ml_strategy_evolution() -> dict[str, Any]:
+    """Section 19: Strategy Evolution across all 7 ATLAS strategy families."""
+    from atlas.ai.ml.live_intelligence import get_strategy_evolution_matrix
+    return get_strategy_evolution_matrix()
+
+
+@ml_router.get("/evolution-intelligence")
+def ml_evolution_intelligence(symbol: str = Query("BTC-USD"), interval: str = Query("15m")) -> dict[str, Any]:
+    """Sections 13–20: Complete ATLAS Evolution Intelligence Dashboard across 4 distinct dimensions."""
+    from atlas.ai.ml.live_intelligence import get_evolution_intelligence_dashboard
+    return get_evolution_intelligence_dashboard(symbol=symbol, interval=interval)

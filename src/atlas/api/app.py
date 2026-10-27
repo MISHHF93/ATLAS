@@ -249,6 +249,31 @@ def market_sessions_status(symbols: str = "") -> dict[str, object]:
     return get_market_sessions_status(symbols=sym_list)
 
 
+@app.get("/api/market/instrument-status")
+def market_instrument_status(
+    symbol: str = "BTC-USD",
+    venue_reported_status: str | None = None,
+    data_feed_health: str | None = None,
+    last_price: float | None = None,
+    last_price_timestamp: str | None = None,
+    bonding_curve_complete: bool | None = None,
+    migration_in_progress: bool | None = None,
+    pool_liquidity_usd: float | None = None,
+) -> dict[str, object]:
+    """Sections 9–12: Authoritative Market Status Engine separating scheduled, venue, and feed health states."""
+    from atlas.market.sessions import evaluate_instrument_market_status
+    return evaluate_instrument_market_status(
+        symbol=symbol,
+        venue_reported_status=venue_reported_status,
+        data_feed_health=data_feed_health,
+        last_price=last_price,
+        last_price_timestamp=last_price_timestamp,
+        bonding_curve_complete=bonding_curve_complete,
+        migration_in_progress=migration_in_progress,
+        pool_liquidity_usd=pool_liquidity_usd,
+    )
+
+
 
 @app.get("/api/ml/live-observer/status", include_in_schema=False)
 def live_observer_status() -> dict[str, object]:

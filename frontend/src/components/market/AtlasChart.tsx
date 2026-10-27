@@ -479,6 +479,20 @@ export function AtlasMlPanel({ data, showConviction, showPredictions, onRefresh 
   const preds = data.layers.predictions?.items ?? [];
   const [evolving, setEvolving] = useState(false);
   const [evolveNote, setEvolveNote] = useState<string>("");
+  const [liveIntel, setLiveIntel] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/ml/evolution-intelligence?symbol=${encodeURIComponent(data.symbol)}&interval=${encodeURIComponent(data.interval)}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d && typeof d === "object") setLiveIntel(d as Record<string, unknown>);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [data.symbol, data.interval]);
 
   const handleEvolveNow = async () => {
     setEvolving(true);
@@ -498,6 +512,11 @@ export function AtlasMlPanel({ data, showConviction, showPredictions, onRefresh 
       setEvolving(false);
     }
   };
+
+  const lp = (liveIntel?.live_prediction ?? null) as Record<string, unknown> | null;
+  const lpEv = (lp?.expected_value ?? null) as Record<string, unknown> | null;
+  const ph = (liveIntel?.prediction_health ?? null) as Record<string, unknown> | null;
+  const evMon = (liveIntel?.ev_evolution ?? null) as Record<string, unknown> | null;
 
   return (
     <div className="atlas-ml-panel" aria-label="ML panel">
@@ -570,6 +589,21 @@ export function AtlasMlPanel({ data, showConviction, showPredictions, onRefresh 
             <ul>{(conv.components ?? []).slice(0, 5).map((c) => <li key={c.rule}>{c.rule.replace(/_/g, " ")}: {c.why}</li>)}</ul>
             <p className="atlas-ml-note">Personas: {conv.personas}</p>
           </> : <p>{conv?.reason ?? "Unavailable."}</p>}
+        </div>
+      )}
+      {lp && (
+        <div className="atlas-ml-cell">
+          <h4>Live ML Prediction &amp; Health</h4>
+          <p className="atlas-ml-note" style={{ marginBottom: 6 }}>
+            <strong>Status:</strong> {String(lp.prediction_status ?? "—")} · <strong>Health:</strong> {String(ph?.health_classification ?? "HEALTHY")} ({fmt(ph?.inference_latency_ms as number | undefined, 1)}ms) · <strong>Market:</strong> {String(lp.market_status ?? "—")}
+          </p>
+          <dl>
+            <dt>P(Target &lt; Stop)</dt><dd><strong>{lp.probability_target_before_stop != null ? `${(Number(lp.probability_target_before_stop) * 100).toFixed(1)}%` : "—"}</strong> (±{fmt(lp.uncertainty as number | undefined, 2)})</dd>
+            <dt>P(Up / Down / Flat)</dt><dd>{lp.probability_up != null ? `${(Number(lp.probability_up) * 100).toFixed(1)}% / ${(Number(lp.probability_down) * 100).toFixed(1)}% / ${(Number(lp.probability_neutral) * 100).toFixed(1)}%` : "—"}</dd>
+            <dt>Net EV after costs</dt><dd><strong>{fmtSigned(lp.expected_return_after_costs as number | undefined, 3)}R</strong> ({lpEv ? `+${fmt(lpEv.expected_gain_r as number | undefined, 2)}R / -${fmt(lpEv.expected_loss_r as number | undefined, 2)}R · cost ${fmt(lpEv.estimated_total_cost_r as number | undefined, 3)}R` : "—"})</dd>
+            <dt>EV Est vs Realized</dt><dd>{evMon ? `${fmtSigned(evMon.EV_ESTIMATED_AT_SIGNAL as number | undefined, 3)}R vs ${fmtSigned(evMon.EV_REALIZED_AFTER_OUTCOME as number | undefined, 3)}R (err ${fmtSigned(evMon.EV_ESTIMATION_ERROR as number | undefined, 3)}R)` : "—"}</dd>
+            <dt>Calibration</dt><dd>{String(lp.calibration_version ?? "—")}</dd>
+          </dl>
         </div>
       )}
       <div className="atlas-ml-cell atlas-ml-why">

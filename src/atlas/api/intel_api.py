@@ -300,7 +300,7 @@ def markers(symbol: str = Query("GC"), tf: str = Query("15m"), limit: int = Quer
         return _wrap(bars, {"status": "no_data", "markers": [], "disclaimer": DISCLAIMER})
     _, _, cpu, _, _ = SPEC.get(sym, ("crypto", 0.01, 0.0, 0.0, 96))
     mk = from_replay(_replay_all(sym, tf, bars), TF_SECONDS[tf], cpu)
-    ml, ml_meta = from_evolution(sym, tf)
+    ml, ml_meta = from_evolution(sym, tf, bars=bars[-4000:], rule_markers=mk)
     t0 = bars[0].start
     allm = sorted([m for m in mk + ml if m["time"] >= t0], key=lambda m: m["time"])[-limit:]
     has_champ = bool((ml_meta or {}).get("has_champion"))
