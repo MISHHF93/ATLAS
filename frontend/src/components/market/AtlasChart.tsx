@@ -35,6 +35,10 @@ type Status = { status: string; reason?: string; note?: string };
 export type Overlays = {
   status: string; symbol: string; interval: string; bar_type: string; execution_permission: string;
   provider: { provider: string | null; providers: string[]; realtime: boolean | null; delay_s?: number | null; delay_label: string; built: string };
+  market_session?: {
+    symbol: string; venue_id: string; venue_name: string; status: string; status_label: string;
+    is_open: boolean; countdown: string; schedule_summary: string; reason: string;
+  };
   bars: Bar[];
   display?: Status & { kind: string; bars?: { time: number; start: number; open: number; high: number; low: number; close: number }[] };
   layers: {
@@ -46,17 +50,18 @@ export type Overlays = {
     regimes?: Status & { spans: { from: number; to: number; trend: string; label: string }[]; current: string | null };
     conviction?: Status & { score?: number; label?: string; components?: { rule: string; points: number; why: string }[]; personas?: string };
     predictions?: Status & { items: { time: number; p: number; take: boolean; outcome: string; calibrator: string; hit?: boolean | null; id?: string }[];
-      calibration: { brier: number; brier_baseline: number; ece: number; auc: number } | null; running_calibration?: RunningCal };
+      calibration: { brier: number; brier_baseline: number; brier_skill?: number; ece: number; auc: number; ev_r_per_opportunity?: number; take_all_ev?: number; mean_r_taken?: number; stability?: number; fitness?: number } | null; running_calibration?: RunningCal };
     marker_details?: Status & { n: number; fields: string[] };
     forward?: Status & { label: string; as_of_bar?: number; as_of_close?: number; horizon_bars?: number; horizon_end?: number; atr?: number;
       band?: { p10: number; p25: number; p50: number; p75: number; p90: number }; n_samples?: number; method?: string;
-      active_candidates?: { id: string; setup: string; direction: string; class: string; p_win: number | null; calibrated: boolean; threshold: number | null }[];
+      active_candidates?: { id: string; setup: string; direction: string; class: string; p_win: number | null; ev_r?: number | null; calibrated: boolean; threshold: number | null }[];
       no_active_candidate?: string | null };
   };
   ml_panel: null | {
     execution_permission: string;
     evolution: null | { run_id: string; created_at: number; decision: string; no_model_beats_baseline: boolean; challenger: string;
-      metrics: Record<string, number | boolean | null> };
+      metrics: Record<string, number | boolean | null>;
+      symbol_live_metrics?: Record<string, number | boolean | null> | null };
     champion: null | Record<string, unknown>;
     current_model: null | { version: string; status: string; calibrator: string; brier: number; brier_baseline: number; auc: number; ece: number };
     why: { id: string; time: number; class: OppMarker["class"]; strategy: string; direction: string; probability: string; ev_r: number | null; risk: string; model: string }[];
@@ -97,7 +102,7 @@ function useOverlays(symbol: string, interval: string, barType: string, live: bo
     arm();
     return () => window.clearTimeout(t);
   }, [live]);
-  return { data: d, error: err, loading };
+  return { data: d, error: err, loading, refresh: () => setTick((n) => n + 1) };
 }
 
 /** Live tape: /api/market/live-view (genuine public candles only), polled at the server's refresh cadence. */
@@ -131,6 +136,7 @@ function useLiveTape(symbol: string, enabled: boolean, onSnapshot?: (s: LiveSnap
 }
 
 const fmt = (v: unknown, d = 3) => (typeof v === "number" && Number.isFinite(v) ? v.toFixed(d) : "—");
+const fmtSigned = (v: unknown, d = 3) => (typeof v === "number" && Number.isFinite(v) ? `${v >= 0 ? "+" : ""}${v.toFixed(d)}` : "—");
 const px = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(2) : Math.abs(v) >= 1 ? v.toFixed(4) : v.toPrecision(4)) : "—");
 const OUTCOME_TEXT: Record<string, { text: string; badge: string; tone: string }> = {
   hit_target: { text: "Hit target", badge: "✓", tone: "win" }, stopped_out: { text: "Stopped out", badge: "✗", tone: "loss" },
@@ -157,8 +163,8 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const live = interval === "live";
   const [barType, setBarType] = useState("time");
   const [on, setOn] = useState<Record<LayerId, boolean>>(() => Object.fromEntries(LAYERS.map((l) => [l.id,
-    allLayers || ["ml_markers", "setups", "zones", "vwap", "marker_details", "trade_lines", "prediction_zone", "outcomes"].includes(l.id)])) as Record<LayerId, boolean>);
-  const { data, error, loading } = useOverlays(sym, live ? "1m" : interval, live ? "time" : barType, live);
+    allLayers || ["ml_markers", "ml_probability", "setups", "zones", "vwap", "conviction", "predictions", "marker_details", "trade_lines", "prediction_zone", "outcomes"].includes(l.id)])) as Record<LayerId, boolean>);
+  const { data, error, loading, refresh } = useOverlays(sym, live ? "1m" : interval, live ? "time" : barType, live);
   const tape = useLiveTape(symbol, live, onLiveSnapshot);
   const box = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -327,6 +333,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   }, [selected, on.trade_lines, data, on]);
 
   const p = data?.provider;
+  const ms = data?.market_session;
   const badge = p?.realtime === true ? "real-time" : p?.realtime === false ? p.delay_label : "delay not tagged";
   const unavailable = data ? LAYERS.filter((l) => on[l.id] && data.layers[l.id as keyof Overlays["layers"]] && data.layers[l.id as keyof Overlays["layers"]]!.status !== "ok") : [];
   const rc = preds?.running_calibration;
@@ -346,6 +353,18 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         <span className={`atlas-chart-badge${p?.realtime || tapeOk ? " is-live" : ""}`} title={p ? `${p.built}; providers: ${p.providers.join(", ") || "none"}` : ""}>
           {live ? (tapeOk ? `live · ${tape.snap!.feed_origin ?? "public feed"}` : tape.err ? "live feed unavailable" : "connecting…") : p?.provider ? `${p.provider} · ${badge}` : loading ? "loading…" : "no provider"}
         </span>
+        {ms && (
+          <span
+            className={`atlas-chart-badge${ms.is_open ? " is-live" : ""}`}
+            title={`${ms.venue_name} · ${ms.schedule_summary} · ${ms.reason}`}
+            style={{
+              borderColor: ms.is_open ? "rgba(46,184,138,0.45)" : "rgba(240,128,60,0.45)",
+              color: ms.is_open ? "#2EB88A" : "#F0803C",
+            }}
+          >
+            {ms.is_open ? "● " : "○ "}{ms.venue_name}: {ms.status_label} · {ms.countdown}
+          </span>
+        )}
         {p?.built?.startsWith("resampled") ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
         <span className="atlas-chart-badge is-safe" title="ML output is advisory research. It can never place an order.">execution_permission: {data?.execution_permission ?? "none"}</span>
         <span className="atlas-chart-links">
@@ -404,7 +423,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         <span>Data: ATLAS feed ({p?.built ?? "—"}), free sources only. Rendering: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts™</a>. Times America/Toronto. Paper only.</span>
       </footer>
       {live && liveExtras?.(tape.snap, tape.err)}
-      {showPanel && data && <AtlasMlPanel data={data} showConviction={on.conviction} showPredictions={on.predictions} />}
+      {showPanel && data && <AtlasMlPanel data={data} showConviction={on.conviction} showPredictions={on.predictions} onRefresh={refresh} />}
     </section>
   );
 }
@@ -413,6 +432,7 @@ function MarkerCard({ m, onClose, pinned }: { m: OppMarker; onClose: () => void;
   const i = m.indicators, o = OUTCOME_TEXT[outcomeOf(m)];
   const rows: [string, string][] = [
     ["ML p(win)", m.probability == null ? "no model verdict" : `${fmt(m.probability, 2)} vs ${fmt(m.threshold, 2)} thr`],
+    ["Expected Value", m.ev_r == null ? "—" : `${fmtSigned(m.ev_r, 2)}R`],
     ["RSI", fmt(i?.rsi, 1)], ["ADX", fmt(i?.adx, 1)], ["MACD hist", fmt(i?.macd_hist, 2)],
     ["VWAP dist", i?.vwap_dist_atr == null ? "—" : `${fmt(i.vwap_dist_atr, 2)} ATR`], ["ATR", px(i?.atr)],
     ["Regime", i?.regime ?? "—"], ["Zone", m.zone_touched ?? "—"],
@@ -438,7 +458,7 @@ function PredictionCard({ fwd, rc }: { fwd: Overlays["layers"]["forward"]; rc: R
       <h5>Prediction zone <span>{fwd?.label ?? "model estimate, not a forecast guarantee"}</span></h5>
       {fwd?.status === "ok" ? <>
         {fwd.active_candidates?.length
-          ? <ul>{fwd.active_candidates.map((c) => <li key={c.id}>{c.direction === "short" ? "▼" : "▲"} {c.setup}: {c.p_win == null ? "rule only, no model p(win)" : `${c.calibrated ? "calibrated " : ""}p(win) ${fmt(c.p_win, 2)}`}{c.threshold != null ? ` vs ${fmt(c.threshold, 2)}` : ""}</li>)}</ul>
+          ? <ul>{fwd.active_candidates.map((c) => <li key={c.id}>{c.direction === "short" ? "▼" : "▲"} {c.setup}: {c.p_win == null ? "rule only, no model p(win)" : `${c.calibrated ? "calibrated " : ""}p(win) ${fmt(c.p_win, 2)}`}{c.threshold != null ? ` vs ${fmt(c.threshold, 2)}` : ""}{c.ev_r != null ? ` · EV ${fmtSigned(c.ev_r, 2)}R` : ""}</li>)}</ul>
           : <p>{fwd.no_active_candidate}</p>}
         <p>{fwd.horizon_bars}-bar band p10–p90 {px(fwd.band?.p10)}–{px(fwd.band?.p90)}, median {px(fwd.band?.p50)}</p>
       </> : <p>{fwd?.reason ?? "Not enough closed bars for a band."}</p>}
@@ -449,7 +469,7 @@ function PredictionCard({ fwd, rc }: { fwd: Overlays["layers"]["forward"]; rc: R
   );
 }
 
-export function AtlasMlPanel({ data, showConviction, showPredictions }: { data: Overlays; showConviction: boolean; showPredictions: boolean }) {
+export function AtlasMlPanel({ data, showConviction, showPredictions, onRefresh }: { data: Overlays; showConviction: boolean; showPredictions: boolean; onRefresh?: () => void }) {
   const ml = data.ml_panel;
   const ev = ml?.evolution;
   const m = ev?.metrics ?? {};
@@ -457,10 +477,32 @@ export function AtlasMlPanel({ data, showConviction, showPredictions }: { data: 
   const conv = data.layers.conviction;
   const cal = data.layers.predictions?.calibration;
   const preds = data.layers.predictions?.items ?? [];
+  const [evolving, setEvolving] = useState(false);
+  const [evolveNote, setEvolveNote] = useState<string>("");
+
+  const handleEvolveNow = async () => {
+    setEvolving(true);
+    setEvolveNote(`Running walk-forward genetic evolution on ${data.symbol} (${data.interval})…`);
+    try {
+      const r = await fetch(`/api/intel/evolution/run?symbol=${encodeURIComponent(data.symbol)}&interval=${encodeURIComponent(data.interval)}&generations=2`, { method: "POST" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const res = await r.json();
+      const ch = res?.challenger?.oos ?? {};
+      setEvolveNote(
+        `Run ${res.run_id ?? "done"}: ${String(res.decision ?? "").replace(/_/g, " ")} · EV/opp ${fmtSigned(ch.ev_r_per_opportunity, 3)}R (base ${fmtSigned(ch.take_all_ev, 3)}R) · Brier ${fmt(ch.brier, 3)} · Fitness ${fmtSigned(res?.challenger?.fitness, 3)}`
+      );
+      onRefresh?.();
+    } catch (e) {
+      setEvolveNote(`Evolution run failed: ${e instanceof Error ? e.message : "error"}`);
+    } finally {
+      setEvolving(false);
+    }
+  };
+
   return (
     <div className="atlas-ml-panel" aria-label="ML panel">
       <div className="atlas-ml-cell">
-        <h4>Model</h4>
+        <h4>Model &amp; Evolution</h4>
         <span className="atlas-chart-badge is-safe">execution_permission: {ml?.execution_permission ?? "none"}</span>
         <dl>
           <dt>Current model</dt><dd>{cm ? `${cm.version} (${cm.status})` : "none registered for this market"}</dd>
@@ -468,25 +510,55 @@ export function AtlasMlPanel({ data, showConviction, showPredictions }: { data: 
           <dt>Decision</dt><dd>{ev ? ev.decision.replace(/_/g, " ") : "—"}</dd>
           <dt>Champion</dt><dd>{ml?.champion ? String((ml.champion as { genome_id?: string }).genome_id ?? "set") : "none (baseline stays)"}</dd>
         </dl>
+        <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+          <button
+            type="button"
+            disabled={evolving}
+            onClick={() => void handleEvolveNow()}
+            style={{
+              padding: "5px 10px",
+              borderRadius: "6px",
+              border: "1px solid rgba(86, 180, 233, 0.45)",
+              background: evolving ? "rgba(86, 180, 233, 0.08)" : "rgba(86, 180, 233, 0.16)",
+              color: "#56B4E9",
+              fontSize: "11px",
+              fontWeight: 700,
+              cursor: evolving ? "wait" : "pointer",
+              textAlign: "left",
+            }}
+          >
+            {evolving ? `Evolving ${data.symbol} (${data.interval})…` : `↻ Evolve Model (+EV) on ${data.symbol} ${data.interval}`}
+          </button>
+          {evolveNote && <p className="atlas-ml-note" style={{ margin: 0 }}>{evolveNote}</p>}
+        </div>
       </div>
       <div className="atlas-ml-cell">
-        <h4>Baseline vs challenger</h4>
+        <h4>Baseline vs challenger (EV &amp; Calibration)</h4>
         {ev ? (
           <table className="atlas-ml-table"><thead><tr><th /><th>Baseline</th><th>Challenger</th></tr></thead><tbody>
+            <tr><th>EV / opp (R)</th><td>{fmtSigned(m.take_all_ev ?? cal?.take_all_ev)}R</td><td><strong>{fmtSigned(m.ev_r_per_opportunity ?? cal?.ev_r_per_opportunity)}R</strong></td></tr>
+            <tr><th>Mean taken R</th><td>—</td><td>{fmtSigned(m.mean_r_taken ?? cal?.mean_r_taken)}R</td></tr>
             <tr><th>Brier</th><td>{fmt(m.brier_baseline)}</td><td>{fmt(m.brier)}</td></tr>
+            <tr><th>Brier Skill (BSS)</th><td>0.000</td><td>{fmtSigned(m.brier_skill ?? cal?.brier_skill)}</td></tr>
             <tr><th>AUC</th><td>0.500</td><td>{fmt(m.auc)}</td></tr>
             <tr><th>ECE</th><td>—</td><td>{fmt(m.ece)}</td></tr>
+            <tr><th>Fold stability</th><td>—</td><td>{fmt(m.stability ?? cal?.stability)}</td></tr>
+            <tr><th>Fitness (EV+BSS)</th><td>—</td><td><strong>{fmtSigned(m.fitness ?? cal?.fitness)}</strong></td></tr>
             <tr><th>OOS n</th><td colSpan={2}>{String(m.n_oos ?? "—")} predictions, {String(m.n_taken ?? "—")} taken</td></tr>
           </tbody></table>
         ) : <p>No evolution run on this server.</p>}
-        <p className="atlas-ml-note">{ev?.challenger}{m.beats_baseline === false ? " — does not beat the baseline, so it stays research only." : ""}</p>
+        <p className="atlas-ml-note" title="EV_R = p_cal * R_win - (1 - p_cal) * 1R - cost_R. Fitness = EV_R/opp + BrierSkill + 0.1*(stability - 0.5)">
+          {ev?.challenger}{m.beats_baseline === false ? " — does not beat the baseline, so it stays research only." : ""}
+          {" · Formula: EV_R = p_cal·R_win − (1−p_cal)·1R − cost_R"}
+        </p>
       </div>
       {showPredictions && (
         <div className="atlas-ml-cell">
           <h4>Predictions &amp; calibration</h4>
           {preds.length ? <>
             <p>{preds.length} out-of-sample predictions in view; {preds.filter((x) => x.take).length} above the take threshold.</p>
-            <p>Calibration (run): Brier {fmt(cal?.brier)} vs {fmt(cal?.brier_baseline)} base rate, ECE {fmt(cal?.ece)}, AUC {fmt(cal?.auc)}. Calibrator: {preds[0].calibrator || "—"}.</p>
+            <p>Calibration ({data.symbol} {data.interval}): Brier {fmt(cal?.brier)} vs {fmt(cal?.brier_baseline)} base rate (BSS {fmtSigned(cal?.brier_skill)}), ECE {fmt(cal?.ece)}, AUC {fmt(cal?.auc)}. Calibrator: {preds[0].calibrator || "—"}.</p>
+            <p className="atlas-ml-note">EV/opp in view: {fmtSigned(cal?.ev_r_per_opportunity)}R vs take-all baseline {fmtSigned(cal?.take_all_ev)}R · Mean taken R: {fmtSigned(cal?.mean_r_taken)}R.</p>
           </> : <p>No predictions for {data.symbol} {data.interval} in the latest run.</p>}
         </div>
       )}
@@ -505,7 +577,7 @@ export function AtlasMlPanel({ data, showConviction, showPredictions }: { data: 
         {ml?.why.length ? (
           <ul>{ml.why.slice().reverse().map((w) => (
             <li key={w.id}><span className="atlas-ml-dot" style={{ background: MARKER_CLASSES[w.class]?.color }} />
-              {MARKER_CLASSES[w.class]?.label}: {w.strategy.replace(/_/g, " ")} {w.direction}. {w.probability}. {w.risk}{w.ev_r != null ? `. EV ${w.ev_r.toFixed(2)}R` : ""}.</li>
+              {MARKER_CLASSES[w.class]?.label}: {w.strategy.replace(/_/g, " ")} {w.direction}. {w.probability}. {w.risk}{w.ev_r != null ? `. EV ${w.ev_r >= 0 ? "+" : ""}${w.ev_r.toFixed(2)}R` : ""}.</li>
           ))}</ul>
         ) : <p>No markers in view.</p>}
       </div>

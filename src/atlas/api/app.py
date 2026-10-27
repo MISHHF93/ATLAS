@@ -241,6 +241,15 @@ def market_live_view(symbol: str = "BTC-USD") -> dict[str, object]:
     return live_view_snapshot(symbol, sampling=live_market_gateway.public_fetch_enabled)
 
 
+@app.get("/api/market/sessions")
+def market_sessions_status(symbols: str = "") -> dict[str, object]:
+    """Real-time open/closed schedule status across all trading venues and symbols."""
+    from atlas.market.sessions import get_market_sessions_status
+    sym_list = [s.strip() for s in symbols.split(",") if s.strip()] if symbols else None
+    return get_market_sessions_status(symbols=sym_list)
+
+
+
 @app.get("/api/ml/live-observer/status", include_in_schema=False)
 def live_observer_status() -> dict[str, object]:
     """Actual per-symbol coverage of the independent background observer."""

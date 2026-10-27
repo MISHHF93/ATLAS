@@ -121,7 +121,7 @@ def _markers(sym, interval, bars):
     _, _, cpu, _, _ = SPEC.get(sym, ("crypto", 0.01, 0.0, 0.0, 96))
     win = bars[-4000:]  # bounded replay window keeps the chart responsive; markers only shown inside the view anyway
     mk = from_replay(_replay_all(sym, interval, win), INTERVALS[interval], cpu) if len(win) > 60 else []
-    ml, meta = from_evolution(sym, interval)
+    ml, meta = from_evolution(sym, interval, bars=win, rule_markers=mk)
     t0 = bars[0].start
     allm = sorted([m for m in mk + ml if m["time"] >= t0], key=lambda m: m["time"])[-800:]
     n_rule = sum(1 for m in allm if m["source"] == "candidate_engine")
@@ -211,19 +211,40 @@ def _conviction(sym, interval, feed):
             "source": "atlas.ext.dossier (deterministic, technicals only here)"}
 
 
-def _ml_panel(sym, interval, markers):
+def _ml_panel(sym, interval, markers, evo_meta=None):
     from atlas.ml.evolution import champion, latest_run
     from atlas.ml.registry import list_models
     run = latest_run()
     panel: dict[str, Any] = {"execution_permission": EXECUTION_PERMISSION, "promoted_to_execution": False}
+    live_m = (evo_meta or {}).get("live_metrics") if isinstance(evo_meta, dict) else None
     if run:
         best = run.get("best_beating_baseline") or run.get("best") or {}
-        m = best.get("metrics") or {}
+        m = dict(best.get("metrics") or {})
+        if live_m:
+            for k, v in live_m.items():
+                if m.get(k) is None:
+                    m[k] = v
+        metric_keys = (
+            "brier",
+            "brier_baseline",
+            "brier_skill",
+            "auc",
+            "ece",
+            "n_oos",
+            "n_taken",
+            "ev_r_per_opportunity",
+            "take_all_ev",
+            "mean_r_taken",
+            "stability",
+            "fitness",
+            "beats_baseline",
+        )
         panel["evolution"] = {"run_id": run["run_id"], "created_at": run.get("created_at"), "decision": run.get("decision"),
                               "no_model_beats_baseline": run.get("no_model_beats_baseline"), "challenger": best.get("genome_id"),
                               "no_model_passes_strict_gate": run.get("no_model_passes_strict_gate"),
                               "strict_gate": {k: (m.get("strict_gate") or {}).get(k) for k in ("passed", "failed", "gate_version")} if m.get("strict_gate") else None,
-                              "metrics": {k: m.get(k) for k in ("brier", "brier_baseline", "brier_skill", "auc", "ece", "n_oos", "n_taken", "ev_r_per_opportunity", "beats_baseline")}}
+                              "metrics": {k: m.get(k) for k in metric_keys},
+                              "symbol_live_metrics": live_m}
     else:
         panel["evolution"] = None
     panel["champion"] = champion()
@@ -253,7 +274,33 @@ def _enrich(markers, bars):
 def _forward(bars, markers):
     from atlas.intel.marker_context import forward_zone, snapshots
     win = bars[-4000:]
-    return forward_zone(win, snapshots(win), markers)
+    out = forward_zone(win, snapshots(win), markers)
+    if isinstance(out, dict) and out.get("status") == "ok":
+        ml_recent = [m for m in markers if m.get("source") == "evolution_oos" and m.get("probability") is not None]
+        if ml_recent:
+            last_ml = ml_recent[-1]
+            cands = out.get("active_candidates") or []
+            for c in cands:
+                if c.get("p_win") is None:
+                    c["p_win"] = last_ml.get("probability")
+                    c["calibrated"] = True
+                    c["threshold"] = last_ml.get("threshold", 0.42)
+                    c["ev_r"] = last_ml.get("ev_r")
+            if not cands:
+                out["active_candidates"] = [
+                    {
+                        "id": last_ml["id"],
+                        "setup": str(last_ml.get("strategy", "walk_forward_barrier")).replace("_", " "),
+                        "direction": last_ml.get("direction", "long"),
+                        "class": last_ml.get("class", "ml_suggested"),
+                        "p_win": last_ml.get("probability"),
+                        "calibrated": True,
+                        "threshold": last_ml.get("threshold", 0.42),
+                        "ev_r": last_ml.get("ev_r"),
+                    }
+                ]
+                out["no_active_candidate"] = None
+    return out
 
 
 def _calib(preds):
@@ -271,8 +318,10 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
     sym = symbol.upper().replace("-USD", "USDT") if symbol.upper().endswith("-USD") else symbol.upper()
     bars, rows, built = load(sym, interval)
     now = int(time.time())
+    from atlas.market.sessions import get_market_sessions_status
+    sess_info = get_market_sessions_status(symbols=[sym])["by_symbol"].get(sym)
     base: dict[str, Any] = {"symbol": sym, "interval": interval, "bar_type": bar_type, "provider": provider_info(rows, built),
-                            "execution_permission": EXECUTION_PERMISSION, "orders": "none (read-only)", "computed_at": now}
+                            "market_session": sess_info, "execution_permission": EXECUTION_PERMISSION, "orders": "none (read-only)", "computed_at": now}
     if not bars:
         return enforce_advisory({**base, "status": "no_data", "bars": [], "layers": {}, "ml_panel": None}, source="/api/ai/chart/overlays")[0]
     feed = _feed()
@@ -304,8 +353,8 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
     preds = [{"time": m["time"], "p": m["probability"], "take": m["class"] == "ml_suggested", "outcome": m["outcome"], "r": m["r"],
               "hit": (None if m["outcome"] not in ("target", "stop", "timeout") else bool((m.get("r") or 0) > 0)), "id": m["id"],
               "calibrator": (m.get("probability_label") or "").split("OOS, ")[-1].rstrip(")")} for m in ml if m.get("probability") is not None]
-    panel = _layer(_ml_panel, sym, interval, markers)
-    em = (panel.get("evolution") or {}).get("metrics") if isinstance(panel, dict) and panel.get("evolution") else None
+    panel = _layer(_ml_panel, sym, interval, markers, evo)
+    em = ((panel.get("evolution") or {}).get("symbol_live_metrics") or (panel.get("evolution") or {}).get("metrics")) if isinstance(panel, dict) and panel.get("evolution") else None
     layers = {
         "ml_markers": {**mstat, "items": ml, "evolution": evo, **({} if ml else {"note": "no OOS predictions for this symbol/interval in the latest evolution run"})},
         "ml_probability": {"status": "ok" if preds else "unavailable", "points": [{"time": p["time"], "value": p["p"], "take": p["take"]} for p in preds]},
@@ -316,7 +365,7 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
         "regimes": _layer(_regimes, bars),
         "conviction": _layer(_conviction, sym, interval, feed),
         "predictions": {"status": "ok" if preds else "unavailable", "items": preds[-200:],
-                        "calibration": {k: em.get(k) for k in ("brier", "brier_baseline", "ece", "auc")} if em else None,
+                        "calibration": {k: em.get(k) for k in ("brier", "brier_baseline", "brier_skill", "ece", "auc", "ev_r_per_opportunity", "take_all_ev", "mean_r_taken", "stability", "fitness")} if em else None,
                         "note": "out-of-sample walk-forward probabilities from the latest evolution run; research only",
                         "running_calibration": _layer(_calib, preds)},
         "marker_details": details,

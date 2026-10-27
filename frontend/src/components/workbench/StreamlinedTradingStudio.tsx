@@ -534,6 +534,30 @@ export function StreamlinedTradingStudio() {
   const [wsLatencyMs, setWsLatencyMs] = useState<number | null>(null);
   const [activeSubCount, setActiveSubCount] = useState<number>(1);
   const [sessionClock, setSessionClock] = useState<string>("—");
+  const [marketSessions, setMarketSessions] = useState<{
+    as_of_et?: string;
+    venues?: Array<{
+      venue_id: string;
+      venue_name: string;
+      status: string;
+      status_label: string;
+      is_open: boolean;
+      countdown: string;
+      schedule_summary: string;
+      reason: string;
+    }>;
+    by_symbol?: Record<string, {
+      symbol: string;
+      venue_id: string;
+      venue_name: string;
+      status: string;
+      status_label: string;
+      is_open: boolean;
+      countdown: string;
+      schedule_summary: string;
+      reason: string;
+    }>;
+  } | null>(null);
   const [killSwitchEngaged, setKillSwitchEngaged] = useState<boolean>(false);
 
   // Collapsible Bottom Drawer State
@@ -1176,14 +1200,36 @@ export function StreamlinedTradingStudio() {
       : `${trailingDdFloorPct.toFixed(1)}% Trailing Drawdown Floor`;
 
   useEffect(() => {
+    let alive = true;
+    const pullSessions = async () => {
+      try {
+        const r = await fetch("/api/market/sessions", { cache: "no-store" });
+        if (!r.ok) return;
+        const body = await r.json();
+        if (alive) setMarketSessions(body);
+      } catch {
+        // fallback to local clock
+      }
+    };
+    void pullSessions();
+    const t = setInterval(pullSessions, 15000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  useEffect(() => {
     const updateClock = () => {
+      const symSess = marketSessions?.by_symbol?.[selectedSymbol];
+      if (symSess) {
+        setSessionClock(`${symSess.venue_name}: ${symSess.status_label} · ${symSess.countdown}`);
+        return;
+      }
       const now = new Date();
       setSessionClock(deskTrack === "open_market" ? nyseSessionCountdown(now) : "24/7 continuous");
     };
     updateClock();
     const timer = setInterval(updateClock, 1000);
     return () => clearInterval(timer);
-  }, [deskTrack]);
+  }, [deskTrack, marketSessions, selectedSymbol]);
 
   const sizingCalculation = useMemo(() => {
     const stopFraction = Math.max(0.001, atrStopBps / 10000.0);
@@ -1787,6 +1833,47 @@ export function StreamlinedTradingStudio() {
           </div>
         </div>
       </header>
+      {marketSessions?.venues && marketSessions.venues.length > 0 && (
+        <div
+          aria-label="Global market sessions status"
+          style={{
+            padding: "4px 14px",
+            background: "var(--c-surface)",
+            borderBottom: "1px solid var(--c-border)",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            flexWrap: "wrap",
+            fontSize: "11px",
+          }}
+        >
+          <span style={{ fontWeight: 700, color: "var(--c-muted)", letterSpacing: "0.03em" }}>
+            MARKETS ({marketSessions.as_of_et ?? "ET"}):
+          </span>
+          {marketSessions.venues.map((v) => (
+            <span
+              key={v.venue_id}
+              title={`${v.schedule_summary} — ${v.reason}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "2px 8px",
+                borderRadius: "5px",
+                border: v.is_open ? "1px solid rgba(46, 184, 138, 0.4)" : "1px solid rgba(240, 128, 60, 0.4)",
+                background: v.is_open ? "rgba(46, 184, 138, 0.08)" : "rgba(240, 128, 60, 0.08)",
+                color: v.is_open ? "#2EB88A" : "#F0803C",
+                fontFamily: "var(--font-mono, monospace)",
+              }}
+            >
+              <span>{v.is_open ? "●" : "○"}</span>
+              <strong style={{ color: "var(--c-text)" }}>{v.venue_name}</strong>
+              <span>{v.status_label}</span>
+              <span style={{ color: "var(--c-muted)" }}>({v.countdown})</span>
+            </span>
+          ))}
+        </div>
+      )}
       {/* ====================================================================
           MAIN 3-PANEL STUDIO GRID (20% Left | 55% Center | 25% Right)
          ==================================================================== */}

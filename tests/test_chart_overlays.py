@@ -97,3 +97,37 @@ def test_1h_prefers_stored_1h(monkeypatch, tmp_path):
     monkeypatch.setattr(co, "_feed", lambda: FakeFeed())
     d = TestClient(app).get("/api/ai/chart/overlays?symbol=BTCUSDT&interval=1h").json()
     assert d["provider"]["built"] == "feed bars"
+
+
+def test_live_walk_forward_ml_probability_and_predictions_with_evolution_run(monkeypatch):
+    """When an evolution run exists, walk-forward OOS ML probability, predictions, and EV_R work on 15m/1h across symbols."""
+    monkeypatch.setattr(co, "_feed", lambda: FakeFeed())
+    c = TestClient(app)
+    d = c.get("/api/ai/chart/overlays?symbol=BTC-USD&interval=15m&limit=400").json()
+    assert d["status"] == "ok"
+    assert d["execution_permission"] == "none"
+    assert d["market_session"]["venue_id"] == "CRYPTO_24_7"
+    assert d["market_session"]["is_open"] is True
+    L = d["layers"]
+    assert L["ml_probability"]["status"] == "ok"
+    assert len(L["ml_probability"]["points"]) > 0
+    assert L["predictions"]["status"] == "ok"
+    assert len(L["predictions"]["items"]) > 0
+    cal = L["predictions"]["calibration"]
+    assert cal is not None
+    assert "ev_r_per_opportunity" in cal and "take_all_ev" in cal and "brier_skill" in cal and "fitness" in cal
+    ev_metrics = d["ml_panel"]["evolution"]["metrics"]
+    assert "ev_r_per_opportunity" in ev_metrics and "fitness" in ev_metrics
+
+
+def test_market_sessions_endpoint():
+    c = TestClient(app)
+    res = c.get("/api/market/sessions?symbols=BTC-USD,GC,SI,SPY,GLD,EUR_USD").json()
+    assert res["execution_permission"] == "none"
+    venue_ids = {v["venue_id"] for v in res["venues"]}
+    assert {"US_EQUITIES_ETFS", "CANADA_TSX", "CME_COMEX_FUTURES", "GLOBAL_FX", "CRYPTO_24_7"} <= venue_ids
+    by_sym = res["by_symbol"]
+    assert by_sym["BTC-USD"]["venue_id"] == "CRYPTO_24_7" and by_sym["BTC-USD"]["is_open"] is True
+    assert by_sym["GC"]["venue_id"] == "CME_COMEX_FUTURES"
+    assert by_sym["SPY"]["venue_id"] == "US_EQUITIES_ETFS"
+    assert by_sym["EUR_USD"]["venue_id"] == "GLOBAL_FX"

@@ -257,16 +257,38 @@ def _demoted() -> list[dict[str, Any]]:
 
 
 @router.post("/evolution/run")
-def evolution_run(generations: int = Query(3, ge=1, le=6), seed: int = Query(11)) -> dict[str, Any]:
+def evolution_run(
+    generations: int = Query(3, ge=1, le=6),
+    seed: int = Query(11),
+    symbol: str | None = Query(None),
+    interval: str = Query("15m"),
+) -> dict[str, Any]:
     from atlas.ml import evolution as E
-    data, meta = E.build_population_data(_feed())
+    univ = list(E.UNIVERSE)
+    if symbol:
+        sym = symbol.upper().replace("-USD", "USDT") if symbol.upper().endswith("-USD") else symbol.upper()
+        iv = interval if interval in ("15m", "1h", "4h", "1d") else "15m"
+        if (sym, iv) not in univ:
+            univ = [(sym, iv)] + univ
+    data, meta = E.build_population_data(_feed(), universe=univ)
     if not len(data):
         return {"status": "no_data", "meta": meta, "execution_permission": EXECUTION_PERMISSION}
     res = E.evolve(data, meta, generations=generations, seed=seed, log=lambda s: None)
     best = res["best_beating_baseline"] or res["best"]
     run = E.record(res, oos=E.oos_predictions(data, best["genome"]) if best else None)
-    return {"status": "ok", "run_id": run["run_id"], "decision": run["decision"], "no_model_beats_baseline": run["no_model_beats_baseline"],
-            "execution_permission": EXECUTION_PERMISSION}
+    best_m = (best or {}).get("metrics") or {}
+    return {
+        "status": "ok",
+        "run_id": run["run_id"],
+        "decision": run["decision"],
+        "no_model_beats_baseline": run["no_model_beats_baseline"],
+        "best_genome": (best or {}).get("genome_id"),
+        "ev_r_per_opportunity": best_m.get("ev_r_per_opportunity"),
+        "take_all_ev": best_m.get("take_all_ev"),
+        "brier_skill": best_m.get("brier_skill"),
+        "fitness": best_m.get("fitness"),
+        "execution_permission": EXECUTION_PERMISSION,
+    }
 
 
 # ---- chart opportunity markers ----
