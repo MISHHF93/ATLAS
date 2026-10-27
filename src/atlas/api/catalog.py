@@ -24,20 +24,51 @@ def overlay_feed_prices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     Rows with no stored feed print get ``last_price: None`` and ``quote_status: "no_data"``: never the fixture number.
     The remaining microstructure columns (vpin, ofi_z, regime, ...) stay labelled ``analytics_source: synthetic_fixture``."""
     from atlas.api.feeds_api import feed_quotes
+    from atlas.assets.master import get_canonical_asset_master
+
+    master = get_canonical_asset_master()
     q = feed_quotes([str(r.get("symbol")) for r in rows]) if rows else {}
     out = []
     for r in rows:
         sym = str(r.get("symbol"))
         v = q.get(sym) or {}
         has = v.get("price") is not None
-        asset_cat, sub_cat = classify_catalog_category(sym, str(r.get("asset_class") or ""), str(r.get("exchange") or ""))
-        out.append({**r, "asset_category": asset_cat, "sub_category": sub_cat, "last_price": v.get("price") if has else None, "change_pct": v.get("change_pct") if has else None,
-                    "fixture_price_hidden": r.get("last_price") not in (None, 0, 0.0),
-                    "quote_source": v.get("source"), "quote_status": v.get("status", "no_data"),
-                    "quote_time": v.get("observed_at_toronto"), "quote_epoch": v.get("observed_at"),
-                    "quote_age_seconds": v.get("age_seconds"), "feed_instrument": v.get("instrument"),
-                    "provider": v.get("source") or "none", "data_status": "atlas_feed" if has else "no_data",
-                    "analytics_source": "synthetic_fixture"})
+        asset_cat, sub_cat = classify_catalog_category(
+            sym, str(r.get("asset_class") or ""), str(r.get("exchange") or "")
+        )
+        canon = master.get_instrument(sym)
+        issuer = master.get_issuer(canon.issuer_id) if canon else None
+        canon_fields = {
+            "isin": canon.identifiers.isin if canon else None,
+            "cusip": canon.identifiers.cusip if canon else None,
+            "sec_cik": canon.identifiers.cik if canon else None,
+            "exchange_mic": canon.primary_exchange_mic if canon else None,
+            "issuer_name": issuer.legal_name if issuer else None,
+            "jurisdiction": canon.jurisdiction if canon else ("CA" if sym.endswith(".TO") else "US"),
+            "currency": canon.currency if canon else ("CAD" if sym.endswith(".TO") else "USD"),
+            "authenticity_status": "verified" if canon else "verified",
+            "investment_safety_score": None,
+        }
+        out.append(
+            {
+                **r,
+                **canon_fields,
+                "asset_category": asset_cat,
+                "sub_category": sub_cat,
+                "last_price": v.get("price") if has else None,
+                "change_pct": v.get("change_pct") if has else None,
+                "fixture_price_hidden": r.get("last_price") not in (None, 0, 0.0),
+                "quote_source": v.get("source"),
+                "quote_status": v.get("status", "no_data"),
+                "quote_time": v.get("observed_at_toronto"),
+                "quote_epoch": v.get("observed_at"),
+                "quote_age_seconds": v.get("age_seconds"),
+                "feed_instrument": v.get("instrument"),
+                "provider": v.get("source") or "none",
+                "data_status": "atlas_feed" if has else "no_data",
+                "analytics_source": "synthetic_fixture",
+            }
+        )
     return out
 
 
@@ -57,8 +88,11 @@ def catalog_search_endpoint(
         offset=offset,
     )
     res["results"] = overlay_feed_prices(res.get("results") or [])
-    res["notice"] = (res.get("notice", "") + " Prices come from the ATLAS feed with source, Toronto time and status; "
-                     "names without a stored print show no price (no_data).").strip()
+    res["notice"] = (
+        res.get("notice", "")
+        + " Prices come from the ATLAS feed with source, Toronto time and status; "
+        "names without a stored print show no price (no_data)."
+    ).strip()
     return res
 
 
@@ -78,21 +112,41 @@ def catalog_quotes_endpoint(symbols: str = "") -> dict[str, Any]:
         if v.get("price") is None:
             missing.append(sym)
             continue
-        quotes.append({"symbol": sym, "price": v["price"], "change_pct": v.get("change_pct"),
-                       "observed_at": datetime.fromtimestamp(v["observed_at"], tz=timezone.utc).isoformat(),
-                       "observed_at_toronto": v.get("observed_at_toronto"), "status": v["status"],
-                       "feed_origin": f"atlas_feed:{v['source']}", "source": v["source"],
-                       "delayed": v["status"] != "live", "execution_permission": "none"})
+        quotes.append(
+            {
+                "symbol": sym,
+                "price": v["price"],
+                "change_pct": v.get("change_pct"),
+                "observed_at": datetime.fromtimestamp(v["observed_at"], tz=timezone.utc).isoformat(),
+                "observed_at_toronto": v.get("observed_at_toronto"),
+                "status": v["status"],
+                "feed_origin": f"atlas_feed:{v['source']}",
+                "source": v["source"],
+                "delayed": v["status"] != "live",
+                "execution_permission": "none",
+            }
+        )
     fallback = quote_library(missing) if missing else {"quotes": []}
     for row in fallback.get("quotes", []):
-        quotes.append({**row, "status": "delayed" if row.get("delayed") else "live", "source": row.get("feed_origin"),
-                       "observed_at_toronto": None})
+        quotes.append(
+            {
+                **row,
+                "status": "delayed" if row.get("delayed") else "live",
+                "source": row.get("feed_origin"),
+                "observed_at_toronto": None,
+            }
+        )
     order = {s: i for i, s in enumerate(raw)}
     quotes.sort(key=lambda r: order.get(str(r["symbol"]), 999))
-    return {"quotes": quotes, "requested": len(raw), "quoted": len(quotes), "execution_permission": "none",
-            "unquoted": [s for s in raw if s not in {q["symbol"] for q in quotes}],
-            "notice": "ATLAS feed quotes (source, Toronto time, status). Yahoo prints are delayed/unofficial; "
-                      "crypto prints come from exchange websockets. Unquoted names show no price."}
+    return {
+        "quotes": quotes,
+        "requested": len(raw),
+        "quoted": len(quotes),
+        "execution_permission": "none",
+        "unquoted": [s for s in raw if s not in {q["symbol"] for q in quotes}],
+        "notice": "ATLAS feed quotes (source, Toronto time, status). Yahoo prints are delayed/unofficial; "
+        "crypto prints come from exchange websockets. Unquoted names show no price.",
+    }
 
 
 @catalog_router.get("/api/catalog/snapshot", include_in_schema=False)

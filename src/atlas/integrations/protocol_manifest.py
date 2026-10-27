@@ -224,7 +224,7 @@ PROTOCOL_SPECS: tuple[ProtocolAdapterSpec, ...] = (
     ProtocolAdapterSpec(
         adapter_id="pump_bonding_curve",
         category="blockchain",
-        title="Pump.fun Bonding Curve Program (Decommissioned / Excluded by Risk Policy)",
+        title="Pump.fun Bonding Curve Program (Removed from Active Product Roadmap)",
         adapter_version="4.1.0",
         upstream_version="@pump-fun/pump-sdk@^4.1.0",
         official_docs=(
@@ -242,11 +242,11 @@ PROTOCOL_SPECS: tuple[ProtocolAdapterSpec, ...] = (
             "sweep_protocol_fee",
             "sweep_creator_fee",
         ),
-        auth_mechanism="Excluded from active trading desk (high rug-pull / liquidity extraction risk)",
-        rate_limits="Decommissioned in active desk UI",
-        licensing="Excluded by Founder Risk Policy — ATLAS focuses on Authentic Institutional Assets (Gold, Silver, ETFs, CME Futures, FX, SEC Equities, Major Liquid Crypto)",
+        auth_mechanism="Disabled on active trading desk under product scope and risk policy",
+        rate_limits="Decommissioned in active desk UI; historical replay/audit records preserved",
+        licensing="Excluded from active product roadmap — ATLAS focuses on Authentic Verified Financial Instruments (Precious Metals, ETFs, Equities, Bonds, Cash Equivalents, FX)",
         security_invariants=(
-            "Excluded from active ATLAS trading desk due to extreme rug-pull and creator-extraction risk",
+            "Disabled on active trading desk under product scope and risk policy; historical audit and replay modules preserved for regression testing",
             "Primary identifier is always base58 mint address, never ticker symbol alone",
             "v3 instructions use streamlined 17-account layout",
             "Unswept protocol/creator fees remain in curve account until swept; deducted from effective virtual quote reserves",
@@ -256,7 +256,7 @@ PROTOCOL_SPECS: tuple[ProtocolAdapterSpec, ...] = (
     ProtocolAdapterSpec(
         adapter_id="pumpswap_amm",
         category="blockchain",
-        title="PumpSwap AMM Program (Decommissioned / Excluded by Risk Policy)",
+        title="PumpSwap AMM Program (Removed from Active Product Roadmap)",
         adapter_version="2.1.0",
         upstream_version="@pump-fun/pump-swap-sdk@^2.1.0",
         official_docs=(
@@ -265,11 +265,11 @@ PROTOCOL_SPECS: tuple[ProtocolAdapterSpec, ...] = (
         ),
         endpoints_or_programs=(PUMPSWAP_PROGRAM_ID, SPL_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID),
         supported_operations=("buy", "sell", "multi_hop_swap", "sweep_protocol_fee", "sweep_creator_fee"),
-        auth_mechanism="Excluded from active trading desk (high rug-pull / liquidity extraction risk)",
-        rate_limits="Decommissioned in active desk UI",
-        licensing="Excluded by Founder Risk Policy — ATLAS focuses on Authentic Institutional Assets",
+        auth_mechanism="Disabled on active trading desk under product scope and risk policy",
+        rate_limits="Decommissioned in active desk UI; historical replay/audit records preserved",
+        licensing="Excluded from active product roadmap — ATLAS focuses on Authentic Verified Financial Instruments",
         security_invariants=(
-            "Excluded from active ATLAS trading desk due to extreme rug-pull and creator-extraction risk",
+            "Disabled on active trading desk under product scope and risk policy; historical audit and replay modules preserved for regression testing",
             "Pool::virtual_quote_reserves is a signed integer (i128) that can be NEGATIVE (< 0) to offset unswept fees in quote vault",
             "effective_quote_reserves = max(0, pool_quote_token_account.amount + virtual_quote_reserves)",
             "multi_hop_swap supports up to MAX_QUOTE_DEPTH = 3 hops across custom quote mints",

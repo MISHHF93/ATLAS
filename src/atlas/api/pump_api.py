@@ -46,10 +46,20 @@ class KillSwitchRequest(BaseModel):
     active: bool
 
 
+@router.get("/overview")
 @router.get("/workbench")
 def get_workbench(q: str = Query(default="")) -> dict[str, Any]:
     eng = get_pump_engine()
-    return eng.workbench_snapshot(query=q)
+    snap = eng.workbench_snapshot(query=q)
+    snap["product_roadmap_status"] = "disabled_by_product_policy"
+    snap["replacement_catalog"] = "/trade?tab=markets"
+    snap["ReplacementCatalog"] = "/trade?tab=markets"
+    snap["execution_permission"] = "none"
+    snap["active_roadmap_notice"] = (
+        "Speculative token-launch integrations (Pump.fun / PumpSwap) are removed from the active ATLAS product roadmap. "
+        "Historical records and replay tests are preserved for audit continuity only; use /api/assets/* for the Authentic Assets Catalog."
+    )
+    return snap
 
 
 @router.post("/sync-live")
