@@ -23,7 +23,7 @@ EXECUTION_PERMISSION = "none"
 # ``/api/<ns>/...``; both are guarded by the same boundary.
 AI_NAMESPACES: tuple[str, ...] = ("ml", "research", "intel", "advanced-ml", "agent")
 # AI endpoints living outside those namespaces: guarded (not aliased).
-AI_GUARDED_PREFIXES: tuple[str, ...] = ("/api/ext/dossier", "/api/ext/personas", "/api/ext/pipeline", "/api/pump")
+AI_GUARDED_PREFIXES: tuple[str, ...] = ("/api/ext/dossier", "/api/ext/personas", "/api/ext/pipeline", "/api/pump", "/api/investment-intelligence")
 
 
 @dataclass(frozen=True)
@@ -80,9 +80,9 @@ REGISTRY: tuple[AIComponent, ...] = (
     AIComponent("unified_intelligence_loop", "intel", ("atlas.ai.intel.unified_loop", "atlas.features.price_action.extended_strategies", "atlas.integrations.protocol_manifest"),
                 api=("/api/ai/intelligence-loop", "/api/ai/protocol-manifest"), ui=("PumpIntelligenceView", "IntelViews"),
                 notes="14-Stage ATLAS Intelligence Loop across multi-asset bars and Solana Pump.fun/PumpSwap tokens; execution_permission=none"),
-    AIComponent("daily_investment_brief", "intel", ("atlas.ai.daily_brief", "atlas.ext.dossier", "atlas.ext.personas", "atlas.ext.agents"),
-                api=("/api/ai/daily-brief", "/api/assets/daily-brief"), ui=("Module02ListingsView",),
-                notes="AI Daily Investment & ML Research Brief (Yesterday vs Today paper activity, 1-100 conviction ratings, persona checklists, 14-stage ML loop); execution_permission=none"),
+    AIComponent("daily_investment_brief", "intel", ("atlas.ai.daily_brief", "atlas.investment_intelligence", "atlas.ext.dossier", "atlas.ext.personas", "atlas.ext.agents"),
+                api=("/api/ai/daily-brief", "/api/assets/daily-brief", "/api/investment-intelligence"), ui=("Module02ListingsView", "AiDailyInvestmentBriefPanel"),
+                notes="AI Daily Investment Intelligence System (10 Vertical Features: Ledger, Yesterday Brief, Today Brief, Market Data, Multifactor Ratings v2.1, ML Forecasting v2.4, TWR/MWR Analytics, 11 Governed MCP Tools, 10-View Workspace, Canadian NI 31-103 Governance); execution_permission=none"),
 )
 
 

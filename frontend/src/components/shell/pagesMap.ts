@@ -81,6 +81,8 @@ export const PAGES: AtlasPage[] = [
         summary: "The symbol list, the price chart and the paper order ticket." },
       { id: "markets", label: "Market list", aliases: ["/listings"], tabAliases: ["/trade?tab=pump"],
         summary: "Search the authentic instrument catalog: Gold & Silver, ETFs, CME Futures, FX, US Stocks and Liquid Crypto." },
+      { id: "brief", label: "Daily brief",
+        summary: "Yesterday's verified investments, today's AI market brief, portfolio attribution, multifactor ratings, ML forecasts and archive." },
       { id: "paper", label: "Paper account",
         summary: "Alpaca paper equity, cash, positions, orders and fills, reconciled. Read-only; live accounts are refused." },
       { id: "depth", label: "Order book estimate", workspaceRoute: "/trade/depth-dom", aliases: ["/trade/depth-dom"],

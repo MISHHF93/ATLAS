@@ -633,6 +633,8 @@ def build_ai_daily_investment_brief(
     symbols: Sequence[str] | None = None,
     include_llm_narrative: bool = True,
     execute_top_paper: bool = False,
+    tenant_id: str = "default_workspace",
+    as_of_date: str | None = None,
 ) -> dict[str, Any]:
     """Generate the complete AI Daily Investment & ML Research Brief."""
     assert_paper_only()
@@ -698,6 +700,15 @@ def build_ai_daily_investment_brief(
         include_llm=include_llm_narrative,
     )
 
+    from atlas.investment_intelligence.today_brief import generate_full_daily_intelligence_brief
+
+    full_intel = generate_full_daily_intelligence_brief(
+        tenant_id=tenant_id,
+        as_of_date=as_of_date,
+        symbols=target_symbols,
+        archive_result=True,
+    )
+
     payload = {
         "brief_id": f"brief-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -711,6 +722,7 @@ def build_ai_daily_investment_brief(
             "ml_registry": ml_summary,
             "unified_14_stage_loop": loop_summary,
         },
+        "investment_intelligence_10_features": full_intel,
         "governance": {
             "execution_permission": EXECUTION_PERMISSION,
             "authority": "ActionableControlPlaneEngine (deterministic risk policy)",
