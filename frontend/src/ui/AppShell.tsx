@@ -174,6 +174,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </nav>
           ) : null}
           <main id="ux-main" className="ux-main" tabIndex={-1}>{children}</main>
+          <AtlasFooter />
         </div>
       </div>
       {paletteOpen ? <CommandPalette onClose={() => setPaletteOpen(false)} onTheme={toggleTheme} /> : null}
@@ -333,5 +334,72 @@ function CommandPalette({ onClose, onTheme }: { onClose: () => void; onTheme: ()
         </ul>
       </div>
     </div>
+  );
+}
+
+
+function AtlasFooter() {
+  return (
+    <footer className="ux-footer" aria-label="Platform privacy, ISO standards, regulatory and third-party attributions">
+      <div className="ux-footer__grid">
+        <div className="ux-footer__col">
+          <h4>Privacy &amp; Regulatory Governance</h4>
+          <p>
+            Paper-trading &amp; research intelligence only (<code>execution_permission: &quot;none&quot;</code>).
+            Personal data is governed by <strong>PIPEDA</strong> &amp; <strong>Quebec Law 25</strong> with append-only consent (<code>p_consents</code>),
+            30-day DSAR access SLAs, 24-month RROSH breach register, and <strong>PCMLTFA s.8</strong> statutory withholdings.
+          </p>
+          <div className="ux-footer__links">
+            <a href="/compliance">Compliance &amp; Privacy Hub</a>
+            <a href="https://www.priv.gc.ca/en/privacy-topics/privacy-laws-in-canada/the-personal-information-protection-and-electronic-documents-act-pipeda/" target="_blank" rel="noopener noreferrer">PIPEDA (OPC) ↗</a>
+            <a href="https://www.cai.gouv.qc.ca/" target="_blank" rel="noopener noreferrer">Quebec Law 25 (CAI) ↗</a>
+            <a href="https://www.ciro.ca/" target="_blank" rel="noopener noreferrer">CIRO ↗</a>
+            <a href="https://www.osc.ca/" target="_blank" rel="noopener noreferrer">OSC / CSA ↗</a>
+            <a href="https://fintrac-canafe.canada.ca/" target="_blank" rel="noopener noreferrer">FINTRAC ↗</a>
+            <a href="https://www.international.gc.ca/world-monde/international_relations-relations_internationales/sanctions/consolidated-consolide.aspx" target="_blank" rel="noopener noreferrer">SEMA Sanctions ↗</a>
+            <a href="https://sanctionssearch.ofac.treas.gov/" target="_blank" rel="noopener noreferrer">OFAC SDN ↗</a>
+            <a href="https://www.sec.gov/edgar/searchedgar/companysearch" target="_blank" rel="noopener noreferrer">SEC EDGAR ↗</a>
+          </div>
+        </div>
+
+        <div className="ux-footer__col">
+          <h4>ISO Financial, Security &amp; AI Standards</h4>
+          <p>
+            Instrument identifiers, venue MICs, FX/bullion codes, cybersecurity, privacy management, and ML/AI governance align with international ISO specifications:
+          </p>
+          <div className="ux-footer__links">
+            <a href="https://www.iso20022.org/market-identifier-codes" target="_blank" rel="noopener noreferrer" title="Market Identifier Codes (XNYS, XNAS, ARCX, XTSE, XCME, XCEC, XNYM)">ISO 10383 (MIC) ↗</a>
+            <a href="https://www.anna-web.org/standards/isin-iso-6166/" target="_blank" rel="noopener noreferrer" title="International Securities Identification Number">ISO 6166 (ISIN) ↗</a>
+            <a href="https://www.iso.org/standard/81140.html" target="_blank" rel="noopener noreferrer" title="Classification of Financial Instruments">ISO 10962 (CFI) ↗</a>
+            <a href="https://www.iso.org/iso-4217-currency-codes.html" target="_blank" rel="noopener noreferrer" title="Currency & Precious Metal Codes (CAD, USD, XAU, XAG)">ISO 4217 (Currency) ↗</a>
+            <a href="https://www.iso20022.org/" target="_blank" rel="noopener noreferrer" title="Universal Financial Industry Message Scheme">ISO 20022 ↗</a>
+            <a href="https://www.iso.org/standard/27001" target="_blank" rel="noopener noreferrer" title="Information Security Management Systems">ISO/IEC 27001:2022 ↗</a>
+            <a href="https://www.iso.org/standard/71670.html" target="_blank" rel="noopener noreferrer" title="Privacy Information Management System">ISO/IEC 27701:2019 ↗</a>
+            <a href="https://www.iso.org/standard/81230.html" target="_blank" rel="noopener noreferrer" title="Artificial Intelligence Management System (AIMS)">ISO/IEC 42001:2023 (AI) ↗</a>
+            <a href="https://www.iso.org/iso-31000-risk-management.html" target="_blank" rel="noopener noreferrer" title="Risk Management Guidelines">ISO 31000:2018 ↗</a>
+          </div>
+        </div>
+
+        <div className="ux-footer__col">
+          <h4>3rd-Party Exchanges, Benchmarks &amp; Attribution</h4>
+          <p>
+            Exchange schedules, bullion benchmarks, macro series, and charting libraries are attributed to their respective third-party authorities:
+          </p>
+          <div className="ux-footer__links">
+            <a href="https://www.nasdaq.com/market-activity/stock-market-holiday-schedule" target="_blank" rel="noopener noreferrer">Nasdaq (XNAS) ↗</a>
+            <a href="https://www.nyse.com/markets/hours-calendars" target="_blank" rel="noopener noreferrer">NYSE (XNYS/ARCX) ↗</a>
+            <a href="https://www.tsx.com/trading/calendars-and-trading-hours" target="_blank" rel="noopener noreferrer">TMX / TSX (XTSE) ↗</a>
+            <a href="https://www.cmegroup.com/trading-hours.html" target="_blank" rel="noopener noreferrer">CME Group (Globex) ↗</a>
+            <a href="https://www.lbma.org.uk/" target="_blank" rel="noopener noreferrer">LBMA Bullion ↗</a>
+            <a href="https://www.reserves.mint.ca/" target="_blank" rel="noopener noreferrer">Royal Canadian Mint ↗</a>
+            <a href="https://www.bankofcanada.ca/valet/docs" target="_blank" rel="noopener noreferrer">Bank of Canada Valet ↗</a>
+            <a href="https://data.ecb.europa.eu/help/api/data" target="_blank" rel="noopener noreferrer">ECB Data ↗</a>
+            <a href="https://docs.alpaca.markets/docs/paper-trading" target="_blank" rel="noopener noreferrer">Alpaca Paper ↗</a>
+            <a href="https://databento.com/docs" target="_blank" rel="noopener noreferrer">Databento ↗</a>
+            <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts (Apache-2.0) ↗</a>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 }

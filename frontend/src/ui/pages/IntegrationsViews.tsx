@@ -31,6 +31,7 @@ export function IntegrationsStatusCard() {
             { key: "mode", label: "Mode", render: (r) => <Badge tone={modeTone(String(r.mode))}>{String(r.mode).replace(/_/g, " ")}</Badge> },
             { key: "cost", label: "Cost", render: (r) => String(r.cost).replace(/_/g, " ") },
             { key: "required_vars", label: "Missing", render: (r) => Object.entries(r.required_vars as Record<string, boolean>).filter(([, ok]) => !ok).map(([k]) => k).join(", ") || "—" },
+            { key: "signup", label: "Official 3rd-Party Link", render: (r) => r.signup ? <a className="ux-link" href={String(r.signup)} target="_blank" rel="noopener noreferrer">Official portal / docs ↗</a> : "—" },
           ]} />
           <h4>Data provider choice</h4>
           <p>Alpaca is preferred for US stocks, ETFs (IEX feed, needs paper keys) and crypto (history is keyless). Public sources are automatic fallbacks and cover gold/futures, forex and indices. Every bar is tagged with its provider. TradingView widgets are display only: ATLAS never reads prices from them.</p>

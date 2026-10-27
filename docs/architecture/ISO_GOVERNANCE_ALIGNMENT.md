@@ -31,3 +31,42 @@ formal third-party certification.
 - LLMs may classify observations, draft research notes, or flag potential rule violations; they never size positions, authorize orders, override risk limits, or control the kill switch.
 - Founder retains full ownership of source code, strategy logic, model artifacts, and signing keys.
 
+
+## 4. ISO Financial, Market & Privacy Standards Registry
+
+| ISO Standard | Official Specification | ATLAS Implementation |
+| --- | --- | --- |
+| **ISO 10383** (MIC) | https://www.iso20022.org/market-identifier-codes | Canonical Market Identifier Codes across `XNYS`, `XNAS`, `ARCX`, `XTSE`, `XCME`, `XCEC`, `XNYM` (`atlas.market.sessions`, `atlas.assets.service`). |
+| **ISO 6166** (ISIN) | https://www.anna-web.org/standards/isin-iso-6166/ | 12-character alphanumeric ISIN & Luhn check-digit verification for equities, ETFs, sovereign bonds, and ETRs (`atlas.assets.service`). |
+| **ISO 10962** (CFI) | https://www.iso.org/standard/81140.html | Classification of Financial Instruments distinguishing equities, ETFs, physical/allocated bullion, futures, and sovereign debt (`atlas.assets.service`). |
+| **ISO 4217** (Currency & Bullion) | https://www.iso.org/iso-4217-currency-codes.html | Currency and precious metal codes (`CAD`, `USD`, `EUR`, `GBP`, `XAU`, `XAG`, `XPT`, `XPD`) with Bank of Canada daily FX conversion (`atlas.tax.boc_fetch`). |
+| **ISO 20022** | https://www.iso20022.org/ | Structured financial transaction, settlement, and FINTRAC `LVCTR`/`EFTR`/`LCTR` audit record schemas (`atlas.compliance.fintrac`). |
+| **ISO/IEC 27701:2019** (PIMS) | https://www.iso.org/standard/71670.html | Privacy Information Management System controls: append-only `p_consents`, 30-day DSAR SLA, 730-day RROSH breach register, and legal-hold interlocks (`atlas.compliance.privacy`). |
+
+## 5. Privacy & Regulatory Authorities Directory
+
+- **PIPEDA (Office of the Privacy Commissioner of Canada)**: https://www.priv.gc.ca/en/privacy-topics/privacy-laws-in-canada/the-personal-information-protection-and-electronic-documents-act-pipeda/
+- **Quebec Law 25 (Commission d'accès à l'information du Québec)**: https://www.cai.gouv.qc.ca/
+- **CIRO (Canadian Investment Regulatory Organization)**: https://www.ciro.ca/
+- **CSA / OSC (Ontario Securities Commission — NI 31-103 & NI 81-102)**: https://www.osc.ca/
+- **FINTRAC (PCMLTFA Recordkeeping & s.8 No-Tipping-Off Withholding)**: https://fintrac-canafe.canada.ca/
+- **SEMA (Consolidated Canadian Autonomous Sanctions List)**: https://www.international.gc.ca/world-monde/international_relations-relations_internationales/sanctions/consolidated-consolide.aspx
+- **OFAC SDN (US Treasury Sanctions List)**: https://sanctionssearch.ofac.treas.gov/
+- **UN Security Council Consolidated List**: https://main.un.org/securitycouncil/en/content/un-sc-consolidated-list
+- **U.S. SEC EDGAR (Point-in-Time Corporate & ETF Filings)**: https://www.sec.gov/edgar/searchedgar/companysearch
+
+## 6. Third-Party Exchanges, Benchmarks, Data Providers & Open-Source Attribution
+
+- **Nasdaq Official Holiday & Trading Schedule (`XNAS`)**: https://www.nasdaq.com/market-activity/stock-market-holiday-schedule
+- **NYSE & NYSE Arca Market Hours & Calendars (`XNYS` / `ARCX`)**: https://www.nyse.com/markets/hours-calendars
+- **Toronto Stock Exchange (`TSX` / `XTSE`) Trading Hours**: https://www.tsx.com/trading/calendars-and-trading-hours
+- **CME Group / COMEX / NYMEX Globex Trading Hours (`XCME` / `XCEC` / `XNYM`)**: https://www.cmegroup.com/trading-hours.html
+- **LBMA (London Bullion Market Association Good Delivery & Benchmarks)**: https://www.lbma.org.uk/
+- **Royal Canadian Mint (Canadian Gold & Silver Reserves ETRs `MNT.TO` / `SVR.TO`)**: https://www.reserves.mint.ca/
+- **Bank of Canada Valet API (FX & Sovereign Yields)**: https://www.bankofcanada.ca/valet/docs
+- **European Central Bank (ECB) Data Portal**: https://data.ecb.europa.eu/help/api/data
+- **Alpaca Markets (Paper Trading & IEX Market Data)**: https://docs.alpaca.markets/docs/paper-trading
+- **Databento (`GLBX.MDP3` Futures & Historical Market Data)**: https://databento.com/docs
+- **Massive.com (formerly Polygon.io)**: https://massive.com/docs
+- **Coinbase Exchange Public Market Data API**: https://docs.cdp.coinbase.com/exchange/docs/welcome
+- **TradingView Lightweight Charts (Apache License 2.0 Attribution)**: https://www.tradingview.com/lightweight-charts/

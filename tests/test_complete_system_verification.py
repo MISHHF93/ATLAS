@@ -367,3 +367,48 @@ def test_ev_evolution_monitor_and_champion_challenger_rollback(tmp_path) -> None
     assert dash["governed_learning_loop"]["trains_on_immature_outcomes"] is False
     assert dash["governed_learning_loop"]["uses_future_labels_in_inference"] if "uses_future_labels_in_inference" in dash["governed_learning_loop"] else dash["governed_learning_loop"]["uses_future_labels_in_live_inference"] is False
     assert dash["execution_permission"] == "none"
+
+
+
+def test_privacy_iso_standards_and_third_party_links() -> None:
+    resp = client.get("/api/founder/compliance")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["execution_permission"] == "none"
+    assert "privacy_details" in body
+    assert body["privacy_details"]["breach_register_retention_days"] == 730
+    assert body["privacy_details"]["dsar_response_sla_days"] == 30
+    fw_ids = {f["id"] for f in body["privacy_details"]["frameworks"]}
+    assert {"PIPEDA", "QUEBEC_LAW_25", "PCMLTFA_S8_PRIVACY_INTERLOCK"}.issubset(fw_ids)
+
+    iso_codes = {row["standard"] for row in body["iso_standards"]}
+    assert {
+        "ISO 10383",
+        "ISO 6166",
+        "ISO 10962",
+        "ISO 4217",
+        "ISO 20022",
+        "ISO/IEC 27001:2022",
+        "ISO/IEC 27701:2019",
+        "ISO/IEC 42001:2023",
+        "ISO 31000:2018",
+    }.issubset(iso_codes)
+
+    reg_ids = {row["id"] for row in body["regulatory_links"]}
+    assert {"CIRO", "CSA_OSC", "FINTRAC", "SEMA_CANADA", "OFAC_SDN", "UN_SC", "SEC_EDGAR"}.issubset(reg_ids)
+
+    third_ids = {row["id"] for row in body["third_party_links"]}
+    assert {
+        "NASDAQ_CALENDAR",
+        "NYSE_CALENDAR",
+        "TMX_TSX_CALENDAR",
+        "CME_GLOBEX",
+        "LBMA_BULLION",
+        "ROYAL_CANADIAN_MINT",
+        "BANK_OF_CANADA",
+        "TRADINGVIEW_LWC",
+    }.issubset(third_ids)
+
+    std_resp = client.get("/api/founder/standards-and-links")
+    assert std_resp.status_code == 200
+    assert std_resp.json()["execution_permission"] == "none"

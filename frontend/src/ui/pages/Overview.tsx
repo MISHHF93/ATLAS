@@ -66,7 +66,7 @@ export function Overview() {
       <Grid cols={3}>
         <Link className="ux-tile-link" href="/money"><strong>Money</strong><span>P&amp;L, payments, partner wallet and tax.</span></Link>
         <Link className="ux-tile-link" href="/research"><strong>Research</strong><span>Signals, chart read and model evidence.</span></Link>
-        <Link className="ux-tile-link" href="/compliance"><strong>Compliance</strong><span>Venue checks, FINTRAC timeline, rulebook.</span></Link>
+        <Link className="ux-tile-link" href="/compliance"><strong>Compliance, Privacy &amp; ISO Standards</strong><span>Venue checks, PIPEDA &amp; Law 25 privacy, ISO 10383/6166/27001/42001, FINTRAC &amp; 3rd-party links.</span></Link>
       </Grid>
     </div>
   );

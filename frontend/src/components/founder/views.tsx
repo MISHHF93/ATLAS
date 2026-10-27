@@ -216,6 +216,7 @@ export function ComplianceView() {
         <TableCard title="FINTRAC records" subtitle="Records only; the reporting entity files them" rows={arr(f.data?.records)} empty="No FINTRAC records"
           columns={cols([["id", "#"], ["kind", "Kind"], ["amount", "Amount", "money"], ["currency", "Ccy"], ["due_date", "Due"], ["status", "Status", "status"]])} />
       </FounderGate>
+      <ComplianceStandardsAndLinks state={comp} />
       <Async state={comp} label="Loading policy">
         {(d) => (
           <Card title="Policy" subtitle="How ATLAS handles privacy and FINTRAC record-keeping">
@@ -224,11 +225,113 @@ export function ComplianceView() {
               <dt>FINTRAC mode</dt><dd>{String(((d.fintrac ?? {}) as Row).mode ?? "—").replaceAll("_", " ")}</dd>
               <dt>Large-transaction threshold</dt><dd>{fmt(((d.fintrac ?? {}) as Row).threshold_cad, 0)} CAD</dd>
               <dt>Retention</dt><dd>{String(((d.fintrac ?? {}) as Row).retention_years ?? "—")} years</dd>
+              <dt>Consent purposes</dt><dd>{arr(((d.privacy_details ?? {}) as Row).consent_purposes).map(String).join(", ") || "onboarding, fintrac_record, tax_reporting, partner_registry, audit_log"}</dd>
+              <dt>DSAR &amp; Breach SLA</dt><dd>{String(((d.privacy_details ?? {}) as Row).dsar_response_sla_days ?? 30)}-day DSAR · {String(((d.privacy_details ?? {}) as Row).breach_register_retention_days ?? 730)}-day RROSH breach register · PCMLTFA s.8 redaction</dd>
               <dt>Sanctions lists</dt><dd>{arr(((d.sanctions ?? {}) as Row).lists).map(String).join(", ") || "—"}</dd>
             </dl>
           </Card>
         )}
       </Async>
     </>
+  );
+}
+
+
+function ExtLink({ href, label }: { href: string; label?: string }) {
+  if (!href) return <>—</>;
+  return (
+    <a className="ux-link" href={href} target="_blank" rel="noopener noreferrer">
+      {label ?? href.replace(/^https?:\/\//, "").replace(/\/$/, "")} ↗
+    </a>
+  );
+}
+
+function ComplianceStandardsAndLinks({ state }: { state: ReturnType<typeof useApi<Row>> }) {
+  return (
+    <Async state={state} label="Loading privacy, ISO standards & third-party directory">
+      {(d) => {
+        const priv = ((d.privacy_details ?? {}) as Row);
+        const frameworks = arr(priv.frameworks);
+        const isoRows = arr(d.iso_standards);
+        const regRows = arr(d.regulatory_links);
+        const thirdRows = arr(d.third_party_links);
+        return (
+          <>
+            <Card
+              title="Privacy governance & data protection (PIPEDA · Quebec Law 25 · PCMLTFA s.8)"
+              subtitle="Append-only consent ledger (p_consents), 30-day DSAR access SLA, 24-month RROSH breach register, and statutory anti-tipping-off redaction"
+            >
+              <DataTable<Row>
+                caption="Privacy frameworks and statutory authorities"
+                rows={frameworks}
+                empty={<EmptyState title="No privacy frameworks loaded" />}
+                columns={[
+                  { key: "id", label: "Framework", render: (r) => <Badge tone="info">{String(r.id ?? "")}</Badge> },
+                  { key: "name", label: "Statute / Instrument" },
+                  { key: "authority", label: "Oversight Authority" },
+                  { key: "scope", label: "ATLAS Control & Scope" },
+                  { key: "official_url", label: "Official Reference", render: (r) => <ExtLink href={String(r.official_url ?? "")} label="Official Statute" /> },
+                ]}
+              />
+            </Card>
+
+            <Card
+              title="ISO financial, security & AI governance standards registry"
+              subtitle="International standards enforced across ATLAS instrument identifiers, venue MICs, FX/bullion codes, cybersecurity, privacy, and AI model governance"
+            >
+              <DataTable<Row>
+                caption="ISO standards implemented in ATLAS"
+                rows={isoRows}
+                empty={<EmptyState title="No ISO standards loaded" />}
+                columns={[
+                  { key: "standard", label: "ISO Standard", render: (r) => <Badge tone="good">{String(r.standard ?? "")}</Badge> },
+                  { key: "category", label: "Category" },
+                  { key: "title", label: "Standard Title" },
+                  { key: "atlas_implementation", label: "ATLAS Implementation & Module" },
+                  { key: "official_url", label: "Specification", render: (r) => <ExtLink href={String(r.official_url ?? "")} label={String(r.standard ?? "ISO Link")} /> },
+                ]}
+              />
+            </Card>
+
+            <Card
+              title="Regulatory authorities & sanctions screening registries"
+              subtitle="Official Canadian, US, and international regulatory bodies and consolidated sanctions lists referenced by ATLAS"
+            >
+              <DataTable<Row>
+                caption="Regulatory authorities and sanctions lists"
+                rows={regRows}
+                empty={<EmptyState title="No regulatory links loaded" />}
+                columns={[
+                  { key: "id", label: "Authority", render: (r) => <Badge tone="neutral">{String(r.id ?? "")}</Badge> },
+                  { key: "name", label: "Organization / Registry" },
+                  { key: "jurisdiction", label: "Jurisdiction" },
+                  { key: "role", label: "Regulatory Scope" },
+                  { key: "official_url", label: "Official Portal", render: (r) => <ExtLink href={String(r.official_url ?? "")} label="Official Portal" /> },
+                ]}
+              />
+            </Card>
+
+            <Card
+              title="Third-party market data, exchanges, benchmarks & open-source attributions"
+              subtitle="Verified external documentation, exchange holiday/session calendars, bullion benchmarks, and open-source software licenses"
+            >
+              <DataTable<Row>
+                caption="Third-party providers, exchanges and attributions"
+                rows={thirdRows}
+                empty={<EmptyState title="No third-party links loaded" />}
+                columns={[
+                  { key: "id", label: "Provider / Venue" },
+                  { key: "category", label: "Category", render: (r) => <Badge tone="neutral">{String(r.category ?? "")}</Badge> },
+                  { key: "name", label: "Service / Benchmark" },
+                  { key: "auth_or_license", label: "Auth / License" },
+                  { key: "scope", label: "Integration Scope" },
+                  { key: "official_url", label: "Documentation", render: (r) => <ExtLink href={String(r.official_url ?? "")} label="Docs / Calendar" /> },
+                ]}
+              />
+            </Card>
+          </>
+        );
+      }}
+    </Async>
   );
 }
