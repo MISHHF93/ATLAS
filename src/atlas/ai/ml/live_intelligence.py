@@ -264,9 +264,9 @@ def generate_live_prediction(
     if feed is not None:
         try:
             load_iv = "1h" if iv == "4h" else ("15m" if iv in ("1m", "5m") else iv)
-            raw_bars = feed.bars(feed_sym, load_iv) or []
+            raw_bars = (feed.bars(feed_sym, load_iv) or [])[-300:]
             if not raw_bars and iv == "1h":
-                raw_bars = feed.bars(feed_sym, "15m") or []
+                raw_bars = (feed.bars(feed_sym, "15m") or [])[-300:]
         except Exception:
             raw_bars = []
 
@@ -654,7 +654,7 @@ def get_ev_evolution_monitor(
         if os.path.exists(feed_mod.DEFAULT_STORE):
             f = feed_mod.get_feed()
     bars = load_bars(f, feed_sym, iv) if f is not None else []
-    win = bars[-2500:] if bars else []
+    win = bars[-1200:] if bars else []
     _, _, cpu, _, _ = SPEC.get(feed_sym, ("crypto", 0.01, 0.0, 0.0, 96))
     mk = from_replay(_replay_all(feed_sym, iv, win), TF_SECONDS[iv], cpu) if len(win) > 60 else []
     ml_markers, meta = from_evolution(feed_sym, iv, path=reg_path, bars=win, rule_markers=mk)

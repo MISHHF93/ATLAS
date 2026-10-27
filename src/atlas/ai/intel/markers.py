@@ -70,6 +70,9 @@ def _zone_label(z) -> str | None:
     return f"{str(kind).replace('_', ' ')}{rng}"
 
 
+_LIVE_WF_CACHE: dict[tuple[Any, ...], tuple[list[dict[str, Any]], dict[str, Any]]] = {}
+
+
 def _live_walk_forward_oos(
     inst: str,
     interval: str,
@@ -80,8 +83,27 @@ def _live_walk_forward_oos(
     tf: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Compute causal walk-forward out-of-sample calibrated probabilities and EV_R on closed bars & setups."""
+    import copy
     from atlas.ai.ml import metrics as M
     import numpy as np
+
+    n_bars = len(bars)
+    if n_bars < 45:
+        return [], {}
+
+    cache_key = (
+        inst,
+        interval,
+        n_bars,
+        int(bars[0].start),
+        int(bars[-1].start),
+        len(rule_markers or []),
+        str(run.get("run_id")),
+        bool(has_champion),
+    )
+    if cache_key in _LIVE_WF_CACHE:
+        cached_m, cached_meta = _LIVE_WF_CACHE[cache_key]
+        return copy.deepcopy(cached_m), dict(cached_meta)
 
     best = run.get("best_passing_strict_gate") or run.get("best_beating_baseline") or run.get("best") or {}
     mv = f"evolution:{run['run_id']}:{best.get('genome_id') or 'hgb|full|none|time'}:live_wf"
@@ -90,10 +112,6 @@ def _live_walk_forward_oos(
         if has_champion
         else "research-only (no research champion; failed strict gate; ML cannot authorize)"
     )
-
-    n_bars = len(bars)
-    if n_bars < 45:
-        return [], {}
 
     closes = np.array([float(b.close) for b in bars], dtype=float)
     opens = np.array([float(b.open) for b in bars], dtype=float)
@@ -339,6 +357,9 @@ def _live_walk_forward_oos(
             "beats_baseline": bool(ev_opp > max(0.0, take_all_ev) and bss > 0),
         }
 
+    if len(_LIVE_WF_CACHE) > 64:
+        _LIVE_WF_CACHE.clear()
+    _LIVE_WF_CACHE[cache_key] = (copy.deepcopy(out_markers), dict(live_metrics))
     return out_markers, live_metrics
 
 

@@ -26,12 +26,15 @@ def _build_spec() -> dict[str, tuple]:
 SPEC = _build_spec()
 
 
-def load_bars(feed, inst: str, iv: str = "15m") -> list[Bar]:
+def load_bars(feed, inst: str, iv: str = "15m", max_bars: int = 3500) -> list[Bar]:
     dur = TF_SECONDS[iv]
     out, last = [], None
     if feed is None:
         return out
-    for b in feed.bars(inst, iv):
+    raw = list(feed.bars(inst, iv))
+    if max_bars and len(raw) > max_bars:
+        raw = raw[-max_bars:]
+    for b in raw:
         if last is not None and b.event_time <= last:
             continue
         try:

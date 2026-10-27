@@ -26,9 +26,12 @@ def _feed():
     return f()
 
 
-def _raw(feed, sym: str, iv: str):
+def _raw(feed, sym: str, iv: str, max_rows: int = 3500):
     try:
-        return list(feed.bars(sym, iv)) if feed is not None else []
+        if feed is None:
+            return []
+        res = list(feed.bars(sym, iv))
+        return res[-max_rows:] if max_rows and len(res) > max_rows else res
     except Exception:  # unknown instrument etc.
         return []
 
@@ -119,7 +122,7 @@ def _markers(sym, interval, bars):
     from atlas.intel.markers import class_summary, from_evolution, from_replay
     from atlas.api.intel_api import _replay_all
     _, _, cpu, _, _ = SPEC.get(sym, ("crypto", 0.01, 0.0, 0.0, 96))
-    win = bars[-4000:]  # bounded replay window keeps the chart responsive; markers only shown inside the view anyway
+    win = bars[-1500:]  # bounded replay window keeps the chart responsive; markers only shown inside the view anyway
     mk = from_replay(_replay_all(sym, interval, win), INTERVALS[interval], cpu) if len(win) > 60 else []
     ml, meta = from_evolution(sym, interval, bars=win, rule_markers=mk)
     t0 = bars[0].start
@@ -263,18 +266,14 @@ def _ml_panel(sym, interval, markers, evo_meta=None):
     return panel
 
 
-def _enrich(markers, bars):
-    from atlas.intel.marker_context import enrich, snapshots
-    win = bars[-4000:]
-    enrich(markers, win, snapshots(win))
-    return {"status": "ok", "n": len(markers), "fields": ["indicators", "threshold", "outcome_label", "why", "setup", "resolution_path"],
-            "note": "indicator values are the causal state at each marker's confirmation bar (closed bars only, no lookahead)"}
-
-
-def _forward(bars, markers):
-    from atlas.intel.marker_context import forward_zone, snapshots
-    win = bars[-4000:]
-    out = forward_zone(win, snapshots(win), markers)
+def _enrich_and_forward(markers, bars):
+    from atlas.intel.marker_context import enrich, forward_zone, snapshots
+    win = bars[-1500:]
+    snaps = snapshots(win)
+    enrich(markers, win, snaps)
+    details = {"status": "ok", "n": len(markers), "fields": ["indicators", "threshold", "outcome_label", "why", "setup", "resolution_path"],
+               "note": "indicator values are the causal state at each marker's confirmation bar (closed bars only, no lookahead)"}
+    out = forward_zone(win, snaps, markers)
     if isinstance(out, dict) and out.get("status") == "ok":
         ml_recent = [m for m in markers if m.get("source") == "evolution_oos" and m.get("probability") is not None]
         if ml_recent:
@@ -300,7 +299,7 @@ def _forward(bars, markers):
                     }
                 ]
                 out["no_active_candidate"] = None
-    return out
+    return details, out
 
 
 def _calib(preds):
@@ -347,7 +346,11 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
         markers, classes, evo = mk
         mstat = {"status": "ok"}
     markers = [m for m in markers if m["time"] >= t0]
-    details = _layer(_enrich, markers, bars)
+    ef = _layer(_enrich_and_forward, markers, bars)
+    if isinstance(ef, tuple) and len(ef) == 2:
+        details, fwd_out = ef
+    else:
+        details, fwd_out = ef, ef
     ml = [m for m in markers if m["source"] == "evolution_oos"]
     vw, vp = _layer(_vwap_profile, view) if any(b.volume for b in view) else ({"status": "unavailable", "reason": "no volume"},) * 2
     preds = [{"time": m["time"], "p": m["probability"], "take": m["class"] == "ml_suggested", "outcome": m["outcome"], "r": m["r"],
@@ -369,7 +372,7 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
                         "note": "out-of-sample walk-forward probabilities from the latest evolution run; research only",
                         "running_calibration": _layer(_calib, preds)},
         "marker_details": details,
-        "forward": _layer(_forward, bars, markers),
+        "forward": fwd_out,
     }
     return enforce_advisory({**base, "status": "ok", "bars": out_bars, "display": display, "layers": layers, "ml_panel": panel},
                             source="/api/ai/chart/overlays")[0]
