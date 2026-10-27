@@ -3,6 +3,7 @@
  *  portfolio risk and track rulebooks. All read-only research surfaces: execution_permission is "none" everywhere and
  *  only the deterministic control plane can approve or size an order. Every card shows the payload's freshness label. */
 import { useState } from "react";
+import { AiResearchMemoryAndHandoffBench, DynamicPositionSizingBench } from "./ResearchIntegrationViews";
 import type { Fresh } from "../FreshBadge";
 import { Async, Badge, Card, Command, DataTable, EmptyState, useApi } from "../primitives";
 
@@ -131,6 +132,7 @@ export function MemoryView() {
             <p className="ux-muted">{d.latest_analogues?.note}</p></>}
         </Async>
       </Card>
+      <AiResearchMemoryAndHandoffBench />
       <Card title="Model governance" fresh={fr(s)} subtitle="Retraining, promotion and rollback go through the gated model registry. This view is read-only.">
         <Async state={s} label="Loading governance">
           {(d) => <DataTable rows={Object.entries(d.governance ?? {}).map(([k, v]) => ({ k, v: typeof v === "object" ? JSON.stringify(v) : String(v) })) as R[]}
@@ -249,6 +251,7 @@ export function PortfolioRiskView() {
             { key: "var99_per_10k", label: "VaR99", align: "right", render: (r) => f(r.var99_per_10k, 0) }, { key: "worst_day_pct", label: "Worst day %", align: "right", render: (r) => f(r.worst_day_pct, 2) }]} />}
         </Async>
       </Card>
+      <DynamicPositionSizingBench />
       <Card title="Daily return correlation" span="full" fresh={fr(s)}>
         <Async state={s} label="Loading correlation">
           {(d) => <><DataTable rows={d.correlation.symbols.map((a, i) => ({ a, ...Object.fromEntries(d.correlation.symbols.map((b, j) => [b, d.correlation.matrix[i][j]])) })) as R[]}

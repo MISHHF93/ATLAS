@@ -1113,3 +1113,98 @@ def get_market_sessions_status(
         "by_symbol": by_symbol,
         "execution_permission": "none",
     }
+
+
+
+CANDIDATE_GATE_STATES: tuple[str, ...] = (
+    "MARKET_OPEN",
+    "MARKET_CLOSED",
+    "MARKET_HALTED",
+    "MARKET_MAINTENANCE",
+    "MARKET_RESTRICTED",
+    "DATA_STALE",
+    "BROKER_UNAVAILABLE",
+    "STATUS_UNKNOWN",
+)
+
+
+def evaluate_candidate_market_gate(
+    symbol: str,
+    *,
+    now: datetime | None = None,
+    venue_reported_status: str | None = None,
+    data_feed_health: str | None = None,
+    data_age_seconds: float | None = None,
+    max_stale_seconds: float = 3600.0,
+    broker_available: bool = True,
+    instrument_permitted: bool = True,
+    account_restricted: bool = False,
+) -> dict[str, Any]:
+    """Section 21 Market Status Intelligence gate before any live strategy candidate is considered."""
+    inst = evaluate_instrument_market_status(
+        symbol,
+        now=now,
+        venue_reported_status=venue_reported_status,
+        data_feed_health=data_feed_health,
+    )
+    eff = str(inst.get("effective_status") or "UNKNOWN").upper()
+
+    if not broker_available:
+        gate_state = "BROKER_UNAVAILABLE"
+        eligible = False
+        gate_reason = "Broker connectivity or paper session is unavailable."
+    elif data_feed_health and str(data_feed_health).upper() in {"STALE", "DISCONNECTED", "ERROR", "NO_DATA"}:
+        gate_state = "DATA_STALE"
+        eligible = False
+        gate_reason = f"Market data feed reported {data_feed_health}."
+    elif data_age_seconds is not None and data_age_seconds > max_stale_seconds and inst.get("is_open"):
+        gate_state = "DATA_STALE"
+        eligible = False
+        gate_reason = f"Latest bar age ({data_age_seconds:.0f}s) exceeds staleness threshold ({max_stale_seconds:.0f}s)."
+    elif not instrument_permitted or account_restricted:
+        gate_state = "MARKET_RESTRICTED"
+        eligible = False
+        gate_reason = "Instrument permission denied or account restriction active."
+    elif eff == "HALTED":
+        gate_state = "MARKET_HALTED"
+        eligible = False
+        gate_reason = str(inst.get("reason") or "Instrument trading is halted.")
+    elif eff == "MAINTENANCE":
+        gate_state = "MARKET_MAINTENANCE"
+        eligible = False
+        gate_reason = str(inst.get("reason") or "Venue is in scheduled maintenance break.")
+    elif eff in {"LIMIT_ONLY", "POST_ONLY", "CANCEL_ONLY", "VIEW_ONLY", "TRADING_DISABLED"}:
+        gate_state = "MARKET_RESTRICTED"
+        eligible = eff in {"LIMIT_ONLY", "POST_ONLY"}
+        gate_reason = f"Venue restriction active: {eff}."
+    elif eff in {"CLOSED", "HOLIDAY"}:
+        gate_state = "MARKET_CLOSED"
+        eligible = False
+        gate_reason = str(inst.get("reason") or "Exchange session is closed.")
+    elif eff in {"OPEN", "REGULAR_SESSION", "PREMARKET", "AFTER_HOURS", "OVERNIGHT_SESSION", "EARLY_CLOSE", "PREOPEN"}:
+        gate_state = "MARKET_OPEN"
+        eligible = eff != "PREOPEN"
+        gate_reason = str(inst.get("reason") or "Exchange session is open.")
+    else:
+        gate_state = "STATUS_UNKNOWN"
+        eligible = False
+        gate_reason = "Market session status could not be determined."
+
+    return {
+        "symbol": inst["symbol"],
+        "exchange": inst["exchange"],
+        "exchange_mic": inst["exchange_mic"],
+        "candidate_gate_status": gate_state,
+        "candidate_eligible": eligible,
+        "gate_reason": gate_reason,
+        "scheduled_market_status": inst["scheduled_market_status"],
+        "trading_session": inst["trading_session"],
+        "effective_status": eff,
+        "data_feed_health": inst["data_feed_health"],
+        "data_age_seconds": data_age_seconds,
+        "broker_available": broker_available,
+        "instrument_permitted": instrument_permitted,
+        "account_restricted": account_restricted,
+        "instrument_status": inst,
+        "execution_permission": "none",
+    }

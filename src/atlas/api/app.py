@@ -102,6 +102,8 @@ from atlas.api.assets_api import router as assets_router  # noqa: E402
 app.include_router(assets_router, prefix="/api/assets")
 from atlas.api.investment_intelligence_api import router as investment_intelligence_router  # noqa: E402
 app.include_router(investment_intelligence_router, prefix="/api/investment-intelligence")
+from atlas.api.research_integration_api import router as research_integration_router  # noqa: E402
+app.include_router(research_integration_router, prefix="/api/research-integration")
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",

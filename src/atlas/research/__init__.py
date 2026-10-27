@@ -1,22 +1,10 @@
-"""Subsystem Z: Zero Data-Leakage Research & Sandbox (`src/atlas/research/`).
+"""ATLAS Research-to-Execution Intelligence Package.
 
-Re-exports SHA-256 manifest-verified frozen datasets (`FrozenDatasetBundle`),
-continuous research tick orchestration (`ContinuousResearchRunner`), and
-autonomous self-training with strict purging/embargoing (`run_autonomous_self_training_cycle`).
+Connects open-source strategy discovery, Pine v5/v6 source analysis, canonical strategy IR,
+Python parity testing, realistic walk-forward backtesting, provider-neutral broker intelligence,
+dynamic position sizing, deterministic risk gates, durable research memory, and cross-session AI handoffs.
+
+Every function in this package preserves execution_permission='none'.
 """
-from atlas.marketdata.frozen import FrozenDatasetBundle, build_frozen_benchmark_dataset
-from atlas.models.continuous import (
-    CentralResearchNode,
-    ContinuousResearchRunner,
-    run_track_paper_simulation,
-)
-from atlas.models.self_training import run_autonomous_self_training_cycle
 
-__all__ = [
-    "CentralResearchNode",
-    "ContinuousResearchRunner",
-    "FrozenDatasetBundle",
-    "build_frozen_benchmark_dataset",
-    "run_autonomous_self_training_cycle",
-    "run_track_paper_simulation",
-]
+EXECUTION_PERMISSION = "none"

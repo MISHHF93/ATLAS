@@ -3,6 +3,7 @@
  *  deterministic agent pipeline, watchlist scan + VWAP/POC + Pine export, and broker/alerts/MCP status. Research only:
  *  nothing here places an order. Unavailable data is shown as unavailable, never estimated. */
 import { useState } from "react";
+import { BrokerIntelligenceBench, StrategyAndPineResearchBench } from "./ResearchIntegrationViews";
 import type { Fresh } from "../FreshBadge";
 import { ActionButton, ActionResult, Async, Badge, Card, DataTable, EmptyState, useAction, useApi } from "../primitives";
 
@@ -143,6 +144,7 @@ export function ScanView() {
         <Async state={vw} label="Computing">{(v) => !v.profile ? <EmptyState title="No bars in the feed for this symbol">Nothing is estimated.</EmptyState> :
           <p>Close {f(v.last_close, 4)} · VWAP {f(v.session_vwap, 4)} · POC {f(v.profile.poc, 4)} · VA {f(v.profile.val, 4)}–{f(v.profile.vah, 4)}</p>}</Async>
       </Card>
+      <StrategyAndPineResearchBench />
       <Card title="Pine v5 export" span={2} fresh={fr(pg)} subtitle={pl.data?.note ?? "Pine text export"} actions={<Pick label="Strategy" v={sid} set={setSid} opts={pl.data?.strategies ?? ["sfp"]} />}>
         <Async state={pg} label="Generating">{(x) => <>
           <p>ATLAS replay ({String(x.atlas_backtest.status)}): trades {f(x.atlas_backtest.n_trades, 0)} · win rate {f(x.atlas_backtest.win_rate)} · profit factor {f(x.atlas_backtest.profit_factor)} · max DD {f(x.atlas_backtest.max_drawdown_r)} R</p>
@@ -167,6 +169,7 @@ export function BrokerView() {
       <Card title="Alerts" subtitle="Telegram, Discord and Slack research alerts. Off unless ATLAS_ALERTS_ENABLED=true and a channel is set in the local .env.">
         <Async state={al} label="Checking">{(a) => <p><Badge tone={a.enabled ? "good" : "neutral"}>{a.enabled ? "enabled" : "disabled"}</Badge> {Object.entries(a.channels_configured).map(([k, v]) => `${k}: ${v ? "set" : "not set"}`).join(" · ")}</p>}</Async>
       </Card>
+      <BrokerIntelligenceBench />
       <Card title="Agent tools (MCP)" span="full" subtitle="Read-only research tools, listed over HTTP at /api/ext/mcp/tools and over stdio by scripts/atlas_mcp_stdio.py. No order tool is exposed.">
         <Async state={mc} label="Listing">{(m) => <DataTable rows={m.tools as unknown as R[]} columns={[{ key: "name", label: "Tool" }, { key: "description", label: "What it does" }]} />}</Async>
       </Card>
