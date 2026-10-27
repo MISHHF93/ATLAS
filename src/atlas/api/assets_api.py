@@ -256,3 +256,22 @@ def get_readiness_report_endpoint() -> dict[str, Any]:
         "governed_mcp_tool_names": [t["name"] for t in mcp_tools],
     }
 
+
+@router.get("/daily-brief")
+def get_assets_daily_brief_endpoint(
+    symbols: str | None = Query(
+        default=None,
+        description="Optional comma-separated symbol list for the AI Daily Investment & ML Research Brief",
+    ),
+    include_llm_narrative: bool = Query(default=True),
+) -> dict[str, Any]:
+    from atlas.ai.daily_brief import build_ai_daily_investment_brief
+
+    sym_list = [s.strip().upper() for s in symbols.split(",") if s.strip()] if symbols else None
+    return build_ai_daily_investment_brief(
+        symbols=sym_list,
+        include_llm_narrative=include_llm_narrative,
+        execute_top_paper=False,
+    )
+
+

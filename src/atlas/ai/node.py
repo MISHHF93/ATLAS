@@ -80,6 +80,9 @@ REGISTRY: tuple[AIComponent, ...] = (
     AIComponent("unified_intelligence_loop", "intel", ("atlas.ai.intel.unified_loop", "atlas.features.price_action.extended_strategies", "atlas.integrations.protocol_manifest"),
                 api=("/api/ai/intelligence-loop", "/api/ai/protocol-manifest"), ui=("PumpIntelligenceView", "IntelViews"),
                 notes="14-Stage ATLAS Intelligence Loop across multi-asset bars and Solana Pump.fun/PumpSwap tokens; execution_permission=none"),
+    AIComponent("daily_investment_brief", "intel", ("atlas.ai.daily_brief", "atlas.ext.dossier", "atlas.ext.personas", "atlas.ext.agents"),
+                api=("/api/ai/daily-brief", "/api/assets/daily-brief"), ui=("Module02ListingsView",),
+                notes="AI Daily Investment & ML Research Brief (Yesterday vs Today paper activity, 1-100 conviction ratings, persona checklists, 14-stage ML loop); execution_permission=none"),
 )
 
 

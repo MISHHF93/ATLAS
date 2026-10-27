@@ -15,6 +15,7 @@ import { DeskChart } from "./DeskChart";
 import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 import { useFeedQuotes } from "../../lib/feedQuotes";
 import { AssetCard, AssetTable } from "./AssetCard";
+import { AiDailyInvestmentBriefPanel } from "./AiDailyInvestmentBriefPanel";
 
 export type AuthenticAssetCategory =
   | "metals"
@@ -1131,7 +1132,7 @@ function Module02InnerWorkbench() {
               <button
                 type="button"
                 className={`clean-tf-btn ${metalUnit === "kg" ? "active" : ""}`}
-                style={{ padding: "5px 10px", fontSize: "12px" }}
+              style={{ padding: "5px 10px", fontSize: "12px" }}
                 onClick={() => setMetalUnit("kg")}
               >
                 kg
@@ -1139,6 +1140,12 @@ function Module02InnerWorkbench() {
             </div>
           </div>
         </div>
+
+        {/* AI Daily Investment & ML Loop Brief (Yesterday vs Today + Conviction Ratings + ML Loop) */}
+        <AiDailyInvestmentBriefPanel
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={setSelectedSymbol}
+        />
 
         {/* Asset catalog toolbar */}
         <div className="asset-toolbar" style={{ flexWrap: "wrap", gap: "10px" }}>

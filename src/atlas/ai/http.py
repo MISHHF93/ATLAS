@@ -18,6 +18,12 @@ class IntelligenceLoopRequest(BaseModel):
     execute_top_paper: bool = True
 
 
+class DailyBriefRequest(BaseModel):
+    symbols: list[str] | None = None
+    include_llm_narrative: bool = True
+    execute_top_paper: bool = False
+
+
 @router.get("")
 @router.get("/status")
 def ai_status() -> dict[str, Any]:
@@ -79,6 +85,39 @@ def ai_intelligence_loop_post(req: IntelligenceLoopRequest) -> dict[str, Any]:
 
     res = run_unified_intelligence_loop(instruments=req.instruments, execute_top_paper=req.execute_top_paper)
     clean, _ = enforce_advisory(res, source="/api/ai/intelligence-loop")
+    return clean
+
+
+@router.get("/daily-brief")
+def ai_daily_brief_get(
+    symbols: str | None = None,
+    include_llm_narrative: bool = True,
+    execute_top_paper: bool = False,
+) -> dict[str, Any]:
+    """Generate the AI Daily Investment & ML Research Brief (Yesterday vs Today paper activity, ratings, ML loop)."""
+    from atlas.ai.daily_brief import build_ai_daily_investment_brief
+
+    sym_list = [s.strip().upper() for s in symbols.split(",") if s.strip()] if symbols else None
+    res = build_ai_daily_investment_brief(
+        symbols=sym_list,
+        include_llm_narrative=include_llm_narrative,
+        execute_top_paper=execute_top_paper,
+    )
+    clean, _ = enforce_advisory(res, source="/api/ai/daily-brief")
+    return clean
+
+
+@router.post("/daily-brief")
+def ai_daily_brief_post(req: DailyBriefRequest) -> dict[str, Any]:
+    """Generate the AI Daily Investment & ML Research Brief with custom symbol universe."""
+    from atlas.ai.daily_brief import build_ai_daily_investment_brief
+
+    res = build_ai_daily_investment_brief(
+        symbols=req.symbols,
+        include_llm_narrative=req.include_llm_narrative,
+        execute_top_paper=req.execute_top_paper,
+    )
+    clean, _ = enforce_advisory(res, source="/api/ai/daily-brief")
     return clean
 
 
