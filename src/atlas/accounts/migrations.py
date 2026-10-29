@@ -1,6 +1,7 @@
-"""Versioned, forward-only SQL migrations. Portable DDL (TEXT ids, BIGINT epoch seconds, base64 TEXT for binary), so the
-same statements run on Postgres later (swap ``executescript`` for a driver loop). Each migration is applied once, in order,
-inside a transaction, and recorded in ``schema_migrations``. Never edit a shipped migration: add a new one."""
+"""Versioned, forward-only SQL migrations. Portable DDL (TEXT ids, BIGINT epoch seconds, base64 TEXT for binary). The only
+non-portable statements are the ``payouts_ledger`` immutability triggers; ``migrations_for("postgresql")`` swaps them for a
+plpgsql guard (see ``atlas.accounts.dialect``). Each migration is applied once, in order, inside a transaction, and recorded in
+``schema_migrations``. Never edit a shipped migration: add a new one."""
 from __future__ import annotations
 
 M0001_ACCOUNTS = """
@@ -190,8 +191,9 @@ CREATE TABLE stripe_events (
 
 # M0005 aligns billing with docs-research/monetization_plan.md section 7. Forward-only: M0004 is never edited.
 # Portable SQL (TEXT ids, BIGINT epoch seconds, INTEGER 0/1, money in integer minor units). The two payouts_ledger triggers are
-# SQLite syntax; on Postgres replace them with a BEFORE UPDATE OR DELETE trigger function that raises the same error.
-M0005_BILLING_V2 = """
+# SQLite syntax and live in M0005_SQLITE_LEDGER_TRIGGERS; the Postgres equivalent is generated in dialect.py (M0005 is split in two
+# constants whose concatenation is byte-identical to the shipped text).
+M0005_BILLING_V2_BASE = """
 ALTER TABLE plans ADD COLUMN tier TEXT NOT NULL DEFAULT 'free';
 ALTER TABLE plans ADD COLUMN stripe_product_id TEXT;
 ALTER TABLE plans ADD COLUMN trial_days INTEGER NOT NULL DEFAULT 0;
@@ -295,7 +297,9 @@ CREATE TABLE payouts_ledger (
   hash TEXT NOT NULL
 );
 CREATE INDEX idx_ledger_kind_ts ON payouts_ledger (kind, ts);
-CREATE TRIGGER payouts_ledger_no_delete BEFORE DELETE ON payouts_ledger
+"""
+
+M0005_SQLITE_LEDGER_TRIGGERS = """CREATE TRIGGER payouts_ledger_no_delete BEFORE DELETE ON payouts_ledger
 BEGIN SELECT RAISE(ABORT, 'payouts_ledger is append-only'); END;
 CREATE TRIGGER payouts_ledger_no_update BEFORE UPDATE ON payouts_ledger
 WHEN OLD.flooos_batch IS NOT NULL OR NEW.id IS NOT OLD.id OR NEW.seq IS NOT OLD.seq OR NEW.ts IS NOT OLD.ts OR NEW.kind IS NOT OLD.kind
@@ -306,6 +310,48 @@ WHEN OLD.flooos_batch IS NOT NULL OR NEW.id IS NOT OLD.id OR NEW.seq IS NOT OLD.
   OR NEW.prev_hash IS NOT OLD.prev_hash OR NEW.hash IS NOT OLD.hash
 BEGIN SELECT RAISE(ABORT, 'payouts_ledger is append-only (only flooos_batch may be set, once)'); END;
 """
+M0005_BILLING_V2 = M0005_BILLING_V2_BASE + M0005_SQLITE_LEDGER_TRIGGERS
+
+# M0006 (evo-12, public-launch hardening): email verification + reset tokens, invites (registration + team), team membership.
+# Existing users are grandfathered as verified (they predate verification). Tokens and invite codes are stored only as sha256.
+M0006_LAUNCH = """
+ALTER TABLE users ADD COLUMN email_verified_at BIGINT;
+UPDATE users SET email_verified=1, email_verified_at=created_at WHERE email_verified=0;
+CREATE TABLE email_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose TEXT NOT NULL CHECK (purpose IN ('verify','reset')),
+  token_hash TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  expires_at BIGINT NOT NULL,
+  used_at BIGINT
+);
+CREATE INDEX idx_email_tokens_user ON email_tokens (user_id, purpose);
+CREATE TABLE invites (
+  id TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL CHECK (kind IN ('registration','team')),
+  email TEXT,
+  team_owner_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  created_by TEXT,
+  note TEXT NOT NULL DEFAULT '',
+  created_at BIGINT NOT NULL,
+  expires_at BIGINT NOT NULL,
+  max_uses INTEGER NOT NULL DEFAULT 1,
+  uses INTEGER NOT NULL DEFAULT 0,
+  used_by TEXT,
+  used_at BIGINT,
+  revoked_at BIGINT
+);
+CREATE INDEX idx_invites_owner ON invites (team_owner_id, kind);
+CREATE TABLE team_members (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at BIGINT NOT NULL
+);
+CREATE INDEX idx_team_owner ON team_members (owner_id, joined_at);
+"""
 
 MIGRATIONS: tuple[tuple[int, str, str], ...] = (
     (1, "accounts_sessions", M0001_ACCOUNTS),
@@ -313,4 +359,5 @@ MIGRATIONS: tuple[tuple[int, str, str], ...] = (
     (3, "audit_log", M0003_AUDIT),
     (4, "billing", M0004_BILLING),
     (5, "billing_v2_tax_brokers_ledger", M0005_BILLING_V2),
+    (6, "launch_hardening", M0006_LAUNCH),
 )

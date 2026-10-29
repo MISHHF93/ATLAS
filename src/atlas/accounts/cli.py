@@ -5,6 +5,9 @@
   set-role EMAIL admin|user change a role (the owner role is only granted here)
   rewrap                    move every wrapped data key to the current ATLAS_MASTER_KEY (after setting ATLAS_MASTER_KEY_PREVIOUS)
   verify-audit              verify the audit hash chain
+  create-invite [EMAIL]     mint a registration invite as the owner (the code is printed once; only its hash is stored)
+  print-pg-schema           print the Postgres DDL (ledger immutability triggers rendered as a plpgsql guard)
+  migrate-pg                apply the Postgres migrations to ATLAS_DATABASE_URL (needs psycopg; the app itself still runs on SQLite)
 """
 from __future__ import annotations
 
@@ -21,7 +24,29 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "gen-master-key":
         print(crypto.generate_master_key())
         return 0
+    if cmd == "print-pg-schema":
+        from .dialect import render_schema
+        print(render_schema("postgresql")); return 0
+    if cmd == "migrate-pg":
+        from . import dialect
+        url = dialect.database_url()
+        if not url:
+            print("set ATLAS_DATABASE_URL (postgresql://...)"); return 1
+        try:
+            import psycopg
+        except ImportError:
+            print("psycopg is not installed: pip install 'psycopg[binary]'"); return 1
+        with psycopg.connect(url) as pg:
+            print("applied:", dialect.apply_postgres(pg))
+        return 0
     with connect() as conn:
+        if cmd == "create-invite" and len(a) in (1, 2):
+            owner = conn.execute("SELECT id FROM users WHERE role='owner'").fetchone()
+            if not owner:
+                print("create the owner first (create-owner EMAIL)"); return 1
+            from . import onboarding
+            inv = onboarding.create_invite(conn, auth.get_user(conn, owner["id"]), a[1] if len(a) == 2 else None, send=False)
+            print(f"invite code (shown once): {inv['code']}"); return 0
         if cmd == "create-owner" and len(a) == 2:
             email = auth.normalize_email(a[1])
             row = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
@@ -29,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("an owner already exists"); return 1
             if row:
                 with tx(conn):
-                    conn.execute("UPDATE users SET role='owner' WHERE id=?", (row["id"],))
+                    conn.execute("UPDATE users SET role='owner', email_verified=1 WHERE id=?", (row["id"],))
                     audit.log(conn, None, "cli.promote_owner", "user", row["id"])
                 print("promoted existing user to owner"); return 0
             pw = getpass.getpass("Password (min 12 chars): ")
@@ -37,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("passwords differ"); return 1
             import os
             env = dict(os.environ, ATLAS_OWNER_EMAIL=email)
-            u = auth.register(conn, email, pw, env=env)
+            u = auth.register(conn, email, pw, env=env, verified=True)
             print(f"created {u.role} {u.email}"); return 0
         if cmd == "set-role" and len(a) == 3 and a[2] in ("admin", "user"):
             email = auth.normalize_email(a[1])

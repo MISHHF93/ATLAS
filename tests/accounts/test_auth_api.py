@@ -16,7 +16,8 @@ def test_register_login_logout_flow(client):
 
 
 def test_cookie_attributes(client):
-    r = client.post("/api/account/register", json={"email": "c@example.com", "password": PW})
+    signup(client, "c@example.com")
+    r = client.post("/api/account/login", json={"email": "c@example.com", "password": PW})
     sc = r.headers["set-cookie"].lower()
     assert "httponly" in sc and "samesite=lax" in sc and "path=/" in sc and "max-age=" in sc
     assert "atlas_session=" in sc
@@ -24,12 +25,14 @@ def test_cookie_attributes(client):
 
 def test_cookie_secure_when_https(client, monkeypatch):
     monkeypatch.setenv("ATLAS_PUBLIC_URL", "https://atlas.example.com")
-    r = client.post("/api/account/register", json={"email": "s@example.com", "password": PW})
+    monkeypatch.setenv("ATLAS_REQUIRE_EMAIL_VERIFICATION", "0")  # an https public URL makes verification mandatory by default
+    signup(client, "s@example.com")
+    r = client.post("/api/account/login", json={"email": "s@example.com", "password": PW})
     assert "secure" in r.headers["set-cookie"].lower()
 
 
 def test_session_token_stored_hashed(client, acct_env):
-    r = client.post("/api/account/register", json={"email": "h@example.com", "password": PW})
+    signup(client, "h@example.com")
     token = client.cookies.get("atlas_session")
     assert token
     with db.connect() as c:
@@ -55,7 +58,7 @@ def test_duplicate_email_does_not_overwrite(client):
     signup(client)
     client.cookies.clear()
     r = client.post("/api/account/register", json={"email": "A@Example.com", "password": PW + "x"})
-    assert r.status_code == 409 and r.json()["error"] == "email_unavailable"
+    assert r.status_code == 200 and r.json()["status"] == "check_your_email"  # identical to a fresh sign-up: no enumeration
     assert client.post("/api/account/login", json={"email": "a@example.com", "password": PW}).status_code == 200
 
 

@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from . import audit
+from . import audit, netinfo
 from .db import tx
 from .passwords import PasswordPolicyError, check_policy, hash_password, needs_rehash, verify_password
 
@@ -44,6 +44,7 @@ class User:
     created_at: int
     last_login_at: int | None
     referral_code: str | None = None
+    email_verified: bool = False
 
     @property
     def is_owner(self) -> bool:
@@ -55,11 +56,12 @@ class User:
 
     def public(self) -> dict[str, Any]:
         return {"id": self.id, "email": self.email, "role": self.role, "display_name": self.display_name, "timezone": self.timezone,
-                "created_at": self.created_at, "last_login_at": self.last_login_at, "referral_code": self.referral_code}
+                "created_at": self.created_at, "last_login_at": self.last_login_at, "referral_code": self.referral_code,
+                "email_verified": self.email_verified}
 
 
 def _user(r: sqlite3.Row) -> User:
-    return User(r["id"], r["email"], r["role"], r["status"], r["display_name"], r["timezone"], r["created_at"], r["last_login_at"], r["referral_code"])
+    return User(r["id"], r["email"], r["role"], r["status"], r["display_name"], r["timezone"], r["created_at"], r["last_login_at"], r["referral_code"], bool(r["email_verified"]))
 
 
 def normalize_email(email: str) -> str:
@@ -101,8 +103,13 @@ def get_user(conn, user_id: str) -> User | None:
     return _user(r) if r else None
 
 
-def registration_mode() -> str:
-    return os.environ.get("ATLAS_REGISTRATION", "open").strip().lower()
+REGISTRATION_MODES = ("open", "invite", "closed")
+
+
+def registration_mode(env: dict[str, str] | None = None) -> str:
+    """``open`` (anyone), ``invite`` (a valid invite code, the DEFAULT) or ``closed``. An unknown value fails to ``invite``, never ``open``."""
+    v = (os.environ if env is None else env).get("ATLAS_REGISTRATION", "invite").strip().lower() or "invite"
+    return v if v in REGISTRATION_MODES else "invite"
 
 
 def new_referral_code() -> str:
@@ -110,11 +117,12 @@ def new_referral_code() -> str:
 
 
 def register(conn, email: str, password: str, display_name: str = "", ip: str = "", ref: str | None = None,
-             now: float | None = None, env: dict[str, str] | None = None) -> User:
+             now: float | None = None, env: dict[str, str] | None = None, verified: bool = False, in_tx=None) -> User:
+    """Create an account. This is the TRUSTED creator (CLI, tests, and ``onboarding.register_public`` after its policy checks): it does not
+    look at ``ATLAS_REGISTRATION``. ``in_tx(conn, user_id)`` runs inside the same transaction (invite redemption, team join); if it
+    raises, the account is not created."""
     now = time.time() if now is None else now
     env = os.environ if env is None else env
-    if registration_mode() == "closed":
-        raise AuthError("registration_closed", 403)
     e = normalize_email(email)
     _throttle(conn, [(f"register:ip:{ip}", REGISTER_MAX_PER_IP, REGISTER_WINDOW)], now)
     try:
@@ -132,16 +140,19 @@ def register(conn, email: str, password: str, display_name: str = "", ip: str = 
     code = ref.strip().upper()[:16] if ref else None
     try:
         with tx(conn):
-            conn.execute("INSERT INTO users (id,email,password_hash,role,display_name,referral_code,referred_by_code,created_at,updated_at,password_changed_at)"
-                         " VALUES (?,?,?,?,?,?,?,?,?,?)",
-                         (uid, e, ph, role, (display_name or "").strip()[:80], new_referral_code(), code, int(now), int(now), int(now)))
+            conn.execute("INSERT INTO users (id,email,password_hash,role,display_name,referral_code,referred_by_code,created_at,updated_at,password_changed_at,"
+                         "email_verified,email_verified_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                         (uid, e, ph, role, (display_name or "").strip()[:80], new_referral_code(), code, int(now), int(now), int(now),
+                          1 if verified else 0, int(now) if verified else None))
             if code:
                 ref_row = conn.execute("SELECT id FROM users WHERE referral_code=?", (code,)).fetchone()
                 if ref_row and ref_row["id"] != uid:
                     conn.execute("INSERT INTO partner_referrals (id,referrer_user_id,referred_user_id,code,status,created_at) VALUES (?,?,?,?,?,?)",
                                  (uuid.uuid4().hex, ref_row["id"], uid, code, "pending", int(now)))
-            audit.log(conn, uid, "user.register", "user", uid, detail={"role": role, "referred": bool(code)}, now=now)
+            audit.log(conn, uid, "user.register", "user", uid, detail={"role": role, "referred": bool(code), "verified": bool(verified)}, now=now)
             _record(conn, f"register:ip:{ip}", False, now)  # counts every attempt
+            if in_tx is not None:
+                in_tx(conn, uid)
     except sqlite3.IntegrityError as ex:
         raise AuthError("email_unavailable", 409, message="That email can't be registered.") from ex
     return get_user(conn, uid)  # type: ignore[return-value]
@@ -164,6 +175,9 @@ def authenticate(conn, email: str, password: str, ip: str = "", now: float | Non
             audit.log(conn, row["id"] if row else None, "auth.login", "user", row["id"] if row else "", outcome="denied",
                       detail={"reason": "bad_credentials_or_disabled"}, now=now)
         raise AuthError("invalid_credentials", 401, message="Email or password is incorrect.")
+    if not row["email_verified"] and netinfo.require_email_verification():
+        # only reachable with the right password, so it reveals nothing to someone who does not already control the account
+        raise AuthError("email_not_verified", 403, message="Confirm your email address first. Check your inbox, or request a new link.")
     with tx(conn):
         conn.execute("DELETE FROM login_attempts WHERE bucket=?", (eb,))
         conn.execute("UPDATE users SET last_login_at=? WHERE id=?", (int(now), row["id"]))
@@ -294,9 +308,10 @@ def delete_account(conn, user_id: str, password: str, now: float | None = None) 
                     or conn.execute("SELECT 1 FROM payouts_ledger l JOIN invoices i ON i.id=l.invoice_id WHERE i.user_id=? LIMIT 1", (user_id,)).fetchone())
         if retained:
             for tbl, col in (("sessions", "user_id"), ("oauth_identities", "user_id"), ("connector_secrets", "user_id"), ("connectors", "user_id"),
-                             ("subscriptions", "user_id"), ("usage_events", "user_id"), ("partner_referrals", "referrer_user_id"), ("partner_referrals", "referred_user_id")):
+                             ("subscriptions", "user_id"), ("usage_events", "user_id"), ("partner_referrals", "referrer_user_id"), ("partner_referrals", "referred_user_id"),
+                             ("email_tokens", "user_id"), ("team_members", "user_id"), ("team_members", "owner_id"), ("invites", "team_owner_id")):
                 conn.execute(f"DELETE FROM {tbl} WHERE {col}=?", (user_id,))
-            conn.execute("UPDATE users SET email=?, password_hash=NULL, status='disabled', display_name='', referral_code=NULL, referred_by_code=NULL, updated_at=? WHERE id=?",
+            conn.execute("UPDATE users SET email=?, password_hash=NULL, status='disabled', display_name='', referral_code=NULL, referred_by_code=NULL, updated_at=?, email_verified=0 WHERE id=?",
                          (f"deleted-{user_id}@deleted.invalid", int(now), user_id))
         else:
             conn.execute("DELETE FROM users WHERE id=?", (user_id,))  # cascades: sessions, connectors, secrets, subscriptions

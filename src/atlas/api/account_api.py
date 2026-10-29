@@ -9,11 +9,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
-from atlas.accounts import audit, auth, billing, brokers, connectors, crypto, entitlements, flooos, ledger, stripe_client
+from atlas.accounts import (audit, auth, billing, brokers, connectors, crypto, entitlements, flooos, ledger, mailer, netinfo, onboarding, stripe_client, teams)
 from atlas.accounts.catalog import CATEGORIES, TestContext
 from atlas.accounts.db import connect
 from atlas.accounts.http import fetch
 from atlas.accounts.middleware import COOKIE, AccountsMiddleware, require_auth
+from atlas.accounts.security_headers import SecurityHeadersMiddleware
 
 router = APIRouter()
 MAX_BODY = 32_768
@@ -87,29 +88,61 @@ def _s(v: Any, n: int = 200) -> str:
 
 # ---------------- account ----------------
 @router.get("/api/account/config")
-def account_config() -> dict[str, Any]:
+def account_config(request: Request) -> dict[str, Any]:
     st = stripe_client.configured()
-    return {"registration": auth.registration_mode(), "require_auth": require_auth(), "master_key_configured": crypto.master_key_configured(),
+    return {"registration": auth.registration_mode(), "require_auth": require_auth(request.scope), "master_key_configured": crypto.master_key_configured(),
             "password_min_length": 12, "stripe_test_mode": {"checkout": st["secret_key"], "webhook": st["webhook_secret"]},
-            "oauth_providers": [], "execution_permission": "none"}
+            "email_verification_required": netinfo.require_email_verification(), "mail_backend": mailer.backend_name(),
+            "public_deployment": netinfo.public_deployment(), "oauth_providers": [], "execution_permission": "none"}
 
 
 @router.get("/api/account/me")
 def me(request: Request) -> dict[str, Any]:
     s = session_of(request)
+    ra = require_auth(request.scope)
     if s is None:
-        return {"authenticated": False, "require_auth": require_auth(), "registration": auth.registration_mode()}
-    return {"authenticated": True, "user": s.user.public(), "csrf_token": s.csrf_token, "require_auth": require_auth()}
+        return {"authenticated": False, "require_auth": ra, "registration": auth.registration_mode(),
+                "email_verification_required": netinfo.require_email_verification()}
+    return {"authenticated": True, "user": s.user.public(), "csrf_token": s.csrf_token, "require_auth": ra,
+            "email_verification_required": netinfo.require_email_verification()}
+
+
+# The response is IDENTICAL for a new and an already-registered address (and sets no cookie): see accounts/onboarding.py.
+ACCEPTED = {"ok": True, "status": "check_your_email",
+            "message": "If that address can be registered, we have sent it a message with the next step. Check your inbox."}
 
 
 @router.post("/api/account/register")
 def register(request: Request, b: dict = Depends(body_of), conn=Depends(db)):
-    user = auth.register(conn, _s(b.get("email"), 254), b.get("password") if isinstance(b.get("password"), str) else "", _s(b.get("display_name"), 80),
-                         ip=_ip(request), ref=_s(b.get("ref"), 16) or None)
-    token, csrf = auth.create_session(conn, user.id, _ip(request), request.headers.get("user-agent", ""))
-    resp = JSONResponse({"user": user.public(), "csrf_token": csrf})
-    _set_cookie(resp, token)
-    return resp
+    onboarding.register_public(conn, _s(b.get("email"), 254), b.get("password") if isinstance(b.get("password"), str) else "", _s(b.get("display_name"), 80),
+                               ip=_ip(request), ref=_s(b.get("ref"), 16) or None, invite_code=_s(b.get("invite"), 120) or None)
+    return ACCEPTED
+
+
+@router.post("/api/account/verify-email")
+def verify_email(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    u = onboarding.verify_email(conn, _s(b.get("token"), 200))
+    return {"ok": True, "email": u.email}
+
+
+@router.post("/api/account/resend-verification")
+def resend_verification(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    s = session_of(request)
+    email = s.user.email if s is not None else _s(b.get("email"), 254)
+    onboarding.resend_verification(conn, email, ip=_ip(request))
+    return {"ok": True, "message": "If that address is waiting for confirmation, we have sent a new link."}
+
+
+@router.post("/api/account/forgot-password")
+def forgot_password(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    onboarding.forgot_password(conn, _s(b.get("email"), 254), ip=_ip(request))
+    return {"ok": True, "message": "If an account exists for that address, we have sent a password reset link."}
+
+
+@router.post("/api/account/reset-password")
+def reset_password(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    onboarding.reset_password(conn, _s(b.get("token"), 200), b.get("new") if isinstance(b.get("new"), str) else "", ip=_ip(request))
+    return {"ok": True, "message": "Password changed. Every device was signed out. Sign in with the new password."}
 
 
 @router.post("/api/account/login")
@@ -301,6 +334,62 @@ def admin_audit(request: Request, conn=Depends(db)) -> dict[str, Any]:
     return {"events": audit.recent(conn, None, 200), "chain": audit.verify_chain(conn)}
 
 
+@router.get("/api/admin/invites")
+def admin_invites(request: Request, conn=Depends(db)) -> dict[str, Any]:
+    s = need_admin(request)
+    return {"invites": onboarding.list_invites(conn, s.user), "registration": auth.registration_mode()}
+
+
+@router.post("/api/admin/invites/create")
+def admin_invite_create(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    s = need_admin(request)
+    days, uses = b.get("ttl_days", 7), b.get("max_uses", 1)
+    if isinstance(days, bool) or not isinstance(days, (int, float)) or isinstance(uses, bool) or not isinstance(uses, int):
+        raise HTTPException(400, "bad_invite_options")
+    return onboarding.create_invite(conn, s.user, _s(b.get("email"), 254) or None, days, _s(b.get("note"), 120), uses)
+
+
+@router.post("/api/admin/invites/revoke")
+def admin_invite_revoke(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    s = need_admin(request)
+    onboarding.revoke_invite(conn, s.user, _s(b.get("id"), 64))
+    return {"ok": True}
+
+
+# ---------------- team seats ----------------
+@router.get("/api/team")
+def team_state(request: Request, conn=Depends(db)) -> dict[str, Any]:
+    return teams.state(conn, need_session(request).user)
+
+
+@router.post("/api/team/invite")
+def team_invite(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    return teams.invite_member(conn, need_session(request).user, _s(b.get("email"), 254))
+
+
+@router.post("/api/team/accept")
+def team_accept(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    return teams.accept_invite(conn, need_session(request).user, _s(b.get("code"), 200))
+
+
+@router.post("/api/team/remove")
+def team_remove(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    teams.remove_member(conn, need_session(request).user, _s(b.get("user_id"), 64))
+    return {"ok": True}
+
+
+@router.post("/api/team/leave")
+def team_leave(request: Request, conn=Depends(db)) -> dict[str, Any]:
+    teams.leave(conn, need_session(request).user)
+    return {"ok": True}
+
+
+@router.post("/api/team/invite/revoke")
+def team_invite_revoke(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    teams.revoke_invite(conn, need_session(request).user, _s(b.get("id"), 64))
+    return {"ok": True}
+
+
 # ---------------- broker referrals (OFF until counsel approves a partner) ----------------
 @router.get("/api/account/brokers")
 def broker_list(request: Request, conn=Depends(db)) -> dict[str, Any]:
@@ -468,4 +557,5 @@ def install(app: FastAPI) -> None:
     async def _tamper(_: Request, ex: crypto.TamperError):
         return _err(500, "secret_integrity_failure", "A stored secret failed authentication.")
 
-    app.add_middleware(AccountsMiddleware)  # added last = outermost: runs before every other middleware
+    app.add_middleware(AccountsMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)  # added last = outermost: security headers on every response, including the 401/403 the layer below produces

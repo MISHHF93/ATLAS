@@ -146,11 +146,47 @@ def current_subscription(conn: sqlite3.Connection, user_id: str, now: float | No
         " ORDER BY updated_at DESC LIMIT 1", (user_id, now - 3 * 86400)).fetchone()
 
 
-def plan_for_user(conn: sqlite3.Connection, user_id: str, now: float | None = None) -> sqlite3.Row:
-    """The user's effective plan. Anything not provably active (past_due, canceled, unknown) is the Free plan: fail to the smallest limits."""
+def own_plan(conn: sqlite3.Connection, user_id: str, now: float | None = None) -> sqlite3.Row:
+    """The plan the user pays for themselves (Free if none is provably active)."""
     sub = current_subscription(conn, user_id, now)
     row = conn.execute("SELECT * FROM plans WHERE id=?", (sub["plan_id"],)).fetchone() if sub else None
     return row or conn.execute("SELECT * FROM plans WHERE code='free'").fetchone()
+
+
+def team_seat_limit(conn: sqlite3.Connection, owner_id: str, now: float | None = None) -> int:
+    """Seats a team owner may fill, the owner's own seat included: the larger of the plan's ``seats_included`` and the seats bought.
+    0 when the owner is not on a Team-tier plan."""
+    sub = current_subscription(conn, owner_id, now)
+    plan = conn.execute("SELECT * FROM plans WHERE id=?", (sub["plan_id"],)).fetchone() if sub else None
+    if not plan or plan["tier"] != "team":
+        return 0
+    return max(int(sub["seats"] or 1), int(plan["seats_included"] or 1))
+
+
+def team_plan_for_member(conn: sqlite3.Connection, user_id: str, now: float | None = None) -> sqlite3.Row | None:
+    """The team owner's plan, if the user holds a seat in a team whose owner is on an active Team plan. Seats are filled in join order:
+    when the owner downgrades or reduces seats, the newest members lose the benefit first (they fall back to their own plan)."""
+    m = conn.execute("SELECT owner_id, joined_at FROM team_members WHERE user_id=?", (user_id,)).fetchone()
+    if not m:
+        return None
+    limit = team_seat_limit(conn, m["owner_id"], now)
+    if limit <= 1:
+        return None
+    earlier = conn.execute("SELECT COUNT(*) FROM team_members WHERE owner_id=? AND (joined_at<? OR (joined_at=? AND user_id<?))",
+                           (m["owner_id"], m["joined_at"], m["joined_at"], user_id)).fetchone()[0]
+    if earlier >= limit - 1:  # the owner holds one seat
+        return None
+    return own_plan(conn, m["owner_id"], now)
+
+
+def plan_for_user(conn: sqlite3.Connection, user_id: str, now: float | None = None) -> sqlite3.Row:
+    """The user's effective plan: the better of what they pay for and what a team seat gives them. Anything not provably active
+    (past_due, canceled, unknown) is the Free plan: fail to the smallest limits."""
+    mine = own_plan(conn, user_id, now)
+    team = team_plan_for_member(conn, user_id, now)
+    if team is not None and TIERS.index(team["tier"]) > TIERS.index(mine["tier"]):
+        return team
+    return mine
 
 
 def subscription_public(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
@@ -162,4 +198,5 @@ def subscription_public(conn: sqlite3.Connection, user_id: str) -> dict[str, Any
     return {"plan": plan["code"], "tier": plan["tier"], "plan_name": plan["name"], "is_placeholder": bool(plan["is_placeholder"]),
             "interval": plan["billing_interval"], "currency": plan["currency"], "seats": int(sub["seats"]) if sub else 1,
             "status": sub["status"] if sub else "free", "current_period_end": sub["current_period_end"] if sub else None,
-            "cancel_at_period_end": bool(sub["cancel_at_period_end"]) if sub else False, "invoices": invs}
+            "cancel_at_period_end": bool(sub["cancel_at_period_end"]) if sub else False, "invoices": invs,
+            "via_team": plan["code"] != own_plan(conn, user_id)["code"]}

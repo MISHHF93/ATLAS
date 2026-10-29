@@ -43,7 +43,7 @@ def test_upgrade_from_m0004_renames_legacy_plans_and_keeps_subscriptions(tmp_pat
     billing_pre = c.execute("SELECT id FROM plans WHERE code='pro'").fetchone()
     c.execute("INSERT INTO users (id,email,created_at,updated_at) VALUES ('u1','a@b.co',1,1)")
     c.execute("INSERT INTO subscriptions (id,user_id,plan_id,status,created_at,updated_at) VALUES ('s1','u1',?,'active',1,1)", (billing_pre["id"],))
-    assert db.migrate(c) == [5]
+    assert db.migrate(c) == [5, 6]
     billing.seed_plans(c)
     r = c.execute("SELECT p.code, p.price_cents, p.tier FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.id='s1'").fetchone()
     assert (r["code"], r["tier"], r["price_cents"]) == ("pro_month_usd", "pro", 2900)
