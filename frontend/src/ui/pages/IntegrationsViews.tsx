@@ -293,3 +293,122 @@ export function CoverageCard() {
     </Card>
   );
 }
+
+/* ---------- Settings → Setup: ordered checklist of every env var and connector ---------- */
+type CheckSvc = { id: string; title: string; state: string; detail: string; signup: string; cost: string; required_vars: Record<string, boolean>; optional_vars: Record<string, boolean>; keyless: boolean };
+type CheckItem = { rank: number; key: string; title: string; why: string; core: boolean; state: "verified" | "needs_verification" | "optional"; failed: boolean; key_present: boolean;
+  next_step: string; services: CheckSvc[]; vars: { name: string; set: boolean; required: boolean; service: string }[]; note: string | null; category?: string };
+type Checklist = { items: CheckItem[]; counts: Record<string, number>; core_verified: number; core_total: number };
+const CHECK_TONE: Record<string, { tone: Tone; text: string }> = {
+  verified: { tone: "good", text: "Verified" }, needs_verification: { tone: "warn", text: "Needs verification" }, optional: { tone: "neutral", text: "Optional" },
+};
+
+export function SetupChecklistCard() {
+  const s = useApi<Checklist>("/api/integrations/checklist", 30000);
+  const [all, setAll] = useState(false);
+  return (
+    <Card id="setup-checklist" title="Environment checklist" span="full"
+      subtitle="Every variable and connector, ordered by impact. Only names and set/missing are shown, never a value. Verified means one read-only check with your key succeeded; a key being present is not enough."
+      actions={s.data ? <Badge tone={s.data.core_verified === s.data.core_total ? "good" : "warn"}>{s.data.core_verified} of {s.data.core_total} core verified</Badge> : null}>
+      <Async state={s} label="Loading the checklist">
+        {(d) => {
+          const shown = all ? d.items : d.items.filter((i) => i.core || i.state !== "optional");
+          return (
+            <>
+              <ol className="ux-list" data-testid="setup-checklist">
+                {shown.map((i) => {
+                  const t = CHECK_TONE[i.state];
+                  return (
+                    <li key={i.key} data-checklist-key={i.key} data-state={i.state}>
+                      <div className="ux-form-row" data-tight>
+                        <strong>{i.rank}. {i.title}</strong>
+                        <Badge tone={i.failed ? "bad" : t.tone}>{i.failed ? "Verification failed" : t.text}</Badge>
+                        {i.core ? <Badge tone="info">core</Badge> : null}
+                      </div>
+                      <p className="ux-small">{i.why}</p>
+                      <p className="ux-small">
+                        {i.vars.map((v) => (<span key={v.name}><code>{v.name}</code> {v.set ? "set" : v.required ? "missing" : "not set (optional)"}{" · "}</span>))}
+                        {i.next_step}
+                      </p>
+                      {i.note ? <p className="ux-small">{i.note}</p> : null}
+                      {i.services.map((sv) => (
+                        <div key={sv.id} className="ux-form-row" data-tight>
+                          <span className="ux-small">{sv.title}</span>
+                          <VerifyCell id={sv.id} v={{ state: sv.state, detail: sv.detail, verified_at: null, key_present: Object.values(sv.required_vars).some(Boolean) || sv.keyless }} onDone={s.reload} />
+                          {sv.signup ? <a className="ux-small" href={sv.signup} target="_blank" rel="noopener noreferrer">Official link ↗</a> : null}
+                        </div>
+                      ))}
+                    </li>
+                  );
+                })}
+              </ol>
+              <button type="button" className="ux-btn" onClick={() => setAll(!all)}>{all ? "Show core and entered only" : `Show all ${d.items.length} (${d.counts.optional} optional)`}</button>
+            </>
+          );
+        }}
+      </Async>
+    </Card>
+  );
+}
+
+/* ---------- Read-only go-live readiness ---------- */
+type Gate = { key: string; title: string; state: "pass" | "fail" | "pending"; detail: string; rule: string; evidence: unknown };
+type Readiness = { gates: Gate[]; passed: number; total: number; headline: string; live_endpoints: string; execution_permission: string; risk_policy: string; read_only: boolean };
+const GATE_TONE: Record<string, { tone: Tone; text: string }> = { pass: { tone: "good", text: "Pass" }, fail: { tone: "bad", text: "Fail" }, pending: { tone: "warn", text: "Pending" } };
+
+export function GoLiveReadinessCard() {
+  const s = useApi<Readiness>("/api/integrations/golive-readiness", 60000);
+  return (
+    <Card id="golive-readiness" title="Go-live readiness (read-only)" span="full"
+      subtitle="The gates that must all pass before real-money trading could even be considered. This panel cannot enable anything: it only reports evidence.">
+      <Async state={s} label="Loading readiness">
+        {(d) => (
+          <>
+            <p className="ux-action-msg" data-tone="warn" role="status" data-testid="golive-banner">
+              {d.headline} Paper only: live endpoints {d.live_endpoints}, ML execution permission {d.execution_permission}, risk policy {d.risk_policy}.
+            </p>
+            <ol className="ux-list" data-testid="golive-gates">
+              {d.gates.map((g, n) => {
+                const t = GATE_TONE[g.state];
+                return (
+                  <li key={g.key} data-gate={g.key} data-state={g.state}>
+                    <div className="ux-form-row" data-tight><strong>{n + 1}. {g.title}</strong><Badge tone={t.tone}>{t.text}</Badge></div>
+                    <p className="ux-small">{g.detail}</p>
+                    <p className="ux-small">Rule: {g.rule}</p>
+                  </li>
+                );
+              })}
+            </ol>
+          </>
+        )}
+      </Async>
+    </Card>
+  );
+}
+
+/* ---------- Live predictions with each source's delay stated ---------- */
+type LivePred = { symbol: string; asset: string; interval: string; delay: string; status: string | null; label: string | null; reason: string | null; direction: string | null; probability: number | null; as_of_toronto: string | null };
+type LivePredResp = { rows: LivePred[]; capability: { label: string; detail: string; mode: string } };
+
+export function LivePredictionsCard() {
+  const s = useApi<LivePredResp>("/api/integrations/live-predictions", 60000);
+  return (
+    <Card id="live-predictions" title="Live ML predictions: crypto and stocks" span="full"
+      subtitle="Directional research model on each symbol's newest closed bar. Crypto uses the live 1-minute tape; stocks use 15-minute bars from Massive. Research display only, never an order.">
+      <Async state={s} label="Loading predictions">
+        {(d) => (
+          <>
+            <p className="ux-small" data-testid="massive-delay">Stock data freshness: {d.capability.label}. {d.capability.detail}</p>
+            <DataTable rows={d.rows} columns={[
+              { key: "symbol", label: "Symbol", render: (r) => r.symbol },
+              { key: "interval", label: "Timeframe", render: (r) => r.interval },
+              { key: "delay", label: "Data delay", render: (r) => r.delay },
+              { key: "pred", label: "Prediction", render: (r) => (r.direction ? `${r.direction}${r.probability != null ? ` (p=${r.probability})` : ""}` : (r.reason ?? r.status ?? "none")) },
+              { key: "label", label: "Label", render: (r) => <Badge tone={r.label?.includes("below") ? "warn" : "neutral"}>{r.label ?? "no model"}</Badge> },
+            ]} />
+          </>
+        )}
+      </Async>
+    </Card>
+  );
+}

@@ -182,8 +182,12 @@ def provider_info(rows, built: str) -> dict[str, Any]:
     if rt is None and delayed is not None:
         rt = not bool(delayed)
     label = ("real-time" if rt else f"delayed{f' {int(delay_s)}s' if delay_s else ''}") if rt is not None else "not tagged"
+    if rt is False and delay_s and int(delay_s) >= 86400:
+        label = "delayed · end-of-day (previous session)"     # not "86400s": say what it means
+    from atlas.feeds.massive_live import delay_note_for
+    note = delay_note_for(getattr(last, "provider", None))
     return {"provider": getattr(last, "provider", None), "providers": provs, "realtime": rt, "delay_s": delay_s,
-            "delay_label": label, "free_only": True, "built": built}
+            "delay_label": label, "delay_note": note, "free_only": True, "built": built}
 
 
 def _layer(fn, *a):

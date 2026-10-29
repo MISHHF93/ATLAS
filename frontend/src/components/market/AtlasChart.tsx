@@ -64,7 +64,7 @@ type Bar = { time: number; open: number; high: number; low: number; close: numbe
 type Status = { status: string; reason?: string; note?: string };
 export type Overlays = {
   status: string; symbol: string; interval: string; bar_type: string; execution_permission: string;
-  provider: { provider: string | null; providers: string[]; realtime: boolean | null; delay_s?: number | null; delay_label: string; built: string };
+  provider: { provider: string | null; providers: string[]; realtime: boolean | null; delay_s?: number | null; delay_label: string; delay_note?: string | null; built: string };
   market_session?: {
     symbol: string; venue_id: string; venue_name: string; status: string; status_label: string;
     is_open: boolean; countdown: string; schedule_summary: string; reason: string;
@@ -661,6 +661,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       {!fill && (
       <footer className="atlas-chart-foot">
         {live && <span>Live: forming minute from {tapeOk ? `${tape.snap!.feed_origin ?? "public"} ticks` : "no genuine public tape yet"}{tape.err ? ` (${tape.err})` : ""}. Markers and predictions update on 1m bar close only.</span>}
+        {p?.delay_note && <span data-testid="chart-delay-note">Stock data freshness: {p.delay_note}</span>}
         {!live && data?.display && data.display.status !== "ok" && <span>{data.display.kind}: {data.display.reason}</span>}
         {!live && data?.display?.note && data.display.status === "ok" && <span>{data.display.note}.</span>}
         {unavailable.map((l) => <span key={l.id}>{l.label}: {data!.layers[l.id as keyof Overlays["layers"]]!.reason ?? data!.layers[l.id as keyof Overlays["layers"]]!.note ?? "no data for this symbol/interval"}</span>)}
@@ -673,7 +674,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       <footer className="atlas-chart-foot is-line" title="Open Details for the full data, layer and model notes.">
         {live
           ? <span>Live: forming minute from {tapeOk ? `${tape.snap!.feed_origin ?? "public"} ticks` : "no genuine public tape yet"}{tape.err ? ` (${tape.err})` : ""}. Markers and predictions update on 1m bar close only. </span>
-          : <span>Data: ATLAS feed ({p?.built ?? "—"}), free sources only. Times America/Toronto. Paper only. </span>}
+          : <span>Data: ATLAS feed ({p?.built ?? "—"}), free sources only. Times America/Toronto. Paper only. {p?.delay_note ? `Freshness: ${p.delay_label}. ` : ""}</span>}
         {unavailable.length > 0 && <span>· {unavailable.length} layer{unavailable.length === 1 ? "" : "s"} without data (see Details). </span>}
         {!live && data?.display && data.display.status !== "ok" && <span>· {data.display.kind}: {data.display.reason}</span>}
       </footer>
@@ -685,6 +686,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
             <span className="atlas-chart-links"><a href={tradingViewUrl(sym)} target="_blank" rel="noopener noreferrer">Open in TradingView ↗</a><a href="/research?tab=scan">Pine v5 export</a></span></div>}
           <div className="atlas-chart-foot">
         {live && <span>Live: forming minute from {tapeOk ? `${tape.snap!.feed_origin ?? "public"} ticks` : "no genuine public tape yet"}{tape.err ? ` (${tape.err})` : ""}. Markers and predictions update on 1m bar close only.</span>}
+        {p?.delay_note && <span data-testid="chart-delay-note">Stock data freshness: {p.delay_note}</span>}
         {!live && data?.display && data.display.status !== "ok" && <span>{data.display.kind}: {data.display.reason}</span>}
         {!live && data?.display?.note && data.display.status === "ok" && <span>{data.display.note}.</span>}
         {unavailable.map((l) => <span key={l.id}>{l.label}: {data!.layers[l.id as keyof Overlays["layers"]]!.reason ?? data!.layers[l.id as keyof Overlays["layers"]]!.note ?? "no data for this symbol/interval"}</span>)}

@@ -270,6 +270,29 @@ class LiveIngest:
                     await asyncio.sleep(1.0)  # <= 1 req/s to Yahoo
                 await asyncio.sleep(5)
 
+    async def _massive_loop(self):  # pragma: no cover - network
+        """US stocks via Massive: an end-of-day refresh on the free plan, a polled snapshot on a paid plan (see feeds/massive_live.py)."""
+        from atlas.integrations.registry import load_env
+        from atlas.accounts.credentials import effective_environ
+        from . import massive_live as ML
+        from .feed import AtlasFeed
+        feed = AtlasFeed(self.store)
+        last_refresh = 0.0
+        while True:
+            try:
+                env = dict(load_env(environ=dict(effective_environ())))
+                if ML.has_key(env):
+                    ids = ML.stock_instruments(feed)
+                    if ML.is_paid(env):
+                        r = await asyncio.to_thread(ML.poll_snapshot, feed, env, ids)
+                        self.stats["massive"] = r.get("quotes", 0)
+                    if time.time() - last_refresh >= ML.REFRESH_EVERY_S:
+                        last_refresh = time.time()
+                        await asyncio.to_thread(ML.refresh, feed, env, ids)
+            except Exception as e:  # noqa: BLE001
+                self.stats["errors"]["massive"] = f"{time.strftime('%H:%M:%S')} {type(e).__name__}"[:200]
+            await asyncio.sleep(ML.SNAPSHOT_EVERY_S)
+
     async def run(self, duration: float | None = None):  # pragma: no cover - network
         streams = "/".join(f"{p.lower()}@kline_1m" for p in self.binance)
         tasks = [
@@ -282,6 +305,7 @@ class LiveIngest:
             asyncio.create_task(self._ws("okx", [OKX_WS], {"op": "subscribe", "args": [
                 {"channel": "candle1m", "instId": sym} for sym in self.okx]}, self._on_okx)),
             asyncio.create_task(self._yahoo_loop()),
+            asyncio.create_task(self._massive_loop()),
             asyncio.create_task(self._refresh_bars()),
             asyncio.create_task(self._official_daily()),
             asyncio.create_task(self._report()),

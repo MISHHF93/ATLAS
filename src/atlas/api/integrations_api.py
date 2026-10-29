@@ -36,6 +36,46 @@ def integrations_verification() -> dict[str, Any]:
     return {"states": states, "secrets_echoed": False, "execution_permission": "none"}
 
 
+@router.get("/checklist")
+def integrations_checklist() -> dict[str, Any]:
+    """Every env var and connector, ordered by impact, with verified / needs_verification / optional. Names and booleans only."""
+    from atlas.accounts.credentials import effective_environ
+    from atlas.integrations import checklist as c
+    from atlas.integrations.registry import load_env
+    return c.build(load_env(environ=dict(effective_environ())))
+
+
+@router.get("/golive-readiness")
+def integrations_golive_readiness() -> dict[str, Any]:
+    """READ-ONLY gates that must pass before real-money trading could even be considered. Cannot enable anything."""
+    from atlas.integrations import golive
+    return golive.report()
+
+
+@router.get("/massive-live")
+def massive_live(symbol: str = Query("SPY")) -> dict[str, Any]:
+    """How fresh Massive stock data is right now (plain language) and the newest stored bar for ``symbol``. Read-only; no key echoed."""
+    from atlas.accounts.credentials import effective_environ
+    from atlas.feeds import massive_live as ML
+    from atlas.feeds.feed import get_feed
+    from atlas.integrations.registry import load_env
+    env = dict(load_env(environ=dict(effective_environ())))
+    return ML.status_for(get_feed(), symbol.strip().upper(), env)
+
+
+@router.get("/live-predictions")
+def live_predictions(symbols: str = Query("BTCUSDT,ETHUSDT,SPY,AAPL,QQQ,NVDA")) -> dict[str, Any]:
+    """Directional research model on the newest closed bar, crypto on 1m and stocks on 15m, with each source's delay stated. Research only."""
+    from atlas.accounts.credentials import effective_environ
+    from atlas.feeds import massive_live as ML
+    from atlas.feeds.feed import get_feed
+    from atlas.integrations.registry import load_env
+    env = dict(load_env(environ=dict(effective_environ())))
+    syms = [x.strip().upper() for x in symbols.split(",") if x.strip()][:12]
+    return {"status": "ok", "capability": ML.capability(env), "rows": ML.live_predictions(get_feed(), syms, env),
+            "execution_permission": "none", "paper_only": True}
+
+
 # ---- chart sources: Alpaca IEX bars become selectable once ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY are set ----
 CHART_TF = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1d": 86400}
 
