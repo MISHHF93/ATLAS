@@ -98,7 +98,7 @@ def parse_ics(text: str) -> list[dict[str, Any]]:
             if ":" in line:
                 k, v = line.split(":", 1)
                 f.setdefault(k.split(";")[0], v)
-        m = re.search(r"DTSTART[^:]*:(\d{8})(?:T(\d{6}))?", blk)
+        m = re.search(r"DTSTART[^:]*:(\d{8})(?:T(\d{6}))?(Z)?", blk)
         if not m:
             continue
         d, t = m.group(1), m.group(2) or "000000"
@@ -106,7 +106,7 @@ def parse_ics(text: str) -> list[dict[str, Any]]:
             local = dt.datetime.strptime(d + t, "%Y%m%d%H%M%S")
         except ValueError:
             continue
-        when = local.replace(tzinfo=NY) if "Z" not in blk.split("DTSTART", 1)[1][:40] else local.replace(tzinfo=dt.timezone.utc)
+        when = local.replace(tzinfo=dt.timezone.utc if m.group(3) else NY)   # a trailing Z means UTC; otherwise the schedule's TZID is US-Eastern
         out.append({"ts": when.timestamp(), "title": f.get("SUMMARY", "").replace("\\,", ","), "important": "IMPORTANT" in f.get("CATEGORIES", ""), "all_day": m.group(2) is None})
     return out
 
@@ -315,7 +315,8 @@ def parse_feed(body: bytes) -> list[dict[str, Any]]:
         if tag not in ("item", "entry"):
             continue
         g = lambda n: next((c for c in it if c.tag.rsplit("}", 1)[-1] == n), None)  # noqa: E731
-        title, link, date = g("title"), g("link"), g("pubDate") or g("date") or g("updated")
+        title, link = g("title"), g("link")
+        date = next((d for d in (g("pubDate"), g("date"), g("updated")) if d is not None), None)   # Element truthiness is child-count: compare with None
         href = (link.get("href") or link.text) if link is not None else None
         ts = None
         if date is not None and date.text:
