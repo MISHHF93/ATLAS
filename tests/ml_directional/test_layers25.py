@@ -151,7 +151,7 @@ def test_events_layer_ok_with_injected_calendar(monkeypatch):
 
 
 def test_frontend_has_26_layers_and_the_eleven_new_are_off_by_default():
-    src = Path(__file__).resolve().parents[2].joinpath("frontend/src/components/market/AtlasChart.tsx").read_text()
+    src = Path(__file__).resolve().parents[2].joinpath("frontend/src/components/market/AtlasChart.tsx").read_text(encoding="utf-8")
     block = re.search(r"const LAYERS = \[(.*?)\] as const;", src, re.S).group(1)
     ids = re.findall(r'id: "([a-z_0-9]+)"', block)
     assert len(ids) == 26 and len(set(ids)) == 26      # 15 existing + 10 evo-14 + layer 26 'news'
