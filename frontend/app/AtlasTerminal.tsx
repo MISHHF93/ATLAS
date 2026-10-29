@@ -3102,8 +3102,9 @@ export function AtlasTerminal({
           if (Array.isArray(listingsBody.listings) && listingsBody.listings.length > 0) {
             setListingsList(listingsBody.listings);
           }
-          if (Array.isArray(listingsBody.open_markets)) {
-            setOpenMarkets(listingsBody.open_markets);
+          const listingsOpen = (listingsBody as { open_markets?: unknown }).open_markets;
+          if (Array.isArray(listingsOpen)) {
+            setOpenMarkets(listingsOpen as Parameters<typeof setOpenMarkets>[0]);
           }
           if (Array.isArray(syncBody.pipelines) && syncBody.pipelines.length > 0) {
             setSyncPipelines(syncBody.pipelines);

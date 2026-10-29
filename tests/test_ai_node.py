@@ -55,3 +55,16 @@ def test_old_and_new_paths_guarded(tmp_path, monkeypatch):
 def test_main_app_exposes_ai_namespace():
     from atlas.api.app import _route_mounted
     assert all(_route_mounted(p) for p in ("/api/ai/status", "/api/ai/components", "/api/ai/audit"))
+
+
+def test_local_ml_modules_are_registered_and_advisory():
+    """Island/niche evolution, the research hand and the outcome ledger sit behind the AI node (execution_permission none)."""
+    import importlib
+
+    from atlas.ai.node import EXECUTION_PERMISSION
+
+    registered = {m for c in REGISTRY for m in c.modules}
+    for mod in ("atlas.ai.ml.market_islands", "atlas.ai.ml.niche_archive", "atlas.ai.ml.live_intelligence", "atlas.ai.models.outcome_ledger"):
+        assert mod in registered
+        importlib.import_module(mod)
+    assert EXECUTION_PERMISSION == "none"

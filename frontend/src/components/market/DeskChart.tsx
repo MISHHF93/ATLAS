@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ModelFlowPanel } from "./ModelFlowPanel";
 import type { LiveSnapshot } from "./liveTypes";
 import { AtlasChart } from "./AtlasChart";
@@ -19,12 +20,20 @@ export function DeskChart({ symbol, timeframe, frameClassName, gap, modelSymbol,
   onTimeframe?: (tf: string) => void;
 }) {
   const live = timeframe === "1s";
+  // Chart height follows the viewport (about half of it, clamped) so it fits at 1366x768 and 1920x1080 without a fixed 480px stage.
+  const [chartH, setChartH] = useState(420);
+  useEffect(() => {
+    const fit = () => setChartH(Math.min(640, Math.max(300, Math.round(window.innerHeight * 0.5))));
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
   const sym = modelSymbol ?? symbol;
   return (
     <div className={frameClassName}>
       <div className="desk-chart-stage">
         <div className="desk-atlas-picture">
-          <AtlasChart symbol={sym} timeframe={timeframe} height={480} onTimeframe={onTimeframe} onLiveSnapshot={onSnapshot}
+          <AtlasChart symbol={sym} timeframe={timeframe} height={chartH} onTimeframe={onTimeframe} onLiveSnapshot={onSnapshot}
             liveExtras={(snap, err) => <ModelFlowPanel symbol={sym} bucketSeconds={snap?.bucket_seconds ?? 1} intervalLabel="Real time"
               snapshot={snap} snapshotError={err} refreshSeconds={snap?.refresh_seconds} />} />
         </div>

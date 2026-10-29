@@ -139,37 +139,42 @@ def build_broker_intelligence_snapshot() -> dict[str, Any]:
     broker_desc = broker.describe()
     recon = reconcile(broker)
 
-    cp_state = control_engine.snapshot_state()
+    from atlas.research.control_snapshot import control_snapshot
+    cp_state = control_snapshot()
     cp_acct = cp_state.get("account", {})
     cp_positions = list(cp_state.get("open_positions", []))
 
-    atlas_equity = float(cp_acct.get("current_equity_usd", 100000.0))
-    atlas_starting_equity = float(cp_acct.get("starting_equity_usd", 100000.0))
-    atlas_realized_pnl = float(cp_acct.get("realized_pnl_today_usd", 0.0))
-    atlas_unrealized_pnl = float(cp_acct.get("unrealized_pnl_usd", 0.0))
-    atlas_cum_pnl = float(cp_acct.get("total_cumulative_profit_usd", 0.0))
+    def _opt(v: Any) -> float | None:
+        return float(v) if v is not None else None
+
+    # No invented account balances: missing control-plane values stay None (unavailable).
+    atlas_equity = _opt(cp_acct.get("current_equity_usd"))
+    atlas_starting_equity = _opt(cp_acct.get("starting_equity_usd"))
+    atlas_realized_pnl = _opt(cp_acct.get("realized_pnl_today_usd"))
+    atlas_unrealized_pnl = _opt(cp_acct.get("unrealized_pnl_usd"))
+    atlas_cum_pnl = _opt(cp_acct.get("total_cumulative_profit_usd"))
 
     gross_exp = sum(abs(float(p.get("notional_usd", 0.0))) for p in cp_positions)
     net_exp = sum(
         float(p.get("notional_usd", 0.0)) * (1.0 if p.get("side") == "buy" else -1.0)
         for p in cp_positions
     )
-    atlas_cash = max(0.0, atlas_equity - gross_exp)
+    atlas_cash = max(0.0, atlas_equity - gross_exp) if atlas_equity is not None else None
 
     broker_connected = recon.get("status") in {"ok", "partial"} and isinstance(recon.get("account"), dict)
     broker_acct = recon.get("account") if broker_connected else None
 
     def _tagged(
         broker_val: float | None,
-        atlas_val: float,
+        atlas_val: float | None,
         *,
         is_estimated: bool = False,
         is_stale: bool = False,
     ) -> dict[str, Any]:
-        diff = round(float(broker_val) - atlas_val, 2) if broker_val is not None else None
+        diff = round(float(broker_val) - atlas_val, 2) if broker_val is not None and atlas_val is not None else None
         return {
             "broker_reported": round(float(broker_val), 2) if broker_val is not None else None,
-            "atlas_calculated": round(atlas_val, 2),
+            "atlas_calculated": round(atlas_val, 2) if atlas_val is not None else None,
             "discrepancy_usd": diff,
             "source_tag": (
                 "STALE"
@@ -179,6 +184,8 @@ def build_broker_intelligence_snapshot() -> dict[str, Any]:
                 else "ESTIMATED"
                 if is_estimated
                 else "ATLAS_CALCULATED"
+                if atlas_val is not None
+                else "UNAVAILABLE"
             ),
         }
 
@@ -187,21 +194,21 @@ def build_broker_intelligence_snapshot() -> dict[str, Any]:
     b_bp = float(broker_acct["buying_power"]) if broker_acct and broker_acct.get("buying_power") is not None else None
 
     # Build deterministic ATLAS paper equity curve from recorded daily/trade state
-    equity_curve = [
+    equity_curve = [] if atlas_equity is None or atlas_starting_equity is None or atlas_starting_equity <= 0 else [
         {"step": 0, "label": "Start", "equity_usd": round(atlas_starting_equity, 2), "drawdown_pct": 0.0, "daily_return_pct": 0.0, "source": "ATLAS_CALCULATED"},
         {
             "step": 1,
             "label": "Current",
             "equity_usd": round(atlas_equity, 2),
-            "drawdown_pct": round(max(0.0, (atlas_starting_equity - atlas_equity) / max(1.0, atlas_starting_equity) * 100.0), 4),
-            "daily_return_pct": round(((atlas_equity - atlas_starting_equity) / max(1.0, atlas_starting_equity)) * 100.0, 4),
+            "drawdown_pct": round(max(0.0, (atlas_starting_equity - atlas_equity) / atlas_starting_equity * 100.0), 4),
+            "daily_return_pct": round(((atlas_equity - atlas_starting_equity) / atlas_starting_equity) * 100.0, 4),
             "source": "BROKER_REPORTED" if b_equity is not None else "ATLAS_CALCULATED",
         },
     ]
 
     # Concentration & correlated exposure
     largest_notional = max((abs(float(p.get("notional_usd", 0.0))) for p in cp_positions), default=0.0)
-    max_concentration_pct = (largest_notional / max(1.0, atlas_equity)) * 100.0
+    max_concentration_pct = (largest_notional / atlas_equity) * 100.0 if atlas_equity else None
 
     return {
         "as_of_utc": now_iso,
@@ -221,19 +228,20 @@ def build_broker_intelligence_snapshot() -> dict[str, Any]:
         "metrics": {
             "current_equity_usd": _tagged(b_equity, atlas_equity),
             "cash_usd": _tagged(b_cash, atlas_cash),
-            "buying_power_usd": _tagged(b_bp, atlas_cash * 2.0, is_estimated=b_bp is None),
+            "buying_power_usd": _tagged(b_bp, None),  # broker-reported only; ATLAS does not model buying power
             "gross_exposure_usd": _tagged(None, gross_exp),
             "net_exposure_usd": _tagged(None, net_exp),
             "realized_pnl_usd": _tagged(None, atlas_realized_pnl),
             "unrealized_pnl_usd": _tagged(None, atlas_unrealized_pnl),
             "cumulative_profit_usd": _tagged(None, atlas_cum_pnl),
-            "estimated_fees_usd": _tagged(None, round(len(cp_positions) * 1.50, 2), is_estimated=True),
+            "estimated_fees_usd": _tagged(None, None),  # no fee ledger available; not estimated
         },
         "exposure_and_concentration": {
             "open_positions_count": len(cp_positions),
-            "max_single_position_concentration_pct": round(max_concentration_pct, 2),
-            "correlated_exposure_pct": round((gross_exp / max(1.0, atlas_equity)) * 100.0, 2),
-            "margin_requirement_usd": round(gross_exp * 0.25, 2),
+            "max_single_position_concentration_pct": round(max_concentration_pct, 2) if max_concentration_pct is not None else None,
+            "gross_exposure_pct_of_equity": round((gross_exp / atlas_equity) * 100.0, 2) if atlas_equity else None,
+            "margin_requirement_usd": None,
+            "margin_requirement_reason": "not modelled; requires broker-reported margin",
         },
         "account_restrictions": {
             "kill_switch_engaged": bool(cp_state.get("kill_switch_engaged", False)),
@@ -254,3 +262,4 @@ def build_broker_intelligence_snapshot() -> dict[str, Any]:
         ),
         "execution_permission": EXECUTION_PERMISSION,
     }
+

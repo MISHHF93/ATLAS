@@ -1693,9 +1693,10 @@ export function StreamlinedTradingStudio() {
           1. TOP HEADER BAR
          ==================================================================== */}
       <header
+        className="desk-topbar"
         style={{
-          minHeight: "48px",
-          padding: "6px 14px",
+          minHeight: "40px",
+          padding: "4px 10px",
           background: "var(--c-surface-2)",
           borderBottom: "1px solid var(--c-border)",
           display: "flex",
@@ -2014,29 +2015,30 @@ export function StreamlinedTradingStudio() {
       {marketSessions?.venues && marketSessions.venues.length > 0 && (
         <div
           aria-label="Global market sessions status"
+          className="desk-sessions"
           style={{
-            padding: "4px 14px",
+            padding: "3px 10px",
             background: "var(--c-surface)",
             borderBottom: "1px solid var(--c-border)",
             display: "flex",
             alignItems: "center",
-            gap: "10px",
+            gap: "6px",
             flexWrap: "wrap",
-            fontSize: "11px",
+            fontSize: "10.5px",
           }}
         >
-          <span style={{ fontWeight: 700, color: "var(--c-muted)", letterSpacing: "0.03em" }}>
-            MARKETS ({marketSessions.as_of_et ?? "ET"}):
+          <span title={`Venue sessions as of ${marketSessions.as_of_et ?? "ET"}`} style={{ fontWeight: 700, color: "var(--c-muted)", letterSpacing: "0.03em" }}>
+            MARKETS:
           </span>
           {marketSessions.venues.map((v) => (
             <span
               key={v.venue_id}
-              title={`${v.schedule_summary} — ${v.reason}`}
+              title={`${v.schedule_summary} — ${v.reason} (${v.countdown})`}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "5px",
-                padding: "2px 8px",
+                padding: "1px 6px",
                 borderRadius: "5px",
                 border: v.is_open ? "1px solid rgba(46, 184, 138, 0.4)" : "1px solid rgba(240, 128, 60, 0.4)",
                 background: v.is_open ? "rgba(46, 184, 138, 0.08)" : "rgba(240, 128, 60, 0.08)",
@@ -2047,7 +2049,6 @@ export function StreamlinedTradingStudio() {
               <span>{v.is_open ? "●" : "○"}</span>
               <strong style={{ color: "var(--c-text)" }}>{v.venue_name}</strong>
               <span>{v.status_label}</span>
-              <span style={{ color: "var(--c-muted)" }}>({v.countdown})</span>
             </span>
           ))}
         </div>
@@ -2740,11 +2741,11 @@ export function StreamlinedTradingStudio() {
               gap: "10px",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px", minWidth: 0 }}>
               <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--c-accent)", letterSpacing: "0.04em" }}>
                 Risk room
               </span>
-              <span style={{ fontSize: "11.5px", fontFamily: "var(--font-mono, monospace)", fontWeight: 700 }}>
+              <span style={{ fontSize: "11px", fontFamily: "var(--font-mono, monospace)", fontWeight: 600, overflowWrap: "anywhere", lineHeight: 1.35 }}>
                 Equity ${accountEquityUsd.toLocaleString()} · free cash ${freeCashUsd.toLocaleString()} · {researchHand ? `hand ${researchHand}` : "hand not linked"} · watching {(marketSessions?.venues ?? []).filter((venue) => venue.is_open).map((venue) => venue.venue_name).join(", ") || "the session clock"} · scored book crypto 4h · cannot buy or sell
               </span>
             </div>

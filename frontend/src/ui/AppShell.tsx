@@ -341,6 +341,11 @@ function CommandPalette({ onClose, onTheme }: { onClose: () => void; onTheme: ()
 function AtlasFooter() {
   return (
     <footer className="ux-footer" aria-label="Platform privacy, ISO standards, regulatory and third-party attributions">
+      <details className="ux-footer__details">
+      <summary className="ux-footer__bar">
+        <span>Paper trading only · execution permission none</span>
+        <span>Privacy, standards &amp; data attributions</span>
+      </summary>
       <div className="ux-footer__grid">
         <div className="ux-footer__col">
           <h4>Privacy &amp; Regulatory Governance</h4>
@@ -400,6 +405,7 @@ function AtlasFooter() {
           </div>
         </div>
       </div>
+      </details>
     </footer>
   );
 }

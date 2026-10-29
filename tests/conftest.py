@@ -99,16 +99,36 @@ if sys.platform == "win32":
 
 
 
-def pytest_configure(config):
-    """Create the parent of --basetemp (pyproject: .test-runs/pytest-default) so fresh clones/worktrees work.
+_KEEP_RUN_DIRS = 3
 
-    pytest creates basetemp itself but not its parent directory.
+
+def _prune_old_runs(root, keep: int) -> None:
+    """Best-effort removal of older per-run dirs; a locked dir (WinError 32) is skipped, never fatal."""
+    import shutil
+
+    runs = sorted((d for d in root.glob("run-*") if d.is_dir()), key=lambda d: d.stat().st_mtime)
+    for old in runs[: max(0, len(runs) - keep)]:
+        shutil.rmtree(old, ignore_errors=True)
+
+
+def pytest_configure(config):
+    """Give every pytest run its own unique basetemp under .test-runs/.
+
+    A fixed basetemp is wiped by pytest at start; on Windows any handle still open on the previous
+    run (WinError 32) then breaks the whole session. A unique per-run directory never collides with
+    a locked predecessor. An explicit --basetemp on the command line is respected untouched.
     """
+    import time
     from pathlib import Path
 
-    basetemp = config.option.basetemp
-    if basetemp:
-        Path(basetemp).resolve().parent.mkdir(parents=True, exist_ok=True)
+    if config.option.basetemp:
+        Path(config.option.basetemp).resolve().parent.mkdir(parents=True, exist_ok=True)
+        return
+    root = Path(config.rootpath) / ".test-runs"
+    root.mkdir(parents=True, exist_ok=True)
+    _prune_old_runs(root, _KEEP_RUN_DIRS - 1)
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "main")
+    config.option.basetemp = root / f"run-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}-{worker}"
 
 
 @pytest.fixture(autouse=True)

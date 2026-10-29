@@ -435,7 +435,7 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .ux-ctile { padding: var(--s-2) var(--s-3); }
 
 /* page header: eyebrow (accent) / title / one line */
-.ux-page { gap: var(--s-4); padding: var(--s-5) var(--s-6) var(--s-10); }
+.ux-page { gap: var(--s-3); padding: var(--s-4) var(--s-5) var(--s-6); }
 .ux-eyebrow { color: var(--c-accent); font-size: var(--t-2xs); letter-spacing: .08em; margin-bottom: 6px; }
 .ux-h1 { font-size: var(--t-2xl); font-weight: 650; letter-spacing: -.015em; }
 .ux-lede { font-size: var(--t-md); max-width: 70ch; margin-top: 4px; }
@@ -455,12 +455,14 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .ux-hub .atlas-app, .ux-hub .institutional-shell { height: auto; min-height: 70vh; border: 1px solid var(--c-border); border-radius: var(--r-lg); overflow: hidden; }
 
 /* compact hub (trading desk): one header row, the desk fills the rest */
-.ux-hub[data-compact="true"] { height: 100%; max-width: none; padding: var(--s-3) var(--s-4) 0; gap: var(--s-2); grid-template-rows: auto auto minmax(0, 1fr); }
+.ux-hub[data-compact="true"] { height: 100%; max-width: none; padding: var(--s-2) var(--s-3) var(--s-2); gap: var(--s-1); grid-template-rows: auto auto minmax(0, 1fr); }
 .ux-hub[data-compact="true"] .ux-page-header { display: none; }
 .ux-hub[data-compact="true"] .ux-hubtab-desc { display: none; }
 .ux-hub[data-compact="true"] .ux-hubtabs { margin: 0; }
 .ux-hub[data-compact="true"][data-tab="chart"] .ux-hub__panel { min-height: 0; height: 100%; }
-.ux-hub[data-compact="true"][data-tab="chart"] .ux-hub__panel > .ux-fullbleed { min-height: 640px; }
+.ux-hub[data-compact="true"][data-tab="chart"] .ux-hub__panel > .ux-fullbleed { min-height: 0; height: 100%; }
+.ux-hub[data-compact="true"] .ux-hub__panel { min-height: 0; }
+.ux-hub[data-compact="true"] .ux-hubtab { padding: 6px 0; }
 
 /* denser, calmer data */
 .ux-card { border-radius: var(--r-lg); }
@@ -504,7 +506,7 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .ux-pre { font: 12px/1.45 var(--font-mono); background: var(--c-surface-3); color: var(--c-text-2); padding: var(--s-3); border-radius: 6px; max-height: 260px; overflow: auto; white-space: pre; }
 
 /* ATLAS chart: the one primary chart (AtlasChart.tsx). Horizontal text only, one card style. */
-.atlas-chart { gap: 8px; padding: 12px; writing-mode: horizontal-tb; }
+.atlas-chart { gap: 6px; padding: 8px 10px; writing-mode: horizontal-tb; }
 .atlas-chart-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .atlas-chart-sym { font-size: 15px; margin-right: 4px; }
 .atlas-chart-seg { display: inline-flex; border: 1px solid var(--c-border); border-radius: 8px; overflow: hidden; }
@@ -517,12 +519,12 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .atlas-chart-badge.is-safe { color: var(--c-info); background: var(--c-info-bg); border-color: transparent; }
 .atlas-chart-links { margin-left: auto; display: inline-flex; gap: 12px; font-size: 12px; white-space: nowrap; }
 .atlas-chart-links a, .atlas-chart-foot a { color: var(--c-accent); }
-.atlas-chart-layers { display: flex; flex-wrap: wrap; gap: 6px; }
-.atlas-chart-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--c-border); color: var(--c-muted); cursor: pointer; white-space: nowrap; }
+.atlas-chart-layers { display: flex; flex-wrap: wrap; gap: 4px; }
+.atlas-chart-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--c-border); color: var(--c-muted); cursor: pointer; white-space: nowrap; }
 .atlas-chart-chip input { margin: 0; accent-color: var(--c-accent); }
 .atlas-chart-chip.is-on { color: var(--c-text); border-color: var(--c-border-strong); }
 .atlas-chart-chip.is-off { opacity: .6; text-decoration: line-through; }
-.atlas-chart-stage { position: relative; width: 100%; min-height: 280px; }
+.atlas-chart-stage { position: relative; width: 100%; min-height: 240px; }
 .atlas-chart-canvas { position: absolute; inset: 0; }
 .atlas-chart-vp { position: absolute; top: 0; bottom: 0; right: 64px; width: 18%; pointer-events: none; }
 .atlas-chart-vp-bin { position: absolute; right: 0; background: rgba(86,180,233,.18); border-radius: 2px 0 0 2px; }
@@ -551,14 +553,28 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
   margin-top: auto;
   border-top: 1px solid var(--c-border);
   background: var(--c-surface);
-  padding: var(--s-5) var(--s-6);
+  padding: 0 var(--s-4);
   font-size: var(--t-xs);
   color: var(--c-muted);
+  flex: none;
+  position: relative;
+}
+/* one-line bar; the full governance text opens upward over the page instead of taking viewport height */
+.ux-footer__details > summary { list-style: none; }
+.ux-footer__details > summary::-webkit-details-marker { display: none; }
+.ux-footer__bar {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--s-3);
+  height: 24px; line-height: 24px; cursor: pointer; font-size: var(--t-2xs); white-space: nowrap; overflow: hidden;
+}
+.ux-footer__bar span:last-child { color: var(--c-accent); }
+.ux-footer__details[open] .ux-footer__grid {
+  position: absolute; left: 0; right: 0; bottom: 100%; z-index: 20; max-height: min(60vh, 420px); overflow: auto;
+  background: var(--c-surface); border-top: 1px solid var(--c-border); padding: var(--s-3) var(--s-4); box-shadow: 0 -8px 24px rgba(0,0,0,.35);
 }
 .ux-footer__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--s-5);
+  gap: var(--s-4);
   max-width: 1480px;
   margin: 0 auto;
 }
@@ -592,3 +608,9 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .atlas-chart-capture { display: inline-flex; align-items: center; justify-content: center; padding: 3px 6px; border: 1px solid rgba(232,238,245,0.25); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
 .atlas-chart-capture:disabled { opacity: 0.4; cursor: not-allowed; }
 
+
+
+/* ---- evo-9 compact desk density: header/session strips tighter, one row where it fits ---- */
+.desk-topbar { row-gap: 4px !important; column-gap: 8px !important; flex: none; }
+.desk-topbar > div { min-width: 0; flex-wrap: wrap; row-gap: 4px; }
+.desk-sessions { flex: none; row-gap: 3px !important; }

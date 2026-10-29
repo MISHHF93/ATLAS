@@ -12,7 +12,7 @@ from decimal import Decimal
 import math
 from typing import Any
 
-from atlas.market.contracts import SPEC_BY_ID
+from atlas.feeds.contracts import contract_for
 from atlas.market.sessions import evaluate_candidate_market_gate
 
 EXECUTION_PERMISSION = "none"
@@ -70,7 +70,7 @@ def compute_dynamic_position_sizing(
     atr_multiplier: float = 1.5,
     account_equity_usd: float | None = None,
     risk_fraction: float = 0.005,
-    win_probability: float | None = 0.58,
+    win_probability: float | None = None,
     payoff_ratio_b: float | None = 2.0,
     calibration_ece: float = 0.04,
     spread_bps: float = 2.5,
@@ -80,15 +80,17 @@ def compute_dynamic_position_sizing(
     sector_exposure_usd: float = 0.0,
     daily_loss_used_usd: float = 0.0,
     event_risk_active: bool = False,
+    data_age_ms: float | None = None,
 ) -> dict[str, Any]:
     """Sections 13 & 14: Compute Fixed-Fractional, ATR-Based, and Uncertainty-Penalized Kelly sizing."""
     from atlas.api.app import control_engine
     from atlas.control.engine import ActionableOrderRequest
 
     sym = symbol.upper().strip()
-    cp_state = control_engine.snapshot_state()
+    from atlas.research.control_snapshot import control_snapshot
+    cp_state = control_snapshot()
     cp_acct = cp_state.get("account", {})
-    equity = float(account_equity_usd if account_equity_usd is not None else cp_acct.get("current_equity_usd", 100000.0))
+    equity = float(account_equity_usd if account_equity_usd is not None else cp_acct["current_equity_usd"])
 
     if entry_price <= 0:
         raise ValueError("entry_price must be positive")
@@ -108,7 +110,7 @@ def compute_dynamic_position_sizing(
     stop_dist_bps = (stop_dist / entry_price) * 10_000.0
 
     # 2. Contract Specification Lookup (ValuePerPriceUnit, Multiplier, Tick Size, Round-Trip Cost)
-    spec = SPEC_BY_ID.get(sym)
+    spec = contract_for(sym)
     contract_mult = float(spec.multiplier) if spec else 1.0
     tick_size = float(spec.tick_size) if spec else 0.01
     rt_cost_per_unit = float(spec.cost_per_contract_rt_usd) if spec else (entry_price * (spread_bps / 10_000.0))
@@ -166,6 +168,8 @@ def compute_dynamic_position_sizing(
         constraints.append(("minimum_liquidity_and_slippage_gate", 0.0, f"Spread {spread_bps} bps or liquidity {liquidity_score} violates threshold"))
 
     binding_name, min_qty, _ = min(constraints, key=lambda item: item[1])
+    if kelly_full is not None and kelly_full <= 0:
+        binding_name, min_qty = "negative_expected_value_kelly_gate", 0.0
 
     # Round down to whole contracts for futures, or 4 decimals for spot/equities
     if spec is not None:
@@ -182,8 +186,8 @@ def compute_dynamic_position_sizing(
     market_gate = evaluate_candidate_market_gate(sym)
 
     # 8. Deterministic Control Plane Evaluation (Read-Only Dry Run on Throwaway Clone)
-    req_notional = max(Decimal("10.00"), Decimal(f"{max(0.0, final_notional):.2f}"))
-    req_stop_bps = max(Decimal("15.0"), Decimal(f"{max(1.0, stop_dist_bps):.2f}"))
+    req_notional = Decimal(f"{max(0.0, final_notional):.2f}")
+    req_stop_bps = Decimal(f"{max(0.0, stop_dist_bps):.2f}")
     if final_qty <= 0:
         cp_decision = {
             "decision": "REJECTED",
@@ -191,8 +195,14 @@ def compute_dynamic_position_sizing(
             "approved_quantity": 0.0,
             "approved_notional_usd": 0.0,
         }
+    elif data_age_ms is None:
+        cp_decision = {
+            "decision": "UNAVAILABLE",
+            "reason": "data_age_ms not supplied; control-plane dry run requires a real market-data age",
+            "approved_quantity": 0.0,
+            "approved_notional_usd": 0.0,
+        }
     else:
-        probe_engine = control_engine.__class__(safe_stop=control_engine._safe_stop)
         order_req = ActionableOrderRequest(
             instrument_id=f"comp:{sym.lower()}:v1",
             track="competition" if track == "competition" else "open_market",
@@ -200,15 +210,18 @@ def compute_dynamic_position_sizing(
             notional_usd=req_notional,
             stop_distance_bps=req_stop_bps,
             stop_kind="atr" if "atr" in method_used else "structure",
-            data_age_ms=500,
+            data_age_ms=float(data_age_ms),
         )
-        verdict = probe_engine.evaluate_and_record(order_req)
+        # preview_order = the exact rules submit_order applies, without booking anything (dry run only).
+        report = control_engine.preview_order(order_req)
+        ok = bool(report.compliance_passed)
         cp_decision = {
-            "decision": verdict.decision,
-            "reason": verdict.reason,
-            "violations": list(verdict.violations),
-            "approved_quantity": final_qty if verdict.decision == "APPROVED" else 0.0,
-            "approved_notional_usd": final_notional if verdict.decision == "APPROVED" else 0.0,
+            "decision": "APPROVED" if ok else "REJECTED",
+            "reason": "control-plane dry run passed" if ok else "; ".join(report.violations),
+            "violations": list(report.violations),
+            "rulebook_id": report.rulebook_id,
+            "approved_quantity": final_qty if ok else 0.0,
+            "approved_notional_usd": final_notional if ok else 0.0,
         }
 
     proposal = SizingProposal(
@@ -248,3 +261,4 @@ def compute_dynamic_position_sizing(
         risk_engine_decision=cp_decision,
     )
     return proposal.to_dict()
+

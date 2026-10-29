@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
 from pathlib import Path
-import tempfile
 
 from atlas.features.feature_store import (
     FeatureStore,
@@ -17,20 +16,16 @@ from atlas.features.feature_store import (
 
 
 @pytest.fixture
-def temp_feature_store():
-    """Create a temporary feature store for testing."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        parquet_dir = Path(tmpdir) / "parquet"
-        
-        store = create_feature_store(
-            store_id="test_store",
-            db_path=str(db_path),
-            parquet_dir=str(parquet_dir),
-        )
-        
+def temp_feature_store(tmp_path):
+    """Create a feature store in a unique per-test dir; always close handles before cleanup (Windows WinError 32)."""
+    store = create_feature_store(
+        store_id="test_store",
+        db_path=str(tmp_path / "test.db"),
+        parquet_dir=str(tmp_path / "parquet"),
+    )
+    try:
         yield store
-        
+    finally:
         store.close()
 
 
