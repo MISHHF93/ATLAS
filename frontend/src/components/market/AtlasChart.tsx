@@ -550,7 +550,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
           </span>
         )}
         {p?.built?.startsWith("resampled") && !fill ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
-        <ModelChip mp={mp} loading={loading} />
+        <ModelChip mp={mp} loading={loading} noBars={data?.status === "no_data"} />
         <span className="atlas-chart-badge is-safe" title="ML output is advisory research. It can never place an order.">{fill ? "exec: " : "execution_permission: "}{data?.execution_permission ?? "none"}</span>
         <button type="button" className="atlas-chart-capture" title="Save chart as PNG" aria-label="Save chart as PNG"
           disabled={!data?.bars.length}
@@ -689,7 +689,8 @@ function MarkerCard({ m, onClose, pinned }: { m: OppMarker; onClose: () => void;
 }
 
 /** Compact model status: which model, whether every validation gate passed, and when it last read a bar (Toronto). */
-function ModelChip({ mp, loading }: { mp: ModelPrediction | undefined; loading: boolean }) {
+function ModelChip({ mp, loading, noBars }: { mp: ModelPrediction | undefined; loading: boolean; noBars?: boolean }) {
+  if (!mp && noBars && !loading) return <span className="atlas-chart-badge atlas-model-chip is-none" data-gate="no_bars" title="The ATLAS feed holds no stored bars for this symbol and timeframe, so there is nothing to build features from. No prediction is drawn.">model: no stored bars for this scope</span>;
   if (!mp) return <span className="atlas-chart-badge atlas-model-chip is-none" data-gate="loading">{loading ? "model: loading…" : "model: no read"}</span>;
   const m = mp.model;
   const arrow = mp.direction === "up" ? "▲" : mp.direction === "down" ? "▼" : "◆";
