@@ -58,7 +58,8 @@ def test_massive_polygon_dual_key_and_solana_rpc_registry():
 
     def fake_transport(url, headers):
         calls.append((url, dict(headers)))
-        return 200, {}, b'{"results":[{"t":1761696000000,"o":100.0,"h":102.0,"l":99.0,"c":101.0,"v":5000}]}'
+        bar_ms = (now - 2 * 86400) * 1000
+        return 200, {}, ('{"results":[{"t":%d,"o":100.0,"h":102.0,"l":99.0,"c":101.0,"v":5000}]}' % bar_ms).encode()
 
     import datetime as _dt
     from zoneinfo import ZoneInfo
