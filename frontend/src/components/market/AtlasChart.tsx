@@ -402,7 +402,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       for (const it of nl.items.slice(-40)) {
         let k = -1; for (let j = bt.length - 1; j >= 0; j--) { if (bt[j] <= it.time) { k = j; break; } }
         if (k < 0) continue;
-        nativeMarks.push({ time: bt[k] as UTCTimestamp, position: "aboveBar", shape: "square", size: 0.5, color: it.hype_flags?.length ? "#D55E00" : it.tier === 1 ? "#56B4E9" : "#98A3B3", text: it.hype_flags?.length ? "hype?" : (it.event_type ? it.event_type.replace(/_/g, " ") : "news") });
+        nativeMarks.push({ time: bt[k] as UTCTimestamp, position: "aboveBar", shape: "circle", size: 0.5, color: it.hype_flags?.length ? "#D55E00" : it.tier === 1 ? "#56B4E9" : "#98A3B3", text: it.hype_flags?.length ? "hype?" : (it.event_type ? it.event_type.replace(/_/g, " ") : "news") });
       }
     }
     if (nativeMarks.length) candles.setMarkers(nativeMarks.sort((a, b) => a.time - b.time));
