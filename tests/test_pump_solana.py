@@ -698,7 +698,11 @@ def test_indexer_reorg_rollback_confirmation_monitoring_and_event_replay():
 # ---------------------------------------------------------------------------
 
 
-def test_pump_fastapi_endpoints_and_ai_node_registration():
+def test_pump_fastapi_endpoints_and_ai_node_registration(monkeypatch):
+    # The default engine's freshness gate (30 s wall clock) goes stale when an earlier test created it
+    # minutes ago in a long suite run. Start from a fresh default engine so the result does not depend on test order.
+    import atlas.pump.engine as pump_engine_mod
+    monkeypatch.setattr(pump_engine_mod, "_DEFAULT_ENGINE", None)
     client = TestClient(app)
 
     # AI node lists pump_intelligence component with execution_permission: none
@@ -743,7 +747,7 @@ def test_pump_fastapi_endpoints_and_ai_node_registration():
         },
     )
     assert ord_resp.status_code == 200
-    assert ord_resp.json()["status"] == "confirmed"
+    assert ord_resp.json()["status"] == "confirmed", ord_resp.json()["risk_decision"]["reject_reasons"]
 
     # Replay endpoint
     rep_resp = client.post("/api/pump/replay")
