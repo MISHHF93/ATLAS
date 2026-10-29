@@ -156,16 +156,25 @@ class OandaPracticeStateAdapter:
         gated = _gate(self.broker, self.environment, "oanda", env)
         if gated:
             return gated
-        token, acct_id = env.get("OANDA_API_TOKEN", ""), env.get("OANDA_ACCOUNT_ID", "")
-        if not token or not acct_id:
-            return unavailable(self.broker, self.environment, "not_configured", "OANDA_API_TOKEN and OANDA_ACCOUNT_ID are both needed for the account snapshot.")
-        base = f"https://{OANDA_PRACTICE_HOST}/v3/accounts/{acct_id}"
+        from atlas.integrations import oanda_v20 as O
+        token, acct_id = env.get("OANDA_API_TOKEN", ""), (env.get("OANDA_ACCOUNT_ID") or "").strip()
+        if not token:
+            return unavailable(self.broker, self.environment, "not_configured", "OANDA_API_TOKEN is needed for the account snapshot (OANDA_ACCOUNT_ID is optional: it is discovered from the token).")
         h = {"Authorization": f"Bearer {token}"}
+        note = ""
         try:
+            O.refuse_live(env)
+            if not acct_id or not O.PRACTICE_ID.fullmatch(acct_id):
+                acct_id, note = O.pick_account("", O.discover_account_ids(self.get_json, token))
+            if not acct_id:
+                return unavailable(self.broker, self.environment, "not_configured", "OANDA: " + (note or "no practice account found for this token"))
+            base = f"https://{OANDA_PRACTICE_HOST}/v3/accounts/{acct_id}"
             a = (self.get_json(base + "/summary", h) or {}).get("account") or {}
+        except O.OandaLiveRefused as ex:
+            return unavailable(self.broker, self.environment, "refused_live", str(ex)[:200])
         except Exception as ex:  # noqa: BLE001
             return unavailable(self.broker, self.environment, "error", f"{type(ex).__name__}: {ex}"[:200])
-        warnings: list[str] = []
+        warnings: list[str] = [note] if note else []
 
         def opt(path: str, key: str) -> list[dict]:
             try:

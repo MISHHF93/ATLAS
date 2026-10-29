@@ -24,6 +24,12 @@ CORE: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
      "Both are open to Canadian residents. A verified paper account is a go-live readiness gate and lets ATLAS read balances and constraints. Paper or practice only: live is refused."),
 )
 
+# Variables ATLAS fixes itself (non-secret): shown as "practice (fixed)" so the user knows not to enter anything.
+FIXED_VARS = {"OANDA_ENV": "practice"}
+# Where to enter the values for a row (the Setup wizard below the checklist, one read-only Verify per service).
+ENTER_IN = {"broker_paper": "Setup wizard below, 'OANDA (practice)': paste OANDA_API_TOKEN (the personal access token from the fxTrade Practice portal: Manage API Access). "
+                            "OANDA_ACCOUNT_ID is optional (found from the token via GET /v3/accounts on api-fxpractice.oanda.com); OANDA_ENV is fixed to practice."}
+
 NOT_FOR_CANADA = {"alpaca": "Alpaca is not offered to Canadian residents; optional."}
 
 
@@ -42,7 +48,7 @@ def _item(rank: int, key: str, ids: tuple[str, ...], title: str, why: str, core:
         members.append({"id": s.id, "title": s.title, "state": st["state"], "detail": st.get("detail") or "", "signup": s.signup, "cost": s.cost,
                         "required_vars": req, "optional_vars": opt, "keyless": keyless})
         vars_ += [{"name": k, "set": v, "required": True, "service": s.id} for k, v in req.items()]
-        vars_ += [{"name": k, "set": v, "required": False, "service": s.id} for k, v in opt.items()]
+        vars_ += [{"name": k, "set": v, "required": False, "service": s.id, **({"fixed": FIXED_VARS[k]} if k in FIXED_VARS else {})} for k, v in opt.items()]
     if any_verified:
         state, nxt = "verified", "Nothing to do. Re-verify any time."
     elif any_failed and any_key:
@@ -57,7 +63,7 @@ def _item(rank: int, key: str, ids: tuple[str, ...], title: str, why: str, core:
         state, nxt = "optional", "No key needed; works without setup."
     return {"rank": rank, "key": key, "title": title, "why": why, "core": core, "state": state, "failed": bool(any_failed and not any_verified),
             "key_present": any_key, "next_step": nxt, "services": members, "vars": vars_,
-            "note": " ".join(NOT_FOR_CANADA[i] for i in ids if i in NOT_FOR_CANADA) or None}
+            "enter_in": ENTER_IN.get(key), "note": " ".join(NOT_FOR_CANADA[i] for i in ids if i in NOT_FOR_CANADA) or None}
 
 
 def build(env: Mapping[str, str], states: Mapping[str, dict] | None = None) -> dict[str, Any]:

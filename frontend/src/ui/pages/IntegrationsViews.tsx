@@ -297,7 +297,7 @@ export function CoverageCard() {
 /* ---------- Settings → Setup: ordered checklist of every env var and connector ---------- */
 type CheckSvc = { id: string; title: string; state: string; detail: string; signup: string; cost: string; required_vars: Record<string, boolean>; optional_vars: Record<string, boolean>; keyless: boolean };
 type CheckItem = { rank: number; key: string; title: string; why: string; core: boolean; state: "verified" | "needs_verification" | "optional"; failed: boolean; key_present: boolean;
-  next_step: string; services: CheckSvc[]; vars: { name: string; set: boolean; required: boolean; service: string }[]; note: string | null; category?: string };
+  next_step: string; services: CheckSvc[]; vars: { name: string; set: boolean; required: boolean; service: string; fixed?: string }[]; enter_in?: string | null; note: string | null; category?: string };
 type Checklist = { items: CheckItem[]; counts: Record<string, number>; core_verified: number; core_total: number };
 const CHECK_TONE: Record<string, { tone: Tone; text: string }> = {
   verified: { tone: "good", text: "Verified" }, needs_verification: { tone: "warn", text: "Needs verification" }, optional: { tone: "neutral", text: "Optional" },
@@ -327,10 +327,11 @@ export function SetupChecklistCard() {
                       </div>
                       <p className="ux-small">{i.why}</p>
                       <p className="ux-small">
-                        {i.vars.map((v) => (<span key={v.name}><code>{v.name}</code> {v.set ? "set" : v.required ? "missing" : "not set (optional)"}{" · "}</span>))}
+                        {i.vars.map((v) => (<span key={v.name}><code>{v.name}</code> {v.fixed ? `${v.fixed} (fixed)` : v.set ? "set" : v.required ? "missing" : "not set (optional)"}{" · "}</span>))}
                         {i.next_step}
                       </p>
                       {i.note ? <p className="ux-small">{i.note}</p> : null}
+                      {i.enter_in ? <p className="ux-small" data-testid={`enter-in-${i.key}`}>Where to enter: {i.enter_in}</p> : null}
                       {i.services.map((sv) => (
                         <div key={sv.id} className="ux-form-row" data-tight>
                           <span className="ux-small">{sv.title}</span>

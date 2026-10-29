@@ -129,10 +129,20 @@ def _t_alpaca(v, ctx):
 
 
 def _t_oanda(v, ctx):
-    r = ctx.http("GET", f"https://api-fxpractice.oanda.com/v3/accounts/{quote(v['account_id'], safe='')}/summary",
-                 headers={"Authorization": "Bearer " + v["api_token"]})
-    bad = _http_status(r, what="OANDA practice account")
-    return bad or TestResult(True, "practice account summary OK")
+    """Practice host only. GET /v3/accounts discovers the account id (OANDA_ACCOUNT_ID is optional), then a read-only account summary."""
+    from atlas.integrations import oanda_v20 as O
+    hdr = {"Authorization": "Bearer " + v["api_token"]}
+    r = ctx.http("GET", f"{O.REST}/v3/accounts", headers=hdr)
+    bad = _http_status(r, what="OANDA practice account list (/v3/accounts)")
+    if bad:
+        return bad
+    ids = O.practice_ids([str(a.get("id", "")) for a in ((r.json or {}).get("accounts") or []) if isinstance(a, dict)])
+    acct, note = O.pick_account((v.get("account_id") or "").strip(), ids)
+    if not acct:
+        return TestResult(False, "OANDA: " + note + ". Use the fxTrade Practice token from the practice portal")
+    r2 = ctx.http("GET", f"{O.REST}/v3/accounts/{quote(acct, safe='')}/summary", headers=hdr)
+    bad = _http_status(r2, what="OANDA practice account summary")
+    return bad or TestResult(True, "practice account summary OK" + (f" ({note})" if note else ""))
 
 
 def _t_ibkr(v, ctx):
@@ -262,7 +272,7 @@ def validate_values(spec: ConnectorSpec, values: dict[str, str]) -> dict[str, st
     safety.refuse_live_strings(out)
     if spec.id == "alpaca" and out["key_id"].upper().startswith("AK"):
         raise safety.SafetyRefusal("refused: this looks like a LIVE Alpaca key (AK…). Use the paper key (PK…)")
-    if spec.id == "oanda" and not out["account_id"].startswith("101-"):
+    if spec.id == "oanda" and out.get("account_id") and not out["account_id"].startswith("101-"):
         raise safety.SafetyRefusal("refused: OANDA practice account ids start with 101-. This looks like a live account")
     if spec.id == "ibkr":
         from atlas.execution.adapters.guards import guard_ibkr_account, guard_ibkr_port
@@ -298,7 +308,7 @@ CATALOG: tuple[ConnectorSpec, ...] = (
     ConnectorSpec("oanda", "OANDA (practice)", "broker_paper", "https://developer.oanda.com/rest-live-v20/introduction/", "https://www.oanda.com/demo-account/tpa/personal_token",
                   "Free practice (demo) account and token.",
                   (_f("api_token", "Practice API token", "OANDA_API_TOKEN", pattern=r"[A-Za-z0-9\-]{20,120}"),
-                   _f("account_id", "Practice account id", "OANDA_ACCOUNT_ID", secret=False, placeholder="101-001-1234567-001", pattern=r"[0-9\-]{10,30}")),
+                   _f("account_id", "Practice account id", "OANDA_ACCOUNT_ID", secret=False, required=False, placeholder="101-001-1234567-001", help="Leave blank: ATLAS finds it from your token with GET /v3/accounts on the practice host. OANDA_ENV is fixed to practice.", pattern=r"[0-9\-]{10,30}")),
                   _guard(_t_oanda), "practice", (("OANDA_ENV", "practice"),),
                   "Practice only (api-fxpractice). Live hosts and live (001-…) account ids are refused.", loop_use="FX bars + practice fills"),
     ConnectorSpec("ibkr", "Interactive Brokers (paper)", "broker_paper", "https://www.interactivebrokers.com/en/trading/ib-api.php", "https://www.interactivebrokers.com/en/trading/free-trial.php",
