@@ -116,3 +116,26 @@ def test_registered_through_the_ai_node():
     assert EXECUTION_PERMISSION == "none"
     st = component_status(next(c for c in REGISTRY if c.name == "ml_pipeline"))
     assert "atlas.ai.ml.vwap_features" in str(st)
+
+
+def test_fit_meta_survives_feature_with_no_observed_values():
+    """Daily-bar groups have no session VWAP: all-NaN columns must not crash HGB binning."""
+    import numpy as np
+    import pandas as pd
+    from atlas.ai.ml import train as T
+    from atlas.ai.ml.dataset import FEATURES
+
+    n = 900
+    rng = np.random.default_rng(3)
+    t = (np.arange(n) * 86400).astype(np.int64)
+    df = pd.DataFrame(rng.normal(size=(n, len(FEATURES))), columns=list(FEATURES))
+    for c in ("vwap_dist_atr", "vwap_dist_bps", "vwap_slope_atr", "vwap_band_z", "vwap_sess_frac"):
+        df[c] = np.nan
+    df["t"], df["exit_at"] = t, t + 86400
+    df["y"] = (rng.random(n) > 0.5).astype(int)
+    df["r"] = rng.normal(size=n)
+    df["detector"] = "d"
+    idx = np.arange(n)
+    for kind in ("logit", "hgb"):
+        mm = T.fit_meta(df, idx, kind)
+        assert mm is not None

@@ -139,6 +139,12 @@ def fit_meta(df: pd.DataFrame, idx: np.ndarray, kind: str, features: tuple[str, 
     if len(fit) < MIN_FIT or len(cal) < MIN_CAL or len(conf) < MIN_CONF or df.y.iloc[fit].nunique() < 2:
         return None
     X = df[list(features)].to_numpy(float)
+    # A feature with no observed value in the fit slice (e.g. session-VWAP on daily bars, where there
+    # is no intraday session) carries no information. HistGradientBoosting cannot bin an all-NaN
+    # column, so make it a constant for fitting; it is never split on, and predict-time NaN is inert.
+    dead = ~np.isfinite(X[fit]).any(axis=0)
+    if dead.any():
+        X[:, dead] = 0.0
     sw = average_uniqueness(t[idx], e[idx])
     order = {int(i): k for k, i in enumerate(np.asarray(idx))}
     w_fit = np.array([sw[order[int(i)]] for i in fit])
