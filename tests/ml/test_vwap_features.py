@@ -135,6 +135,7 @@ def test_fit_meta_survives_feature_with_no_observed_values():
     df["y"] = (rng.random(n) > 0.5).astype(int)
     df["r"] = rng.normal(size=n)
     df["detector"] = "d"
+    df = df.copy(deep=False)
     idx = np.arange(n)
     for kind in ("logit", "hgb"):
         mm = T.fit_meta(df, idx, kind)

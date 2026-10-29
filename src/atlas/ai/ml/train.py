@@ -144,6 +144,7 @@ def fit_meta(df: pd.DataFrame, idx: np.ndarray, kind: str, features: tuple[str, 
     # column, so make it a constant for fitting; it is never split on, and predict-time NaN is inert.
     dead = ~np.isfinite(X[fit]).any(axis=0)
     if dead.any():
+        X = X.copy()          # to_numpy can return a read-only view (pandas copy-on-write)
         X[:, dead] = 0.0
     sw = average_uniqueness(t[idx], e[idx])
     order = {int(i): k for k, i in enumerate(np.asarray(idx))}
