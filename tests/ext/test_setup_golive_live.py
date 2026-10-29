@@ -13,7 +13,7 @@ SECRET = "sekret-value-do-not-echo-0123456789"
 
 
 def items(env, states=None):
-    return checklist.build(load_env(environ=env), states)
+    return checklist.build(load_env(environ=env), {} if states is None else states)   # hermetic: never read this machine's stored verification
 
 
 def test_checklist_core_order_and_states():
