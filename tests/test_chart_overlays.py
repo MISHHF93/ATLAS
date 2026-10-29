@@ -55,6 +55,12 @@ def test_layers_from_real_shaped_feed(monkeypatch, tmp_path):
     assert set(co.LAYERS) <= set(L)
     assert L["vwap"]["status"] == "ok" and L["volume_profile"]["status"] == "ok"
     assert L["regimes"]["status"] == "ok"
+    # evo-10: session VWAP resets per session, anchored VWAP from a confirmed swing pivot, session spans, model read
+    assert L["vwap"]["session_kind"] == "utc_day" and L["vwap"]["sessions"]["status"] == "ok" and L["vwap"]["sessions"]["spans"]
+    an = L["vwap"]["anchored"]
+    assert an["status"] == "ok" and an["anchor"]["confirmed_at"] > an["anchor"]["time"] and an["points"][0]["time"] == an["anchor"]["time"]
+    assert L["model_prediction"]["status"] == "no_model" and L["model_prediction"]["execution_permission"] == "none"
+    assert "probability" not in L["model_prediction"]
     # no evolution run in the empty registry: ML layers say so, nothing invented
     assert L["ml_markers"]["items"] == [] and L["predictions"]["status"] == "unavailable"
     assert d["ml_panel"]["evolution"] is None and d["ml_panel"]["execution_permission"] == "none"

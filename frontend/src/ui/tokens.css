@@ -614,3 +614,13 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .desk-topbar { row-gap: 4px !important; column-gap: 8px !important; flex: none; }
 .desk-topbar > div { min-width: 0; flex-wrap: wrap; row-gap: 4px; }
 .desk-sessions { flex: none; row-gap: 3px !important; }
+
+/* evo-10: compact model status chip (model, gate status, last bar in Toronto). Colour is never the only cue: the label says it. */
+.atlas-model-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.atlas-model-chip > span + span::before { content: "·"; margin-right: 6px; color: var(--c-muted); }
+.atlas-model-chip__name { font-weight: 600; color: var(--c-text, #E8EEF5); }
+.atlas-model-chip.is-gate_passed { color: var(--c-good); border-color: var(--c-good); }
+.atlas-model-chip.is-research_below_gate { color: #E69F00; border-color: #E69F00; }
+.atlas-model-chip.is-no_model, .atlas-model-chip.is-none { color: var(--c-muted); border-style: dashed; }
+.atlas-pcard-model { font-size: 10px; } .atlas-pcard-model.is-research_below_gate strong { color: #E69F00; }
+.atlas-pcard-model.is-gate_passed strong { color: var(--c-good); }

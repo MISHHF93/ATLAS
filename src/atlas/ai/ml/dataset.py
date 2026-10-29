@@ -24,17 +24,22 @@ from atlas.features.price_action.replay import ReplayConfig, paper_replay_config
 from atlas.features.price_action.sessions import US_EQUITY_RTH, SessionSpec
 from atlas.ai.ml.costs import VENUE_COSTS, venue_for
 from atlas.ai.ml.features import BAR_FEATURES, bar_features
+from atlas.ai.ml.vwap_features import GOLD_INSTRUMENTS
 
 UTC_DAY = SessionSpec("utc_day", "UTC", datetime.min.time(), datetime.min.time(), weekdays=(0, 1, 2, 3, 4, 5, 6))
 DETECTORS = ("dual_band_breakout", "orb_retest", "prior_day_range_reversal", "wick_reversal")
 SETUP_FEATURES = ("dir_long", "reward_risk", "cost_r", "risk_atr", "entry_is_stop") + tuple(f"det_{d}" for d in DETECTORS)
 SIGNED = ("ret_4", "ret_16", "ema20_dist_atr", "ema20_slope_atr", "body_frac")
 FEATURES = BAR_FEATURES + SETUP_FEATURES + tuple(f"{s}_x_dir" for s in SIGNED)
-DUR = {"15m": 900, "1h": 3600, "4h": 14400}   # 4h = complete UTC buckets of closed feed 1h bars (crypto only)
+DUR = {"1m": 60, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}   # 4h = complete UTC buckets of closed feed 1h bars (crypto only)
 
 
 def max_hold_bars(interval: str, asset_class: str) -> int:
-    """1-day vertical barrier."""
+    """Vertical barrier: one day for 15m/1h/4h; 1m holds 60 bars (one hour); 1d holds 10 sessions."""
+    if interval == "1m":
+        return 60
+    if interval == "1d":
+        return 10
     if asset_class == "crypto":
         return 86400 // DUR[interval]
     if interval == "4h":
@@ -107,7 +112,8 @@ def load_series(feed, instrument: str, interval: str, as_of: int | None = None, 
             continue
         last = b.event_time
     inst = feed.instruments.get(instrument)
-    return SeriesData(instrument, interval, "crypto" if inst.asset_class == "crypto" else "equity", bars,
+    ac = "crypto" if inst.asset_class == "crypto" else "gold" if instrument.upper() in GOLD_INSTRUMENTS else "equity"
+    return SeriesData(instrument, interval, ac, bars,
                       sorted({b.provider for b in fb}))
 
 
@@ -127,7 +133,7 @@ def build_rows(sd: SeriesData, include_open: bool = False, variant: Any = None, 
                        cost_per_unit=vc["cost_per_unit"], cost_bps=vc["cost_bps"], zone_rule="zone_entry_v1", **vk)
     res = replay(sd.instrument, sd.bars[0].duration, sd.bars, engine_cfg=EngineConfig(session=session, pdr=PriorDayRangeConfig()),
                  cfg=cfg, data_label="atlas-feed")
-    bf = bar_features(sd.bars)
+    bf = bar_features(sd.bars, sd.asset_class, sd.instrument)
     out = []
     for t in res.trades:
         is_open = include_open and t.outcome == "open"

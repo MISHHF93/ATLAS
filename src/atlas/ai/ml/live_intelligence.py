@@ -394,9 +394,12 @@ def generate_live_prediction(
     if len(bars) < 60:
         return _build_non_valid_response("INSUFFICIENT_HISTORY", "INSUFFICIENT_HISTORY", f"Valid monotonic bars ({len(bars)}) < 60 required warmup.")
 
-    bf = bar_features(bars)
+    from atlas.ai.ml.chart_prediction import asset_group
+    from atlas.ai.ml.vwap_features import VWAP_FEATURES
+    bf = bar_features(bars, asset_group(feed_sym), feed_sym)
     last_feat_row = bf.iloc[-1]
-    missing_feats = int(sum(not np.isfinite(float(last_feat_row.get(k, np.nan))) for k in BAR_FEATURES))
+    # VWAP regime features are legitimately NaN on volume-less or out-of-session bars; the model handles NaN natively.
+    missing_feats = int(sum(not np.isfinite(float(last_feat_row.get(k, np.nan))) for k in BAR_FEATURES if k not in VWAP_FEATURES))
     if missing_feats > 3:
         with _TELEMETRY_LOCK:
             _HEALTH_TELEMETRY["missing_feature_count"] += missing_feats
@@ -404,7 +407,7 @@ def generate_live_prediction(
 
     # 4. Load registered model for (asset_class, interval)
     asset_class = str(mkt.get("asset_class") or "unknown")
-    ac_group = "equity" if asset_class in {"equity", "etf", "canadian_etf_etr"} else asset_class
+    ac_group = "gold" if asset_group(feed_sym) == "gold" else "equity" if asset_class in {"equity", "etf", "canadian_etf_etr"} else asset_class
     group = f"{ac_group}-{iv}"
 
     man, mdl, load_err = load_cached_registered_model(group, reg_path=reg_path, instrument=feed_sym)
@@ -437,7 +440,7 @@ def generate_live_prediction(
     feat_dict: dict[str, Any] = {"detector": detector}
     for k in BAR_FEATURES:
         v = float(last_feat_row.get(k, 0.0))
-        feat_dict[k] = v if math.isfinite(v) else 0.0
+        feat_dict[k] = v if (math.isfinite(v) or k in VWAP_FEATURES) else 0.0
     feat_dict["dir_long"] = 1.0 if dir_sign > 0 else 0.0
     feat_dict["reward_risk"] = reward_risk
     feat_dict["cost_r"] = cost_r

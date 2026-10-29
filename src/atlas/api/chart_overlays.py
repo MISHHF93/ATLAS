@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/ai/chart", tags=["ai"])
 INTERVALS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}
 BAR_TYPES = ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "tick", "kagi_atr", "pnf_atr")
 LAYERS = ("ml_markers", "ml_probability", "setups", "zones", "vwap", "volume_profile", "regimes", "conviction", "predictions")
-EXTRA_LAYERS = ("marker_details", "forward")  # chart-2: additive
+EXTRA_LAYERS = ("marker_details", "forward", "model_prediction")  # chart-2: additive
 
 
 def _feed():
@@ -234,19 +234,66 @@ def _zones(sym, interval, bars, feed):
     return {"status": "ok", "items": out, "notes": notes}
 
 
-def _vwap_profile(bars):
-    pts, pv, vv, day = [], 0.0, 0.0, None
-    for b in bars:
-        d = b.start // 86400
-        if d != day:
-            pv = vv = 0.0; day = d
-        tp = (b.high + b.low + b.close) / 3
-        pv += tp * b.volume; vv += b.volume
-        if vv > 0:
-            pts.append({"time": b.start, "value": pv / vv})
-    vw = {"status": "ok" if pts else "unavailable", "points": pts, "reset": "UTC day",
-          **({} if pts else {"reason": "source bars carry no volume"})}
-    tail = bars[-300:]
+def _swing_anchor(bars, n: int = 5):
+    """Latest confirmed swing pivot (n bars each side). Returns (index, kind, confirmed_index) or None.
+    A pivot is only known n bars later, so the anchor is never used before it is confirmed."""
+    last = None
+    for i in range(n, len(bars) - n):
+        hi, lo = bars[i].high, bars[i].low
+        if all(hi > bars[j].high for j in range(i - n, i)) and all(hi >= bars[j].high for j in range(i + 1, i + n + 1)):
+            last = (i, "swing_high", i + n) if last is None or i >= last[0] else last
+        if all(lo < bars[j].low for j in range(i - n, i)) and all(lo <= bars[j].low for j in range(i + 1, i + n + 1)):
+            last = (i, "swing_low", i + n) if last is None or i >= last[0] else last
+    return last
+
+
+def _vwap_profile(bars, sym: str = "", full=None):
+    """Session VWAP (reset per session: UTC day / US RTH / CME day), anchored VWAP from the latest confirmed swing
+    pivot, session spans for shading, and the volume profile. Bar-approximated VWAP (typical price x volume)."""
+    from atlas.ai.ml.chart_prediction import asset_group
+    from atlas.ai.ml.vwap_features import _session_vwap, anchored_vwap, session_key, session_kind_for
+    import pandas as pd
+    view0 = bars[0].start
+    bars, view = (full or bars), bars          # VWAP accumulates over every loaded bar so the first visible session is complete
+    dur = bars[0].duration
+    kind = session_kind_for(asset_group(sym) if sym else None, sym or None)
+    pts, spans = [], []
+    anchored: dict[str, Any] = {"status": "unavailable", "reason": "no confirmed swing pivot in view"}
+    has_vol = any(b.volume for b in view)
+    if dur < 86400:
+        keys = [session_key(b.start, kind) for b in bars]
+        df = pd.DataFrame({"high": [b.high for b in bars], "low": [b.low for b in bars], "close": [b.close for b in bars],
+                           "volume": [b.volume for b in bars]})
+        vwap, _, _ = _session_vwap(df, keys)
+        pts = [{"time": b.start, "value": float(v), "session": (None if keys[i] is None else int(keys[i]))}
+               for i, (b, v) in enumerate(zip(bars, vwap)) if math.isfinite(v) and b.start >= view0]
+        for i, b in enumerate(bars):
+            if keys[i] is None or b.start < view0:
+                continue
+            if spans and spans[-1]["key"] == int(keys[i]):
+                spans[-1]["to"] = b.start + b.duration
+            else:
+                spans.append({"key": int(keys[i]), "from": b.start, "to": b.start + b.duration})
+        for n_, sp in enumerate(spans):
+            sp["shade"] = n_ % 2
+    if has_vol:
+        piv = _swing_anchor(view)
+        if piv is not None:
+            i, pk, ci = piv
+            bars_v = view
+            av = anchored_vwap(bars_v, [bars_v[i].start])
+            apts = [{"time": b.start, "value": float(v)} for b, v in zip(bars_v[i:], av[i:]) if math.isfinite(v)]
+            if apts:
+                anchored = {"status": "ok", "points": apts, "anchor": {"time": bars_v[i].start, "kind": pk, "price": bars_v[i].high if pk == "swing_high" else bars_v[i].low,
+                                                                        "confirmed_at": bars_v[ci].start + bars_v[ci].duration},
+                            "method": "VWAP accumulated from the latest swing pivot (5 bars each side). The pivot is only known 5 bars later; "
+                                      "no macro-release anchors: the repo has no free economic calendar."}
+    label = {"utc_day": "UTC day", "us_rth": "US cash session (09:30-16:00 ET)", "cme_globex": "CME day (18:00 ET)"}[kind]
+    unavailable_reason = ("daily bars have no intraday session" if dur >= 86400 else "source bars carry no volume")
+    vw = {"status": "ok" if pts else "unavailable", "points": pts, "reset": label, "session_kind": kind, "anchored": anchored,
+          "sessions": {"status": "ok" if spans else "unavailable", "spans": spans, "kind": kind, "label": label},
+          **({} if pts else {"reason": unavailable_reason})}
+    tail = view[-300:]
     lo, hi = min(b.low for b in tail), max(b.high for b in tail)
     n = 24
     if hi <= lo or not any(b.volume for b in tail):
@@ -358,7 +405,8 @@ def _ml_panel(sym, interval, markers, evo_meta=None):
         panel["evolution"] = None
     stored = champion()
     panel["champion"] = stored if ((stored or {}).get("metrics") or {}).get("strict_gate", {}).get("passed") else None
-    group = f"{'crypto' if sym.endswith(('USDT', 'USD')) else 'equity'}-{interval}"
+    from atlas.ai.ml.chart_prediction import asset_group
+    group = f"{asset_group(sym)}-{interval}"
     reg = [x for x in list_models() if x.get("group") == group][:1]
     if reg:
         x = reg[0]; p = (x.get("metrics") or {}).get("primary") or {}
@@ -371,6 +419,13 @@ def _ml_panel(sym, interval, markers, evo_meta=None):
                      "probability": m.get("probability_label"), "ev_r": m.get("ev_r"), "risk": m.get("risk_status"), "model": m.get("model_version")}
                     for m in markers[-12:]]
     return panel
+
+
+def _model_prediction(sym, interval, bars, now):
+    """Live model read on the latest CLOSED bar (a forming bucket is dropped), recomputed on every request."""
+    from atlas.ai.ml.chart_prediction import model_prediction
+    closed = [b for b in bars if b.start + b.duration <= now]
+    return model_prediction(sym, interval, closed)
 
 
 def _enrich_and_forward(markers, bars):
@@ -486,7 +541,7 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
     else:
         details, fwd_out = ef, ef
     ml = [m for m in markers if m["source"] == "evolution_oos"]
-    vw, vp = _layer(_vwap_profile, view) if any(b.volume for b in view) else ({"status": "unavailable", "reason": "no volume"},) * 2
+    vw, vp = _layer(_vwap_profile, view, sym, bars) if any(b.volume for b in view) else ({"status": "unavailable", "reason": "no volume"},) * 2
     preds = [{"time": m["time"], "p": m["probability"], "take": m["class"] == "ml_suggested", "outcome": m["outcome"], "r": m["r"],
               "hit": (None if m["outcome"] not in ("target", "stop", "timeout") else bool((m.get("r") or 0) > 0)), "id": m["id"],
               "calibrator": (m.get("probability_label") or "").split("OOS, ")[-1].rstrip(")")} for m in ml if m.get("probability") is not None]
@@ -507,6 +562,7 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
                         "running_calibration": _layer(_calib, preds)},
         "marker_details": details,
         "forward": fwd_out,
+        "model_prediction": _layer(_model_prediction, sym, interval, bars, now),
     }
     return enforce_advisory({**base, "status": "ok", "bars": out_bars, "display": display, "layers": layers, "ml_panel": panel},
                             source="/api/ai/chart/overlays")[0]

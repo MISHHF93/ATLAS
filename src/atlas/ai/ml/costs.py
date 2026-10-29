@@ -9,9 +9,10 @@ from __future__ import annotations
 
 VENUE_COSTS = {
     "binance": {"cost_bps": 24.0, "cost_per_unit": 0.0, "note": "10bp taker + 2bp slip per side"},
+    "cme_gold": {"cost_bps": 4.0, "cost_per_unit": 0.0, "note": "assumption: 2bp spread+slip per side (GC/MGC/GLD), not a measured fill"},
     "us_equity": {"cost_bps": 4.0, "cost_per_unit": 0.01, "note": "1bp spread + 1bp slip per side + $0.01/sh"},
 }
 
 
 def venue_for(asset_class: str) -> str:
-    return "binance" if asset_class == "crypto" else "us_equity"
+    return "binance" if asset_class == "crypto" else "cme_gold" if asset_class == "gold" else "us_equity"

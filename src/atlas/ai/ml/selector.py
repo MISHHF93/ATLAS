@@ -66,7 +66,7 @@ def context(ts: int, htf_bias: str, rv_pctile: float, direction: str) -> dict[st
 def build_rows(instrument: str, bars: Sequence, engine_cfg: EngineConfig, rcfg: ReplayConfig, families: dict[str, str]) -> pd.DataFrame:
     """Replay (conservative_ohlc_v1) and emit one row per resolved trade of the given detectors -> family."""
     res = replay(instrument, bars[0].duration, bars, engine_cfg=engine_cfg, cfg=rcfg, data_label="atlas-feed")
-    bf = bar_features(bars)
+    bf = bar_features(bars, None if instrument.upper().endswith(('USDT', 'USD')) else 'equity', instrument)
     feats = {c.candidate_id: c.features for c in res.candidates}
     out = []
     for t in res.trades:

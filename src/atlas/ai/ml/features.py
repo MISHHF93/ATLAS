@@ -2,7 +2,7 @@
 
 Groups: price action (returns, body/wick ratios), volatility (ATR, realized vol, vol ratio), volume (z-score),
 session (hour/day-of-week cyclic, minutes since session open), regime (rolling vol percentile, trend sign,
-efficiency ratio) and distance to rolling extremes in ATR units.
+efficiency ratio) and distance to rolling extremes in ATR units, and VWAP regime (session VWAP distance/slope/band z; see vwap_features).
 """
 from __future__ import annotations
 
@@ -12,14 +12,17 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
+from atlas.ai.ml.vwap_features import VWAP_FEATURES, vwap_regime_features
 from atlas.features.price_action.bars import Bar
 
-BAR_FEATURES = (
+BASE_BAR_FEATURES = (
     "ret_1", "ret_4", "ret_16", "ret_64", "rv_16", "rv_64", "rv_ratio", "atr_bps", "range_atr", "body_frac",
     "upper_wick_frac", "lower_wick_frac", "vol_z", "ema20_dist_atr", "ema50_dist_atr", "ema20_slope_atr",
     "eff_ratio_16", "rsi_14", "hod_sin", "hod_cos", "dow_sin", "dow_cos", "rv_pctile_480", "trend_sign",
     "dist_hi64_atr", "dist_lo64_atr",
 )
+# VWAP regime features (evo-10). Models registered before evo-10 store their own feature list and are unaffected.
+BAR_FEATURES = BASE_BAR_FEATURES + VWAP_FEATURES
 
 
 def bars_frame(bars: Sequence[Bar]) -> pd.DataFrame:
@@ -35,8 +38,10 @@ def _rsi(close: pd.Series, n: int = 14) -> pd.Series:
     return 100 - 100 / (1 + up / dn.replace(0, np.nan))
 
 
-def bar_features(bars: Sequence[Bar]) -> pd.DataFrame:
-    """Index = bar end (unix s). Every operation is a backward-looking rolling/ewm window."""
+def bar_features(bars: Sequence[Bar], asset_class: str | None = None, instrument: str | None = None) -> pd.DataFrame:
+    """Index = bar end (unix s). Every operation is a backward-looking rolling/ewm window.
+
+    ``asset_class``/``instrument`` pick the VWAP session (crypto/None: UTC day, equity: US RTH, GC/MGC: CME day)."""
     df = bars_frame(bars)
     c, h, l, o = df.close, df.high, df.low, df.open
     lr = np.log(c).diff()
@@ -73,4 +78,7 @@ def bar_features(bars: Sequence[Bar]) -> pd.DataFrame:
     f["trend_sign"] = np.sign(ema20 - ema50).values
     f["dist_hi64_atr"] = ((h.rolling(64).max() - c) / atr).values
     f["dist_lo64_atr"] = ((c - l.rolling(64).min()) / atr).values
+    v = vwap_regime_features(bars, asset_class, instrument)
+    for col in VWAP_FEATURES:
+        f[col] = v[col].values
     return f.replace([np.inf, -np.inf], np.nan)

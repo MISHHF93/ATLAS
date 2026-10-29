@@ -11,7 +11,7 @@ import json
 import sys
 
 from atlas.feeds import get_feed
-from atlas.ml.refresh import refresh
+from atlas.ml.refresh import UNIVERSES, refresh
 from atlas.models.shadow import ShadowCollector
 
 
@@ -21,10 +21,12 @@ def main(argv=None):
     ap.add_argument("--no-shadow", action="store_true")
     ap.add_argument("--as-of", type=int, default=None)
     ap.add_argument("--registry", default=None)
+    ap.add_argument("--universe", choices=sorted(UNIVERSES), default="default",
+                    help="default: BTC/ETH/SPY/QQQ/IWM 15m+1h; charts: crypto, US equities and gold at 1m/15m/1h/1d (the chart prediction scopes)")
     ap.add_argument("--report", default="var/ml/last_refresh.json")
     a = ap.parse_args(argv)
     shadow = None if a.no_shadow else ShadowCollector("var/shadow/ml_meta_shadow.jsonl")
-    rep = refresh(get_feed(), registry_root=a.registry, backfill=a.backfill, shadow=shadow, as_of=a.as_of, report_path=a.report)
+    rep = refresh(get_feed(), universe=UNIVERSES[a.universe], registry_root=a.registry, backfill=a.backfill, shadow=shadow, as_of=a.as_of, report_path=a.report)
     for k, g in rep["groups"].items():
         failed = [x["gate"] for x in g.get("gates", []) if not x["passed"]]
         print(f"{k:12s} {g.get('status'):13s} {g.get('version', '')} drift={g.get('drift_status')} failed={failed} shadow={g.get('shadow')}")

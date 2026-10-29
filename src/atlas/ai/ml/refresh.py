@@ -20,13 +20,21 @@ from atlas.ai.ml.dataset import FEATURES, build_dataset
 from atlas.ai.ml.train import PRIMARY, fit_final, run_training
 
 UNIVERSE = [(i, iv) for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM") for iv in ("15m", "1h")]
+# evo-10 chart scopes: the series the chart shows predictions for. Crypto (BTC/ETH/SOL), US equities/ETFs and gold
+# (GC/MGC futures + GLD) at 1m, 15m, 1h and 1d. Gold is its own asset class so gold rules stay gold-only.
+CHART_UNIVERSE = (
+    [(i, iv) for i in ("BTCUSDT", "ETHUSDT", "SOLUSDT") for iv in ("1m", "15m", "1h", "1d")]
+    + [(i, iv) for i in ("SPY", "QQQ", "AAPL", "NVDA", "MSFT", "TSLA") for iv in ("1m", "15m", "1h", "1d")]
+    + [(i, iv) for i in ("GC", "MGC", "GLD") for iv in ("1m", "15m", "1h", "1d")]
+)
+UNIVERSES = {"default": UNIVERSE, "charts": CHART_UNIVERSE}
 DRIFT_WINDOW_S = 30 * 86400
 
 
 def incremental_backfill(feed, universe=UNIVERSE, now: int | None = None, default_days: dict[str, int] | None = None) -> list[dict]:
     """Fetch only bars after the last stored bar (or ``default_days`` of history if none)."""
     now = int(now or time.time())
-    default_days = default_days or {"15m": 59, "1h": 729}
+    default_days = default_days or {"1m": 7, "15m": 59, "1h": 729, "1d": 729}
     out = []
     for inst, iv in universe:
         last = feed.bars(inst, iv)

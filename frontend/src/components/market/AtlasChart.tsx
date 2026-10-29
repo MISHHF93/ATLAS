@@ -20,7 +20,8 @@ export const CHART_BAR_TYPES = [
 ] as const;
 const LAYERS = [
   { id: "ml_markers", label: "ML buy/sell" }, { id: "ml_probability", label: "ML probability" },
-  { id: "setups", label: "Setups" }, { id: "zones", label: "Zones" }, { id: "vwap", label: "VWAP" },
+  { id: "setups", label: "Setups" }, { id: "zones", label: "Zones" }, { id: "vwap", label: "Session VWAP" }, { id: "anchored_vwap", label: "Anchored VWAP" },
+  { id: "sessions", label: "Sessions" },
   { id: "volume_profile", label: "Volume profile" }, { id: "regimes", label: "Regime" },
   { id: "conviction", label: "Conviction" }, { id: "predictions", label: "Predictions" },
   { id: "marker_details", label: "Marker details" }, { id: "trade_lines", label: "Trade lines" },
@@ -31,6 +32,13 @@ const DUR: Record<string, number> = { "1m": 60, "5m": 300, "15m": 900, "1h": 360
 const ZONE_COLORS: Record<string, string> = { sr: "#56B4E9", fourbox: "#CC79A7", orb: "#E69F00", prior_day: "#98A3B3" };
 const REGIME_COLORS: Record<string, string> = { up: "rgba(46,184,138,0.10)", down: "rgba(240,128,60,0.10)", range: "rgba(152,163,179,0.06)" };
 
+export type ModelPrediction = Status & {
+  gate_status: "gate_passed" | "research_below_gate" | "no_model"; label: string; symbol?: string; interval?: string; execution_permission?: string;
+  direction?: "up" | "down" | "neutral"; probability?: number; p_long?: number; p_short?: number; ev_r?: number; setup?: string; conformal_take?: boolean;
+  as_of_bar?: number; as_of_end?: number; as_of_toronto?: string; computed_at?: number; computed_at_toronto?: string; meaning?: string;
+  model?: { id?: string; version?: string; group?: string; calibrator?: string; created_at?: string; gates_failed?: string[]; gates_total?: number; uses_vwap?: boolean;
+    metrics?: Record<string, number | null> };
+};
 export type RunningCal = { status: string; n: number; mean_p?: number | null; hit_rate?: number | null; brier?: number | null; brier_base_rate?: number | null; taken_hit_rate?: number | null };
 type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number };
 type Status = { status: string; reason?: string; note?: string };
@@ -47,7 +55,10 @@ export type Overlays = {
     ml_markers?: Status & { items: OppMarker[] }; setups?: Status & { items: OppMarker[]; classes?: Record<string, { count: number; note: string }> };
     ml_probability?: Status & { points: { time: number; value: number; take: boolean }[] };
     zones?: Status & { items: { kind: string; label: string; low: number; high: number; from: number }[]; notes?: string[] };
-    vwap?: Status & { points: { time: number; value: number }[] };
+    vwap?: Status & { points: { time: number; value: number; session?: number | null }[]; reset?: string; session_kind?: string;
+      anchored?: Status & { points?: { time: number; value: number }[]; anchor?: { time: number; kind: string; price: number; confirmed_at: number }; method?: string };
+      sessions?: Status & { spans: { key: number; from: number; to: number; shade: number }[]; kind: string; label: string } };
+    model_prediction?: ModelPrediction;
     volume_profile?: Status & { bins: { low: number; high: number; volume: number }[]; poc: number; window_bars: number };
     regimes?: Status & { spans: { from: number; to: number; trend: string; label: string }[]; current: string | null };
     conviction?: Status & { score?: number; label?: string; components?: { rule: string; points: number; why: string }[]; personas?: string };
@@ -98,16 +109,22 @@ function useOverlays(symbol: string, interval: string, barType: string, live: bo
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
+  const seen = useRef<string | null>(null);
   useEffect(() => {
     let alive = true;
+    seen.current = null;
     const pull = (initial: boolean) => {
       if (initial) { setLoading(true); setErr(null); }
       fetch(`/api/ai/chart/overlays?symbol=${encodeURIComponent(symbol)}&interval=${interval}&bar_type=${barType}&limit=600`, { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then((p: Overlays) => {
           if (!alive) return;
-          // Bar polls must not rebuild the chart. Layers refresh only on the first load and the live minute tick.
-          if (initial) setD(p);
+          // Bar polls must not rebuild the chart. Layers refresh on the first load, the live minute tick, and whenever a new bar
+          // (or a new model read) arrives on ANY timeframe: the key below changes once per bar close, not once per poll.
+          const key = `${p.bars?.[p.bars.length - 1]?.time ?? 0}|${p.layers?.model_prediction?.as_of_bar ?? 0}|${p.layers?.model_prediction?.model?.version ?? ""}`;
+          const changed = seen.current !== null && seen.current !== key;
+          seen.current = key;
+          if (initial || changed) setD(p);
           if (Array.isArray(p.bars)) setBarsRev(p.bars);
         })
         .catch((e: Error) => { if (alive && initial) { if (!live) setD(null); setErr(e.message); } })
@@ -159,6 +176,13 @@ function useLiveTape(symbol: string, enabled: boolean, onSnapshot?: (s: LiveSnap
   return { snap, err };
 }
 
+const torontoStamp = (v: string | number | null | undefined) => {
+  if (v == null || v === "") return "—";
+  const d = typeof v === "number" ? new Date(v * 1000) : new Date(v);
+  if (!Number.isFinite(d.getTime())) return "—";
+  const f = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" }).formatToParts(d).map((x) => [x.type, x.value]));
+  return `${f.month}-${f.day} ${f.hour}:${f.minute} ${f.timeZoneName ?? "ET"}`;
+};
 const fmt = (v: unknown, d = 3) => (typeof v === "number" && Number.isFinite(v) ? v.toFixed(d) : "—");
 const fmtSigned = (v: unknown, d = 3) => (typeof v === "number" && Number.isFinite(v) ? `${v >= 0 ? "+" : ""}${v.toFixed(d)}` : "—");
 const px = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(2) : Math.abs(v) >= 1 ? v.toFixed(4) : v.toPrecision(4)) : "—");
@@ -225,7 +249,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const live = interval === "live";
   const [barType, setBarType] = useState("time");
   const [on, setOn] = useState<Record<LayerId, boolean>>(() => Object.fromEntries(LAYERS.map((l) => [l.id,
-    allLayers || ["ml_markers", "ml_probability", "setups", "zones", "vwap", "conviction", "predictions", "marker_details", "trade_lines", "prediction_zone", "outcomes"].includes(l.id)])) as Record<LayerId, boolean>);
+    allLayers || ["ml_markers", "ml_probability", "setups", "zones", "vwap", "anchored_vwap", "sessions", "volume_profile", "regimes", "conviction", "predictions", "marker_details", "trade_lines", "prediction_zone", "outcomes"].includes(l.id)])) as Record<LayerId, boolean>);
   const { data, barsRev, error, loading, refresh } = useOverlays(sym, live ? "1m" : interval, live ? "time" : barType, live);
   const quote = useFeedQuotes([symbol])[symbol];
   const tape = useLiveTape(symbol, live, onLiveSnapshot);
@@ -239,6 +263,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const [sel, setSel] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const relayout = useRef<() => void>(() => {});
+  const savedRange = useRef<{ key: string; range: { from: number; to: number } | null } | null>(null);
 
   useEffect(() => {
     const n = (MOUNTED.get(sym) ?? 0) + 1; MOUNTED.set(sym, n);
@@ -282,6 +307,16 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         pts.push({ time: b.time as UTCTimestamp, value: 1, color: REGIME_COLORS[s.trend] ?? "transparent" });
       rg.setData(orderedChartPoints(pts));
     }
+    const sess = data.layers.vwap?.sessions;
+    if (on.sessions && sess?.status === "ok" && sess.spans.length) {
+      // Alternating session bands (UTC day / US cash session / CME day). Out-of-session bars (equity pre/post market) stay unshaded.
+      const sh = chart.addHistogramSeries({ priceScaleId: "sess", lastValueVisible: false, priceLineVisible: false });
+      chart.priceScale("sess").applyOptions({ scaleMargins: { top: 0, bottom: 0 }, visible: false });
+      const pts: { time: UTCTimestamp; value: number; color: string }[] = [];
+      for (const sp of sess.spans) for (const b of bars) if (b.time >= sp.from && b.time < sp.to)
+        pts.push({ time: b.time as UTCTimestamp, value: 1, color: sp.shade ? "rgba(152,163,179,0.07)" : "rgba(86,180,233,0.045)" });
+      sh.setData(orderedChartPoints(pts));
+    }
     const vol = chart.addHistogramSeries({ priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
     volRef.current = vol;
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 1 - bottom - 0.1, bottom }, visible: false });
@@ -301,15 +336,40 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
     }
     candles.setData(orderedChartPoints(series));
     // Past predictions as hit/miss (resolved only), native markers under the bar.
+    const times = new Set(bars.map((b) => b.time));
+    const nativeMarks: { time: UTCTimestamp; position: "belowBar" | "aboveBar"; shape: "circle" | "arrowDown" | "arrowUp"; size: number; color: string; text: string }[] = [];
     if (on.predictions && preds?.items.length) {
-      const times = new Set(bars.map((b) => b.time));
-      candles.setMarkers(preds.items.filter((p) => p.hit != null && times.has(p.time)).sort((a, b) => a.time - b.time).map((p) => ({
+      nativeMarks.push(...preds.items.filter((p) => p.hit != null && times.has(p.time)).map((p) => ({
         time: p.time as UTCTimestamp, position: "belowBar" as const, shape: "circle" as const, size: 0.6,
         color: p.hit ? "#2EB88A" : "#F0803C", text: `${p.hit ? "hit" : "miss"} ${Math.round(p.p * 100)}%` })));
     }
-    if (on.vwap && data.layers.vwap?.points.length) {
-      const vw = chart.addLineSeries({ color: "#F0E442", lineWidth: 1, lastValueVisible: false, priceLineVisible: false, title: "VWAP" });
-      vw.setData(orderedChartPoints(data.layers.vwap.points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value }))));
+    const vwl = data.layers.vwap;
+    if (on.vwap && vwl?.points?.length) {
+      // One line per session: the VWAP resets at each session open, so lines are never joined across the reset.
+      const bySession = new Map<string, { time: UTCTimestamp; value: number }[]>();
+      for (const q of vwl.points) { const k = String(q.session ?? "x"); (bySession.get(k) ?? bySession.set(k, []).get(k)!).push({ time: q.time as UTCTimestamp, value: q.value }); }
+      const groups = [...bySession.values()].slice(-24);
+      groups.forEach((g, i) => {
+        const vw = chart.addLineSeries({ color: "#F0E442", lineWidth: 1, lastValueVisible: i === groups.length - 1, priceLineVisible: false, crosshairMarkerVisible: false, title: i === groups.length - 1 ? "VWAP" : "" });
+        vw.setData(orderedChartPoints(g));
+      });
+    }
+    const av = vwl?.anchored;
+    if (on.anchored_vwap && av?.status === "ok" && av.points?.length) {
+      const al = chart.addLineSeries({ color: "#CC79A7", lineWidth: 2, lineStyle: LineStyle.Dashed, lastValueVisible: true, priceLineVisible: false, crosshairMarkerVisible: false, title: "AVWAP" });
+      al.setData(orderedChartPoints(av.points.map((q) => ({ time: q.time as UTCTimestamp, value: q.value }))));
+      if (av.anchor && times.has(av.anchor.time)) {
+        const hi = av.anchor.kind === "swing_high";
+        nativeMarks.push({ time: av.anchor.time as UTCTimestamp, position: hi ? "aboveBar" : "belowBar", shape: hi ? "arrowDown" : "arrowUp", size: 0.7, color: "#CC79A7", text: `AVWAP ${hi ? "swing high" : "swing low"}` });
+      }
+    }
+    if (nativeMarks.length) candles.setMarkers(nativeMarks.sort((a, b) => a.time - b.time));
+    // Forward path: empirical median of the 8-bar forward return (not model-conditioned) from the last closed bar to the horizon.
+    if (on.prediction_zone && !alt && fwd?.status === "ok" && fwd.band && fwd.as_of_bar && fwd.horizon_end && fwd.as_of_close != null) {
+      const lastT = bars[bars.length - 1].time;
+      const path = chart.addLineSeries({ color: "#E8EEF5", lineWidth: 2, lineStyle: LineStyle.Dashed, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, title: "median path" });
+      const endT = Math.max(fwd.horizon_end, lastT + dur);
+      path.setData([{ time: lastT as UTCTimestamp, value: bars[bars.length - 1].close }, { time: endT as UTCTimestamp, value: fwd.band.p50 }]);
     }
     if (on.zones) for (const z of data.layers.zones?.items ?? []) {
       const color = ZONE_COLORS[z.kind] ?? "#98A3B3";
@@ -356,12 +416,16 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
     };
     let raf = 0;
     relayout.current = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(layout); };
-    if (live) chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, series.length - 150), to: series.length + 2 });
+    const keep = savedRange.current;
+    if (keep && keep.key === `${sym}|${data.interval}|${live}|${barType}` && keep.range) { try { chart.timeScale().setVisibleLogicalRange(keep.range); } catch { /* fall through to default */ } }
+    else if (live) chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, series.length - 150), to: series.length + 2 });
     else chart.timeScale().fitContent();
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => relayout.current());
     const ro = new ResizeObserver(() => relayout.current()); ro.observe(el);
     const t = setTimeout(() => relayout.current(), 60);
-    return () => { clearTimeout(t); cancelAnimationFrame(raf); ro.disconnect(); chart.remove(); chartRef.current = null; candlesRef.current = null; volRef.current = null; relayout.current = () => {}; };
+    return () => { clearTimeout(t); cancelAnimationFrame(raf); ro.disconnect();
+      try { savedRange.current = { key: `${sym}|${data.interval}|${live}|${barType}`, range: chart.timeScale().getVisibleLogicalRange() }; } catch { /* chart already gone */ }
+      chart.remove(); chartRef.current = null; candlesRef.current = null; volRef.current = null; relayout.current = () => {}; };
   }, [data, on, visibleMarkers, height, fwd, preds, live]);
 
   // Newer closed bars replace the candle series in place. The chart is not rebuilt, and a user who is at the
@@ -452,6 +516,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const badge = p?.realtime === true ? "real-time" : p?.realtime === false ? p.delay_label : "delay not tagged";
   const unavailable = data ? LAYERS.filter((l) => on[l.id] && data.layers[l.id as keyof Overlays["layers"]] && data.layers[l.id as keyof Overlays["layers"]]!.status !== "ok") : [];
   const rc = preds?.running_calibration;
+  const mp = data?.layers.model_prediction;
   const tapeOk = live && tape.snap && ["public_last_trade", "public_market_candles"].includes(tape.snap.chart_source ?? "");
   return (
     <section className="ux-card atlas-chart" aria-label={`ATLAS chart ${sym}`} data-atlas-chart={sym} data-interval={interval}>
@@ -481,6 +546,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
           </span>
         )}
         {p?.built?.startsWith("resampled") ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
+        <ModelChip mp={mp} loading={loading} />
         <span className="atlas-chart-badge is-safe" title="ML output is advisory research. It can never place an order.">execution_permission: {data?.execution_permission ?? "none"}</span>
         <button type="button" className="atlas-chart-capture" title="Save chart as PNG" aria-label="Save chart as PNG"
           disabled={!data?.bars.length}
@@ -519,6 +585,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
               <button key={m.id} type="button" className={`atlas-chip is-${m.class} is-${short ? "sell" : "buy"}${sel === m.id ? " is-sel" : ""}`}
                 style={{ left: x, top: short ? y - 6 : y + 6, opacity: op }} data-marker-id={m.id}
                 aria-label={`${short ? "Sell" : "Buy"} ${CLASS_TEXT[m.class]} ${m.strategy}`}
+                title={markerTitle(m, short)}
                 onMouseEnter={() => on.marker_details && setHover(m.id)} onMouseLeave={() => setHover(null)}
                 onClick={() => setSel(sel === m.id ? null : m.id)}>
                 <span className="atlas-chip-arrow">{short ? "▼" : "▲"}</span>
@@ -527,7 +594,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
             );
           })}
         </div>
-        {on.prediction_zone && data?.status === "ok" && <PredictionCard fwd={fwd} rc={rc} />}
+        {on.prediction_zone && data?.status === "ok" && <PredictionCard fwd={fwd} rc={rc} mp={mp} />}
         {on.marker_details && shown && <MarkerCard m={shown} onClose={() => { setSel(null); setHover(null); }} pinned={shown.id === sel} />}
         {(error || (data && data.status !== "ok")) && !data?.bars.length && (
           <div className="atlas-chart-empty">{error ? `Chart data unavailable (${error}).` : `No ${data?.interval} feed bars for ${sym} yet. Nothing is drawn rather than guessed.`}</div>
@@ -548,10 +615,18 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   );
 }
 
+function markerTitle(m: OppMarker, short: boolean) {
+  const i = m.indicators;
+  return [`${short ? "SELL" : "BUY"} · ${m.setup ?? m.strategy.replace(/_/g, " ")} · ${CLASS_TEXT[m.class]}`,
+    `Confidence: ${m.probability == null ? "rule only, no model verdict" : `p(win) ${fmt(m.probability, 2)}${m.threshold != null ? ` vs ${fmt(m.threshold, 2)} threshold` : ""}`}`,
+    `RSI ${fmt(i?.rsi, 1)} · ADX ${fmt(i?.adx, 1)} · MACD hist ${fmt(i?.macd_hist, 2)} · VWAP dist ${i?.vwap_dist_atr == null ? "—" : `${fmt(i.vwap_dist_atr, 2)} ATR`} · regime ${i?.regime ?? "—"}`].join("\n");
+}
+
 function MarkerCard({ m, onClose, pinned }: { m: OppMarker; onClose: () => void; pinned: boolean }) {
   const i = m.indicators, o = OUTCOME_TEXT[outcomeOf(m)];
   const rows: [string, string][] = [
-    ["ML p(win)", m.probability == null ? "no model verdict" : `${fmt(m.probability, 2)} vs ${fmt(m.threshold, 2)} thr`],
+    ["Setup", m.setup ?? m.strategy.replace(/_/g, " ")],
+    ["Confidence", m.probability == null ? "rule only, no model verdict" : `p(win) ${fmt(m.probability, 2)} vs ${fmt(m.threshold, 2)} thr`],
     ["Expected Value", m.ev_r == null ? "—" : `${fmtSigned(m.ev_r, 2)}R`],
     ["RSI", fmt(i?.rsi, 1)], ["ADX", fmt(i?.adx, 1)], ["MACD hist", fmt(i?.macd_hist, 2)],
     ["VWAP dist", i?.vwap_dist_atr == null ? "—" : `${fmt(i.vwap_dist_atr, 2)} ATR`], ["ATR", px(i?.atr)],
@@ -572,10 +647,35 @@ function MarkerCard({ m, onClose, pinned }: { m: OppMarker; onClose: () => void;
   );
 }
 
-function PredictionCard({ fwd, rc }: { fwd: Overlays["layers"]["forward"]; rc: RunningCal | undefined }) {
+/** Compact model status: which model, whether every validation gate passed, and when it last read a bar (Toronto). */
+function ModelChip({ mp, loading }: { mp: ModelPrediction | undefined; loading: boolean }) {
+  if (!mp) return <span className="atlas-chart-badge atlas-model-chip is-none" data-gate="loading">{loading ? "model: loading…" : "model: no read"}</span>;
+  const m = mp.model;
+  const arrow = mp.direction === "up" ? "▲" : mp.direction === "down" ? "▼" : "◆";
+  const title = mp.status === "ok"
+    ? [`Model ${m?.id ?? "?"} ${m?.version ?? ""} (${m?.calibrator ?? "uncalibrated"}, trained ${torontoStamp(m?.created_at)})`,
+       `Gate: ${mp.label}${m?.gates_failed?.length ? `. Failed: ${m.gates_failed.join(", ")} (of ${m.gates_total ?? "?"})` : ""}`,
+       `Last closed bar ${mp.as_of_toronto ?? "—"}; scored ${mp.computed_at_toronto ?? "—"}`,
+       `P(target before stop) long ${fmt(mp.p_long, 2)} / short ${fmt(mp.p_short, 2)}; setup ${mp.setup ?? "—"}; ${m?.uses_vwap ? "uses VWAP regime features" : "trained before the VWAP features"}`,
+       "Research only: execution_permission none"].join("\n")
+    : `${mp.label}. ${mp.reason ?? ""}`;
+  return (
+    <span className={`atlas-chart-badge atlas-model-chip is-${mp.gate_status}`} data-gate={mp.gate_status} data-status={mp.status} title={title}>
+      <span className="atlas-model-chip__name">{mp.status === "ok" ? (m?.id ?? "model") : "model"}</span>
+      <span className="atlas-model-chip__gate">{mp.status === "ok" || mp.gate_status === "no_model" ? mp.label : `${mp.label} (${mp.status.replace(/_/g, " ")})`}</span>
+      {mp.status === "ok" && <span className="atlas-model-chip__read">{arrow} {mp.direction} {typeof mp.probability === "number" ? `${Math.round(mp.probability * 100)}%` : ""}</span>}
+      {mp.status === "ok" && <span className="atlas-model-chip__time">bar {torontoStamp(mp.as_of_end)}</span>}
+    </span>
+  );
+}
+
+function PredictionCard({ fwd, rc, mp }: { fwd: Overlays["layers"]["forward"]; rc: RunningCal | undefined; mp?: ModelPrediction }) {
   return (
     <aside className="atlas-pcard" aria-label="Prediction zone">
       <h5>Prediction zone <span>{fwd?.label ?? "model estimate, not a forecast guarantee"}</span></h5>
+      {mp && (mp.status === "ok"
+        ? <p className={`atlas-pcard-model is-${mp.gate_status}`}><strong>{mp.direction === "up" ? "▲" : mp.direction === "down" ? "▼" : "◆"} Model: {mp.direction}</strong> · P(target before stop) {fmt(mp.probability, 2)} ({mp.setup?.replace(/_/g, " ")}, EV {fmtSigned(mp.ev_r, 2)}R) · {mp.label} · bar {torontoStamp(mp.as_of_end)}</p>
+        : <p className={`atlas-pcard-model is-${mp.gate_status}`}><strong>Model: {mp.label}.</strong> {mp.reason}</p>)}
       {fwd?.status === "ok" ? <>
         {fwd.active_candidates?.length
           ? <ul>{fwd.active_candidates.map((c) => <li key={c.id}>{c.direction === "short" ? "▼" : "▲"} {c.setup}: {c.p_win == null ? "rule only, no model p(win)" : `${c.calibrated ? "calibrated " : ""}p(win) ${fmt(c.p_win, 2)}`}{c.threshold != null ? ` vs ${fmt(c.threshold, 2)}` : ""}{c.ev_r != null ? ` · EV ${fmtSigned(c.ev_r, 2)}R` : ""}</li>)}</ul>
