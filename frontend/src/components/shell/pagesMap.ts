@@ -121,6 +121,7 @@ export const PAGES: AtlasPage[] = [
       { id: "options", label: "Options", tabAliases: ["/research/lab?tab=options"],
         summary: "Black-Scholes price, greeks and implied volatility. Live chains are unavailable without a licensed provider." },
       { id: "context", label: "Macro & news", summary: "Economic calendar, SEC filings, Federal Reserve / Bank of Canada / SEC releases and headlines from official, key-free sources. Context only." },
+      { id: "news", label: "News & AI review", summary: "Your watchlist's SEC filings and headlines with hype/scam flags, plus the LLM Reviewer that can only veto or downgrade ML proposals. Advisory only: it never places an order." },
       { id: "agents", label: "Agents & dossier", tabAliases: ["/research?tab=multi-agent", "/research/lab?tab=agents"],
         summary: "Conviction 1–100 with named rules, plus parallel analysts, a bull/bear debate and a dry run. Research only: never submits an order." },
     ],

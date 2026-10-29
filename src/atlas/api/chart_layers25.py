@@ -257,3 +257,68 @@ def drift_alert(ctx: Ctx) -> dict[str, Any]:
     return {"status": "ok", "reason": "Market-data drift: last 32/64 bars against the prior 256. Model drift (live errors, ADWIN) needs resolved live predictions and is not reported here.",
             "level": level, "triggers": why, "features": feat, "thresholds": {"alert": {"vol_ratio_log": 0.5, "mean_z": 3, "range_ratio_log": 0.5}, "watch": {"vol_ratio_log": 0.3, "mean_z": 2, "range_ratio_log": 0.3}},
             "meaning": "An alert means recent data looks unlike the history a model was fitted on, so its output deserves less trust. It is not a trade signal."}
+
+
+# ------------------------------------------------------------------------------------------------ 26 News & filings (evo-14b)
+NEWS_ID = "news"
+ALL_IDS = IDS + (NEWS_ID,)
+
+
+def news_layer(sym: str, now: float, t0: float, env=None) -> dict[str, Any]:
+    """Layer 26: official filings and open-source headlines for this ticker from the local store, each linking to its source, with rule / LLM
+    annotation where one exists. Advisory only. Everything is read from what was collected; nothing is generated here."""
+    from atlas.news import features as NF
+    from atlas.news import llm as NL
+    from atlas.news import reviewer as RV
+    from atlas.news import store as S
+    ticker = NF.ticker_of(sym)
+    base = {"execution_permission": "none", "layer": 26, "ticker": ticker}
+    if ticker is None:
+        return {**base, **_unavail(f"{sym} has no SEC filings or issuer news in this layer: it covers SEC-registered US equities only (not crypto, FX, ETFs, futures).")}
+    scope = S.current_scope()
+    cov_f, cov_n = S.coverage_start(ticker, "sec_edgar"), S.coverage_start(ticker, "gdelt")
+    st = NL.llm_status()
+    cov = {"filings_since": cov_f, "news_since": cov_n}
+    items = S.items_for([ticker], since=t0, until=now, limit=200)
+    if cov_f is None and cov_n is None:
+        return {**base, **_unavail("Nothing has been collected for this ticker yet. Add it to your watchlist and press Refresh in Research \u2192 News (EDGAR also needs ATLAS_SEC_USER_AGENT; GDELT and official RSS need no key).",
+                                   coverage=cov, llm={"enabled": st["enabled"], "reason": st["reason"]})}
+    ann = S.annotations_for([(i["id"], i["ticker"]) for i in items], scope)
+    from atlas.news.service import _pick
+    out = []
+    for i in sorted(items, key=lambda r: r["published_at"]):
+        a = _pick(ann.get((i["id"], i["ticker"]), []))
+        out.append({"time": int(i["published_at"]), "id": i["id"], "source": i["source"], "tier": i["tier"], "tier_label": "official" if i["tier"] == 1 else "unverified news", "kind": i["kind"],
+                    "title": i["title"], "url": i["url"], "event_type": a["event_type"], "sentiment": a["sentiment"], "materiality": a["materiality"], "grounded": a["grounded"],
+                    "hype_flags": [f["type"] for f in a["hype_flags"]], "analyzer": a["analyzer"]})
+    ni = NF.news_input(ticker, scope)
+    feat = {}
+    if ni is not None:
+        fr = NF.news_frame(np.array([now], float), ni)
+        feat = {c: _f(fr[c].iloc[0]) for c in NF.NEWS_FEATURES}
+    return {**base, "status": "ok", "reason": ("" if out else "No collected items fall inside the visible window."), "items": out, "coverage": cov, "features": feat,
+            "llm": {"enabled": st["enabled"], "reason": st["reason"], "model": st.get("model")}, "reviewer_mode": RV.mode(env),
+            "note": "Tier 1 = official source (SEC, central banks). Tier 2 = third-party headline, unverified. Sentiment / materiality appear only when a verified LLM scored the item with a verbatim evidence quote; otherwise they are blank, never guessed."}
+
+
+def attach_reviews(markers: list[dict[str, Any]]) -> dict[str, Any]:
+    """Show the LLM Reviewer's verdict in each marker's details and feed paper outcomes back to the reviewer's audit log."""
+    from atlas.news import reviewer as RV
+    from atlas.news import store as S
+    scope = S.current_scope()
+    ids = [m["id"] for m in markers if m.get("id")]
+    if not ids:
+        return {"status": "ok", "n": 0}
+    done = [{"marker_id": m["id"], "outcome": {"target": "win", "stop": "loss"}.get(m.get("outcome"), "flat"), "r": m.get("r")}
+            for m in markers if m.get("id") and m.get("outcome") in ("target", "stop", "timeout") and m.get("r") is not None]
+    RV.record_outcomes(done)
+    latest: dict[str, dict[str, Any]] = {}
+    for r in RV.reviews_for(scope, 500, ids):
+        latest.setdefault(r["marker_id"], r)
+    for m in markers:
+        r = latest.get(m.get("id"))
+        if r:
+            m["llm_review"] = {"review_id": r["review_id"], "verdict": r["verdict"], "status": r["status"], "mode": r["mode"], "applied": r["applied"], "reason": r["reason"],
+                               "recommendation": r["recommendation"], "confidence_multiplier": r["confidence_multiplier"], "model": r["model"], "ts": r["ts"],
+                               "sources": [s for s in r["sources"] if s["id"] in r["citations"]], "execution_permission": "none"}
+    return {"status": "ok", "n": len(latest)}

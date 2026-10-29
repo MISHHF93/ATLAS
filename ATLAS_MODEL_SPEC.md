@@ -120,6 +120,7 @@ Let `c_i` close, `r_i = ln(c_i/c_{i-1})`, `sigma_i = EWMA std of r (span 100, mi
 | zones | yes | `ex_pd_range_pos`, `dist_hi64/lo64_atr` |
 | setups | yes (meta stack only) | `SETUP_FEATURES` (9) in the meta-label stack; the directional model has no setup |
 | 10 new layers | yes | 39 columns (table 3A.3) |
+| news (layer 26) | yes | 9 `nw_*` columns (section 3B) |
 | ml_markers, ml_probability, predictions, prediction_zone, outcomes, conviction, trade_lines, marker_details | **no** | These are model outputs, realised outcomes, or drawing aids. Using them as features would be circular (model output feeds the model) or leak the label (outcomes). |
 
 So the model trains on every layer that is an input (17 of 25). The other 8 are outputs or outcomes by definition and are excluded on purpose; claiming otherwise would be false. `directional_prediction` is an extra output layer and is not one of the 25.
@@ -130,14 +131,14 @@ So the model trains on every layer that is an input (17 of 25). The other 8 are 
 
 | Feature set (where used) | Before evo-14 | After evo-14 |
 |---|---|---|
-| Directional research pipeline (evo-14, one reference instrument) | 51 | **94** |
+| Directional research pipeline (evo-14, one reference instrument) | 51 | **103** |
 | Meta-label stack `dataset.FEATURES` (registered models store their own list) | 45 | 45 (unchanged) |
 | Vertical-slice research stack `RESEARCH_FEATURE_NAMES` | 21 | 21 (unchanged) |
 | Representation genome `REP_FEATURES` (per bar type, evolution genome) | 6 | 6 (unchanged) |
 
 Directional breakdown, before (51): bar base 26 (`BASE_BAR_FEATURES`) + VWAP 5 + HAR-RV 5 + multi-horizon 7 (`z_ret_{4,16,64,256}`, `range_pos_{16,64,256}`) + regime 4 + cross-asset 4 (for one reference instrument; more references add 4 each).
 
-Directional breakdown, added (+43): conformal bands 3, multi-timeframe confluence 4, events 3, market clock 4, cross-asset correlation 8, volatility cone 5, liquidity 4, model disagreement 3, account-aware size 2, drift alert 3, existing-layer gaps 4. 51 + 43 = 94.
+Directional breakdown, added (+52): conformal bands 3, multi-timeframe confluence 4, events 3, market clock 4, cross-asset correlation 8, volatility cone 5, liquidity 4, model disagreement 3, account-aware size 2, drift alert 3, existing-layer gaps 4, **news & filings 9** (layer 26, section 3B). 51 + 52 = 103. The 43 non-news columns are the ten evo-14 layers plus the gap-fillers; the news group is NaN for non-equities and for any bar before news collection began.
 
 Meta stack (45) = 26 bar + 5 VWAP + 9 setup (`dir_long, reward_risk, cost_r, risk_atr, entry_is_stop`, 4 detector flags) + 5 signed interactions (`*_x_dir`). It is not retrained or extended by evo-14: a registered model carries its own feature list, so changing the stack would break loading. Vertical-slice stack (21) = 12 bar + 4 session + 5 cross-asset.
 
@@ -145,7 +146,52 @@ How the added columns behave when data is missing: events are NaN wherever the s
 
 ### 3A.4 Leak controls specific to layer features
 
-Tests perturb every bar after `k` (prices, volume) and every proxy bar after `k` and require the first `k+1` rows of all 43 columns to be identical (the event columns are checked separately because they depend on the published schedule window). A separate test shifts proxy bar ends half a bar late and shocks one proxy bar to prove an own bar never sees a proxy bar that closes after it. Conformal scores are shifted by `H` so a band's score is only read once the move it forecast has resolved.
+Tests perturb every bar after `k` (prices, volume) and every proxy bar after `k` and require the first `k+1` rows of all 43 non-news columns (the 9 news columns have their own perturbation test, 3B.3) to be identical (the event columns are checked separately because they depend on the published schedule window). A separate test shifts proxy bar ends half a bar late and shocks one proxy bar to prove an own bar never sees a proxy bar that closes after it. Conformal scores are shifted by `H` so a band's score is only read once the move it forecast has resolved.
+
+## 3B. News intelligence and the LLM Reviewer (evo-14, layer 26)
+
+Status: research, **advisory only** (`execution_permission = none`, `risk_policy.yaml` unchanged). The reviewer ships in **shadow** mode: it logs what it would have done and changes nothing.
+
+### 3B.1 Sources and what the LLM may do
+
+Free, official, keyless sources only: SEC EDGAR submissions (8-K item codes, 10-K/10-Q, Form 4, 13D/G, S-1 and others), GDELT DOC 2.0 article lists, official RSS (Federal Reserve, SEC, Bank of Canada) and the FRED/BoC release calendars. EDGAR needs `ATLAS_SEC_USER_AGENT` with a real contact; without it the source reports `needs_config` and **no request is made**. Every row keeps its URL and a tier: **tier 1** official filing or release, **tier 3** unverified headline. Tiers are shown apart and never merged. A row without a source URL is never displayed.
+
+The deterministic layer (`news/rules.py`) maps filings to event types from the form and 8-K item numbers and flags hype patterns drawn from the SEC and Investor.gov red flags for social-media stock scams (guaranteed returns, urgency, claimed inside information, unrealistic upside, unsolicited group invitations, undisclosed compensation, promotion over substance). The LLM (`news/annotate.py`) adds per-ticker event, sentiment in [-1, 1], materiality in [0, 1] and `unverifiable_claim`. An LLM score is kept **only if it carries a verbatim quote from the item's own text**; otherwise it is dropped and the item shows "not AI-scored". No summary is ever generated without a cited item.
+
+LLM availability: `gemini` must be **verified** and `ATLAS_GEMINI_TIER=paid` (the free tier may train on prompts), and every prompt passes `screen_context` (rejects secrets and oversize text). `llm_other` keys (OpenAI/Anthropic/xAI) have no verifier by design and are **never used**. If any gate fails, the LLM is off, the feed shows rule-based labels and flags only, and the reviewer returns "no opinion".
+
+### 3B.2 The LLM Reviewer (ML proposal -> LLM review -> control plane)
+
+Pipeline: ML proposal -> **LLM review** -> deterministic control plane (final approve and size, unchanged `risk_policy.yaml`). The review returns `allow`, `reduce_confidence` (shrinks the probability toward 0.5 by a multiplier of at most 0.95) or `veto` (multiplier 0), a reason, and citations that must be ids of items supplied in the prompt; model-supplied URLs are stripped.
+
+- **Monotone**: `apply_review` can only lower the probability (`p' = min(p, 0.5 + (p - 0.5) m)` with `m` at most 1; veto is `m = 0`), or veto. It cannot add a trade, flip a side, raise a probability or size, or approve anything the ML did not propose. A randomised test (500 cases) pins this.
+- **Fail closed**: LLM disabled, key unverified, timeout, malformed JSON, `PolicyError`, or an ungrounded veto (no valid citation) all become **no opinion**, and the existing pipeline is unchanged.
+- **Untrusted input**: every item, and any situation text the user pastes, is fenced and labelled untrusted data; instructions inside them are ignored. A fence-breakout test pins this (OWASP LLM01).
+- **Audit**: every review row stores `prompt_hash`, model, prompt/response versions, cited sources, the raw verdict and what was applied; the AI-node audit log gets a record without raw output or keys.
+- **Shadow first**: modes are `off`, `shadow` (default) and `gate`. `ATLAS_LLM_REVIEWER_MODE=gate` is a human decision. The effect is measured on paper outcomes (target = win, stop = loss, first resolution wins): mean R of restricted (vetoed or reduced) proposals versus allowed ones, with a bootstrap 95% CI. The report states eligibility; it is **necessary, not sufficient**: at least 100 restricted and 100 allowed resolved proposals, and the whole CI of (restricted - allowed) mean R below 0. Until then the verdict is shown in the marker details and the News feed but gates nothing.
+
+### 3B.3 Leak controls for the nine `nw_*` features
+
+`nw_n_filings_24h, nw_hrs_since_filing, nw_severe_72h, nw_n_news_24h, nw_gdelt_tone_24h, nw_sent_mean_24h, nw_sent_wtd_24h, nw_mat_max_24h, nw_hype_any_24h`. Row `i` uses only items whose availability time is `<=` the bar end.
+
+1. **Filings**: availability is the SEC acceptance timestamp (`acceptanceDateTime`), not the filing date and not our download time, so a backfill is valid.
+2. **GDELT**: GDELT's first-seen time and tone as reported then.
+3. **LLM scores**: only scores produced **live** (analysed within 6 h of publication) become training columns, with `avail = max(published, analysed)`. A model asked years later to score an old headline has seen the outcome (look-ahead bias, section 3B.5); those retroactive scores are excluded.
+4. **Coverage**: a bar before a source's first collection time is `NaN` (never 0); a gap in collection resets the coverage start. "We did not look" is never confused with "nothing happened". `first_seen_at` is never rewritten.
+5. Tests: perturbing every item after `k` leaves the first `k+1` rows identical; retroactive LLM scores are excluded; `NaN` before coverage; non-equities are all `NaN`.
+
+### 3B.4 Honest limits
+
+News features add columns, not edge: they are labelled "research / below gate" until a model that uses them passes the unchanged gates out of sample. News history before collection began does not exist, so most training rows are `NaN` at first and the columns accumulate slowly. GDELT tone is a crude, noisy score. Source tiering reduces, not removes, the risk of a fabricated or planted item. The reviewer is not evidence of profitability and can reduce trade count and miss winners; the shadow measurement exists to find that out before it gates.
+
+### 3B.5 Research behind the design
+
+- Filings and APIs: SEC EDGAR APIs (https://www.sec.gov/search-filings/edgar-application-programming-interfaces); GDELT DOC 2.0 API (https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/; JSON article lists, at most 250 records, rolling three-month window, HTTP 429 when faster than one request per 5 s, which the 60 s refresh throttle respects).
+- Financial sentiment: Araci, "FinBERT" (2019), arXiv:1908.10063 (domain-tuned model, about 86% accuracy on Financial PhraseBank; a cheap local baseline for later). Lopez-Lira and Tang, "Can ChatGPT Forecast Stock Price Movements?", arXiv:2304.07619, Journal of Financial Economics (2026), doi:10.1016/j.jfineco.2026.104335: reports that LLM headline scores are associated with subsequent returns. ATLAS treats that as a hypothesis to test out of sample after costs, not as evidence that a news signal makes money.
+- Look-ahead and contamination: Glasserman and Lin, arXiv:2309.17322 (anonymising entities in text); He, Lv, Manela and Wu, arXiv:2502.21206 and arXiv:2510.11677; "DatedGPT", arXiv:2603.11838 (a measured look-ahead premium of about 26 bp); "Profit Mirage", arXiv:2510.07920 (apparent LLM trading performance and training-data leakage). Design response: live-only LLM features (3B.3), point-in-time timestamps, and an evaluation that starts only once live collection began.
+- LLM trading agents and risks: TradingAgents, arXiv:2412.20138 and its reproducibility study (ACM AIFintech 2026, doi:10.1145/3800973.3801029); StockBench, arXiv:2510.02209 (LLM agents often fail to beat buy-and-hold on contamination-free data); arXiv:2502.15865 (auditing LLM agents in finance: hallucination and unfaithful reasoning); TradeTrap, arXiv:2512.02261 (adversarial and poisoned inputs against trading agents); CAIA, arXiv:2510.00332 and AMA, arXiv:2510.11695 (further work on LLM agents in finance; cited as context, not relied on for any design number). Design response: the LLM cannot trade or enlarge anything, cannot cite what it was not given, must quote its evidence, and is measured in shadow.
+- Security: OWASP LLM01 Prompt Injection (https://genai.owasp.org/llmrisk/llm01-prompt-injection/) and LLM06:2025 Excessive Agency (https://genai.owasp.org/llmrisk/llm062025-excessive-agency/): untrusted text is fenced and the model has no tools and no execution permission.
+- Scam patterns: SEC and Investor.gov, "Social media and investment fraud" and "Investor Alert: Social Media and Investing" (https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins/social-media-stock-scams, https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-alerts/investor-35, https://www.sec.gov/investor/alerts/socialmediaandfraud.pdf).
 
 ## 4. Models
 
@@ -226,4 +272,5 @@ Only out-of-sample numbers are shown: `n_oos`, base rate, Brier and its baseline
 - Gibbs and Candès, "Adaptive Conformal Inference Under Distribution Shift" (2021), arXiv:2106.00170. Angelopoulos and Bates, "A Gentle Introduction to Conformal Prediction" (2021). Zaffran et al., AgACI (2022).
 - Corsi, "A Simple Approximate Long-Memory Model of Realized Volatility" (2009). Hamilton (1989) regime switching.
 - Mouret and Clune, "Illuminating search spaces by mapping elites" (2015), arXiv:1504.04909.
+- News and LLM research is cited inline in section 3B.5.
 - Koenker and Bassett (1978) quantile regression; Platt (1999); Zadrozny and Elkan (2002).

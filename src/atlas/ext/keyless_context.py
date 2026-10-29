@@ -235,6 +235,7 @@ def edgar_filings(ticker: str | None = None, forms: tuple[str, ...] = ("8-K", "1
                 acc = rec["accessionNumber"][i]
                 doc = rec.get("primaryDocument", [""] * (i + 1))[i]
                 items.append({"form": form, "filed": rec["filingDate"][i], "accepted": rec.get("acceptanceDateTime", [""] * (i + 1))[i] or None, "title": rec.get("primaryDocDescription", [""] * (i + 1))[i] or form,
+                              "codes": (rec.get("items", [""] * (i + 1))[i] or None),
                               "url": f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc.replace('-', '')}/{doc}"})
                 if len(items) >= limit:
                     break

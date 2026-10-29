@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from atlas.features.price_action.bars import Bar
+from atlas.news.features import NEWS_FEATURES, news_frame
 
 # ----------------------------------------------------------------------------- feature groups (layer id -> columns)
 CB_ALPHA, CB_WINDOW = 0.2, 250
@@ -42,8 +43,10 @@ LAYER_FEATURES: dict[str, tuple[str, ...]] = {
     "drift_alert": ("dr_vol_ratio", "dr_mean_shift_z", "dr_range_ratio"),
     # existing layers whose numbers were not yet model inputs (anchored VWAP, volume profile, prior-day zone)
     "existing_gaps": ("ex_avwap_dist_atr", "ex_vp_poc_dist_atr", "ex_vp_va_pos", "ex_pd_range_pos"),
+    # layer 26 "News & filings" (evo-14b): point-in-time, source-covered; NaN for instruments without SEC filings. See atlas.news.features.
+    "news": NEWS_FEATURES,
 }
-NEW_LAYER_IDS = tuple(k for k in LAYER_FEATURES if k != "existing_gaps")
+NEW_LAYER_IDS = tuple(k for k in LAYER_FEATURES if k not in ("existing_gaps", "news"))   # the ten layers added in evo-14; "news" is layer 26
 LAYER_FEATURE_NAMES: tuple[str, ...] = tuple(c for cols in LAYER_FEATURES.values() for c in cols)
 EXPERTS = ("mom_4", "mom_16", "mom_64", "rev_pos_64", "ema_cross", "rsi_rev")
 BARRIER_K = 1.0   # stop distance in sigma-sqrt(H) units for the account-size / cost-R features
@@ -320,7 +323,7 @@ def gaps_frame(df: pd.DataFrame, interval: str) -> pd.DataFrame:
 # ----------------------------------------------------------------------------- the whole frame
 def layer_features(bars: Sequence[Bar], interval: str, group: str | None, instrument: str | None, horizon: int, cost_bps: float,
                    corr_refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None = None,
-                   events: Sequence[float] | None = None) -> pd.DataFrame:
+                   events: Sequence[float] | None = None, news: Mapping | None = None) -> pd.DataFrame:
     """Frame with LAYER_FEATURE_NAMES columns, row-aligned to ``bars``. Row i depends only on bars[0..i] (+ ref bars ending <= bars[i].end)."""
     df = pd.DataFrame({"start": [b.start for b in bars], "end": [b.end for b in bars], "open": [b.open for b in bars], "high": [b.high for b in bars],
                        "low": [b.low for b in bars], "close": [b.close for b in bars], "volume": [b.volume for b in bars]})
@@ -331,7 +334,7 @@ def layer_features(bars: Sequence[Bar], interval: str, group: str | None, instru
     parts = [conformal_band_frame(c, sig, horizon), mtf_frame(c, sig), event_frame(end, events), clock_frame(end),
              corr_frame(end, c, role_refs(corr_refs or {}, instrument)),
              vol_frame(lr), liquidity_frame(df, sig, horizon, cost_bps), disagreement_frame(expert_votes(df, sig)), account_frame(sig, horizon),
-             drift_frame(df, lr), gaps_frame(df, interval)]
+             drift_frame(df, lr), gaps_frame(df, interval), news_frame(end, news)]
     out = pd.concat([p.reset_index(drop=True) for p in parts], axis=1)
     return out.reindex(columns=list(LAYER_FEATURE_NAMES)).replace([np.inf, -np.inf], np.nan)
 

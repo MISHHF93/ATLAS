@@ -562,6 +562,8 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
         markers, classes, evo = mk
         mstat = {"status": "ok"}
     markers = [m for m in markers if m["time"] >= t0]
+    from atlas.api import chart_layers25 as _C25
+    _layer(_C25.attach_reviews, markers)   # LLM Reviewer verdicts into marker details (no-op without reviews)
     ef = _layer(_enrich_and_forward, markers, bars)
     if isinstance(ef, tuple) and len(ef) == 2:
         details, fwd_out = ef
@@ -589,6 +591,7 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
                "market_clock": _layer(C25.market_clock, ctx), "cross_corr": _layer(C25.cross_corr, ctx), "vol_cone": _layer(C25.vol_cone, ctx),
                "liquidity": _layer(C25.liquidity, ctx), "model_disagreement": _layer(C25.model_disagreement, ctx),
                "account_size": _layer(C25.account_size, ctx, snap if isinstance(snap, dict) and "snapshot" in snap else None), "drift_alert": _layer(C25.drift_alert, ctx)}
+    l25["news"] = _layer(C25.news_layer, sym, now, t0)
     layers = {
         "ml_markers": {**mstat, "items": ml, "evolution": evo, **({} if ml else {"note": "no OOS predictions for this symbol/interval in the latest evolution run"})},
         "ml_probability": _probability_layer(preds),

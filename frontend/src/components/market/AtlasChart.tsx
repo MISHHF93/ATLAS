@@ -32,8 +32,10 @@ const LAYERS = [
   { id: "cross_corr", label: "Cross-asset correlation" }, { id: "vol_cone", label: "Volatility cone" },
   { id: "liquidity", label: "Liquidity & spread cost" }, { id: "model_disagreement", label: "Model disagreement" },
   { id: "account_size", label: "Account-aware size" }, { id: "drift_alert", label: "Drift alert" },
+  // Layer 26: official filings and unverified headlines for this ticker, each linked to its source. Context only; OFF by default.
+  { id: "news", label: "News & filings" },
 ] as const;
-const NEW_LAYER_IDS = ["conformal_bands", "mtf_confluence", "events", "market_clock", "cross_corr", "vol_cone", "liquidity", "model_disagreement", "account_size", "drift_alert"] as const;
+const NEW_LAYER_IDS = ["conformal_bands", "mtf_confluence", "events", "market_clock", "cross_corr", "vol_cone", "liquidity", "model_disagreement", "account_size", "drift_alert", "news"] as const;
 type NewLayerId = (typeof NEW_LAYER_IDS)[number];
 type LayerId = (typeof LAYERS)[number]["id"];
 const DUR: Record<string, number> = { "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400 };
@@ -54,6 +56,9 @@ export type DirectionalPrediction = Status & {
 };
 export type NewLayer = Status & { meaning?: string; features?: Record<string, number | null>; [k: string]: unknown };
 export type ConformalBands = NewLayer & { alpha?: number; horizon_bars?: number; forward?: { upper: number; lower: number; as_of_end: number }; points?: { time: number; upper: number; lower: number }[]; realised_coverage_64?: number | null };
+export type NewsItem = { time: number; source: string; tier: number; tier_label: string; url: string; title?: string; event_type?: string | null;
+  sentiment?: number | null; materiality?: number | null; grounded?: boolean; hype_flags?: string[]; kind?: string; analyzer?: string | null };
+export type NewsLayer = NewLayer & { items?: NewsItem[]; coverage?: unknown; llm?: { enabled?: boolean; reason?: string }; reviewer_mode?: string };
 export type RunningCal = { status: string; n: number; mean_p?: number | null; hit_rate?: number | null; brier?: number | null; brier_base_rate?: number | null; taken_hit_rate?: number | null };
 type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number };
 type Status = { status: string; reason?: string; note?: string };
@@ -77,7 +82,7 @@ export type Overlays = {
     directional_prediction?: DirectionalPrediction;
     conformal_bands?: ConformalBands;
     mtf_confluence?: NewLayer; events?: NewLayer; market_clock?: NewLayer; cross_corr?: NewLayer; vol_cone?: NewLayer;
-    liquidity?: NewLayer; model_disagreement?: NewLayer; account_size?: NewLayer; drift_alert?: NewLayer;
+    liquidity?: NewLayer; model_disagreement?: NewLayer; account_size?: NewLayer; drift_alert?: NewLayer; news?: NewsLayer;
     volume_profile?: Status & { bins: { low: number; high: number; volume: number }[]; poc: number; window_bars: number };
     regimes?: Status & { spans: { from: number; to: number; trend: string; label: string }[]; current: string | null };
     conviction?: Status & { score?: number; label?: string; components?: { rule: string; points: number; why: string }[]; personas?: string };
@@ -389,6 +394,15 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       if (av.anchor && times.has(av.anchor.time)) {
         const hi = av.anchor.kind === "swing_high";
         nativeMarks.push({ time: av.anchor.time as UTCTimestamp, position: hi ? "aboveBar" : "belowBar", shape: hi ? "arrowDown" : "arrowUp", size: 0.7, color: "#CC79A7", text: `AVWAP ${hi ? "swing high" : "swing low"}` });
+      }
+    }
+    const nl = data.layers.news;
+    if (on.news && nl?.status === "ok" && nl.items?.length) {
+      const bt = bars.map((b) => b.time);
+      for (const it of nl.items.slice(-40)) {
+        let k = -1; for (let j = bt.length - 1; j >= 0; j--) { if (bt[j] <= it.time) { k = j; break; } }
+        if (k < 0) continue;
+        nativeMarks.push({ time: bt[k] as UTCTimestamp, position: "aboveBar", shape: "square", size: 0.5, color: it.hype_flags?.length ? "#D55E00" : it.tier === 1 ? "#56B4E9" : "#98A3B3", text: it.hype_flags?.length ? "hype?" : (it.event_type ? it.event_type.replace(/_/g, " ") : "news") });
       }
     }
     if (nativeMarks.length) candles.setMarkers(nativeMarks.sort((a, b) => a.time - b.time));
@@ -706,6 +720,7 @@ function MarkerCard({ m, onClose, pinned }: { m: OppMarker; onClose: () => void;
     ["VWAP dist", i?.vwap_dist_atr == null ? "—" : `${fmt(i.vwap_dist_atr, 2)} ATR`], ["ATR", px(i?.atr)],
     ["Regime", i?.regime ?? "—"], ["Zone", m.zone_touched ?? "—"],
     ["Entry", px(m.price)], ["Stop", px(m.stop)], ["Target", px(m.target)],
+    ["LLM review", m.llm_review ? (m.llm_review.status === "ok" ? `${m.llm_review.verdict.replace(/_/g, " ")} (${m.llm_review.mode}${m.llm_review.applied ? ", applied" : ", not applied"})` : `no opinion: ${m.llm_review.reason ?? m.llm_review.status}`) : "not reviewed"],
     ["Outcome", `${o?.text ?? m.outcome}${m.r != null ? ` · ${m.r >= 0 ? "+" : ""}${m.r.toFixed(2)}R` : ""}`],
   ];
   return (
@@ -715,6 +730,7 @@ function MarkerCard({ m, onClose, pinned }: { m: OppMarker; onClose: () => void;
         <span className="atlas-mcard-cls">{CLASS_TEXT[m.class]}</span>
         {pinned && <button type="button" aria-label="Close" onClick={onClose}>×</button>}</header>
       <dl>{rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+      {m.llm_review?.status === "ok" && <p className="atlas-mcard-why" data-llm-review>{m.llm_review.reason}{m.llm_review.sources?.length ? " · " : ""}{(m.llm_review.sources ?? []).filter((u) => u.url).slice(0, 4).map((u, i) => <a key={u.url}  className="ux-link" href={u.url ?? undefined} target="_blank" rel="noopener noreferrer">{i ? ", " : ""}{u.title || `source ${i + 1}`}</a>)}</p>}
       <p className="atlas-mcard-why">{m.why ?? m.risk_status}{m.gate_reasons?.length ? ` · ${m.gate_reasons.join("; ")}` : ""}</p>
       <p className="atlas-mcard-note">Causal values at the confirmation bar. Advisory only, execution_permission none.</p>
     </aside>
@@ -758,6 +774,11 @@ function layerLine(id: NewLayerId, L: NewLayer): string {
     case "liquidity": return `est. spread ${num(a.est_spread_bps, 1)} bps · cost ${num(a.cost_in_R, 2)}R (assumed ${a.assumed_cost_bps} bps)`;
     case "model_disagreement": return `rule experts ${pct(a.agree_frac)} agree, net vote ${num(a.net_vote, 2)}${a.learned_spread != null ? `, learned spread ${num(a.learned_spread, 2)}` : ""}`;
     case "account_size": return `${a.broker}: ideal notional ${num(a.ideal_notional, 2)} at ${pct(a.risk_fraction, 1)} risk, stop ${pct(a.stop_frac, 2)} · fits minimum: ${a.min_order_fits == null ? "n/a" : a.min_order_fits ? "yes" : "no"}`;
+    case "news": {
+      const it: NewsItem[] = a.items ?? [];
+      const off = it.filter((x) => x.tier === 1).length, hype = it.filter((x) => x.hype_flags?.length).length;
+      return `${it.length} items (${off} official filings/releases, ${it.length - off} unverified headlines)${hype ? ` · ${hype} with hype/scam flags` : ""} · AI scoring ${a.llm?.enabled ? "on" : "off"} · reviewer ${a.reviewer_mode ?? "shadow"}`;
+    }
     case "drift_alert": return `${a.level}${a.triggers?.length ? `: ${a.triggers.join("; ")}` : ""}`;
   }
 }

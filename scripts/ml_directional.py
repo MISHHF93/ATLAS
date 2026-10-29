@@ -46,7 +46,14 @@ def main(argv=None):
     except Exception as exc:  # noqa: BLE001
         note = f"event calendar unavailable ({type(exc).__name__}); ev_* features are NaN"
     print(note)
-    res = P.run(feed, uni, registry_root=None if a.no_persist else a.root, events=events, events_note=note)
+    news_in: dict = {}
+    try:   # point-in-time news features from the local store (only for SEC-registered equities; everything else stays NaN)
+        from atlas.news.features import news_input, ticker_of
+        news_in = {i: ni for i, _ in uni if (ni := news_input(ticker_of(i))) is not None}
+    except Exception as exc:  # noqa: BLE001
+        print(f"news store unavailable ({type(exc).__name__}); nw_* features are NaN")
+    print(f"news features: {len(news_in)} instruments have collected sources; the rest are NaN (honest coverage)")
+    res = P.run(feed, uni, registry_root=None if a.no_persist else a.root, events=events, events_note=note, news=news_in)
     Path(a.root, "report.json").write_text(json.dumps(res, indent=2, default=float))
     for k, g in sorted(res["groups"].items()):
         pr = (g.get("prob") or {}).get("hgb") or {}

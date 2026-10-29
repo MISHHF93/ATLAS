@@ -23,7 +23,7 @@ EXECUTION_PERMISSION = "none"
 # ``/api/<ns>/...``; both are guarded by the same boundary.
 AI_NAMESPACES: tuple[str, ...] = ("ml", "research", "intel", "advanced-ml", "agent", "multi-agent")
 # AI endpoints living outside those namespaces: guarded (not aliased).
-AI_GUARDED_PREFIXES: tuple[str, ...] = ("/api/ext/dossier", "/api/ext/personas", "/api/ext/pipeline", "/api/pump", "/api/investment-intelligence")
+AI_GUARDED_PREFIXES: tuple[str, ...] = ("/api/ext/dossier", "/api/ext/personas", "/api/ext/pipeline", "/api/pump", "/api/investment-intelligence", "/api/news")
 
 
 @dataclass(frozen=True)
@@ -78,6 +78,11 @@ REGISTRY: tuple[AIComponent, ...] = (
     AIComponent("pump_intelligence", "ml", ("atlas.pump", "atlas.pump.features", "atlas.pump.models", "atlas.pump.strategies"),
                 api=("/api/pump",), ui=("PumpIntelligenceView",),
                 notes="Solana Pump.fun/PumpSwap discovery, safety, EV ranking; execution_permission=none on ML output; paper-only control plane"),
+    AIComponent("news_intelligence", "intel", ("atlas.news.sources", "atlas.news.rules", "atlas.news.annotate", "atlas.news.features", "atlas.news.llm", "atlas.news.service"),
+                api=("/api/news",), ui=("NewsFeedView",),
+                notes="official-source news + filings, grounded LLM annotation, point-in-time features; advisory only, execution_permission=none"),
+    AIComponent("llm_reviewer", "llm", ("atlas.news.reviewer",), api=("/api/news/review", "/api/news/reviews", "/api/news/reviewer/effect"), ui=("NewsFeedView",),
+                notes="monotone (veto / reduce only), fail-closed, shadow by default; control plane and risk_policy stay the final authority"),
     AIComponent("unified_intelligence_loop", "intel", ("atlas.ai.intel.unified_loop", "atlas.features.price_action.extended_strategies", "atlas.integrations.protocol_manifest"),
                 api=("/api/ai/intelligence-loop", "/api/ai/protocol-manifest"), ui=("PumpIntelligenceView", "IntelViews"),
                 notes="14-Stage ATLAS Intelligence Loop across multi-asset bars and Solana Pump.fun/PumpSwap tokens; execution_permission=none"),

@@ -1,5 +1,6 @@
 import { AgentsView, OptionsView, ScanView, ValuationView } from "@/src/ui/pages/ExtViews";
 import { ContextView } from "@/src/ui/pages/ContextViews";
+import { NewsFeedView } from "@/src/ui/pages/NewsViews";
 import { AtlasTerminal } from "@/app/AtlasTerminal";
 import { LevelsView } from "@/src/components/market/LevelsView";
 import { PriceActionView } from "@/src/components/market/PriceActionView";
@@ -28,6 +29,7 @@ export default async function Page(props: HubProps) {
         "valuation": <ValuationView />,
         "options": <OptionsView />,
         "context": <ContextView />,
+        "news": <NewsFeedView />,
         "agents": (
           <>
             <AgentsView />

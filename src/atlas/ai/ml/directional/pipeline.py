@@ -57,7 +57,7 @@ def cost_bps(group: str) -> float:
 
 
 def series_rows(bars: Sequence, instrument: str, interval: str, group: str, refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None,
-                cfg: Mapping[str, Any] = CONFIG, corr_refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None = None, events: Sequence[float] | None = None) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+                cfg: Mapping[str, Any] = CONFIG, corr_refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None = None, events: Sequence[float] | None = None, news: Mapping | None = None) -> tuple[pd.DataFrame, pd.DataFrame] | None:
     """(events+labels, aligned features) for one series, or None when it is too short."""
     if len(bars) < cfg["min_bars"]:
         return None
@@ -67,7 +67,7 @@ def series_rows(bars: Sequence, instrument: str, interval: str, group: str, refs
     lab = L.triple_barrier(df, ev, sigma, horizon_for(interval, group), cfg["barrier_k"])
     if len(lab) == 0:
         return None
-    f = build_features(list(bars), interval, group, instrument, group == "crypto", refs, horizon_for(interval, group), cost_bps(group), corr_refs, events)
+    f = build_features(list(bars), interval, group, instrument, group == "crypto", refs, horizon_for(interval, group), cost_bps(group), corr_refs, events, news)
     lab["instrument"] = instrument
     lab["cost_r"] = cost_bps(group) / 1e4 / lab["width"]
     return lab, f.iloc[lab["i"].to_numpy()].reset_index(drop=True)
@@ -249,8 +249,9 @@ def corr_avail(bars_cache: Mapping, iv: str, load: Callable | None = None) -> di
 
 def run(feed, universe: Sequence[tuple[str, str]], cfg: Mapping[str, Any] = CONFIG, load: Callable | None = None,
         registry_root: str | Path | None = None, fit_final: bool = True, events: Sequence[float] | None = None,
-        events_note: str | None = None) -> dict[str, Any]:
-    """Train every (instrument, interval) in ``universe`` that has stored bars, pooled by (group, interval)."""
+        events_note: str | None = None, news: Mapping[str, Mapping] | None = None) -> dict[str, Any]:
+    """news: instrument -> point-in-time news input (``atlas.news.features.news_input``); instruments without one get NaN news features.
+    Train every (instrument, interval) in ``universe`` that has stored bars, pooled by (group, interval)."""
     from atlas.ai.ml.dataset import load_series
     load = load or (lambda inst, iv: load_series(feed, inst, iv).bars)
     t_start = time.time()
@@ -283,7 +284,7 @@ def run(feed, universe: Sequence[tuple[str, str]], cfg: Mapping[str, Any] = CONF
         rs, fs = [], []
         ca = corr_avail(bars_cache, iv, load)
         for inst in sorted(insts):
-            got = series_rows(bars_cache[(inst, iv)], inst, iv, g, refs, cfg, ca, events)
+            got = series_rows(bars_cache[(inst, iv)], inst, iv, g, refs, cfg, ca, events, (news or {}).get(inst))
             if got is None:
                 skipped.append({"instrument": inst, "interval": iv, "reason": "no resolved events"})
                 continue

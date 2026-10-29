@@ -48,8 +48,17 @@ def _base(symbol: str, interval: str, status: str, reason: str, label: str, **kw
             "orders": "none (read-only)", "computed_at": int(time.time()), "kind": "directional_research_v1", **kw}
 
 
+def _news(symbol: str):
+    """Point-in-time news input for the live bar, or None (NaN features) when the instrument has none. Never raises."""
+    try:
+        from atlas.news.features import news_input, ticker_of
+        return news_input(ticker_of(symbol))
+    except Exception:
+        return None
+
+
 def directional_prediction(symbol: str, interval: str, bars: Sequence, ref_loader: Callable[[str, str], Sequence] | None = None, root=None,
-                           events: Sequence[float] | None = None) -> dict[str, Any]:
+                           events: Sequence[float] | None = None, news: dict | None = None) -> dict[str, Any]:
     group = P.group_of(symbol)
     key = f"{group}-{interval}"
     man, b = _load(key, root)
@@ -82,7 +91,7 @@ def directional_prediction(symbol: str, interval: str, bars: Sequence, ref_loade
                         corr[r] = (np.array([x.end for x in rb]), np.array([x.close for x in rb]))
                 except Exception:
                     pass
-    f = build_features(bars, interval, group, symbol, group == "crypto", refs, P.horizon_for(interval, group), P.cost_bps(group), corr, events).reindex(columns=b["features"])
+    f = build_features(bars, interval, group, symbol, group == "crypto", refs, P.horizon_for(interval, group), P.cost_bps(group), corr, events, news if news is not None else _news(symbol)).reindex(columns=b["features"])
     x = f.iloc[[-1]].to_numpy(float)
     for i in b.get("dead_cols") or []:
         x[:, i] = 0.0

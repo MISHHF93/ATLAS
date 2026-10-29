@@ -102,6 +102,8 @@ from atlas.api.account_snapshot_api import router as account_snapshot_router  # 
 app.include_router(account_snapshot_router)
 from atlas.api.context_api import router as context_router  # noqa: E402
 app.include_router(context_router, prefix="/api/context")
+from atlas.api.news_api import router as news_router  # noqa: E402
+app.include_router(news_router, prefix="/api/news")
 from atlas.api.pump_api import router as pump_router  # noqa: E402
 app.include_router(pump_router, prefix="/api/pump")
 from atlas.api.assets_api import router as assets_router  # noqa: E402

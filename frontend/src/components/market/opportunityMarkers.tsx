@@ -11,6 +11,9 @@ export type OppMarker = { id: string; source: string; strategy: string; directio
   /** chart-2 marker_details layer: causal values at the confirmation bar (server computed, closed bars only). */
   indicators?: { bar_time: number; close: number; rsi: number | null; adx: number | null; atr: number | null; macd_hist: number | null;
     vwap: number | null; vwap_dist_atr: number | null; vwap_dist_pct: number | null; regime: string | null };
+  /** LLM Reviewer verdict, logged for audit. It can only restrict (veto / reduce confidence); it never adds or enlarges a trade. */
+  llm_review?: { review_id: string; verdict: string; status: string; mode: string; applied: boolean; reason?: string; recommendation?: string;
+    confidence_multiplier?: number; model?: string | null; ts?: number; sources?: { url: string | null; title?: string }[]; execution_permission?: string };
   threshold?: number | null; outcome_label?: string; why?: string; setup?: string; zone_touched?: string | null; gate_reasons?: string[];
   filled_at?: number | null; exit_at?: number | null; exit_price?: number | null; resolution_path?: { time: number; value: number; exit?: boolean }[] };
 export const MARKER_CLASSES: Record<OppMarker["class"], { label: string; color: string; shape: "arrowUp" | "circle" | "square" }> = {
