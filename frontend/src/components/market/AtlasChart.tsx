@@ -26,7 +26,15 @@ const LAYERS = [
   { id: "conviction", label: "Conviction" }, { id: "predictions", label: "Predictions" },
   { id: "marker_details", label: "Marker details" }, { id: "trade_lines", label: "Trade lines" },
   { id: "prediction_zone", label: "Prediction zone" }, { id: "outcomes", label: "Outcomes" },
+  // evo-14: ten server-side layers, all OFF by default. Each reports its own status and reason; their numbers are also model training features.
+  { id: "conformal_bands", label: "Conformal bands" }, { id: "mtf_confluence", label: "Multi-timeframe confluence" },
+  { id: "events", label: "Economic events" }, { id: "market_clock", label: "Market clock" },
+  { id: "cross_corr", label: "Cross-asset correlation" }, { id: "vol_cone", label: "Volatility cone" },
+  { id: "liquidity", label: "Liquidity & spread cost" }, { id: "model_disagreement", label: "Model disagreement" },
+  { id: "account_size", label: "Account-aware size" }, { id: "drift_alert", label: "Drift alert" },
 ] as const;
+const NEW_LAYER_IDS = ["conformal_bands", "mtf_confluence", "events", "market_clock", "cross_corr", "vol_cone", "liquidity", "model_disagreement", "account_size", "drift_alert"] as const;
+type NewLayerId = (typeof NEW_LAYER_IDS)[number];
 type LayerId = (typeof LAYERS)[number]["id"];
 const DUR: Record<string, number> = { "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400 };
 const ZONE_COLORS: Record<string, string> = { sr: "#56B4E9", fourbox: "#CC79A7", orb: "#E69F00", prior_day: "#98A3B3" };
@@ -39,6 +47,13 @@ export type ModelPrediction = Status & {
   model?: { id?: string; version?: string; group?: string; calibrator?: string; created_at?: string; gates_failed?: string[]; gates_total?: number; uses_vwap?: boolean;
     metrics?: Record<string, number | null> };
 };
+export type DirectionalPrediction = Status & {
+  label: string; kind?: string; direction?: "up" | "down" | "neutral"; probability?: number; conformal_set?: number[]; conformal_alpha?: number; take?: boolean;
+  horizon_bars?: number; band?: { p10?: number; p50?: number; p90?: number }; as_of_end?: number; execution_permission?: string; meaning?: string;
+  gates?: { gate: string; passed: boolean }[]; metrics?: { n_oos?: number | null; brier?: number | null; brier_baseline?: number | null; auc?: number | null };
+};
+export type NewLayer = Status & { meaning?: string; features?: Record<string, number | null>; [k: string]: unknown };
+export type ConformalBands = NewLayer & { alpha?: number; horizon_bars?: number; forward?: { upper: number; lower: number; as_of_end: number }; points?: { time: number; upper: number; lower: number }[]; realised_coverage_64?: number | null };
 export type RunningCal = { status: string; n: number; mean_p?: number | null; hit_rate?: number | null; brier?: number | null; brier_base_rate?: number | null; taken_hit_rate?: number | null };
 type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number };
 type Status = { status: string; reason?: string; note?: string };
@@ -59,6 +74,10 @@ export type Overlays = {
       anchored?: Status & { points?: { time: number; value: number }[]; anchor?: { time: number; kind: string; price: number; confirmed_at: number }; method?: string };
       sessions?: Status & { spans: { key: number; from: number; to: number; shade: number }[]; kind: string; label: string } };
     model_prediction?: ModelPrediction;
+    directional_prediction?: DirectionalPrediction;
+    conformal_bands?: ConformalBands;
+    mtf_confluence?: NewLayer; events?: NewLayer; market_clock?: NewLayer; cross_corr?: NewLayer; vol_cone?: NewLayer;
+    liquidity?: NewLayer; model_disagreement?: NewLayer; account_size?: NewLayer; drift_alert?: NewLayer;
     volume_profile?: Status & { bins: { low: number; high: number; volume: number }[]; poc: number; window_bars: number };
     regimes?: Status & { spans: { from: number; to: number; trend: string; label: string }[]; current: string | null };
     conviction?: Status & { score?: number; label?: string; components?: { rule: string; points: number; why: string }[]; personas?: string };
@@ -380,6 +399,14 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       const endT = Math.max(fwd.horizon_end, lastT + dur);
       path.setData([{ time: lastT as UTCTimestamp, value: bars[bars.length - 1].close }, { time: endT as UTCTimestamp, value: fwd.band.p50 }]);
     }
+    // Conformal band: the 80% band issued at each closed bar for the H-bar move (no future bars are drawn).
+    const cb = data.layers.conformal_bands;
+    if (on.conformal_bands && !alt && cb?.status === "ok" && cb.points?.length) {
+      for (const k of ["upper", "lower"] as const) {
+        const ln = chart.addLineSeries({ color: "#56B4E9", lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, title: k === "upper" ? "80% band" : "" });
+        ln.setData(orderedChartPoints(cb.points.map((q) => ({ time: q.time as UTCTimestamp, value: q[k] }))));
+      }
+    }
     if (on.zones) for (const z of data.layers.zones?.items ?? []) {
       const color = ZONE_COLORS[z.kind] ?? "#98A3B3";
       candles.createPriceLine({ price: z.high, color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: z.label });
@@ -610,7 +637,8 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
             );
           })}
         </div>
-        {on.prediction_zone && data?.status === "ok" && <PredictionCard fwd={fwd} rc={rc} mp={mp} />}
+        {on.prediction_zone && data?.status === "ok" && <PredictionCard fwd={fwd} rc={rc} mp={mp} dp={data?.layers.directional_prediction} />}
+        {NEW_LAYER_IDS.some((k) => on[k]) && data?.status === "ok" && <LayersCard data={data} on={on} />}
         {on.marker_details && shown && <MarkerCard m={shown} onClose={() => { setSel(null); setHover(null); }} pinned={shown.id === sel} />}
         {(error || (data && data.status !== "ok")) && !data?.bars.length && (
           <div className="atlas-chart-empty">{error ? `Chart data unavailable (${error}).` : `No ${data?.interval} feed bars for ${sym} yet. Nothing is drawn rather than guessed.`}</div>
@@ -716,13 +744,49 @@ function ModelChip({ mp, loading, noBars }: { mp: ModelPrediction | undefined; l
   );
 }
 
-function PredictionCard({ fwd, rc, mp }: { fwd: Overlays["layers"]["forward"]; rc: RunningCal | undefined; mp?: ModelPrediction }) {
+function pct(v: unknown, d = 0): string { return typeof v === "number" && Number.isFinite(v) ? `${(v * 100).toFixed(d)}%` : "n/a"; }
+function num(v: unknown, d = 2): string { return typeof v === "number" && Number.isFinite(v) ? v.toFixed(d) : "n/a"; }
+function layerLine(id: NewLayerId, L: NewLayer): string {
+  const a = L as Record<string, any>;
+  switch (id) {
+    case "conformal_bands": return `${pct(1 - (a.alpha ?? 0.2))} band for ${a.horizon_bars}-bar move: ${px(a.forward?.lower)}–${px(a.forward?.upper)}; held ${pct(a.realised_coverage_64)} of the last 64`;
+    case "mtf_confluence": return `${a.bias} · score ${num(a.score, 2)} (1 = all horizons up) · ${a.n_up} of 4 horizons up`;
+    case "events": return a.next ? `next: ${a.next.title} ${a.next.when}` : "no scheduled release ahead in window";
+    case "market_clock": return `${a.n_open} exchange(s) open · ${a.now_local}`;
+    case "cross_corr": return (a.proxies ?? []).map((q: any) => `${q.proxy} ${num(q.corr_64, 2)}`).join(" · ") || "no proxies";
+    case "vol_cone": return (a.cone ?? []).map((q: any) => `${q.horizon_bars}b p${Math.round((q.percentile ?? 0) * 100)}`).join(" · ");
+    case "liquidity": return `est. spread ${num(a.est_spread_bps, 1)} bps · cost ${num(a.cost_in_R, 2)}R (assumed ${a.assumed_cost_bps} bps)`;
+    case "model_disagreement": return `rule experts ${pct(a.agree_frac)} agree, net vote ${num(a.net_vote, 2)}${a.learned_spread != null ? `, learned spread ${num(a.learned_spread, 2)}` : ""}`;
+    case "account_size": return `${a.broker}: ideal notional ${num(a.ideal_notional, 2)} at ${pct(a.risk_fraction, 1)} risk, stop ${pct(a.stop_frac, 2)} · fits minimum: ${a.min_order_fits == null ? "n/a" : a.min_order_fits ? "yes" : "no"}`;
+    case "drift_alert": return `${a.level}${a.triggers?.length ? `: ${a.triggers.join("; ")}` : ""}`;
+  }
+}
+function LayersCard({ data, on }: { data: Overlays; on: Record<string, boolean> }) {
+  return (
+    <aside className="atlas-lcard" aria-label="Layer readouts" tabIndex={0} data-layer-readouts>
+      {NEW_LAYER_IDS.filter((k) => on[k]).map((k) => {
+        const L = data.layers[k] as NewLayer | undefined;
+        const meta = LAYERS.find((l) => l.id === k)!;
+        if (!L) return <p key={k} className="is-off"><strong>{meta.label}</strong> not returned by the server</p>;
+        return L.status === "ok"
+          ? <p key={k} data-layer={k} title={`${L.reason ?? ""} ${L.meaning ?? ""}`}><strong>{meta.label}</strong> · {layerLine(k, L)}</p>
+          : <p key={k} data-layer={k} className="is-off"><strong>{meta.label}</strong> unavailable: {L.reason}</p>;
+      })}
+    </aside>
+  );
+}
+
+function PredictionCard({ fwd, rc, mp, dp }: { fwd: Overlays["layers"]["forward"]; rc: RunningCal | undefined; mp?: ModelPrediction; dp?: DirectionalPrediction }) {
   return (
     <aside className="atlas-pcard" aria-label="Prediction zone" tabIndex={0}>
       <h5>Prediction zone <span>{fwd?.label ?? "model estimate, not a forecast guarantee"}</span></h5>
       {mp && (mp.status === "ok"
         ? <p className={`atlas-pcard-model is-${mp.gate_status}`}><strong>{mp.direction === "up" ? "▲" : mp.direction === "down" ? "▼" : "◆"} Model: {mp.direction}</strong> · P(target before stop) {fmt(mp.probability, 2)} ({mp.setup?.replace(/_/g, " ")}, EV {fmtSigned(mp.ev_r, 2)}R) · {mp.label} · bar {torontoStamp(mp.as_of_end)}</p>
         : <p className={`atlas-pcard-model is-${mp.gate_status}`}><strong>Model: {mp.label}.</strong> {mp.reason}</p>)}
+      {dp && (dp.status === "ok"
+        ? <p className={`atlas-pcard-model is-${dp.label.startsWith("research") ? "research_below_gate" : "gate_passed"}`} data-directional-research>
+          <strong>{dp.direction === "up" ? "▲" : dp.direction === "down" ? "▼" : "◆"} Directional research: {dp.direction}</strong> · P(up barrier first) {fmt(dp.probability, 2)} · conformal set {`{${(dp.conformal_set ?? []).map((v) => (v === 1 ? "up" : "down")).join(", ")}}`}{dp.band ? ` · ${dp.horizon_bars}-bar p10–p90 ${px(dp.band.p10)}–${px(dp.band.p90)}` : ""} · {dp.label}{dp.metrics?.n_oos ? ` · OOS n ${dp.metrics.n_oos}, AUC ${fmt(dp.metrics.auc, 2)}, Brier ${fmt(dp.metrics.brier, 3)} vs base ${fmt(dp.metrics.brier_baseline, 3)}` : ""} · bar {torontoStamp(dp.as_of_end)}</p>
+        : <p className="atlas-pcard-model is-no_model" data-directional-research><strong>Directional research: {dp.label}.</strong> {dp.reason}</p>)}
       {fwd?.status === "ok" ? <>
         {fwd.active_candidates?.length
           ? <ul>{fwd.active_candidates.map((c) => <li key={c.id}>{c.direction === "short" ? "▼" : "▲"} {c.setup}: {c.p_win == null ? "rule only, no model p(win)" : `${c.calibrated ? "calibrated " : ""}p(win) ${fmt(c.p_win, 2)}`}{c.threshold != null ? ` vs ${fmt(c.threshold, 2)}` : ""}{c.ev_r != null ? ` · EV ${fmtSigned(c.ev_r, 2)}R` : ""}</li>)}</ul>

@@ -166,12 +166,12 @@ def _fred(now: float, fetch: Fetcher, env: Mapping[str, str], fresh: bool) -> di
     return {**_src("fred", title, url, "ok", n=len(ev), fetched=now), "events": ev}
 
 
-def economic_calendar(now: float | None = None, days: int = 14, env: Mapping[str, str] | None = None, fetch: Fetcher | None = None, fresh: bool = False) -> dict[str, Any]:
+def economic_calendar(now: float | None = None, days: int = 14, env: Mapping[str, str] | None = None, fetch: Fetcher | None = None, fresh: bool = False, lookback_days: int = 0) -> dict[str, Any]:
     now = time.time() if now is None else now
     fetch = fetch or _default_fetch
     env = env if env is not None else _env()
     days = max(1, min(int(days), 60))
-    start, end = now - 3600, now + days * 86400
+    start, end = now - 3600 - max(0, min(int(lookback_days), 800)) * 86400, now + days * 86400   # lookback is for ML features only; the API default is unchanged
     sources, events = [], []
     for fn in (lambda: _bls(now, fetch, fresh), lambda: _treasury(now, fetch, fresh), lambda: _fred(now, fetch, env, fresh)):
         try:

@@ -716,3 +716,8 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .ux-auth-brand { display: flex; justify-content: center; }
 .ux-auth { width: 100%; max-width: 480px; margin: 0 auto; padding: var(--s-4); }
 .ux-auth .ux-form-row { flex-direction: column; align-items: stretch; }
+
+.atlas-lcard { position: absolute; left: 8px; bottom: 28px; z-index: 4; max-width: min(520px, calc(100% - 96px)); max-height: 42%; overflow: auto; padding: 6px 9px; border-radius: 8px;
+  background: rgba(14,18,26,0.86); border: 1px solid var(--c-border, #2a3340); font-size: 10.5px; line-height: 1.35; color: var(--c-text, #dfe6ee); }
+.atlas-lcard p { margin: 0 0 3px; } .atlas-lcard p.is-off { color: #E69F00; } .atlas-lcard strong { color: #56B4E9; font-weight: 600; }
+.atlas-chart.is-fill .atlas-lcard:not(:hover):not(:focus-within) { max-height: 3.4em; overflow: hidden; }

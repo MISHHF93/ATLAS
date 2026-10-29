@@ -20,7 +20,8 @@ router = APIRouter(prefix="/api/ai/chart", tags=["ai"])
 INTERVALS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}
 BAR_TYPES = ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "tick", "kagi_atr", "pnf_atr")
 LAYERS = ("ml_markers", "ml_probability", "setups", "zones", "vwap", "volume_profile", "regimes", "conviction", "predictions")
-EXTRA_LAYERS = ("marker_details", "forward", "model_prediction")  # chart-2: additive
+EXTRA_LAYERS = ("marker_details", "forward", "model_prediction", "directional_prediction",
+                "conformal_bands", "mtf_confluence", "events", "market_clock", "cross_corr", "vol_cone", "liquidity", "model_disagreement", "account_size", "drift_alert")  # chart-2: additive
 
 
 def _feed():
@@ -428,6 +429,27 @@ def _model_prediction(sym, interval, bars, now):
     return model_prediction(sym, interval, closed)
 
 
+def _economic_events(now):
+    """Scheduled releases (BLS/Treasury) for the events layer and the model's ev_* features; cached by the keyless source layer."""
+    from atlas.ext.keyless_context import economic_calendar
+    return economic_calendar(now, days=30, lookback_days=30)
+
+
+def _account_snapshot():
+    from atlas.accounts.credentials import effective_environ
+    from atlas.broker_state.service import get_snapshot
+    from atlas.integrations.registry import load_env
+    return get_snapshot("paper_sim", load_env(environ=dict(effective_environ())))
+
+
+def _directional_prediction(sym, interval, bars, now, feed, events=None):
+    """evo-14 directional research model read on the latest closed bar (labelled research / below gate unless every offline gate passed)."""
+    from atlas.ai.ml.directional.live import directional_prediction
+    from atlas.ai.ml.dataset import load_series
+    closed = [b for b in bars if b.start + b.duration <= now]
+    return directional_prediction(sym, interval, closed, ref_loader=lambda r, iv: load_series(feed, r, iv).bars, events=events)
+
+
 def _enrich_and_forward(markers, bars):
     from atlas.intel.marker_context import enrich, forward_zone, snapshots
     win = bars[-1500:]
@@ -496,11 +518,16 @@ def _probability_layer(preds: list[dict[str, Any]]) -> dict[str, Any]:
 
 @router.get("/overlays")
 def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str = Query("15m"), bar_type: str = Query("time"),
-                   limit: int = Query(600, ge=50, le=3000)) -> dict[str, Any]:
+                   limit: int = Query(600, ge=50, le=3000), tz: str = Query("America/Toronto", max_length=40)) -> dict[str, Any]:
     if interval not in INTERVALS:
         raise HTTPException(400, "unsupported_interval")
     if bar_type not in BAR_TYPES:
         raise HTTPException(400, "unknown_bar_type")
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(tz)
+    except Exception:
+        raise HTTPException(400, "unknown_timezone")
     from atlas.feeds.universe import resolve
     # BTC-USD is the crypto book. EUR-USD is the ECB pair, not a USDT coin.
     sym = resolve(symbol) or (symbol.upper().replace("-USD", "USDT") if symbol.upper().endswith("-USD") else symbol.upper())
@@ -547,6 +574,21 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
               "calibrator": (m.get("probability_label") or "").split("OOS, ")[-1].rstrip(")")} for m in ml if m.get("probability") is not None]
     panel = _layer(_ml_panel, sym, interval, markers, evo)
     em = ((panel.get("evolution") or {}).get("symbol_live_metrics") or (panel.get("evolution") or {}).get("metrics")) if isinstance(panel, dict) and panel.get("evolution") else None
+    from atlas.api import chart_layers25 as C25
+    cal = _layer(_economic_events, now)
+    cal_ok = isinstance(cal, dict) and bool(cal.get("events"))
+    ev_ts = [e["ts"] for e in cal["events"]] if cal_ok else None
+    mp_layer = _layer(_model_prediction, sym, interval, bars, now)
+    dp_layer = _layer(_directional_prediction, sym, interval, bars, now, feed, ev_ts)
+    snap = _layer(_account_snapshot)
+    ctx = _layer(C25.build_ctx, sym, interval, bars, now, feed, tz, mp_layer, dp_layer, ev_ts, cal_ok)
+    if isinstance(ctx, dict):   # building the shared context failed: every new layer says so, none is hidden
+        l25 = {k: dict(ctx) for k in C25.IDS}
+    else:
+        l25 = {"conformal_bands": _layer(C25.conformal_bands, ctx), "mtf_confluence": _layer(C25.mtf_confluence, ctx), "events": _layer(C25.events, ctx, cal),
+               "market_clock": _layer(C25.market_clock, ctx), "cross_corr": _layer(C25.cross_corr, ctx), "vol_cone": _layer(C25.vol_cone, ctx),
+               "liquidity": _layer(C25.liquidity, ctx), "model_disagreement": _layer(C25.model_disagreement, ctx),
+               "account_size": _layer(C25.account_size, ctx, snap if isinstance(snap, dict) and "snapshot" in snap else None), "drift_alert": _layer(C25.drift_alert, ctx)}
     layers = {
         "ml_markers": {**mstat, "items": ml, "evolution": evo, **({} if ml else {"note": "no OOS predictions for this symbol/interval in the latest evolution run"})},
         "ml_probability": _probability_layer(preds),
@@ -562,7 +604,9 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
                         "running_calibration": _layer(_calib, preds)},
         "marker_details": details,
         "forward": fwd_out,
-        "model_prediction": _layer(_model_prediction, sym, interval, bars, now),
+        "model_prediction": mp_layer,
+        "directional_prediction": dp_layer,
+        **l25,
     }
     return enforce_advisory({**base, "status": "ok", "bars": out_bars, "display": display, "layers": layers, "ml_panel": panel},
                             source="/api/ai/chart/overlays")[0]

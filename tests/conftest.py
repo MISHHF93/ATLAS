@@ -201,3 +201,18 @@ def _reset_default_atlas_feed():
     old = _feed_mod._DEFAULT
     yield
     _feed_mod._DEFAULT = old
+
+
+@pytest.fixture(autouse=True)
+def _no_live_context_network(request, monkeypatch):
+    """Keep tests hermetic: the keyless context sources (BLS/Treasury/EDGAR/RSS) are never fetched over the network by a test that
+    does not inject its own fetcher. Tests that pass ``fetch=`` are unaffected."""
+    from atlas.ext import keyless_context as kc
+
+    if request.module.__name__.split(".")[-1] == "test_keyless_context":
+        return   # that module injects its own fetchers and tests the real host allow-list (which raises before any network use)
+
+    def _blocked(url, headers):
+        raise OSError("network disabled in tests")
+    monkeypatch.setattr(kc, "_default_fetch", _blocked)
+    kc._CACHE.clear()
