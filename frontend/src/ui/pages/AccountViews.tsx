@@ -33,7 +33,7 @@ type Conn = { id: string; name: string; category: string; stage: string; docs_ur
 type Library = { categories: { id: string; title: string; stage: string }[]; connectors: Conn[]; master_key_configured: boolean; entitlements: { plan: string; plan_name: string } & R };
 
 const LIGHT: Record<Conn["light"], { tone: Tone; text: string }> = {
-  gray: { tone: "neutral", text: "Not set up" }, amber: { tone: "warn", text: "Saved, not tested" }, green: { tone: "good", text: "Working" }, red: { tone: "bad", text: "Test failed" },
+  gray: { tone: "warn", text: "Needs verification" }, amber: { tone: "warn", text: "Needs verification" }, green: { tone: "good", text: "Verified" }, red: { tone: "bad", text: "Verification failed" },
 };
 const SHAPE: Record<Conn["light"], string> = { gray: "○", amber: "◐", green: "●", red: "■" };
 
@@ -61,7 +61,7 @@ function WizardInner({ user }: { user: User }) {
   return (
     <>
       <Card title="Set up your data and alerts" span="full"
-        subtitle={`Signed in as ${user.email}. Go step by step: each service has a free tier, a link to get its key, a save button and a connection test. Paper and practice accounts only.`}
+        subtitle={`Signed in as ${user.email}. Go step by step: each service has a free tier, a link to get its key, a save button and a Verify button (one read-only check). Nothing is set up for you: every key reads Needs verification until you enter it and press Verify. Paper and practice accounts only.`}
         actions={<Badge tone="info">{lib.entitlements.plan_name} plan</Badge>}>
         {!lib.master_key_configured ? (
           <p className="ux-action-msg" data-tone="warn" role="status">Secrets cannot be saved yet: the server has no ATLAS_MASTER_KEY. Generate one with
@@ -132,10 +132,11 @@ function ConnectorCard({ c, reload }: { c: Conn; reload: () => Promise<void> }) 
         <a className="ux-link" href={c.signup_url} target="_blank" rel="noopener noreferrer">Get a key ↗</a>{" · "}
         <a className="ux-link" href={c.docs_url} target="_blank" rel="noopener noreferrer">Docs ↗</a>
       </p>
-      {c.state?.last_test_detail ? <p className="ux-small">Last test: {c.state.last_test_detail}</p> : null}
+      {!c.state ? <p className="ux-small">No key entered yet. Get a free key, paste it under Set up, Save, then press Verify.</p> : c.light === "amber" ? <p className="ux-small">Saved but not verified yet. Press Verify.</p> : null}
+      {c.state?.last_test_detail ? <p className="ux-small">Last check: {c.state.last_test_detail}</p> : null}
       <div className="ux-form-row" data-tight>
         <button type="button" className="ux-btn" aria-expanded={open} onClick={() => setOpen(!open)}>{c.state ? "Edit" : "Set up"}</button>
-        <button type="button" className="ux-btn" disabled={!c.state || busy !== ""} onClick={() => void run("test", `/api/account/connectors/${c.id}/test`, {}, "Test finished.")}>{busy === "test" ? "Testing…" : "Test connection"}</button>
+        <button type="button" className="ux-btn" disabled={!c.state || busy !== ""} onClick={() => void run("test", `/api/account/connectors/${c.id}/test`, {}, "Verification finished.")}>{busy === "test" ? "Verifying…" : "Verify"}</button>
       </div>
       {open ? (
         <form onSubmit={save} className="ux-wiz-form" aria-label={`${c.name} settings`}>

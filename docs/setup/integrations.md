@@ -1,14 +1,15 @@
 # Setting up ATLAS integrations
 
-ATLAS is **paper trading only**. The Alpaca adapter talks only to `https://paper-api.alpaca.markets`, refuses the live
+ATLAS is **paper trading only**. Alpaca is now optional: it does not serve Canadian residents, so the default stock/ETF source is Massive (free, email signup;
+see `docs/data/canada-sources.md`). Pick the primary with `ATLAS_STOCK_PROVIDER` (`polygon` default, `alphavantage`, `questrade`, `tradier`, `alpaca`). The Alpaca adapter talks only to `https://paper-api.alpaca.markets`, refuses the live
 endpoint, and refuses any account whose number does not start with `PA`. Every order goes through the control plane
 first (`ActionableControlPlaneEngine.submit_order`), and research/ML output keeps `execution_permission: none`.
 
 ## How it works
 
 1. Copy `.env.example` to `.env` in the repo root (`.env` is gitignored). Every key starts blank.
-2. Add a key, save, and restart the server. A blank key means that service shows **not configured** and stays off;
-   nothing else breaks.
+2. Add a key and save (Settings → Setup). A blank key means that service reads **Needs verification** and stays off; nothing else breaks. No key is ever set for you.
+   Press **Verify** next to a service (Settings → Setup, Broker & alerts, Data coverage, or `POST /api/integrations/verify {"service": id}`) to make one read-only check with the key you entered. The result (Verified / failed / format checked only) is stored without the key; changing the key returns it to Needs verification. Stripe accepts test keys only.
 3. Check it:
    - `python scripts/check_integrations.py` runs read-only tests (Alpaca paper account + clock, SEC EDGAR, FRED) and prints
      a checklist of what is still missing. It places no orders and sends no alerts. `--json` gives machine output.
@@ -24,7 +25,7 @@ first (`ActionableControlPlaneEngine.submit_order`), and research/ML output keep
 | Alpaca paper trading + data | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` (`ALPACA_BASE_URL` stays the paper URL, `ALPACA_DATA_FEED=iex`) | Free (SIP data is paid) | app.alpaca.markets → switch to **Paper** → API Keys → Generate | check script (account + clock); Trade → Paper account |
 | SEC EDGAR | `ATLAS_SEC_USER_AGENT` = `AppName your-email@domain` | Free, no key | No signup. SEC requires a contact e-mail in the User-Agent | check script (Apple submissions file) |
 | FRED / ALFRED | `FRED_API_KEY` | Free | fredaccount.stlouisfed.org → API Keys | check script (GDP series) |
-| Massive (Polygon) | `POLYGON_API_KEY` (`MASSIVE_API_KEY` = same key, for the MCP) | Free tier | massive.com dashboard → Keys | Settings → Connectors feed health |
+| **Massive (Polygon), recommended stock source** | `POLYGON_API_KEY` (`MASSIVE_API_KEY` = same key, for the MCP) | Free Stocks Basic (5/min, daily bars) | https://massive.com/dashboard/signup → Keys | Verify; Settings → Connectors feed health |
 | Finnhub | `FINNHUB_API_KEY` | Free tier | finnhub.io/dashboard | feed health |
 | Tiingo | `TIINGO_API_KEY` | Free tier | tiingo.com → Account → API | feed health |
 | Twelve Data | `TWELVEDATA_API_KEY` | Free tier | twelvedata.com → API keys | feed health |
@@ -46,9 +47,9 @@ first (`ActionableControlPlaneEngine.submit_order`), and research/ML output keep
 Alerts stay off until `ATLAS_ALERTS_ENABLED=true` **and** a channel is set. OANDA `live` and Tradier `production` are
 reported as *live refused*.
 
-## Minimum to link Alpaca end to end
+## Minimum to link end to end
 
-`ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`, `ATLAS_SEC_USER_AGENT`, `FRED_API_KEY`, then restart and run the check script.
+`POLYGON_API_KEY` (Massive), `ATLAS_SEC_USER_AGENT`, `FRED_API_KEY`, then press Verify on each. Alpaca keys are optional.
 
 
 ## evo-12: monitoring and alerts (all optional, off by default)

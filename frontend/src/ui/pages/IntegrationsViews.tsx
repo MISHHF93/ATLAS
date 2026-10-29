@@ -4,37 +4,78 @@
 import { useEffect, useRef, useState } from "react";
 import { AtlasChart } from "../../components/market/AtlasChart";
 import { Async, Badge, Card, DataTable, EmptyState, StatTile, useApi, type Tone } from "../primitives";
+import { api } from "./acct";
 
 type R = Record<string, unknown>;
+type Verif = { state: string; detail: string; verified_at: number | null; key_present: boolean };
 type Svc = { id: string; title: string; category: string; cost: string; configured: boolean; required_vars: Record<string, boolean>;
-  mode: string; reachable: boolean | null; detail: string; probe_available: boolean; signup: string };
+  mode: string; reachable: boolean | null; detail: string; probe_available: boolean; signup: string; verification?: Verif };
+type StockProv = { setting: string; primary: string; default_primary: string; warning: string | null; chain: string[];
+  providers: { id: string; title: string; canada: string; signup: string; free_limits: string; terms: string; restricted: boolean; env_keys: string[] }[] };
 type Prov = { asset_class: string; example: string; priority: string[]; active: string | null; fallbacks: string[]; needs_keys: string[]; excluded?: string[]; sources?: Record<string, { cost?: string; latency?: string; limits?: string }> };
-type Status = { services: Svc[]; probed: boolean; data_providers?: Prov[]; summary: { total: number; configured: number; live_refused: string[] } };
+type Status = { services: Svc[]; probed: boolean; data_providers?: Prov[]; stock_provider?: StockProv;
+  summary: { total: number; configured: number; live_refused: string[]; needs_verification?: string[]; verified?: string[] } };
+
+/* Every key starts as "Needs verification". Verify makes ONE read-only call with the key you entered (paper / practice / test endpoints only),
+ * records the result without storing the key, and a changed key goes back to "Needs verification". */
+const VERIF: Record<string, { tone: Tone; text: string }> = {
+  needs_verification: { tone: "warn", text: "Needs verification" }, verified: { tone: "good", text: "Verified" }, failed: { tone: "bad", text: "Verification failed" },
+  format_only: { tone: "info", text: "Format checked only" }, keyless: { tone: "neutral", text: "No key needed" },
+};
+export function VerifyCell({ id, v, onDone }: { id: string; v?: Verif; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const st = VERIF[v?.state ?? "needs_verification"] ?? VERIF.needs_verification;
+  const can = v?.state !== "keyless";
+  return (
+    <span className="ux-form-row" data-tight>
+      <Badge tone={st.tone} title={note || v?.detail}>{st.text}</Badge>
+      {can ? <button type="button" className="ux-btn" disabled={busy || !v?.key_present} title={v?.key_present ? "One read-only check with the key you entered" : "Enter the key in Settings → Setup first"}
+        onClick={async () => { setBusy(true); setNote(""); const r = await api<{ detail?: string }>("/api/integrations/verify", { service: id }); setBusy(false); setNote(r.ok ? String(r.data.detail ?? "") : r.message); onDone(); }}>{busy ? "Verifying…" : "Verify"}</button> : null}
+      {note ? <span className="ux-small">{note}</span> : null}
+    </span>
+  );
+}
 
 const modeTone = (m: string): Tone => (m === "live_refused" ? "bad" : m === "paper" || m === "practice" || m === "sandbox" ? "good" : "neutral");
 const reachText = (s: Svc) => (s.reachable === true ? "reachable" : s.reachable === false ? "unreachable" : s.probe_available ? "not checked" : "no test");
+
+/** The stock/ETF source: ATLAS_STOCK_PROVIDER picks the primary; the others are automatic fallbacks. Alpaca is optional (not offered to Canadian residents). */
+export function StockProviderNote({ sp }: { sp?: StockProv }) {
+  if (!sp) return null;
+  const by = Object.fromEntries(sp.providers.map((p) => [p.id, p]));
+  const prim = by[sp.primary];
+  return (
+    <p>
+      <strong>Stock &amp; ETF source:</strong> {prim?.title ?? sp.primary} ({sp.setting}={sp.primary}{sp.primary === sp.default_primary ? ", default" : ""}). Order: {sp.chain.join(" → ")}.
+      {prim ? <> {prim.free_limits}. <a className="ux-link" href={prim.signup} target="_blank" rel="noopener noreferrer">Free signup ↗</a></> : null}
+      {" "}Alpaca is optional and not offered to Canadian residents. Free plans cover personal use; showing data to other people needs a business data licence.
+      {sp.warning ? <span className="ux-action-msg" data-tone="warn" role="status"> {sp.warning}</span> : null}
+    </p>
+  );
+}
 
 export function IntegrationsStatusCard() {
   const [probe, setProbe] = useState(false);
   const st = useApi<Status>(`/api/integrations/status${probe ? "?probe=true" : ""}`, 60000);
   return (
     <Card title="Integrations" span="full"
-      subtitle="Every third-party service ATLAS can use. Configured means its keys are in the local .env; secret values are never shown. Alpaca is paper only and a live endpoint is refused."
+      subtitle="Every third-party service ATLAS can use. No key is set for you: each one reads Needs verification until you enter it and press Verify. Secret values are never shown or stored by Verify. Paper / practice / test endpoints only."
       actions={<button type="button" className="ux-btn" onClick={() => { setProbe(true); st.reload(); }}>Test connections (read-only)</button>}>
       <Async state={st} label="Checking">{(s) => (
         <>
-          <p>{s.summary.configured} of {s.summary.total} configured{s.summary.live_refused.length ? ` · live refused: ${s.summary.live_refused.join(", ")}` : ""}</p>
+          <p>{s.summary.verified?.length ?? 0} verified · {s.summary.needs_verification?.length ?? 0} need verification · {s.summary.configured} of {s.summary.total} have keys entered{s.summary.live_refused.length ? ` · live refused: ${s.summary.live_refused.join(", ")}` : ""}</p>
           <DataTable rows={s.services as unknown as R[]} columns={[
             { key: "title", label: "Service" },
-            { key: "configured", label: "Keys", render: (r) => <Badge tone={r.configured ? "good" : "neutral"}>{r.configured ? "configured" : "not configured"}</Badge> },
+            { key: "verification", label: "Verification", render: (r) => { const v = r as unknown as Svc; return <VerifyCell id={v.id} v={v.verification} onDone={st.reload} />; } },
             { key: "reachable", label: "Connection", render: (r) => { const v = r as unknown as Svc; return <Badge tone={v.reachable === true ? "good" : v.reachable === false ? "bad" : "neutral"} title={v.detail}>{reachText(v)}</Badge>; } },
             { key: "mode", label: "Mode", render: (r) => <Badge tone={modeTone(String(r.mode))}>{String(r.mode).replace(/_/g, " ")}</Badge> },
-            { key: "cost", label: "Cost", render: (r) => String(r.cost).replace(/_/g, " ") },
             { key: "required_vars", label: "Missing", render: (r) => Object.entries(r.required_vars as Record<string, boolean>).filter(([, ok]) => !ok).map(([k]) => k).join(", ") || "—" },
             { key: "signup", label: "Official 3rd-Party Link", render: (r) => r.signup ? <a className="ux-link" href={String(r.signup)} target="_blank" rel="noopener noreferrer">Official portal / docs ↗</a> : "—" },
           ]} />
           <h4>Data provider choice</h4>
-          <p>Alpaca is preferred for US stocks, ETFs (IEX feed, needs paper keys) and crypto (history is keyless). Public sources are automatic fallbacks and cover gold/futures, forex and indices. Every bar is tagged with its provider. TradingView widgets are display only: ATLAS never reads prices from them.</p>
+          <StockProviderNote sp={s.stock_provider} />
+          <p>Crypto history is keyless. Gold/futures, forex and indices use official free public sources as automatic fallbacks. Every bar is tagged with its provider. TradingView widgets are display only: ATLAS never reads prices from them.</p>
           <DataTable rows={(s.data_providers ?? []) as unknown as R[]} columns={[
             { key: "asset_class", label: "Asset class" },
             { key: "active", label: "In use", render: (r) => <Badge tone={r.active ? "good" : "neutral"}>{String(r.active ?? "none")}</Badge> },
@@ -54,12 +95,12 @@ type Recon = { status: string; reason?: string; account: R | null; positions: R[
 const money = (v: unknown) => (typeof v === "number" ? v.toLocaleString("en-US", { style: "currency", currency: "USD" }) : "—");
 
 /** Paper-account chart: the one ATLAS chart (AtlasChart). Bars come from the free provider router, which prefers
- *  Alpaca (IEX stocks/ETFs once paper keys are set; keyless crypto history) and falls back to other free sources.
+ *  the stock provider chain (Massive daily bars by default once its key verifies; keyless crypto history) and falls back to other free sources.
  *  Each bar carries its provider and real-time/delayed tag. Display and research only: execution_permission none. */
 export function AlpacaChartCard() {
   const [symbol, setSymbol] = useState("GC");
   return (
-    <Card title="Paper account chart" span="full" subtitle="Bars from the ATLAS provider router (Alpaca first, free fallbacks), tagged with provider and latency. No orders from this chart."
+    <Card title="Paper account chart" span="full" subtitle="Bars from the ATLAS provider router (the ATLAS_STOCK_PROVIDER primary, Massive by default, with free fallbacks), tagged with provider and latency. No orders from this chart."
       actions={<select aria-label="Symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
         <optgroup label="Gold & Silver (Futures + Bullion ETFs)">
           {["GC", "MGC", "SI", "GLD", "SLV"].map((x) => <option key={x} value={x}>{x}</option>)}
@@ -89,7 +130,7 @@ export function PaperAccountView() {
       <AlpacaChartCard />
       <Async state={rc} label="Loading paper account">{(d) => d.status !== "ok" && d.status !== "partial" ? (
         <Card title="Alpaca paper account" span="full">
-          <EmptyState title={`Paper account ${d.status.replace(/_/g, " ")}`}>{d.reason ?? ""} Add the Alpaca paper keys to the local .env and restart the server. Settings → Broker & alerts shows what is missing.</EmptyState>
+          <EmptyState title={`Paper account ${d.status.replace(/_/g, " ")}`}>{d.reason ?? ""} Alpaca is optional (not offered to Canadian residents): add its paper keys in Settings → Setup and press Verify. Settings → Broker & alerts shows what is missing.</EmptyState>
         </Card>
       ) : (
         <>
@@ -142,11 +183,20 @@ type CovAsset = { instrument: string; asset_class: string; status: string; serve
   chain: CovProv[]; last_bar_interval: string | null; last_bar_provider: string | null; last_bar_toronto: string | null; fix: string; label: string };
 type CovClass = { asset_class: string; label: string; count: number; by_status: Record<string, number>; served_by: Record<string, number>; needs: string[] };
 type CovProxy = { symbol: string; proxy: string; label: string; proxy_status: string };
-type Coverage = { as_of_toronto: string; status_counts: Record<string, number>; classes: CovClass[]; assets: CovAsset[]; proxies: CovProxy[] };
+type Coverage = { as_of_toronto: string; status_counts: Record<string, number>; classes: CovClass[]; assets: CovAsset[]; proxies: CovProxy[]; stock_provider?: StockProv };
 
 const COV_TONE: Record<string, Tone> = { ok: "good", daily_only: "warn", awaiting_data: "neutral", needs_key: "warn", policy_blocked: "bad", no_provider: "bad" };
-const COV_TEXT: Record<string, string> = { ok: "serving", daily_only: "daily only", awaiting_data: "ready, no bars yet", needs_key: "needs a free key",
+const COV_TEXT: Record<string, string> = { ok: "serving", daily_only: "daily only", awaiting_data: "ready, no bars yet", needs_key: "needs verification",
   policy_blocked: "paid / unofficial only", no_provider: "no provider" };
+
+/** The primary stock source's key state with a Verify button, right where the empty stock charts are explained. */
+function StockVerifyRow({ sp }: { sp?: StockProv }) {
+  const st = useApi<Status>("/api/integrations/status", 60000);
+  if (!sp || !st.data) return null;
+  const svc = st.data.services.find((x) => x.id === sp.primary);
+  if (!svc) return null;
+  return <p className="ux-form-row" data-tight><span>{svc.title}:</span><VerifyCell id={svc.id} v={svc.verification} onDone={st.reload} /></p>;
+}
 
 export function CoverageCard() {
   const [all, setAll] = useState(false);
@@ -159,12 +209,14 @@ export function CoverageCard() {
         return (
           <>
             <p>Checked {c.as_of_toronto}. {Object.entries(c.status_counts).map(([k, v]) => `${v} ${COV_TEXT[k] ?? k}`).join(" · ")}</p>
+            <StockProviderNote sp={c.stock_provider} />
+            <StockVerifyRow sp={c.stock_provider} />
             <DataTable rows={c.classes as unknown as R[]} columns={[
               { key: "label", label: "Asset class" },
               { key: "count", label: "Assets" },
               { key: "served_by", label: "Served by", render: (r) => Object.keys((r as unknown as CovClass).served_by).join(", ") || "nothing yet" },
               { key: "by_status", label: "Status", render: (r) => Object.entries((r as unknown as CovClass).by_status).map(([k, v]) => <Badge key={k} tone={COV_TONE[k] ?? "neutral"}>{v} {COV_TEXT[k] ?? k}</Badge>) },
-              { key: "needs", label: "Free key that unlocks it", render: (r) => (r as unknown as CovClass).needs.join(" | ") || "none needed" },
+              { key: "needs", label: "Free key to enter, then Verify", render: (r) => (r as unknown as CovClass).needs.join(" | ") || "none needed" },
             ]} />
             <h4>{all ? "All assets" : "Key assets and everything that needs attention"}</h4>
             <button type="button" className="ux-btn" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${c.assets.length}`}</button>

@@ -116,6 +116,12 @@ def asset_coverage(feed, instrument_id: str, now: float | None = None) -> dict[s
                       "Delayed data" if served and (served["delay_s"] or 0) > 0 else "")}
 
 
+def _stock_summary(feed) -> dict[str, Any]:
+    from . import stock_providers as sp
+    env = feed.env() if hasattr(feed, "env") else {}
+    return sp.summary(env)
+
+
 def catalog_coverage(feed, ids: Iterable[str] | None = None, now: float | None = None) -> dict[str, Any]:
     now = now or time.time()
     ids = list(ids) if ids is not None else [i.id for i in feed.instruments.all()]
@@ -149,4 +155,5 @@ def catalog_coverage(feed, ids: Iterable[str] | None = None, now: float | None =
         counts[r["status"]] = counts.get(r["status"], 0) + 1
     from .status import toronto
     return {"as_of": now, "as_of_toronto": toronto(now), "timezone": "America/Toronto", "status_counts": counts,
-            "classes": sorted(classes.values(), key=lambda c: c["asset_class"]), "assets": rows, "proxies": proxies}
+            "classes": sorted(classes.values(), key=lambda c: c["asset_class"]), "assets": rows, "proxies": proxies,
+            "stock_provider": _stock_summary(feed)}

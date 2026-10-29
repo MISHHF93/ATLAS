@@ -138,3 +138,9 @@ def test_catalog_health_endpoint_shape():
     assert j["timezone"] == "America/Toronto" and {a["instrument"] for a in j["assets"]} >= {"AAPL", "EUR_USD", "BTCUSDT"}
     assert all("chain" in a and "status" in a and "fix" in a for a in j["assets"])
     assert {p["symbol"] for p in j["proxies"]} == set(PROXIES)
+
+
+def test_catalog_health_reports_the_stock_provider_setting():
+    out = catalog_coverage(_feed({}), ids=[])
+    assert out["stock_provider"]["setting"] == "ATLAS_STOCK_PROVIDER" and out["stock_provider"]["primary"] == "polygon"
+    assert catalog_coverage(_feed({"ATLAS_STOCK_PROVIDER": "alpaca"}), ids=[])["stock_provider"]["primary"] == "alpaca"

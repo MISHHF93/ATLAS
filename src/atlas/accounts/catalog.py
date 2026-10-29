@@ -289,12 +289,12 @@ _KEY = lambda env, label="API key", **kw: _f("api_key", label, env, placeholder=
 
 CATALOG: tuple[ConnectorSpec, ...] = (
     ConnectorSpec("alpaca", "Alpaca (paper)", "broker_paper", "https://docs.alpaca.markets/docs/about-market-data-api", "https://app.alpaca.markets/paper/dashboard/overview",
-                  "Free paper account. IEX data free (single venue); SIP is paid and not offered here. 200 req/min.",
+                  "Optional (not offered to Canadian residents). Free paper account, IEX data free (single venue); SIP is paid and not offered here. 200 req/min.",
                   (_f("key_id", "Paper key ID", "ALPACA_API_KEY_ID", placeholder="PK…", pattern=r"[A-Za-z0-9]{12,40}"),
                    _f("secret_key", "Paper secret key", "ALPACA_API_SECRET_KEY", pattern=r"[A-Za-z0-9/+=_\-]{20,80}"),
                    _f("data_feed", "Data feed", "ALPACA_DATA_FEED", secret=False, required=False, default="iex", choices=("iex",))),
                   _guard(_t_alpaca), "paper", (("ALPACA_BASE_URL", "https://paper-api.alpaca.markets"),),
-                  "Paper only. The live endpoint, live (AK…) keys and non-PA accounts are refused.", loop_use="equities + crypto bars; paper fills (first choice)"),
+                  "Paper only. The live endpoint, live (AK…) keys and non-PA accounts are refused.", loop_use="equities + crypto bars; paper fills (optional; Massive is the default stock source)"),
     ConnectorSpec("oanda", "OANDA (practice)", "broker_paper", "https://developer.oanda.com/rest-live-v20/introduction/", "https://www.oanda.com/demo-account/tpa/personal_token",
                   "Free practice (demo) account and token.",
                   (_f("api_token", "Practice API token", "OANDA_API_TOKEN", pattern=r"[A-Za-z0-9\-]{20,120}"),
@@ -321,7 +321,7 @@ CATALOG: tuple[ConnectorSpec, ...] = (
     ConnectorSpec("fmp", "Financial Modeling Prep", "market_data", "https://site.financialmodelingprep.com/developer/docs", "https://site.financialmodelingprep.com/developer/docs/dashboard",
                   "Basic free: 250 calls/day. Display / redistribution needs a separate agreement.", (_KEY("FMP_API_KEY"),), _guard(_t_fmp), loop_use="fundamentals / EOD cross-check"),
     ConnectorSpec("massive", "Massive (ex-Polygon)", "market_data", "https://massive.com/docs", "https://massive.com/dashboard/keys",
-                  "Free plan: end-of-day, 5 calls/min.", (_KEY("POLYGON_API_KEY"),), _guard(_t_massive), loop_use="EOD failover"),
+                  "Recommended default stock/ETF source (email signup, works from Canada). Free plan: end-of-day daily bars, 5 calls/min, 2 years, personal use.", (_KEY("POLYGON_API_KEY"),), _guard(_t_massive), loop_use="US stock/ETF daily bars (default primary)"),
     ConnectorSpec("coingecko", "CoinGecko (demo)", "market_data", "https://docs.coingecko.com/", "https://www.coingecko.com/en/api/pricing",
                   "Demo plan: 100 calls/min, 10,000/month. Attribution ('Data provided by CoinGecko') required.",
                   (_f("demo_key", "Demo API key", "COINGECKO_DEMO_KEY", placeholder="CG-…"),), _guard(_t_gecko), loop_use="crypto reference price (not bars)"),

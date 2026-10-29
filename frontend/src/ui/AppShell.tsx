@@ -432,7 +432,8 @@ function AtlasFooter() {
             <a href="https://www.reserves.mint.ca/" target="_blank" rel="noopener noreferrer">Royal Canadian Mint ↗</a>
             <a href="https://www.bankofcanada.ca/valet/docs" target="_blank" rel="noopener noreferrer">Bank of Canada Valet ↗</a>
             <a href="https://data.ecb.europa.eu/help/api/data" target="_blank" rel="noopener noreferrer">ECB Data ↗</a>
-            <a href="https://docs.alpaca.markets/docs/paper-trading" target="_blank" rel="noopener noreferrer">Alpaca Paper ↗</a>
+            <a href="https://massive.com/docs" target="_blank" rel="noopener noreferrer">Massive (stocks, free tier) ↗</a>
+            <a href="https://docs.alpaca.markets/docs/paper-trading" target="_blank" rel="noopener noreferrer">Alpaca Paper (optional) ↗</a>
             <a href="https://databento.com/docs" target="_blank" rel="noopener noreferrer">Databento ↗</a>
             <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts (Apache-2.0) ↗</a>
           </div>
