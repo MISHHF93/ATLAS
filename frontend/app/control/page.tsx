@@ -1,5 +1,6 @@
 import { AtlasTerminal } from "@/app/AtlasTerminal";
 import { PortfolioRiskView, TracksView } from "@/src/ui/pages/IntelViews";
+import { AutopilotView } from "@/src/ui/pages/Console";
 import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
 
 export default async function Page(props: HubProps) {
@@ -10,6 +11,7 @@ export default async function Page(props: HubProps) {
         "portfolio": <PortfolioRiskView />,
         "tracks": <TracksView />,
         "limits": <AtlasTerminal initialSection="rules" initialWorkspaceRoute="/control/rulebook" />,
+        "autopilot": <AutopilotView />,
       }} />
   );
 }

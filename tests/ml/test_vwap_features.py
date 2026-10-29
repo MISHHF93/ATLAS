@@ -105,7 +105,7 @@ def test_anchored_vwap_is_causal_and_never_reaches_before_the_anchor():
     assert anchored_vwap(bars2, [anchor])[:31] == pytest.approx(av[:31], nan_ok=True)
     av2 = anchored_vwap(bars, [anchor, bars[40].start])           # a later anchor restarts accumulation
     assert av2[40] == pytest.approx((bars[40].high + bars[40].low + bars[40].close) / 3)
-    assert anchored_vwap(bars, []).tolist() != [] and np.isnan(anchored_vwap(bars, [])).all()
+    assert len(anchored_vwap(bars, [])) == len(bars) and np.isnan(anchored_vwap(bars, [])).all()
 
 
 def test_registered_through_the_ai_node():

@@ -3,7 +3,7 @@
  * breadcrumbs, command palette (Cmd-K), hub page headers, the 404 page and every legacy redirect are derived from it.
  * Older addresses are listed as `aliases` on the hub or tab that now holds their content.
  */
-export type PageGroupId = "home" | "trade" | "research" | "money" | "compliance" | "settings";
+export type PageGroupId = "home" | "trade" | "research" | "money" | "settings";
 
 export type WorkspaceRoute =
   | "/trade/cockpit"
@@ -59,19 +59,18 @@ export const PAGE_GROUPS: Array<{ id: PageGroupId; label: string }> = [
   { id: "home", label: "Home" },
   { id: "trade", label: "Trade" },
   { id: "research", label: "Research" },
-  { id: "money", label: "Money" },
-  { id: "compliance", label: "Compliance" },
-  { id: "settings", label: "Settings & help" },
+  { id: "money", label: "Money & compliance" },
+  { id: "settings", label: "Settings, data & help" },
 ];
 
 export const PAGES: AtlasPage[] = [
   {
     id: "overview", href: "/", label: "Overview", group: "home",
-    summary: "Your paper account at a glance: balance, room left before Safe stop, open positions and today's to-dos.",
-  },
-  {
-    id: "inbox", href: "/inbox", label: "Action needed", navLabel: "Inbox", group: "home",
-    summary: "Everything waiting on you: paper approvals, payouts, policy and venue checks.",
+    summary: "Your paper account at a glance: balance, room left before Safe stop, open positions and everything waiting on you.",
+    tabs: [
+      { id: "overview", label: "Summary", summary: "Today's paper results, room before Safe stop, open positions and the top items needing attention." },
+      { id: "inbox", label: "Action needed", aliases: ["/inbox"], summary: "Everything waiting on you: paper approvals, payouts, policy and venue checks." },
+    ],
   },
   {
     id: "desk", href: "/trade", label: "Trading desk", navLabel: "Trade", group: "trade",
@@ -90,8 +89,8 @@ export const PAGES: AtlasPage[] = [
     ],
   },
   {
-    id: "risk", href: "/control", label: "Risk & positions", navLabel: "Risk", group: "trade",
-    summary: "How much room the paper account has, what is open right now, and the limits that protect it.",
+    id: "risk", href: "/control", label: "Risk & autopilot", navLabel: "Risk", group: "trade",
+    summary: "How much room the paper account has, what is open right now, the limits that protect it, and the paper autopilot switch.",
     tabs: [
       { id: "account", label: "Account & positions", workspaceRoute: "/control/risk-hud",
         aliases: ["/control/risk-hud", "/profile", "/trade/blotter", "/control/dealing-desk"], tabAliases: ["/control?tab=positions"],
@@ -100,11 +99,9 @@ export const PAGES: AtlasPage[] = [
       { id: "tracks", label: "Track rules", summary: "Competition and open-market rulebooks side by side, with probes showing each is enforced separately." },
       { id: "limits", label: "Limits & rules", workspaceRoute: "/control/rulebook", aliases: ["/control/rulebook", "/rules", "/configurations"],
         summary: "The trading limits in force, plus a risk check you can run on a paper ticket before sending it." },
+      { id: "autopilot", label: "Autopilot", aliases: ["/autopilot"],
+        summary: "Ask to switch the paper setup autopilot on (owner approves), switch it off instantly, and review what it saw." },
     ],
-  },
-  {
-    id: "autopilot", href: "/autopilot", label: "Autopilot", group: "trade",
-    summary: "Ask to switch the paper setup autopilot on (owner approves), switch it off instantly, and review what it saw.",
   },
   {
     id: "research", href: "/research", label: "Market research", navLabel: "Research", group: "research",
@@ -118,85 +115,68 @@ export const PAGES: AtlasPage[] = [
         summary: "Opening ranges, breakout-and-retest setups, wick zones and the Four-Box summary. Setups are ideas, not trades." },
       { id: "levels", label: "Levels & sweeps", aliases: ["/research/levels"],
         summary: "Prior-day, session and swing levels, sweeps and reclaims, gold opening boxes, and the strategy switches. Research only." },
-      { id: "forecasts", label: "Forecast ledger", workspaceRoute: "/research/prediction-ledger", aliases: ["/research/prediction-ledger"],
-        summary: "Every recorded forecast, the data it used, and how it turned out." },
       { id: "scan", label: "Scan & Pine", summary: "Watchlist pivot/Fibonacci/zone crossings, VWAP and volume profile, and Pine v5 export with ATLAS replay statistics. Research only." },
-      { id: "multi-agent", label: "Multi-agent",
-        summary: "Parallel analysts, a bounded bull/bear debate, risk perspectives and a deterministic control-plane dry run. Research only: never submits an order." },
+      { id: "valuation", label: "Valuation", tabAliases: ["/research/lab?tab=valuation"],
+        summary: "DCF (FCFF/FCFE), SEC filed fundamentals and investor-persona scores with a capped weight matrix. Research only." },
+      { id: "options", label: "Options", tabAliases: ["/research/lab?tab=options"],
+        summary: "Black-Scholes price, greeks and implied volatility. Live chains are unavailable without a licensed provider." },
+      { id: "agents", label: "Agents & dossier", tabAliases: ["/research?tab=multi-agent", "/research/lab?tab=agents"],
+        summary: "Conviction 1–100 with named rules, plus parallel analysts, a bull/bear debate and a dry run. Research only: never submits an order." },
     ],
   },
   {
-    id: "models", href: "/research/evidence", label: "Models & testing", navLabel: "Models", group: "research",
-    summary: "Which models the autopilot may use and the tests behind them. Unproven setups stay switched off.",
+    id: "lab", href: "/research/lab", label: "Models & lab", navLabel: "Models", group: "research",
+    summary: "Which models the autopilot may use, the tests behind them, and the lab that produces them. Research only: nothing here can place an order.",
+    aliases: ["/research/evidence"],
     tabs: [
-      { id: "evidence", label: "Approved models", summary: "Registered setup models and the evidence files that back them." },
-      { id: "ml", label: "ML meta-labels", summary: "Meta-label models trained on live feeds: gates, calibration, drift and cited explanations. Read-only." },
-      { id: "walk-forward", label: "Back-tests", workspaceRoute: "/research/walk-forward", aliases: ["/research/walk-forward", "/experiments"],
+      { id: "evidence", label: "Approved models", tabAliases: ["/research/evidence?tab=evidence"], summary: "Registered setup models and the evidence files that back them." },
+      { id: "ml", label: "ML meta-labels", tabAliases: ["/research/evidence?tab=ml"],
+        summary: "Meta-label models trained on live feeds: gates, calibration, drift and cited explanations. Read-only." },
+      { id: "forecasts", label: "Forecast ledger", workspaceRoute: "/research/prediction-ledger", aliases: ["/research/prediction-ledger"], tabAliases: ["/research?tab=forecasts"],
+        summary: "Every recorded forecast, the data it used, and how it turned out." },
+      { id: "walk-forward", label: "Back-tests", workspaceRoute: "/research/walk-forward", aliases: ["/research/walk-forward", "/experiments"], tabAliases: ["/research/evidence?tab=walk-forward"],
         summary: "Run the standard walk-forward test. Passing a test does not promote a model." },
-      { id: "training", label: "Training", workspaceRoute: "/research/registry", aliases: ["/models", "/research/registry"],
+      { id: "training", label: "Training", workspaceRoute: "/research/registry", aliases: ["/models", "/research/registry"], tabAliases: ["/research/evidence?tab=training"],
         summary: "Train the isolated research policy on desk candles. It cannot send an order." },
-    ],
-  },
-  {
-    id: "lab", href: "/research/lab", label: "Research lab", navLabel: "Lab", group: "research",
-    summary: "Experiments, regimes, market memory, the evidence assistant and model evolution. Research only: nothing here can place an order.",
-    tabs: [
       { id: "experiments", label: "Experiments", summary: "Recorded variant experiments with deflated Sharpe, PBO, bootstrap intervals and cost sensitivity." },
       { id: "regimes", label: "Regimes", summary: "A causal trend/volatility regime label and how each strategy did in each regime." },
       { id: "memory", label: "Memory & governance", summary: "Where replay results came from, the closest past setups, and the model registry's promotion state." },
-      { id: "assistant", label: "Assistant", summary: "Ask a question; answers are quoted from docs and lab reports with evidence IDs." },
       { id: "evolution", label: "Model evolution", summary: "Generations of candidate models and bar types scored on the same walk-forward folds. Nothing is promoted to trading." },
-      { id: "valuation", label: "Valuation", summary: "DCF (FCFF/FCFE), SEC filed fundamentals and investor-persona scores with a capped weight matrix. Research only." },
-      { id: "agents", label: "Dossier & agents", summary: "Deterministic conviction 1–100 with named rules, entry/stop/target from levels, and the analyst-debate-trader-risk pipeline. Never submits." },
-      { id: "options", label: "Options", summary: "Black-Scholes price, greeks and implied volatility. Live chains are unavailable without a licensed provider." },
+      { id: "assistant", label: "Assistant", summary: "Ask a question; answers are quoted from docs and lab reports with evidence IDs." },
     ],
   },
   {
-    id: "money", href: "/money", label: "Money", group: "money",
-    summary: "Profit and loss, payments, partner holdings and tax records. Read-only: nothing here moves money.",
+    id: "money", href: "/money", label: "Money & compliance", navLabel: "Money", group: "money",
+    summary: "Profit and loss, payments, partner holdings, tax records, regulatory checks and the audit trail. Read-only: nothing here moves money.",
     tabs: [
       { id: "overview", label: "Summary", summary: "Paper P&L, room before Safe stop and the non-custodial ledgers." },
       { id: "payments", label: "Payments", aliases: ["/payments"], summary: "Transfers and payees. Any transfer needs two-person approval." },
       { id: "partners", label: "Partner wallet", aliases: ["/portal"], summary: "What partners hold with the custodian: value, holdings and statements." },
       { id: "tax", label: "Tax", aliases: ["/tax"], summary: "Canadian cost base (ACB), superficial losses, FX rates, T5008 and T1135." },
-    ],
-  },
-  {
-    id: "compliance", href: "/compliance", label: "Compliance", group: "compliance",
-    summary: "Regulatory records, the audit trail and identity checks.",
-    tabs: [
-      { id: "overview", label: "Summary", summary: "Venue registration, sanctions screening, FINTRAC records and privacy." },
-      { id: "audit", label: "Audit log", workspaceRoute: "/control/surveillance", aliases: ["/control/surveillance", "/trade/journal"],
+      { id: "regulatory", label: "Regulatory", aliases: ["/compliance"], tabAliases: ["/compliance?tab=overview"],
+        summary: "Venue registration, sanctions screening, FINTRAC records and privacy." },
+      { id: "audit", label: "Audit log", workspaceRoute: "/control/surveillance", aliases: ["/control/surveillance", "/trade/journal"], tabAliases: ["/compliance?tab=audit"],
         summary: "Every order and control-plane event, as recorded." },
-      { id: "identity", label: "Identity check", workspaceRoute: "/control/proctoring", aliases: ["/control/proctoring"],
+      { id: "identity", label: "Identity check", workspaceRoute: "/control/proctoring", aliases: ["/control/proctoring"], tabAliases: ["/compliance?tab=identity"],
         summary: "Run a typed example through the identity checklist. No camera is opened." },
     ],
   },
   {
-    id: "settings", href: "/settings", label: "Settings", group: "settings",
-    summary: "Access keys for agents and the data connectors this desk knows about.",
+    id: "settings", href: "/settings", label: "Settings, data & help", navLabel: "Settings", group: "settings",
+    summary: "Access keys, data connectors and specialist data tools, plus the specifications this desk is built from.",
     tabs: [
       { id: "keys", label: "API keys", aliases: ["/keys"],
         summary: "Create read or research keys for agents, see each once, revoke any time. No key can trade live or move money." },
       { id: "connectors", label: "Connectors", workspaceRoute: "/data/pipelines", aliases: ["/data/pipelines", "/connectors", "/integrations", "/sync"],
         summary: "Data connector records. A test writes an audit line and does not open a vendor connection." },
       { id: "broker", label: "Broker & alerts", summary: "Integration status for every service, Alpaca paper status (live refused), alert channels (off by default) and the read-only agent tool list." },
-    ],
-  },
-  {
-    id: "docs", href: "/docs", label: "Help & docs", navLabel: "Docs", group: "settings",
-    summary: "The specifications this desk is built from, in plain reading form.",
-  },
-  {
-    id: "data", href: "/data", label: "Data tools", group: "research", advanced: true,
-    summary: "Specialist tools: raw bar queries, the reserve plan and the capability map.",
-    tabs: [
-      { id: "bars", label: "Bar query", workspaceRoute: "/data/lakehouse", aliases: ["/data/lakehouse", "/warehouse"],
+      { id: "bars", label: "Bar query", workspaceRoute: "/data/lakehouse", aliases: ["/data", "/data/lakehouse", "/warehouse"], tabAliases: ["/data?tab=bars"],
         summary: "Load closed price bars for the symbol on the desk." },
-      { id: "reserve", label: "Reserve plan", workspaceRoute: "/data/governance", aliases: ["/governance", "/data/governance"],
+      { id: "reserve", label: "Reserve plan", workspaceRoute: "/data/governance", aliases: ["/governance", "/data/governance"], tabAliases: ["/data?tab=reserve"],
         summary: "Load the paper reserve plan. It does not send an order." },
-      { id: "capability", label: "Capability map", workspaceRoute: "/data/features-100", aliases: ["/data/features-100", "/roadmap"],
+      { id: "capability", label: "Capability map", workspaceRoute: "/data/features-100", aliases: ["/data/features-100", "/roadmap"], tabAliases: ["/data?tab=capability"],
         summary: "A map of 100 desk ideas, each linked to the page that actually runs it." },
+      { id: "docs", label: "Help & docs", aliases: ["/docs"], summary: "The specifications this desk is built from, in plain reading form." },
     ],
   },
 ];
@@ -233,7 +213,8 @@ export function legacyRedirects(): LegacyRedirect[] {
     const value = new URLSearchParams(query).get("tab")!;
     return { source, destination, permanent: true as const, has: [{ type: "query" as const, key: "tab" as const, value }] };
   });
-  return [...paths, ...tabs];
+  // Retired-tab rules (they carry a `has` query match) go first so they win over the bare path rule of the same source.
+  return [...tabs, ...paths];
 }
 
 /** Every older address and the exact URL (hub + tab) it redirects to. */

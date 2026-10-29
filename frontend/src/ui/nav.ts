@@ -12,13 +12,13 @@ export const SECTIONS: NavSection[] = PAGE_GROUPS.map((group) => {
   return { id: group.id, label: group.label, href: pages[0]?.href ?? "/", pages };
 }).filter((s) => s.pages.length);
 
-/** Curtain menu: the six page groups merged into four sections (Advanced folds into "Settings, help & tools"). */
+/** Curtain menu: the five page groups shown as four sections (Advanced folds into "Settings, data & help"). */
 export type CurtainSection = { id: string; label: string; pages: AtlasPage[] };
 const CURTAIN_MERGE: Array<{ id: string; label: string; groups: PageGroupId[]; advanced?: boolean }> = [
   { id: "trade", label: "Home & trading", groups: ["home", "trade"] },
   { id: "research", label: "Research & models", groups: ["research"] },
-  { id: "money", label: "Money & compliance", groups: ["money", "compliance"] },
-  { id: "settings", label: "Settings, help & tools", groups: ["settings"], advanced: true },
+  { id: "money", label: "Money & compliance", groups: ["money"] },
+  { id: "settings", label: "Settings, data & help", groups: ["settings"], advanced: true },
 ];
 export function curtainSections(): CurtainSection[] {
   return CURTAIN_MERGE.map((m) => ({
@@ -32,11 +32,10 @@ export const ADVANCED: AtlasPage[] = PAGES.filter((p) => p.advanced);
 
 /** The few destinations always visible in the header bar. Everything else is one click away in Menu or Cmd-K. */
 export const HEADER_LINKS: Array<{ label: string; href: string; pageIds: string[] }> = [
-  { label: "Trade", href: "/trade", pageIds: ["desk", "autopilot"] },
+  { label: "Trade", href: "/trade", pageIds: ["desk"] },
   { label: "Risk", href: "/control", pageIds: ["risk"] },
-  { label: "Research", href: "/research", pageIds: ["research", "models", "data"] },
+  { label: "Research", href: "/research", pageIds: ["research", "lab"] },
   { label: "Money", href: "/money", pageIds: ["money"] },
-  { label: "Compliance", href: "/compliance", pageIds: ["compliance"] },
 ];
 
 /** Exact page for a path (legacy addresses resolve to their hub), or null (the 404 case). */

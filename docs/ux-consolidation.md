@@ -99,3 +99,25 @@ Every destination uses `Hub`: eyebrow (group) → plain-language title → one-l
 
 ## 2026-10-24 route consolidation (atlas-routes-1)
 See `docs/audit/2026-10-24-route-consolidation.md`. Positions merged into Account & positions; Lab Microstructure → Research Chart read; Lab Four-Box → Research Price zones; every legacy address is a 308 from `next.config.ts`.
+
+
+## evo-10 consolidation (7 pages)
+
+| Old route | New location | Reason |
+|---|---|---|
+| `/inbox` | `/?tab=inbox` | same "home to-dos" job as the Overview card |
+| `/autopilot` | `/control?tab=autopilot` | the paper control switch sits next to the risk limits |
+| `/research/evidence` (+ `?tab=evidence/ml/walk-forward/training`) | `/research/lab?tab=...` | models and evidence are one workflow with the lab |
+| `/research?tab=forecasts` | `/research/lab?tab=forecasts` | forecasts are lab output |
+| `/research?tab=multi-agent`, `/research/lab?tab=agents` | `/research?tab=agents` | duplicate agent pipelines merged |
+| `/research/lab?tab=valuation`, `?tab=options` | `/research?tab=valuation`, `?tab=options` | market research lives with the chart |
+| `/compliance` (+ `?tab=overview/audit/identity`) | `/money?tab=regulatory/audit/identity` | compliance is part of the money page |
+| `/data` (+ `?tab=bars/reserve/capability`) | `/settings?tab=bars/reserve/capability` | data plumbing is settings |
+| `/docs` | `/settings?tab=docs` | reference material belongs in settings |
+| `/trade/journal`, `/research/registry`, `/research/prediction-ledger`, `/data/lakehouse` | `/money?tab=audit`, `/research/lab?tab=training`, `/research/lab?tab=forecasts`, `/settings?tab=bars` | older aliases re-pointed |
+
+Removed dead components: `ChartTrainStrip`, `ChartLockRail`. Still present and flagged: `PumpIntelligenceView` (unmounted since the `/trade?tab=pump` merge; the `/api/pump` backend remains).
+
+### /trade layout (evo-10)
+
+At 100% zoom `/trade` has zero nested scroll containers at 1920x1080 and 1366x768 in its default state. The symbol list is paged (Prev/Next), the ticket is a single Order / Risk room card at heights below 1000px, and long content (chart layers, model details, notes, blotter tables) opens as a popover over the chart, so the chart takes the remaining height. An opened popover can scroll.

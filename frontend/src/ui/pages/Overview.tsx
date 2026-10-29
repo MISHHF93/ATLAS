@@ -8,18 +8,20 @@ type InboxItem = { area?: string; severity?: string; title?: string; detail?: st
 type Position = { position_id?: string; instrument_id?: string; side?: string; notional_usd?: string | number; stop_kind?: string; stop_distance_bps?: string | number; opened_at?: string };
 type Control = { open_positions?: Position[]; account?: { current_equity_usd?: string; total_cumulative_profit_usd?: string } };
 
-export function Overview() {
+export function Overview({ embedded = false }: { embedded?: boolean } = {}) {
   const inbox = useApi<{ items?: InboxItem[]; count?: number }>("/api/founder/inbox", 30000);
   const control = useApi<Control>("/api/control/state", 15000);
 
   return (
     <div className="ux-page">
-      <PageHeader
-        eyebrow="Home"
-        title="Overview"
-        summary="Today’s paper results, how much room is left before Safe stop, and what needs your attention."
-        actions={<Link className="ux-btn" href="/trade">Open trading desk <ArrowRight size={14} aria-hidden /></Link>}
-      />
+      {embedded ? null : (
+        <PageHeader
+          eyebrow="Home"
+          title="Overview"
+          summary="Today’s paper results, how much room is left before Safe stop, and what needs your attention."
+          actions={<Link className="ux-btn" href="/trade">Open trading desk <ArrowRight size={14} aria-hidden /></Link>}
+        />
+      )}
 
       <PnlTiles />
 
@@ -42,7 +44,7 @@ export function Overview() {
           </Async>
         </Card>
 
-        <Card title="Needs attention" subtitle="Inbox" actions={<Link className="ux-link" href="/inbox">All</Link>}>
+        <Card title="Needs attention" subtitle="Inbox" actions={<Link className="ux-link" href="/?tab=inbox">All</Link>}>
           <Async state={inbox} label="Loading inbox"
             isEmpty={(d) => !(d.items ?? []).length}
             empty={<EmptyState title="All clear" icon={<ShieldCheck size={20} />}>Nothing needs you right now.</EmptyState>}>
@@ -66,7 +68,7 @@ export function Overview() {
       <Grid cols={3}>
         <Link className="ux-tile-link" href="/money"><strong>Money</strong><span>P&amp;L, payments, partner wallet and tax.</span></Link>
         <Link className="ux-tile-link" href="/research"><strong>Research</strong><span>Signals, chart read and model evidence.</span></Link>
-        <Link className="ux-tile-link" href="/compliance"><strong>Compliance, Privacy &amp; ISO Standards</strong><span>Venue checks, PIPEDA &amp; Law 25 privacy, ISO 10383/6166/27001/42001, FINTRAC &amp; 3rd-party links.</span></Link>
+        <Link className="ux-tile-link" href="/money?tab=regulatory"><strong>Compliance, Privacy &amp; ISO Standards</strong><span>Venue checks, PIPEDA &amp; Law 25 privacy, ISO 10383/6166/27001/42001, FINTRAC &amp; 3rd-party links.</span></Link>
       </Grid>
     </div>
   );

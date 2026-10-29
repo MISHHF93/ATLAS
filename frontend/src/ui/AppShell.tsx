@@ -137,7 +137,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="ux-search__text">Search</span>
               <kbd className="ux-kbd">⌘K</kbd>
             </button>
-            <a href="/inbox" className="ux-icon-btn" aria-label="Action needed (inbox)" title="Action needed" data-active={page?.id === "inbox" ? "true" : undefined}>
+            <a href="/?tab=inbox" className="ux-icon-btn" aria-label="Action needed (inbox)" title="Action needed">
               <Inbox size={17} aria-hidden />
             </a>
             <SafeStopPill />
@@ -277,7 +277,7 @@ function AccountMenu({ onTheme, theme }: { onTheme: () => void; theme: Theme }) 
           <div className="ux-menu__head">Owner · paper account<br /><span className="ux-muted">Writes need atlas-owner + step-up</span></div>
           <a role="menuitem" href="/control?tab=limits">Limits &amp; rules</a>
           <a role="menuitem" href="/settings"><KeyRound size={14} aria-hidden /> Settings &amp; API keys</a>
-          <a role="menuitem" href="/docs"><BookOpen size={14} aria-hidden /> Help &amp; docs</a>
+          <a role="menuitem" href="/settings?tab=docs"><BookOpen size={14} aria-hidden /> Help &amp; docs</a>
           <button role="menuitem" type="button" onClick={() => { onTheme(); setOpen(false); }}>
             {theme === "dark" ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />} {theme === "dark" ? "Light theme" : "Dark theme"}
           </button>
@@ -355,7 +355,7 @@ function AtlasFooter() {
             30-day DSAR access SLAs, 24-month RROSH breach register, and <strong>PCMLTFA s.8</strong> statutory withholdings.
           </p>
           <div className="ux-footer__links">
-            <a href="/compliance">Compliance &amp; Privacy Hub</a>
+            <a href="/money?tab=regulatory">Compliance &amp; Privacy Hub</a>
             <a href="https://www.priv.gc.ca/en/privacy-topics/privacy-laws-in-canada/the-personal-information-protection-and-electronic-documents-act-pipeda/" target="_blank" rel="noopener noreferrer">PIPEDA (OPC) ↗</a>
             <a href="https://www.cai.gouv.qc.ca/" target="_blank" rel="noopener noreferrer">Quebec Law 25 (CAI) ↗</a>
             <a href="https://www.ciro.ca/" target="_blank" rel="noopener noreferrer">CIRO ↗</a>

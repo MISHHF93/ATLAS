@@ -606,6 +606,7 @@ export function StreamlinedTradingStudio() {
   // Collapsible Bottom Drawer State
   const [bottomDrawerOpen, setBottomDrawerOpen] = useState<boolean>(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [ticketTab, setTicketTab] = useState<"order" | "risk">("order");
   const [symbolsOpen, setSymbolsOpen] = useState(true);
 
   const [bottomTab, setBottomTab] = useState<"positions" | "orders" | "audit">("positions");
@@ -874,26 +875,34 @@ export function StreamlinedTradingStudio() {
     };
   }, [loadCatalogPage]);
 
+  // The symbol list is paged, not scrolled: it shows as many rows as fit the column and Prev/Next move through the catalog.
+  const [listPage, setListPage] = useState(0);
+  const [listCap, setListCap] = useState(6);
+  useEffect(() => { setListPage(0); }, [searchQuery, activeTrack, assetClassFilter, openNowOnly]);
   useEffect(() => {
-    catalogListRef.current?.scrollTo({ top: 0 });
-  }, [searchQuery, activeTrack, assetClassFilter]);
-
-  useEffect(() => {
-    if (!symbolsOpen) return;
     const el = catalogListRef.current;
-    if (!el || catalogLoading) return;
+    if (!el || !symbolsOpen) return;
+    const ROW_H = 44, PAGER_H = 34;
+    const fit = () => setListCap(Math.max(3, Math.floor((el.clientHeight - PAGER_H) / ROW_H)));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [symbolsOpen]);
+  useEffect(() => {
+    if (!symbolsOpen || catalogLoading) return;
     const total = catalogTotalRef.current;
     if (total == null || catalogOffsetRef.current >= total) return;
-    if (el.scrollHeight <= el.clientHeight + 8) loadCatalogPage(false);
-  }, [symbolsOpen, catalogListings.length, catalogLoading, loadCatalogPage]);
+    if ((listPage + 2) * listCap > catalogListings.length) loadCatalogPage(false);
+  }, [symbolsOpen, listPage, listCap, catalogListings.length, catalogLoading, loadCatalogPage]);
 
-  const onCatalogScroll = useCallback(() => {
-    const el = catalogListRef.current;
-    if (!el || catalogLoadingRef.current) return;
-    const total = catalogTotalRef.current;
-    if (total != null && catalogOffsetRef.current >= total) return;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 72) loadCatalogPage(false);
-  }, [loadCatalogPage]);
+  const listRows = useMemo(
+    () => (openNowOnly ? catalogListings.filter((item) => item.market_open === true) : catalogListings),
+    [catalogListings, openNowOnly],
+  );
+  const visibleListings = listRows.slice(listPage * listCap, (listPage + 1) * listCap);
+  const hasNextListPage = (listPage + 1) * listCap < listRows.length
+    || (!catalogLoading && catalogTotal != null && catalogOffsetRef.current < catalogTotal);
 
   // Dynamic On-Demand WebSocket Subscription Multiplexer (/ws/market-stream).
   // History comes from /api/market/bars. The socket only moves the right edge.
@@ -2118,8 +2127,8 @@ export function StreamlinedTradingStudio() {
             borderRight: "1px solid var(--c-border)",
             display: "flex",
             flexDirection: "column",
-            padding: "12px",
-            gap: "10px",
+            padding: "8px 10px",
+            gap: "6px",
             minHeight: 0,
             height: "100%",
             overflow: "hidden",
@@ -2131,7 +2140,7 @@ export function StreamlinedTradingStudio() {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "6px",
+                marginBottom: "4px",
               }}
             >
               <span style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--c-muted)", letterSpacing: "0.03em" }}>
@@ -2176,7 +2185,7 @@ export function StreamlinedTradingStudio() {
           </div>
 
           {/* Asset Class Filter Tabs: All, Gold & Silver, ETFs, Futures, FX, Stocks, Crypto */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 68px), 1fr))", gap: "4px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "3px" }}>
             {(
               [
                 { id: "all", label: "All", mark: "all" },
@@ -2204,7 +2213,7 @@ export function StreamlinedTradingStudio() {
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "3px",
-                  padding: "5px 2px",
+                  padding: "3px 2px",
                   borderRadius: "5px",
                   border: "1px solid var(--c-border)",
                   background: on ? "var(--c-accent)" : "var(--c-surface)",
@@ -2220,12 +2229,14 @@ export function StreamlinedTradingStudio() {
               );
             })}
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
           <button
             type="button"
             aria-pressed={openNowOnly}
             onClick={() => setOpenNowOnly((on) => !on)}
             style={{
-              padding: "5px 8px",
+              flex: "none",
+              padding: "3px 8px",
               borderRadius: "5px",
               border: openNowOnly ? "1px solid rgba(46, 184, 138, 0.7)" : "1px solid var(--c-border)",
               background: openNowOnly ? "rgba(46, 184, 138, 0.16)" : "var(--c-surface)",
@@ -2238,6 +2249,7 @@ export function StreamlinedTradingStudio() {
             Open now
           </button>
           <AssetMarkLegend />
+          </div>
 
           <details style={{ fontSize: "12px", color: "var(--c-muted)", lineHeight: 1.45 }}>
             <summary style={{ cursor: "pointer", fontSize: "12.5px" }}>
@@ -2248,13 +2260,13 @@ export function StreamlinedTradingStudio() {
             Prices on this page are public last prints when a feed answers. Yahoo stock and futures prints can be delayed. Unlisted names stay without a quote.
           </details>
 
-          {/* Real-Time Ticker List */}
+          {/* Real-Time Ticker List (paged to the height of the column) */}
           <div
             ref={catalogListRef}
-            onScroll={onCatalogScroll}
-            style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minHeight: 0, maxHeight: "max(360px, calc(100vh - 300px))", overflowY: "auto" }}
+            className="desk-symbol-list"
+            style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1, minHeight: 0, overflow: "hidden" }}
           >
-            {(openNowOnly ? catalogListings.filter((item) => item.market_open === true) : catalogListings).map((item) => {
+            {visibleListings.map((item) => {
               const isSelected = item.symbol === selectedSymbol;
               const mark = markForAsset(item.asset_class, item.exchange);
               return (
@@ -2299,12 +2311,14 @@ export function StreamlinedTradingStudio() {
                 </button>
               );
             })}
-            <div style={{ fontSize: "10.5px", color: "var(--c-muted)", padding: "8px 4px" }}>
-              {catalogLoading
-                ? "Loading the next page…"
-                : catalogTotal != null && catalogListings.length >= catalogTotal
-                  ? "End of this filter."
-                  : "Scroll to load the rest."}
+            <div className="desk-symbol-pager" style={{ marginTop: "auto" }}>
+              <button type="button" disabled={listPage === 0} onClick={() => setListPage((n) => Math.max(0, n - 1))} aria-label="Previous symbols">‹ Prev</button>
+              <span>
+                {listRows.length === 0
+                  ? (catalogLoading ? "Loading…" : "No symbols")
+                  : `${(listPage * listCap + 1).toLocaleString()}–${Math.min(listRows.length, (listPage + 1) * listCap).toLocaleString()} of ${(catalogTotal != null && !openNowOnly ? catalogTotal : listRows.length).toLocaleString()}`}
+              </span>
+              <button type="button" disabled={!hasNextListPage} onClick={() => setListPage((n) => n + 1)} aria-label="Next symbols">Next ›</button>
             </div>
           </div>
         </aside>
@@ -2318,27 +2332,33 @@ export function StreamlinedTradingStudio() {
             background: "var(--c-bg)",
             display: "flex",
             flexDirection: "column",
-            padding: "12px 16px",
-            gap: "12px",
-            overflowY: "auto",
+            padding: "8px 12px",
+            gap: "8px",
+            overflow: "hidden",
+            position: "relative",
+            minHeight: 0,
+            height: "100%",
           }}
         >
           {/* Instrument Telemetry & Timeframe Switcher Bar */}
           <div
+            className="desk-quotebar"
             style={{
-              padding: "10px 14px",
+              padding: "5px 10px",
               borderRadius: "8px",
               background: "var(--c-surface-2)",
               border: "1px solid var(--c-border)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              flexWrap: "wrap",
+              flexWrap: "nowrap",
               gap: "10px",
+              flex: "none",
+              minWidth: 0,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-              <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "nowrap", minWidth: 0, overflow: "hidden" }}>
+              <div style={{ minWidth: 0 }} title={activeAsset.name}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <strong style={{ fontSize: "18px", fontFamily: "var(--font-mono, monospace)" }}>
                     {activeAsset.symbol}
@@ -2368,7 +2388,7 @@ export function StreamlinedTradingStudio() {
                     </span>
                   ) : null}
                 </div>
-                <div style={{ fontSize: "11.5px", color: "var(--c-muted)" }}>{activeAsset.name}</div>
+                <div style={{ fontSize: "11px", color: "var(--c-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "36ch" }}>{activeAsset.name}</div>
               </div>
 
               <div
@@ -2379,7 +2399,7 @@ export function StreamlinedTradingStudio() {
                 {activeAsset.last_price > 0
                   ? activeAsset.last_price.toLocaleString(undefined, { minimumFractionDigits: 2 })
                   : "No quote"}
-                <div>
+                <div style={{ fontSize: "10.5px", fontWeight: 400, whiteSpace: "nowrap" }}>
                   <QuoteMeta quote={itemQuote(activeAsset)} />
                 </div>
               </div>
@@ -2408,17 +2428,24 @@ export function StreamlinedTradingStudio() {
             </div>
           </div>
 
-          {/* High-Performance Candlestick + Volume Profile (POC/VAH/VAL) + Forecast Fan Canvas */}
+          {/* One chart. It takes all the height left in the column. Notes are a popover, not a pushed block. */}
           <div
             style={{
               background: "var(--c-surface-2)",
               borderRadius: "8px",
               border: "1px solid var(--c-border)",
-              padding: "10px",
+              padding: "6px",
+              flex: "1 1 0",
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              position: "relative",
             }}
           >
             {notesOpen ? (
-              <div style={{ fontSize: "11px", color: "var(--c-muted)", marginBottom: "8px", lineHeight: 1.45 }}>
+              <div className="desk-notes-pop" role="dialog" aria-label="Chart notes" style={{ fontSize: "11px", color: "var(--c-muted)", lineHeight: 1.45 }}>
+                <div>{gardenNote}</div>
+                <div>{reserveNote}</div>
                 <div>{timeframe === "1s" ? "The live feed and model inputs are shown together in the native viewer below." : modelGap ?? (chartRead ? `${chartRead.active.chart_source} · ${chartRead.active.feed_origin} · execution_permission ${chartRead.execution_permission}` : "Model is waiting to read this chart.")}</div>
                 {timeframe !== "1s" && chartRead ? (
                   <>
@@ -2451,14 +2478,11 @@ export function StreamlinedTradingStudio() {
                 ) : null}
               </div>
             ) : null}
-            <div style={{ fontSize: "11px", color: "var(--c-muted)", lineHeight: 1.45, marginBottom: "8px" }}>
-              <div>{gardenNote}</div>
-              <div>{reserveNote}</div>
-            </div>
             <DeskChart
               symbol={chartSymbol ?? activeAsset.symbol}
               timeframe={timeframe}
               frameClassName="desk-chart-frame"
+              fill
               gap={modelGap}
               onOpenMinute={() => setTimeframe("1m")}
               modelSymbol={selectedSymbol}
@@ -2473,7 +2497,9 @@ export function StreamlinedTradingStudio() {
               background: "var(--c-surface-2)",
               borderRadius: "8px",
               border: "1px solid var(--c-border)",
-              padding: "10px 14px",
+              padding: "3px 10px",
+              flex: "none",
+              position: "relative",
             }}
           >
             <div
@@ -2481,7 +2507,6 @@ export function StreamlinedTradingStudio() {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: bottomDrawerOpen ? "10px" : "0",
               }}
             >
               <div style={{ display: "flex", gap: "8px" }}>
@@ -2560,7 +2585,7 @@ export function StreamlinedTradingStudio() {
             </div>
 
             {bottomDrawerOpen && (
-              <div style={{ maxHeight: "190px", overflowY: "auto" }}>
+              <div className="desk-blotter-pop">
                 {bottomTab === "positions" && (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11.5px" }}>
                     <thead>
@@ -2719,26 +2744,34 @@ export function StreamlinedTradingStudio() {
             4. RIGHT PANEL: ORDER DESK & REMAINING-ROOM HUD (25% WIDTH)
            ================================================================== */}
         <aside
+          className="desk-ticket-col"
+          data-tab={ticketTab}
           style={{
             background: "var(--c-surface-2)",
             borderLeft: "1px solid var(--c-border)",
-            padding: "14px",
+            padding: "8px 10px",
             display: "flex",
             flexDirection: "column",
-            gap: "14px",
-            overflowY: "auto",
+            gap: "8px",
+            overflow: "hidden",
+            minHeight: 0,
           }}
         >
+          <div className="desk-ticket-tabs" role="tablist" aria-label="Order desk">
+            <button type="button" role="tab" aria-selected={ticketTab === "order"} onClick={() => setTicketTab("order")}>Order</button>
+            <button type="button" role="tab" aria-selected={ticketTab === "risk"} onClick={() => setTicketTab("risk")}>Risk room</button>
+          </div>
           {/* Prop Risk Remaining-Room Gauge */}
           <div
+            className="desk-risk-card"
             style={{
-              padding: "12px",
+              padding: "10px",
               borderRadius: "8px",
               background: "var(--c-surface)",
               border: "1px solid rgba(0, 200, 255, 0.25)",
               display: "flex",
               flexDirection: "column",
-              gap: "10px",
+              gap: "8px",
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px", minWidth: 0 }}>
@@ -2870,14 +2903,15 @@ export function StreamlinedTradingStudio() {
 
           {/* Pre-Trade Bracket Order Ticket */}
           <div
+            className="desk-order-card"
             style={{
-              padding: "12px",
+              padding: "8px 10px",
               borderRadius: "8px",
               background: "var(--c-surface)",
               border: "1px solid var(--c-border)",
               display: "flex",
               flexDirection: "column",
-              gap: "10px",
+              gap: "6px",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2901,12 +2935,12 @@ export function StreamlinedTradingStudio() {
                 type="button"
                 onClick={() => setOrderSide("BUY")}
                 style={{
-                  padding: "8px",
+                  padding: "6px",
                   borderRadius: "6px",
                   border: "none",
                   cursor: "pointer",
                   fontWeight: 800,
-                  fontSize: "12.5px",
+                  fontSize: "12px",
                   background: orderSide === "BUY" ? "var(--c-good)" : "var(--c-bg)",
                   color: orderSide === "BUY" ? "var(--c-bg)" : "var(--c-muted)",
                 }}
@@ -2917,12 +2951,12 @@ export function StreamlinedTradingStudio() {
                 type="button"
                 onClick={() => setOrderSide("SELL")}
                 style={{
-                  padding: "8px",
+                  padding: "6px",
                   borderRadius: "6px",
                   border: "none",
                   cursor: "pointer",
                   fontWeight: 800,
-                  fontSize: "12.5px",
+                  fontSize: "12px",
                   background: orderSide === "SELL" ? "var(--c-bad)" : "var(--c-bg)",
                   color: orderSide === "SELL" ? "var(--c-bg)" : "var(--c-muted)",
                 }}
@@ -2933,7 +2967,7 @@ export function StreamlinedTradingStudio() {
 
             {/* Execution Tactic Selector: Market / Limit / Almgren-Chriss TWAP */}
             <div>
-              <label style={{ fontSize: "11px", color: "var(--c-muted)", display: "block", marginBottom: "4px" }}>
+              <label style={{ fontSize: "10.5px", color: "var(--c-muted)", display: "block", marginBottom: "2px" }}>
                 Execution Tactic
               </label>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 90px), 1fr))", gap: "4px" }}>
@@ -2949,7 +2983,7 @@ export function StreamlinedTradingStudio() {
                     type="button"
                     onClick={() => setExecutionTactic(tac.id)}
                     style={{
-                      padding: "6px 4px",
+                      padding: "4px 4px",
                       borderRadius: "5px",
                       border: "1px solid var(--c-border)",
                       background: executionTactic === tac.id ? "var(--c-accent)" : "var(--c-bg)",
@@ -3042,19 +3076,20 @@ export function StreamlinedTradingStudio() {
             {/* Auto-Calculated Position Size & Bracket Summary */}
             <div
               style={{
-                padding: "9px 10px",
+                padding: "6px 8px",
                 borderRadius: "6px",
                 background: "var(--c-bg)",
                 border: "1px solid var(--c-border)",
                 fontFamily: "var(--font-mono, monospace)",
-                fontSize: "11px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "4px",
+                fontSize: "10.5px",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                columnGap: "12px",
+                rowGap: "3px",
               }}
             >
               {activeAsset.last_price <= 0 ? (
-                <div style={{ color: "var(--c-muted)" }}>No quote is stored for this name. Size stays at zero. Nothing is sent.</div>
+                <div style={{ color: "var(--c-muted)", gridColumn: "1 / -1" }}>No quote is stored for this name. Size stays at zero. Nothing is sent.</div>
               ) : null}
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "var(--c-muted)" }}>Auto-Sized Notional:</span>
@@ -3082,7 +3117,7 @@ export function StreamlinedTradingStudio() {
               onClick={() => void handleSubmitBracketOrder()}
               style={{
                 width: "100%",
-                padding: "10px",
+                padding: "8px",
                 borderRadius: "6px",
                 border: "none",
                 cursor: "pointer",
@@ -3107,10 +3142,14 @@ export function StreamlinedTradingStudio() {
 
             {/* Real-Time Control Plane Feedback Banner */}
             <div
+              title={orderFeedback.message}
               style={{
-                padding: "8px 10px",
+                padding: "5px 8px",
                 borderRadius: "6px",
-                fontSize: "11px",
+                fontSize: "10.5px",
+                lineHeight: 1.3,
+                maxHeight: "3.9em",
+                overflow: "hidden",
                 fontFamily: "var(--font-mono, monospace)",
                 background:
                   orderFeedback.status === "rejected"

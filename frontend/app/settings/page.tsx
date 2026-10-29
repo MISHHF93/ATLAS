@@ -2,6 +2,7 @@ import { BrokerView } from "@/src/ui/pages/ExtViews";
 import { IntegrationsStatusCard } from "@/src/ui/pages/IntegrationsViews";
 import { AtlasTerminal } from "@/app/AtlasTerminal";
 import { FeedHealthPanel } from "@/src/components/market/FeedHealthPanel";
+import { DocsReader } from "@/src/components/shell/DocsReader";
 import { ApiKeysView } from "@/src/ui/pages/Console";
 import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
 
@@ -17,6 +18,10 @@ export default async function Page(props: HubProps) {
           </>
         ),
         "broker": <><IntegrationsStatusCard /><BrokerView /></>,
+        "bars": <AtlasTerminal initialSection="warehouse" initialWorkspaceRoute="/data/lakehouse" />,
+        "reserve": <AtlasTerminal initialSection="governance" initialWorkspaceRoute="/data/governance" />,
+        "capability": <AtlasTerminal initialSection="roadmap" initialWorkspaceRoute="/data/features-100" />,
+        "docs": <DocsReader />,
       }} />
   );
 }

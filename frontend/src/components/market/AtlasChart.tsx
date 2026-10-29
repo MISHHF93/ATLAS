@@ -238,8 +238,10 @@ export function mountedChartCount(sym: string) { return MOUNTED.get(sym) ?? 0; }
 
 type Geo = { chips: { m: OppMarker; x: number; y: number }[]; band: null | { x0: number; x1: number; y10: number; y25: number; y50: number; y75: number; y90: number } };
 
-export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel = true, allLayers = false, onTimeframe, onLiveSnapshot, liveExtras }: {
+export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel = true, allLayers = false, fill = false, details, onTimeframe, onLiveSnapshot, liveExtras }: {
   symbol: string; timeframe?: string; height?: number; showPanel?: boolean; allLayers?: boolean;
+  /** Fill the parent (flex) instead of a fixed height. Layers, the footer, the model panel and `details` move to popovers. */
+  fill?: boolean; details?: ReactNode;
   onTimeframe?: (tf: string) => void; onLiveSnapshot?: (s: LiveSnapshot) => void; liveExtras?: (s: LiveSnapshot | null, err: string) => ReactNode;
 }) {
   const sym = chartSymbol(symbol);
@@ -263,6 +265,8 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const [sel, setSel] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const relayout = useRef<() => void>(() => {});
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const savedRange = useRef<{ key: string; range: { from: number; to: number } | null } | null>(null);
 
   useEffect(() => {
@@ -519,7 +523,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const mp = data?.layers.model_prediction;
   const tapeOk = live && tape.snap && ["public_last_trade", "public_market_candles"].includes(tape.snap.chart_source ?? "");
   return (
-    <section className="ux-card atlas-chart" aria-label={`ATLAS chart ${sym}`} data-atlas-chart={sym} data-interval={interval}>
+    <section className={`ux-card atlas-chart${fill ? " is-fill" : ""}`} aria-label={`ATLAS chart ${sym}`} data-atlas-chart={sym} data-interval={interval}>
       <header className="atlas-chart-bar">
         <strong className="atlas-chart-sym">{sym}</strong>
         <div className="atlas-chart-seg" role="group" aria-label="Timeframe">
@@ -533,7 +537,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         <span className={`atlas-chart-badge${p?.realtime || tapeOk ? " is-live" : ""}`} title={p ? `${p.built}; providers: ${p.providers.join(", ") || "none"}` : ""}>
           {live ? (tapeOk ? `live · ${tape.snap!.feed_origin ?? "public feed"}` : tape.err ? "live feed unavailable" : "connecting…") : p?.provider ? `${p.provider} · ${badge}` : loading ? "loading…" : "no provider"}
         </span>
-        {ms && (
+        {ms && !fill && (
           <span
             className={`atlas-chart-badge${ms.is_open ? " is-live" : ""}`}
             title={`${ms.venue_name} · ${ms.schedule_summary} · ${ms.reason}`}
@@ -545,20 +549,27 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
             {ms.is_open ? "● " : "○ "}{ms.venue_name}: {ms.status_label} · {ms.countdown}
           </span>
         )}
-        {p?.built?.startsWith("resampled") ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
+        {p?.built?.startsWith("resampled") && !fill ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
         <ModelChip mp={mp} loading={loading} />
-        <span className="atlas-chart-badge is-safe" title="ML output is advisory research. It can never place an order.">execution_permission: {data?.execution_permission ?? "none"}</span>
+        <span className="atlas-chart-badge is-safe" title="ML output is advisory research. It can never place an order.">{fill ? "exec: " : "execution_permission: "}{data?.execution_permission ?? "none"}</span>
         <button type="button" className="atlas-chart-capture" title="Save chart as PNG" aria-label="Save chart as PNG"
           disabled={!data?.bars.length}
           onClick={() => { const c = chartRef.current, st = stageRef.current; if (c && st) captureChartPng(c, st, { symbol: sym, timeframe: live ? "live-1m" : interval, barType: live ? "time" : barType }); }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
         </button>
-        <span className="atlas-chart-links">
-          <a href={tradingViewUrl(sym)} target="_blank" rel="noopener noreferrer">Open in TradingView ↗</a>
-          <a href="/research?tab=scan">Pine v5 export</a>
-        </span>
+        {fill ? (
+          <span className="atlas-chart-links">
+            <button type="button" className="atlas-chart-pop-btn" aria-expanded={layersOpen} onClick={() => { setLayersOpen((v) => !v); setDrawerOpen(false); }}>Layers {Object.values(on).filter(Boolean).length}/{LAYERS.length}</button>
+            <button type="button" className="atlas-chart-pop-btn" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen((v) => !v); setLayersOpen(false); }}>Details {drawerOpen ? "▾" : "▴"}</button>
+          </span>
+        ) : (
+          <span className="atlas-chart-links">
+            <a href={tradingViewUrl(sym)} target="_blank" rel="noopener noreferrer">Open in TradingView ↗</a>
+            <a href="/research?tab=scan">Pine v5 export</a>
+          </span>
+        )}
       </header>
-      <div className="atlas-chart-layers" role="group" aria-label="Layers">
+      {(!fill || layersOpen) && <div className={`atlas-chart-layers${fill ? " is-pop" : ""}`} role="group" aria-label="Layers">
         {LAYERS.map((l) => {
           const st = data?.layers[l.id as keyof Overlays["layers"]]?.status;
           return (
@@ -567,8 +578,8 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
             </label>
           );
         })}
-      </div>
-      <div ref={stageRef} className="atlas-chart-stage" style={{ height }}>
+      </div>}
+      <div ref={stageRef} className="atlas-chart-stage" style={fill ? { flex: "1 1 0", minHeight: 120 } : { height }}>
         <div ref={box} className="atlas-chart-canvas" />
         <div ref={profileRef} className="atlas-chart-vp" aria-hidden />
         {geo.band && (() => { const b = geo.band; const w = Math.max(8, b.x1 - b.x0); return (
@@ -600,6 +611,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
           <div className="atlas-chart-empty">{error ? `Chart data unavailable (${error}).` : `No ${data?.interval} feed bars for ${sym} yet. Nothing is drawn rather than guessed.`}</div>
         )}
       </div>
+      {!fill && (
       <footer className="atlas-chart-foot">
         {live && <span>Live: forming minute from {tapeOk ? `${tape.snap!.feed_origin ?? "public"} ticks` : "no genuine public tape yet"}{tape.err ? ` (${tape.err})` : ""}. Markers and predictions update on 1m bar close only.</span>}
         {!live && data?.display && data.display.status !== "ok" && <span>{data.display.kind}: {data.display.reason}</span>}
@@ -609,8 +621,37 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         {on.conviction && data?.layers.conviction?.status === "ok" && <span>Conviction {data.layers.conviction.score} · {data.layers.conviction.label}</span>}
         <span>Data: ATLAS feed ({p?.built ?? "—"}), free sources only. Rendering: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts™</a>. Times America/Toronto. Paper only.</span>
       </footer>
-      {live && liveExtras?.(tape.snap, tape.err)}
-      {showPanel && data && <AtlasMlPanel data={data} showConviction={on.conviction} showPredictions={on.predictions} onRefresh={refresh} />}
+      )}
+      {fill && (
+      <footer className="atlas-chart-foot is-line" title="Open Details for the full data, layer and model notes.">
+        {live
+          ? <span>Live: forming minute from {tapeOk ? `${tape.snap!.feed_origin ?? "public"} ticks` : "no genuine public tape yet"}{tape.err ? ` (${tape.err})` : ""}. Markers and predictions update on 1m bar close only. </span>
+          : <span>Data: ATLAS feed ({p?.built ?? "—"}), free sources only. Times America/Toronto. Paper only. </span>}
+        {unavailable.length > 0 && <span>· {unavailable.length} layer{unavailable.length === 1 ? "" : "s"} without data (see Details). </span>}
+        {!live && data?.display && data.display.status !== "ok" && <span>· {data.display.kind}: {data.display.reason}</span>}
+      </footer>
+      )}
+      {fill && drawerOpen && (
+        <div className="atlas-drawer" role="dialog" aria-label="Chart details">
+          {ms && <div className="atlas-drawer-row"><span className={`atlas-chart-badge${ms.is_open ? " is-live" : ""}`} title={`${ms.venue_name} · ${ms.schedule_summary} · ${ms.reason}`}>{ms.is_open ? "● " : "○ "}{ms.venue_name}: {ms.status_label} · {ms.countdown}</span>
+            {p?.built?.startsWith("resampled") ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
+            <span className="atlas-chart-links"><a href={tradingViewUrl(sym)} target="_blank" rel="noopener noreferrer">Open in TradingView ↗</a><a href="/research?tab=scan">Pine v5 export</a></span></div>}
+          <div className="atlas-chart-foot">
+        {live && <span>Live: forming minute from {tapeOk ? `${tape.snap!.feed_origin ?? "public"} ticks` : "no genuine public tape yet"}{tape.err ? ` (${tape.err})` : ""}. Markers and predictions update on 1m bar close only.</span>}
+        {!live && data?.display && data.display.status !== "ok" && <span>{data.display.kind}: {data.display.reason}</span>}
+        {!live && data?.display?.note && data.display.status === "ok" && <span>{data.display.note}.</span>}
+        {unavailable.map((l) => <span key={l.id}>{l.label}: {data!.layers[l.id as keyof Overlays["layers"]]!.reason ?? data!.layers[l.id as keyof Overlays["layers"]]!.note ?? "no data for this symbol/interval"}</span>)}
+        {on.regimes && data?.layers.regimes?.current && <span>Regime now: {data.layers.regimes.current.replace(/_/g, " ")}</span>}
+        {on.conviction && data?.layers.conviction?.status === "ok" && <span>Conviction {data.layers.conviction.score} · {data.layers.conviction.label}</span>}
+        <span>Data: ATLAS feed ({p?.built ?? "—"}), free sources only. Rendering: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts™</a>. Times America/Toronto. Paper only.</span>
+          </div>
+          {live && liveExtras?.(tape.snap, tape.err)}
+          {details}
+          {showPanel && data && <AtlasMlPanel data={data} showConviction={on.conviction} showPredictions={on.predictions} onRefresh={refresh} />}
+        </div>
+      )}
+      {!fill && live && liveExtras?.(tape.snap, tape.err)}
+      {!fill && showPanel && data && <AtlasMlPanel data={data} showConviction={on.conviction} showPredictions={on.predictions} onRefresh={refresh} />}
     </section>
   );
 }
@@ -671,7 +712,7 @@ function ModelChip({ mp, loading }: { mp: ModelPrediction | undefined; loading: 
 
 function PredictionCard({ fwd, rc, mp }: { fwd: Overlays["layers"]["forward"]; rc: RunningCal | undefined; mp?: ModelPrediction }) {
   return (
-    <aside className="atlas-pcard" aria-label="Prediction zone">
+    <aside className="atlas-pcard" aria-label="Prediction zone" tabIndex={0}>
       <h5>Prediction zone <span>{fwd?.label ?? "model estimate, not a forecast guarantee"}</span></h5>
       {mp && (mp.status === "ok"
         ? <p className={`atlas-pcard-model is-${mp.gate_status}`}><strong>{mp.direction === "up" ? "▲" : mp.direction === "down" ? "▼" : "◆"} Model: {mp.direction}</strong> · P(target before stop) {fmt(mp.probability, 2)} ({mp.setup?.replace(/_/g, " ")}, EV {fmtSigned(mp.ev_r, 2)}R) · {mp.label} · bar {torontoStamp(mp.as_of_end)}</p>

@@ -95,35 +95,19 @@ python scripts/run_selector_evidence.py var/evidence_cache_15m                 #
 
 ## Page map (`frontend/src/components/shell/pagesMap.ts`)
 
-There are six sections. Old URLs still open the same pages as aliases.
+Seven pages; related views are tabs (`?tab=`). Every retired route redirects (308) to its new tab, and the registry also drives `next.config.ts`.
 
-| Section | Page | Route | Aliases |
-|---|---|---|---|
-| Home | Overview | `/` | |
-| Home | Action needed | `/inbox` | |
-| Trade | Trading desk | `/trade` | `/workbench`, `/trade/cockpit`, `/market` |
-| Trade | Listings (fixture catalog) | `/listings` | |
-| Trade | Estimated depth (not an exchange book) | `/trade/depth-dom` | |
-| Trade | Positions | `/trade/blotter` | `/control/dealing-desk` |
-| Trade | Account risk | `/control` | `/control/risk-hud`, `/profile` |
-| Money | Money | `/money` | |
-| Money | Payments | `/payments` | |
-| Money | Partner wallet | `/portal` | |
-| Money | Tax | `/tax` | |
-| Research | Chart read | `/research` | `/research/central-node`, `/research/microstructure`, `/research/drift-dashboard`, `/matrix` |
-| Research | Price-action zones | `/research/price-action` | |
-| Research | Walk-forward | `/research/walk-forward` | `/experiments` |
-| Research | Training status | `/models` | `/research/registry` |
-| Research | Prediction ledger | `/research/prediction-ledger` | |
-| Research | Bar query | `/data` | `/data/lakehouse`, `/warehouse` |
-| Research | Reserve sleeve | `/governance` | `/data/governance` |
-| Compliance | Compliance overview | `/compliance` | |
-| Compliance | Audit log | `/control/surveillance` | `/trade/journal` |
-| Compliance | Identity checklist | `/control/proctoring` | |
-| Settings | Rulebook | `/control/rulebook` | `/rules`, `/settings`, `/configurations` |
-| Settings | Connectors | `/data/pipelines` | `/connectors`, `/integrations`, `/sync` |
-| Settings | Capability map | `/data/features-100` | `/roadmap` |
-| Settings | Specifications | `/docs` | |
+| Page | Route | Tabs |
+|---|---|---|
+| Overview | `/` | overview, inbox (action needed) |
+| Trading desk | `/trade` | chart (one chart per asset + ticket), markets, brief, paper, depth |
+| Account risk | `/control` | account, portfolio, tracks, limits, autopilot |
+| Research | `/research` | chart, zones, levels, scan, valuation, options, agents |
+| Research lab | `/research/lab` | evidence, ml, forecasts, walk-forward, training, experiments, regimes, memory, evolution, assistant |
+| Money | `/money` | overview, payments, partners, tax, regulatory, audit, identity |
+| Settings | `/settings` | keys, connectors, broker, bars, reserve, capability, docs |
+
+Retired routes (`/inbox`, `/autopilot`, `/compliance`, `/data`, `/docs`, `/research/evidence`, and the older aliases) are listed with their targets in [docs/ux-consolidation.md](docs/ux-consolidation.md).
 
 API-only surfaces:
 

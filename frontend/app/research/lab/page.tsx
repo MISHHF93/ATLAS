@@ -1,4 +1,6 @@
-import { AgentsView, OptionsView, ValuationView } from "@/src/ui/pages/ExtViews";
+import { AtlasTerminal } from "@/app/AtlasTerminal";
+import { EvidenceView } from "@/src/ui/pages/Console";
+import { MlModelsView } from "@/src/ui/pages/MlModels";
 import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
 import { AssistantView, EvolutionView, LabView, MemoryView, RegimesView } from "@/src/ui/pages/IntelViews";
 
@@ -6,14 +8,16 @@ export default async function Page(props: HubProps) {
   const tab = await tabParam(props);
   return (
     <Hub id="lab" tab={tab} panels={{
+        "evidence": <EvidenceView />,
+        "ml": <MlModelsView />,
+        "forecasts": <AtlasTerminal initialSection="research" initialWorkspaceRoute="/research/prediction-ledger" />,
+        "walk-forward": <AtlasTerminal initialSection="models" initialWorkspaceRoute="/research/walk-forward" />,
+        "training": <AtlasTerminal initialSection="models" initialWorkspaceRoute="/research/registry" />,
         "experiments": <LabView />,
         "regimes": <RegimesView />,
         "memory": <MemoryView />,
-        "assistant": <AssistantView />,
         "evolution": <EvolutionView />,
-        "valuation": <ValuationView />,
-        "agents": <AgentsView />,
-        "options": <OptionsView />,
+        "assistant": <AssistantView />,
       }} />
   );
 }

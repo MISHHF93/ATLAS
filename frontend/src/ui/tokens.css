@@ -455,11 +455,11 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .ux-hub .atlas-app, .ux-hub .institutional-shell { height: auto; min-height: 70vh; border: 1px solid var(--c-border); border-radius: var(--r-lg); overflow: hidden; }
 
 /* compact hub (trading desk): one header row, the desk fills the rest */
-.ux-hub[data-compact="true"] { height: 100%; max-width: none; padding: var(--s-2) var(--s-3) var(--s-2); gap: var(--s-1); grid-template-rows: auto auto minmax(0, 1fr); }
+.ux-hub[data-compact="true"] { height: 100%; max-width: none; padding: var(--s-2) var(--s-3) var(--s-2); gap: var(--s-1); grid-template-rows: auto minmax(0, 1fr); }
 .ux-hub[data-compact="true"] .ux-page-header { display: none; }
 .ux-hub[data-compact="true"] .ux-hubtab-desc { display: none; }
 .ux-hub[data-compact="true"] .ux-hubtabs { margin: 0; }
-.ux-hub[data-compact="true"][data-tab="chart"] .ux-hub__panel { min-height: 0; height: 100%; }
+.ux-hub[data-compact="true"][data-tab="chart"] .ux-hub__panel { min-height: 0; height: 100%; grid-template-rows: minmax(0, 1fr); align-content: stretch; }
 .ux-hub[data-compact="true"][data-tab="chart"] .ux-hub__panel > .ux-fullbleed { min-height: 0; height: 100%; }
 .ux-hub[data-compact="true"] .ux-hub__panel { min-height: 0; }
 .ux-hub[data-compact="true"] .ux-hubtab { padding: 6px 0; }
@@ -624,3 +624,63 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .atlas-model-chip.is-no_model, .atlas-model-chip.is-none { color: var(--c-muted); border-style: dashed; }
 .atlas-pcard-model { font-size: 10px; } .atlas-pcard-model.is-research_below_gate strong { color: #E69F00; }
 .atlas-pcard-model.is-gate_passed strong { color: var(--c-good); }
+
+/* evo-10: /trade fits the viewport with no inner scrollers. The chart takes the height that is left.
+   Anything long (layers, model panel, notes, positions) opens as a popover over the chart. */
+.atlas-chart.is-fill { height: 100%; min-height: 0; display: flex; flex-direction: column; position: relative; gap: 4px; padding: 4px 6px; }
+.atlas-chart.is-fill > * { flex: none; }
+.atlas-chart.is-fill > .atlas-chart-stage { flex: 1 1 0; min-height: 120px; }
+.atlas-chart.is-fill .atlas-chart-bar { gap: 6px; }
+.atlas-chart.is-fill .atlas-chart-links { gap: 6px; }
+.atlas-chart-pop-btn { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); border-radius: 6px; padding: 3px 8px; font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+.atlas-chart-pop-btn[aria-expanded="true"] { border-color: var(--c-accent); color: var(--c-accent); }
+.atlas-chart-layers.is-pop { position: absolute; right: 8px; bottom: 26px; top: auto; z-index: 30; max-width: min(520px, calc(100% - 16px)); padding: 8px; border: 1px solid var(--c-border-strong, var(--c-border)); border-radius: 8px; background: var(--c-surface); box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.atlas-chart-foot.is-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atlas-chart-foot.is-line span { display: inline; }
+.atlas-drawer { position: absolute; left: 6px; right: 6px; bottom: 6px; z-index: 30; max-height: 72%; overflow: auto; padding: 8px 10px; border: 1px solid var(--c-border-strong, var(--c-border)); border-radius: 8px; background: var(--c-surface); box-shadow: 0 -8px 24px rgba(0,0,0,.45); display: flex; flex-direction: column; gap: 8px; }
+.atlas-drawer-row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.desk-chart-frame.is-fill { flex: 1 1 0; min-height: 0; height: 100%; }
+.desk-chart-frame.is-fill .desk-chart-stage { flex: 1 1 0; min-height: 0; }
+.desk-atlas-picture.is-fill { flex: 1 1 0; min-height: 0; }
+.desk-notes-pop { position: absolute; z-index: 40; top: 4px; left: 4px; right: 4px; max-height: 70%; overflow: auto; padding: 8px 10px; border: 1px solid var(--c-border-strong, var(--c-border)); border-radius: 8px; background: var(--c-surface); box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.desk-blotter-pop { position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); z-index: 40; max-height: 240px; overflow: auto; padding: 8px 10px; border: 1px solid var(--c-border-strong, var(--c-border)); border-radius: 8px; background: var(--c-surface); box-shadow: 0 -8px 24px rgba(0,0,0,.45); }
+.desk-symbol-pager { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--c-muted); padding-top: 4px; }
+.desk-symbol-pager button { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); border-radius: 5px; padding: 3px 8px; font: inherit; font-size: 11px; cursor: pointer; }
+.desk-symbol-pager button:disabled { opacity: .4; cursor: default; }
+.desk-symbol-list .watch-row { grid-template-columns: minmax(0, 1fr) auto auto; padding: 4px 8px; row-gap: 0; column-gap: 8px; height: 41px; align-content: center; }
+.desk-symbol-list .watch-row .watch-row-sym strong, .desk-symbol-list .watch-row .watch-row-price { font-size: 13px; }
+.desk-symbol-list .watch-row .watch-row-name { grid-column: 1 / 3; font-size: 11px; }
+.desk-symbol-list .watch-row .watch-row-chg { font-size: 12px; }
+.desk-symbol-list .watch-row .watch-row-meta, .desk-symbol-list .watch-row .watch-row-mkt { display: none; }
+.desk-ticket-tabs { display: none; gap: 4px; }
+.desk-ticket-tabs button { flex: 1; background: var(--c-surface); color: var(--c-muted); border: 1px solid var(--c-border); border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.desk-ticket-tabs button[aria-selected="true"] { color: var(--c-on-accent, #06121c); background: var(--c-accent); border-color: var(--c-accent); }
+@media (max-height: 999px) {
+  .desk-ticket-tabs { display: flex; }
+  .desk-ticket-col[data-tab="order"] .desk-risk-card, .desk-ticket-col[data-tab="risk"] .desk-order-card { display: none !important; }
+}
+
+/* evo-10: one-row quote bar that never overlaps, and a one-row top bar on wide-enough screens */
+.desk-quotebar > div:first-child > div:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.desk-quotebar > div:first-child > div:first-child > div:first-child { flex-wrap: nowrap !important; min-width: 0; }
+.desk-quotebar strong { white-space: nowrap; flex: none; }
+.desk-quotebar > div:first-child > div:first-child > div:first-child > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desk-quotebar [data-quote-price] { flex: none; white-space: nowrap; }
+@media (min-width: 1200px) {
+  .desk-topbar { flex-wrap: nowrap !important; }
+  .desk-topbar > div { flex-wrap: nowrap; min-width: 0; }
+  .desk-topbar > div:first-child { flex: 1 1 auto; overflow: hidden; }
+}
+
+/* evo-10: in the fill layout the prediction card is a one-line pill so it never hides the latest candles; hover or focus opens the full read */
+.atlas-chart.is-fill .atlas-pcard { width: min(230px, calc(100% - 80px)); padding: 4px 8px; }
+.atlas-chart.is-fill .atlas-pcard:not(:hover):not(:focus-within) > :not(h5):not(.atlas-pcard-model) { display: none; }
+.atlas-chart.is-fill .atlas-pcard:not(:hover):not(:focus-within) h5 span { display: none; }
+.atlas-chart.is-fill .atlas-pcard:not(:hover):not(:focus-within) .atlas-pcard-model { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atlas-chart.is-fill .atlas-pcard:not(:hover):not(:focus-within) h5 { margin: 0; }
+.atlas-chart.is-fill .atlas-pcard:hover, .atlas-chart.is-fill .atlas-pcard:focus-within { width: min(300px, calc(100% - 80px)); }
+
+/* evo-10: inside a hub tab the page itself scrolls (#ux-main); the embedded legacy shells must not add a second scroller */
+.ux-hub .clean-main-scroll { overflow: visible; min-height: auto; flex: 0 0 auto; }
+.ux-hub .institutional-shell { overflow: visible; height: auto; }
+.ux-hub .clean-body-layout { overflow: visible; flex: 0 0 auto; }

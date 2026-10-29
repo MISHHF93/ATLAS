@@ -57,7 +57,8 @@ test("app/ holds only canonical pages; every former address is a permanent next.
   }
   for (const r of redirects.filter(r => r.has)) {
     assert.match(r.destination, /\?tab=/, `retired-tab redirect must name its tab explicitly: ${r.source}`);
-    assert.notEqual(new URL(r.destination, "http://x").searchParams.get("tab"), r.has[0].value, `redirect loop: ${r.source}`);
+    const dest = new URL(r.destination, "http://x");
+    if (dest.pathname === r.source) assert.notEqual(dest.searchParams.get("tab"), r.has[0].value, `redirect loop: ${r.source}`);
   }
   for (const page of PAGES) for (const alias of allAliases(page)) assert.ok(redirects.some(r => r.source === alias && !r.has), `No redirect for ${alias}`);
 });
@@ -65,6 +66,13 @@ test("app/ holds only canonical pages; every former address is a permanent next.
 test("retired tabs open the tab that absorbed them", () => {
   for (const [from, to] of Object.entries({
     "/control?tab=positions": "/control", "/research/lab?tab=microstructure": "/research", "/research/lab?tab=fourbox": "/research?tab=zones",
+    // evo-10 consolidation: 13 pages became 7.
+    "/research?tab=multi-agent": "/research?tab=agents", "/research/lab?tab=agents": "/research?tab=agents",
+    "/research/lab?tab=valuation": "/research?tab=valuation", "/research/lab?tab=options": "/research?tab=options",
+    "/research?tab=forecasts": "/research/lab?tab=forecasts",
+    "/research/evidence?tab=ml": "/research/lab?tab=ml", "/research/evidence?tab=walk-forward": "/research/lab?tab=walk-forward",
+    "/compliance?tab=overview": "/money?tab=regulatory", "/compliance?tab=audit": "/money?tab=audit", "/compliance?tab=identity": "/money?tab=identity",
+    "/data?tab=reserve": "/settings?tab=reserve", "/data?tab=capability": "/settings?tab=capability", "/data?tab=bars": "/settings?tab=bars",
   })) assert.equal(redirectTarget(from), to);
   const lab = PAGES.find(p => p.id === "lab");
   assert.ok(!lab.tabs.some(t => t.id === "microstructure" || t.id === "fourbox"));
@@ -73,15 +81,24 @@ test("retired tabs open the tab that absorbed them", () => {
 
 test("retired workspace destinations resolve to their consolidated pages", () => {
   for (const [route, href] of Object.entries({
-    "/trade/cockpit": "/trade", "/trade/journal": "/compliance?tab=audit",
+    "/trade/cockpit": "/trade", "/trade/journal": "/money?tab=audit",
     "/control/dealing-desk": "/control", "/trade/blotter": "/control", "/research/microstructure": "/research",
-    "/data/pipelines": "/settings?tab=connectors", "/research/registry": "/research/evidence?tab=training",
+    "/data/pipelines": "/settings?tab=connectors", "/research/registry": "/research/lab?tab=training",
+    "/research/prediction-ledger": "/research/lab?tab=forecasts", "/data/lakehouse": "/settings?tab=bars",
   })) assert.equal(hrefForWorkspace(route), href);
 });
 
-test("navigation stays compact: 10-14 main destinations, every hub tab has a plain summary", () => {
+test("retired pages: every old page address lands on its consolidated tab", () => {
+  for (const [from, to] of Object.entries({
+    "/inbox": "/?tab=inbox", "/autopilot": "/control?tab=autopilot", "/compliance": "/money?tab=regulatory", "/data": "/settings?tab=bars",
+    "/docs": "/settings?tab=docs", "/research/evidence": "/research/lab",
+  })) assert.equal(redirectTarget(from), to);
+  for (const gone of ["inbox", "autopilot", "compliance", "data", "docs", "models"]) assert.ok(!PAGES.some(p => p.id === gone), `page still registered: ${gone}`);
+});
+
+test("navigation stays compact: 6-8 main destinations, every hub tab has a plain summary", () => {
   const main = PAGES.filter(p => !p.advanced);
-  assert.ok(main.length >= 10 && main.length <= 14, `main destinations: ${main.length}`);
+  assert.ok(main.length >= 6 && main.length <= 8, `main destinations: ${main.length}`);
   for (const p of PAGES) {
     assert.ok(p.summary.length > 20 && p.summary.length < 160, `summary length: ${p.id}`);
     for (const t of p.tabs ?? []) assert.ok(t.summary.length > 20 && t.summary.length < 160, `tab summary: ${p.id}/${t.id}`);

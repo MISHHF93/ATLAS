@@ -319,34 +319,6 @@ body {
   flex-direction: column;
 }
 
-.chart-lock-rail {
-  flex: 0 0 auto;
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(0, 200, 255, 0.28);
-  background: rgba(8, 12, 20, 0.92);
-  color: #94A3B8;
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.chart-lock-rail p {
-  margin: 0;
-}
-
-.chart-lock-rail p + p {
-  margin-top: 2px;
-}
-
-.chart-lock-rail strong {
-  color: #F8FAFC;
-  font-weight: 700;
-}
-
-.chart-lock-rail .is-buy { color: #00F29D; }
-.chart-lock-rail .is-sell { color: #FF8FA3; }
-
 .desk-chart-frame.is-research {
   height: auto;
 }
