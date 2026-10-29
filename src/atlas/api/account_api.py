@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
-from atlas.accounts import audit, auth, billing, connectors, crypto, entitlements, stripe_client
+from atlas.accounts import audit, auth, billing, brokers, connectors, crypto, entitlements, flooos, ledger, stripe_client
 from atlas.accounts.catalog import CATEGORIES, TestContext
 from atlas.accounts.db import connect
 from atlas.accounts.http import fetch
@@ -245,25 +245,29 @@ def connector_test(connector_id: str, request: Request, conn=Depends(db)) -> dic
 # ---------------- billing (Stripe TEST MODE only; NO per-trade commissions) ----------------
 @router.get("/api/billing/plans")
 def plans(conn=Depends(db)) -> dict[str, Any]:
-    return {"plans": billing.plans_public(conn), "placeholder": True, "per_trade_commission": False,
-            "note": "Plans and prices are placeholders. ATLAS takes no commission on any trade."}
+    return {"plans": billing.plans_public(conn), "addons": list(billing.ADDONS), "placeholder": True, "per_trade_commission": False, "fees": billing.FEES,
+            "prices_exclude_tax": True, "currencies": list(billing.CURRENCIES), "intervals": list(billing.INTERVALS),
+            "note": "Plans and prices are placeholders, tax is added at checkout. ATLAS charges $0 per trade and takes no performance fee."}
 
 
 @router.get("/api/billing/subscription")
 def subscription(request: Request, conn=Depends(db)) -> dict[str, Any]:
     s = need_session(request)
     return {**billing.subscription_public(conn, s.user.id), "entitlements": entitlements.summary(conn, s.user.id, s.user.role, _counts(conn, s.user.id)),
-            "stripe_test_mode": stripe_client.configured()}
+            "stripe_test_mode": stripe_client.configured(), "stripe_tax": stripe_client.tax_enabled()}
 
 
 @router.post("/api/billing/checkout")
 def checkout(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
     s = need_session(request)
-    plan = conn.execute("SELECT * FROM plans WHERE code=? AND active=1", (_s(b.get("plan"), 20),)).fetchone()
+    plan = billing.resolve_plan(conn, _s(b.get("plan"), 30), _s(b.get("interval"), 8) or None, _s(b.get("currency"), 4) or None)
     if plan is None:
         raise stripe_client.StripeError("unknown_plan", 404)
-    out = stripe_client.create_checkout_session(s.user.public(), plan)
-    audit.log(conn, s.user.id, "billing.checkout_started", "plan", plan["code"])
+    seats = b.get("seats")
+    if seats is not None and (not isinstance(seats, int) or isinstance(seats, bool)):
+        raise stripe_client.StripeError("bad_seats", 400)
+    out = stripe_client.create_checkout_session(s.user.public(), plan, seats=seats)
+    audit.log(conn, s.user.id, "billing.checkout_started", "plan", plan["code"], detail={"seats": seats})
     return {"url": out["url"], "test_mode": True}
 
 
@@ -297,6 +301,130 @@ def admin_audit(request: Request, conn=Depends(db)) -> dict[str, Any]:
     return {"events": audit.recent(conn, None, 200), "chain": audit.verify_chain(conn)}
 
 
+# ---------------- broker referrals (OFF until counsel approves a partner) ----------------
+@router.get("/api/account/brokers")
+def broker_list(request: Request, conn=Depends(db)) -> dict[str, Any]:
+    need_session(request)
+    return brokers.public_partners(conn)
+
+
+@router.post("/api/account/brokers/{code}/refer")
+def broker_refer(code: str, request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    s = need_session(request)
+    return brokers.start_referral(conn, s.user.id, _s(code, 30), b.get("disclosure_shown") is True)
+
+
+# ---------------- admin: plans, brokers, ledger, Flooos export ----------------
+@router.post("/api/admin/plans/update")
+def admin_plan_update(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    s = need_admin(request)
+    p = conn.execute("SELECT * FROM plans WHERE code=?", (_s(b.get("code"), 30),)).fetchone()
+    if p is None:
+        raise HTTPException(404, "unknown_plan")
+    sets, args = [], []
+    for col, hi in (("price_cents", 10_000_000), ("extra_seat_cents", 1_000_000), ("seats_included", 1000), ("trial_days", 365)):
+        if col in b:
+            v = b[col]
+            if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v <= hi or (col == "seats_included" and v < 1):
+                raise HTTPException(400, f"bad_{col}")
+            sets.append(f"{col}=?"); args.append(v)
+    for col in ("is_placeholder", "active"):
+        if col in b:
+            if not isinstance(b[col], bool):
+                raise HTTPException(400, f"bad_{col}")
+            sets.append(f"{col}=?"); args.append(int(b[col]))
+    if "tax_behavior" in b:
+        if b["tax_behavior"] not in ("exclusive", "inclusive"):
+            raise HTTPException(400, "bad_tax_behavior")
+        sets.append("tax_behavior=?"); args.append(b["tax_behavior"])
+    for col in ("stripe_price_id", "stripe_product_id"):
+        if col in b:
+            v = b[col]
+            if v is not None and (not isinstance(v, str) or not v.startswith(("price_", "prod_")) or len(v) > 80):
+                raise HTTPException(400, f"bad_{col}")
+            sets.append(f"{col}=?"); args.append(v)
+    if not sets:
+        raise HTTPException(400, "nothing_to_update")
+    from atlas.accounts.db import tx
+    with tx(conn):
+        conn.execute(f"UPDATE plans SET {', '.join(sets)} WHERE id=?", (*args, p["id"]))
+        audit.log(conn, s.user.id, "admin.plan_update", "plan", p["code"], detail={"fields": [x.split("=")[0] for x in sets]})
+    return {"plan": next(x for x in billing.plans_public(conn) if x["code"] == p["code"])}
+
+
+@router.get("/api/admin/brokers")
+def admin_brokers(request: Request, conn=Depends(db)) -> dict[str, Any]:
+    need_admin(request)
+    return {"partners": [dict(r) for r in conn.execute("SELECT code,name,program_type,legal_status,terms_url,active FROM broker_partners ORDER BY name")],
+            "referrals": [dict(r) for r in conn.execute("SELECT r.id, p.code AS partner, r.status, r.cpa_cents, r.currency, r.created_at FROM broker_referrals r JOIN broker_partners p ON p.id=r.partner_id ORDER BY r.created_at DESC LIMIT 200")]}
+
+
+@router.post("/api/admin/brokers/update")
+def admin_broker_update(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    s = need_admin(request)
+    act = b.get("active")
+    if act is not None and not isinstance(act, bool):
+        raise HTTPException(400, "bad_active")
+    return brokers.set_partner(conn, s.user.id, _s(b.get("code"), 30), b.get("legal_status") if isinstance(b.get("legal_status"), str) else None, act)
+
+
+@router.post("/api/admin/brokers/referral")
+def admin_broker_referral(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    s = need_admin(request)
+    cents = b.get("cpa_cents")
+    if cents is not None and (not isinstance(cents, int) or isinstance(cents, bool)):
+        raise HTTPException(400, "bad_cpa")
+    return brokers.update_referral(conn, s.user.id, _s(b.get("id"), 64), _s(b.get("status"), 20), cents, _s(b.get("currency"), 3) or "usd", _s(b.get("bank_ref"), 60) or None)
+
+
+@router.post("/api/admin/ledger/append")
+def admin_ledger_append(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    """Manual entries only for kinds the webhooks cannot see (tax_remittance, stripe_fee reconciliation, adjustment, user_credit)."""
+    s = need_admin(request)
+    kind = _s(b.get("kind"), 20)
+    if kind not in ("tax_remittance", "stripe_fee", "adjustment", "user_credit"):
+        raise HTTPException(400, "kind_not_manual")
+    amt = b.get("amount_cents")
+    if not isinstance(amt, int) or isinstance(amt, bool):
+        raise HTTPException(400, "bad_amount")
+    from atlas.accounts.db import tx
+    with tx(conn):
+        rid = ledger.append(conn, kind, _s(b.get("direction"), 3), amt, _s(b.get("currency"), 3), _s(b.get("counterparty"), 60), bank_ref=_s(b.get("bank_ref"), 60) or None,
+                            memo=_s(b.get("memo"), 200), dedupe_key=_s(b.get("dedupe_key"), 80) or None)
+        audit.log(conn, s.user.id, "admin.ledger_append", "payouts_ledger", rid or "", detail={"kind": kind, "amount_cents": amt})
+    return {"id": rid, "chain": ledger.verify_chain(conn)}
+
+
+def _range(request: Request) -> tuple[int, int | None]:
+    try:
+        a = int(request.query_params.get("from") or 0)
+        z = request.query_params.get("to")
+        return a, (int(z) if z else None)
+    except ValueError:
+        raise HTTPException(400, "bad_range") from None
+
+
+@router.get("/api/admin/flooos/export")
+def admin_flooos(request: Request, conn=Depends(db)):
+    need_admin(request)
+    start, end = _range(request)
+    out = flooos.build(conn, start, end)
+    if request.query_params.get("format") == "csv":
+        return Response(flooos.to_csv(out["ledger"]), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="atlas-ledger.csv"'})
+    return out
+
+
+@router.post("/api/admin/flooos/mark")
+def admin_flooos_mark(request: Request, b: dict = Depends(body_of), conn=Depends(db)) -> dict[str, Any]:
+    s = need_admin(request)
+    a, z = b.get("from", 0), b.get("to")
+    if not isinstance(a, int) or not isinstance(z, int):
+        raise HTTPException(400, "bad_range")
+    n = ledger.mark_exported(conn, _s(b.get("batch"), 40), a, z)
+    audit.log(conn, s.user.id, "admin.flooos_mark", "payouts_ledger", _s(b.get("batch"), 40), detail={"rows": n})
+    return {"marked": n}
+
+
 # ---------------- install ----------------
 def _err(status: int, code: str, message: str | None = None, **extra: Any) -> JSONResponse:
     return JSONResponse({"error": code, **({"message": message} if message else {}), **extra}, status_code=status)
@@ -319,6 +447,14 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(entitlements.EntitlementDenied)
     async def _ent(_: Request, ex: entitlements.EntitlementDenied):
         return JSONResponse(ex.public(), status_code=402)
+
+    @app.exception_handler(brokers.BrokerError)
+    async def _broker(_: Request, ex: brokers.BrokerError):
+        return _err(ex.status, ex.code)
+
+    @app.exception_handler(ledger.LedgerError)
+    async def _ledger(_: Request, ex: ledger.LedgerError):
+        return _err(ex.status, ex.code)
 
     @app.exception_handler(stripe_client.StripeError)
     async def _stripe(_: Request, ex: stripe_client.StripeError):

@@ -12,6 +12,7 @@ from .billing import plan_for_user
 from .db import tx
 
 BYPASS_ROLES = ("owner", "admin")
+NEVER_BYPASS = frozenset({"live_order_routing"})  # even the owner is gated: off until counsel signs off in writing
 
 
 class EntitlementDenied(Exception):
@@ -44,10 +45,17 @@ def used(conn, user_id: str, key: str, period: str, now: float | None = None) ->
     return int(r["n"])
 
 
-def record_usage(conn, user_id: str, key: str, quantity: int = 1, meta: dict[str, Any] | None = None, now: float | None = None) -> None:
+def record_usage(conn, user_id: str, key: str, quantity: int = 1, meta: dict[str, Any] | None = None, now: float | None = None,
+                 idempotency_key: str | None = None, unit_cost_micros: int = 0) -> bool:
+    """Append a metering row. A repeated ``idempotency_key`` is a no-op (returns False). ``unit_cost_micros`` (USD micro-dollars per unit) feeds the Flooos cost export."""
+    def _w(c) -> bool:
+        return c.execute("INSERT OR IGNORE INTO usage_events (id,user_id,key,quantity,ts,meta_json,idempotency_key,unit_cost_micros) VALUES (?,?,?,?,?,?,?,?)",
+                         (uuid.uuid4().hex, user_id, key, int(quantity), int(time.time() if now is None else now), json.dumps(meta or {}, sort_keys=True)[:500],
+                          idempotency_key, max(0, int(unit_cost_micros)))).rowcount == 1
+    if conn.in_transaction:
+        return _w(conn)
     with tx(conn):
-        conn.execute("INSERT INTO usage_events (id,user_id,key,quantity,ts,meta_json) VALUES (?,?,?,?,?,?)",
-                     (uuid.uuid4().hex, user_id, key, int(quantity), int(time.time() if now is None else now), json.dumps(meta or {}, sort_keys=True)[:500]))
+        return _w(conn)
 
 
 def enforce(conn, user_id: str, role: str, key: str, *, current: int | None = None, cost: int = 1, record: bool = False, now: float | None = None) -> dict[str, Any]:
@@ -57,7 +65,7 @@ def enforce(conn, user_id: str, role: str, key: str, *, current: int | None = No
     quota with period day / month -> metered from usage_events; ``record=True`` appends the usage after the check passes.
     """
     plan = plan_for_user(conn, user_id, now)
-    if role in BYPASS_ROLES:
+    if role in BYPASS_ROLES and key not in NEVER_BYPASS:
         return {"plan": plan["code"], "bypass": True}
     e = _ent(conn, plan["id"], key)
     if not e:
@@ -83,7 +91,7 @@ def summary(conn, user_id: str, role: str, current_counts: dict[str, int] | None
     out: dict[str, Any] = {}
     for e in conn.execute("SELECT * FROM plan_entitlements WHERE plan_id=?", (plan["id"],)):
         if e["kind"] == "flag":
-            out[e["key"]] = {"kind": "flag", "allowed": bool(e["bool_value"]) or role in BYPASS_ROLES}
+            out[e["key"]] = {"kind": "flag", "allowed": bool(e["bool_value"]) or (role in BYPASS_ROLES and e["key"] not in NEVER_BYPASS)}
         else:
             u = (current_counts or {}).get(e["key"]) if e["period"] == "none" else used(conn, user_id, e["key"], e["period"], now)
             out[e["key"]] = {"kind": "quota", "limit": e["int_value"], "period": e["period"], "used": u, "unlimited": role in BYPASS_ROLES}

@@ -34,3 +34,13 @@ Scope: `src/atlas/accounts/`, `src/atlas/api/account_api.py`, the settings UI, `
 7. The Sentry test checks DSN format only. The IBKR test is owner-only because it talks to a local gateway.
 8. Rate-limit state is in SQLite; it is per instance.
 9. Master key compromise exposes all secrets: keep it out of git and backups, rotate with `python -m atlas.accounts.cli rewrap`.
+
+## M0005 additions (billing v2, tax, ledger, brokers)
+
+- **Ledger tamper-evidence**: hash-chained `payouts_ledger`, UPDATE/DELETE blocked by triggers (SQLite syntax; Postgres port needed), chain verifiable at any time; tested including a dropped trigger.
+- **Admin surface**: plan edits, broker status, manual ledger entries, Flooos export and batch marking are admin-only, bounded (integer ranges, enums, `price_`/`prod_` id prefixes), CSRF-protected POSTs, and audit-logged without values. Manual ledger kinds are restricted so cash kinds cannot be forged.
+- **No user data in exports**: the Flooos export carries no user ids or emails; CSV cells beginning with `= + - @` are prefixed.
+- **Webhook money paths**: refunds, disputes and payouts are idempotent by event id; livemode events are rejected before any booking. Seat counts come only from metadata written by our own checkout and are range-checked.
+- **Retention vs erasure**: accounts with tax or referral records are anonymised, not deleted; secrets and sessions are always destroyed.
+- **Broker referrals** are inert until an admin approves and activates a partner; disclosure is mandatory; same 404 for unknown and unapproved partners.
+- **Stripe fee ledger entries** need balance-transaction reconciliation (not implemented). Tax record parsing is best-effort and unverified against a live Stripe Tax invoice.

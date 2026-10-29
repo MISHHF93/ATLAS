@@ -28,7 +28,7 @@ def test_billing_tables_and_seed(conn):
     names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"plans", "plan_entitlements", "subscriptions", "usage_events", "invoices", "partner_referrals"} <= names
     rows = conn.execute("SELECT code,is_placeholder,price_cents FROM plans ORDER BY sort").fetchall()
-    assert [r["code"] for r in rows] == ["free", "pro", "team"] and all(r["is_placeholder"] == 1 for r in rows)
+    assert [r["code"] for r in rows] == ["free", "pro_month_usd", "pro_month_cad", "pro_year_usd", "pro_year_cad", "team_month_usd", "team_month_cad", "team_year_usd", "team_year_cad"] and all(r["is_placeholder"] == 1 for r in rows)
 
 
 def test_no_commission_columns_anywhere(conn):
@@ -39,13 +39,13 @@ def test_no_commission_columns_anywhere(conn):
 
 def test_plans_endpoint_flags_placeholder_and_no_commission(client):
     j = client.get("/api/billing/plans").json()
-    assert j["placeholder"] is True and j["per_trade_commission"] is False and len(j["plans"]) == 3
+    assert j["placeholder"] is True and j["per_trade_commission"] is False and len(j["plans"]) == 9 and j["fees"] == {"per_trade_fee_cents": 0, "performance_fee": False}
 
 
 def test_seed_is_idempotent_and_keeps_operator_edits(conn):
-    conn.execute("UPDATE plans SET price_cents=777 WHERE code='pro'")
+    conn.execute("UPDATE plans SET price_cents=777 WHERE code='pro_month_usd'")
     billing.seed_plans(conn)
-    assert conn.execute("SELECT price_cents FROM plans WHERE code='pro'").fetchone()[0] == 777
+    assert conn.execute("SELECT price_cents FROM plans WHERE code='pro_month_usd'").fetchone()[0] == 777
 
 
 # ---- entitlement gating ----
@@ -82,7 +82,7 @@ def test_pro_plan_unlocks_feature_after_verified_webhook(client, monkeypatch, ac
     body, sig = _signed(_event(uid))
     r = client.post("/api/billing/webhook", content=body, headers={"stripe-signature": sig})
     assert r.status_code == 200
-    assert client.get("/api/billing/subscription").json()["plan"] == "pro"
+    assert client.get("/api/billing/subscription").json()["plan"] == "pro_month_usd"
     assert client.get("/api/intel/lab/runs").status_code != 402
 
 
@@ -110,7 +110,7 @@ def test_unknown_key_denied_and_period_metering(conn):
 def test_canceled_subscription_falls_back_to_free(conn):
     u = mkuser(conn)
     stripe_client.handle_event(conn, _event(u.id))
-    assert billing.plan_for_user(conn, u.id)["code"] == "pro"
+    assert billing.plan_for_user(conn, u.id)["code"] == "pro_month_usd"
     stripe_client.handle_event(conn, {"id": "evt_2", "type": "customer.subscription.deleted", "livemode": False,
                                       "data": {"object": {"id": "sub_1", "metadata": {"user_id": u.id}}}})
     assert billing.plan_for_user(conn, u.id)["code"] == "free"
@@ -195,7 +195,7 @@ def test_webhook_cannot_touch_other_users_subscription(conn):
     stripe_client.handle_event(conn, _event(a.id, plan="pro"))
     stripe_client.handle_event(conn, {"id": "evt_d", "type": "customer.subscription.deleted", "livemode": False,
                                       "data": {"object": {"id": "sub_1", "metadata": {"user_id": b.id}}}})
-    assert billing.plan_for_user(conn, a.id)["code"] == "pro"
+    assert billing.plan_for_user(conn, a.id)["code"] == "pro_month_usd"
 
 
 def test_referral_pending_then_qualified_without_payout(conn):
@@ -232,7 +232,7 @@ def test_checkout_refuses_live_key_and_missing_key(client, monkeypatch):
 
 def test_checkout_builds_test_session_with_user_metadata(conn, monkeypatch):
     u = mkuser(conn)
-    plan = conn.execute("SELECT * FROM plans WHERE code='pro'").fetchone()
+    plan = conn.execute("SELECT * FROM plans WHERE code='pro_month_usd'").fetchone()
     cap = {}
 
     def post(url, data=None, headers=None):

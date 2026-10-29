@@ -291,45 +291,69 @@ function AdminCard() {
 }
 
 /* ------------------------------------------------------------- billing */
-type Plan = { code: string; name: string; description: string; price_cents: number; currency: string; interval: string; is_placeholder: boolean; entitlements?: R };
+type Plan = { code: string; tier: string; name: string; description: string; price_cents: number; currency: string; interval: string; seats_included: number; extra_seat_cents: number; is_placeholder: boolean; entitlements?: R };
 type Ent = { kind: string; limit?: number | null; used?: number; allowed?: boolean; unlimited?: boolean; period?: string };
+type Addon = { code: string; name: string; usd: number; cad: number };
 
 export function BillingPanel() {
   return <AccountGate>{() => <BillingInner />}</AccountGate>;
 }
 
+const money = (cents: number, cur: string) => `${cur.toUpperCase() === "CAD" ? "CA$" : "US$"}${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`;
+
 function BillingInner() {
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [sub, setSub] = useState<{ plan: string; plan_name: string; status?: string; entitlements: { entitlements: Record<string, Ent> }; stripe_test_mode: { secret_key: boolean; webhook_secret: boolean } } | null>(null);
+  const [addons, setAddons] = useState<Addon[]>([]);
+  const [interval, setInterval_] = useState<"month" | "year">("month");
+  const [currency, setCurrency] = useState<"usd" | "cad">("usd");
+  const [seats, setSeats] = useState(5);
+  const [sub, setSub] = useState<{ plan: string; tier?: string; plan_name: string; status?: string; seats?: number; entitlements: { entitlements: Record<string, Ent> }; stripe_test_mode: { secret_key: boolean; webhook_secret: boolean } } | null>(null);
   const [msg, setMsg] = useState("");
   useEffect(() => { void (async () => {
-    const p = await api<{ plans: Plan[] }>("/api/billing/plans"); if (p.ok) setPlans(p.data.plans);
+    const p = await api<{ plans: Plan[]; addons?: Addon[] }>("/api/billing/plans"); if (p.ok) { setPlans(p.data.plans); setAddons(p.data.addons ?? []); }
     const s = await api<NonNullable<typeof sub>>("/api/billing/subscription"); if (s.ok) setSub(s.data);
   })(); }, []);
-  const checkout = async (code: string) => {
+  const checkout = async (p: Plan) => {
     setMsg("");
-    const r = await api<{ url?: string }>("/api/billing/checkout", { plan: code });
+    const body: R = { plan: p.tier, interval, currency };
+    if (p.tier === "team") body.seats = seats;
+    const r = await api<{ url?: string }>("/api/billing/checkout", body);
     if (r.ok && r.data.url && r.data.url.startsWith("https://checkout.stripe.com/")) window.location.assign(r.data.url); else setMsg(why(r));
   };
+  const shown = plans.filter((p) => p.tier === "free" || (p.interval === interval && p.currency === currency));
   const ents = sub?.entitlements?.entitlements ?? {};
   return (
     <>
-      <Card title="Plan and billing" span="full" subtitle="Test mode only. Prices below are placeholders, not an offer. ATLAS takes no commission on any trade.">
-        <p className="ux-action-msg" data-tone="warn" role="note">Placeholder plans: names, prices and limits are not final, and a legal review is required before real billing is switched on.</p>
-        <p>Current plan: <strong>{sub?.plan_name ?? "…"}</strong>{sub?.status && sub.status !== "free" ? ` (${sub.status})` : ""}</p>
+      <Card title="Plan and billing" span="full" subtitle="Test mode only. Prices below are placeholders, not an offer.">
+        <p className="ux-action-msg" data-tone="good" role="note"><strong>$0 per-trade fees. No performance fee.</strong> ATLAS earns only from the subscription you choose below. Your broker sets your trading costs.</p>
+        <p className="ux-action-msg" data-tone="warn" role="note">Placeholder plans: names, prices and limits are not final, and a legal review is required before real billing is switched on. Prices exclude tax; tax is added at checkout.</p>
+        <p>Current plan: <strong>{sub?.plan_name ?? "…"}</strong>{sub?.status && sub.status !== "free" ? ` (${sub.status})` : ""}{sub?.tier === "team" && sub.seats ? `, ${sub.seats} seats` : ""}</p>
         {sub && !sub.stripe_test_mode.secret_key ? <p className="ux-small">Stripe test keys are not set on this server, so checkout is unavailable.</p> : null}
+        <div className="atlas-chart-seg" role="group" aria-label="Billing options">
+          <button type="button" aria-pressed={interval === "month"} onClick={() => setInterval_("month")}>Monthly</button>
+          <button type="button" aria-pressed={interval === "year"} onClick={() => setInterval_("year")}>Yearly (about 2 months free)</button>
+          <button type="button" aria-pressed={currency === "usd"} onClick={() => setCurrency("usd")}>USD</button>
+          <button type="button" aria-pressed={currency === "cad"} onClick={() => setCurrency("cad")}>CAD</button>
+        </div>
         {msg ? <p className="ux-action-msg" data-tone="bad" role="alert">{msg}</p> : null}
         <div className="ux-wiz-grid">
-          {plans.map((p) => (
+          {shown.map((p) => (
             <article className="ux-wiz-card" key={p.code} data-light={sub?.plan === p.code ? "green" : "gray"} aria-label={`${p.name} plan`}>
               <header className="ux-wiz-card__head"><h3 className="ux-h3">{p.name}</h3>{p.is_placeholder ? <Badge tone="warn">placeholder</Badge> : null}</header>
-              <p><strong>{p.price_cents ? `$${(p.price_cents / 100).toFixed(0)} / ${p.interval}` : "$0"}</strong> <span className="ux-small">(example price)</span></p>
+              <p><strong>{p.price_cents ? `${money(p.price_cents, p.currency)} / ${p.interval}` : "$0"}</strong> <span className="ux-small">(example price, excl. tax)</span></p>
+              {p.tier === "team" ? <p className="ux-small">{p.seats_included} seats included, extra seats {money(p.extra_seat_cents, p.currency)} each per {p.interval}.</p> : null}
               <p className="ux-small">{p.description}</p>
-              {sub?.plan === p.code ? <Badge tone="good">your plan</Badge> : p.price_cents > 0 ? <button type="button" className="ux-btn" disabled={!sub?.stripe_test_mode.secret_key} onClick={() => void checkout(p.code)}>Try in test mode</button> : null}
+              {p.tier === "team" ? <label className="ux-small">Seats <input type="number" min={p.seats_included} max={100} value={seats} onChange={(e) => setSeats(Math.max(p.seats_included, Math.min(100, Number(e.target.value) || p.seats_included)))} aria-label="Number of seats" /></label> : null}
+              {sub?.plan === p.code ? <Badge tone="good">your plan</Badge> : p.price_cents > 0 ? <button type="button" className="ux-btn" disabled={!sub?.stripe_test_mode.secret_key} onClick={() => void checkout(p)}>Try in test mode</button> : null}
             </article>
           ))}
         </div>
       </Card>
+      {addons.length ? (
+        <Card title="Add-ons (planned)" span="full" subtitle="Not purchasable yet. Listed so you can see what may come.">
+          <ul className="ux-small">{addons.map((a) => <li key={a.code}><strong>{a.name}</strong>{`: ${money(a[currency], currency)}`}</li>)}</ul>
+        </Card>
+      ) : null}
       <Card title="What your plan includes" span="full">
         <DataTable rows={Object.entries(ents).map(([k, v]) => ({ key: k, ...v })) as unknown as R[]} columns={[
           { key: "key", label: "Feature" },

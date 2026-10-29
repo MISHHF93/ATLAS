@@ -286,8 +286,21 @@ def delete_account(conn, user_id: str, password: str, now: float | None = None) 
     if row["role"] == "owner":
         raise AuthError("owner_cannot_self_delete", 403, message="The owner account can only be removed from the CLI.")
     with tx(conn):
-        conn.execute("DELETE FROM users WHERE id=?", (user_id,))  # cascades: sessions, connectors, secrets, subscriptions
-        audit.log(conn, user_id, "user.delete", "user", user_id, now=now)
+        # Financial records (tax_records, broker bounties, ledger-linked invoices) must be kept for statutory retention
+        # (monetization_plan.md: 6 years), and they reference the user row. In that case the account is ANONYMISED: every personal
+        # field, session, connector and secret is destroyed and the row stays only as an opaque, un-loginable id.
+        retained = (conn.execute("SELECT 1 FROM tax_records WHERE user_id=? LIMIT 1", (user_id,)).fetchone()
+                    or conn.execute("SELECT 1 FROM broker_referrals WHERE user_id=? LIMIT 1", (user_id,)).fetchone()
+                    or conn.execute("SELECT 1 FROM payouts_ledger l JOIN invoices i ON i.id=l.invoice_id WHERE i.user_id=? LIMIT 1", (user_id,)).fetchone())
+        if retained:
+            for tbl, col in (("sessions", "user_id"), ("oauth_identities", "user_id"), ("connector_secrets", "user_id"), ("connectors", "user_id"),
+                             ("subscriptions", "user_id"), ("usage_events", "user_id"), ("partner_referrals", "referrer_user_id"), ("partner_referrals", "referred_user_id")):
+                conn.execute(f"DELETE FROM {tbl} WHERE {col}=?", (user_id,))
+            conn.execute("UPDATE users SET email=?, password_hash=NULL, status='disabled', display_name='', referral_code=NULL, referred_by_code=NULL, updated_at=? WHERE id=?",
+                         (f"deleted-{user_id}@deleted.invalid", int(now), user_id))
+        else:
+            conn.execute("DELETE FROM users WHERE id=?", (user_id,))  # cascades: sessions, connectors, secrets, subscriptions
+        audit.log(conn, user_id, "user.delete", "user", user_id, detail={"anonymised_for_retention": bool(retained)}, now=now)
 
 
 def set_role(conn, actor: User, target_id: str, role: str, now: float | None = None) -> User:
