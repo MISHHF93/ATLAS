@@ -37,11 +37,16 @@ def _crypto(sym, base, tick):
                       description=f"{base}/USDT spot")
 
 
+from .stock_providers import equity_priority as _equity_priority  # noqa: E402
+
+_EQUITY_PRIORITY = _equity_priority({})
+
+
 def _etf(sym, desc):
     return Instrument(sym, "etf", "ARCX" if sym == "SPY" else ("XNAS" if sym == "QQQ" else "ARCX"), "USD", "America/New_York",
                       "us_equity_rth", 0.01, 1, provider_symbols={p: sym for p in ("alpaca", "tiingo", "polygon", "finnhub", "twelvedata",
                                                                                      "alphavantage", "tradier", "questrade", "yahoo")},
-                      provider_priority=("alpaca", "polygon", "tiingo", "twelvedata", "finnhub", "tradier", "alphavantage", "yahoo"),
+                      provider_priority=_EQUITY_PRIORITY,
                       sanity_providers=("yahoo", "alpaca"), description=desc)
 
 
@@ -89,13 +94,21 @@ class InstrumentMaster:
         self._by_id[inst.id] = inst
 
     def get(self, id: str) -> Instrument:
-        return self._by_id[id]
+        inst = self._by_id[id]
+        if inst.asset_class in ("equity", "etf") and inst.provider_priority and inst.provider_priority[-1] == "yahoo" and "polygon" in inst.provider_priority:
+            # stock chain follows ATLAS_STOCK_PROVIDER (re-read per call so Settings changes apply without a restart)
+            from .stock_providers import equity_priority
+            pri = equity_priority()
+            if pri != tuple(inst.provider_priority):
+                from dataclasses import replace
+                return replace(inst, provider_priority=pri)
+        return inst
 
     def __contains__(self, id):
         return id in self._by_id
 
     def all(self):
-        return list(self._by_id.values())
+        return [self.get(i) for i in self._by_id]
 
     def symbol(self, id: str, provider: str) -> str:
         return self.get(id).provider_symbols.get(provider, id)

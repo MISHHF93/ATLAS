@@ -28,7 +28,7 @@ class AlphaVantageAdapter(ProviderAdapter):
 
     def _history(self, instrument, interval, start, end, now):
         iv = {"1m": "1min", "5m": "5min", "15m": "15min", "1h": "60min"}.get(interval)
-        p = {"symbol": self.provider_symbol(instrument), "apikey": self.env["ALPHAVANTAGE_API_KEY"], "outputsize": "full"}
+        p = {"symbol": self.provider_symbol(instrument), "apikey": self.env["ALPHAVANTAGE_API_KEY"], "outputsize": "full" if self.env.get("ATLAS_ALPHAVANTAGE_PLAN", "").lower() in ("paid", "premium") else "compact"}
         js = self.get_json("https://www.alphavantage.co/query", {**p, "function": "TIME_SERIES_INTRADAY", "interval": iv, "extended_hours": "false"} if iv else {**p, "function": "TIME_SERIES_DAILY"})
         if "Note" in js or "Information" in js:
             raise ProviderError(f"alphavantage: {js.get('Note') or js.get('Information')}", retryable=False)

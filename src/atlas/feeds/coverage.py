@@ -34,7 +34,7 @@ CLASS_LABEL = {"equity": "Stocks", "etf": "ETFs (incl. GLD, SLV)", "crypto": "Cr
                "fx": "FX", "index": "Indices", "metal": "Metals"}
 
 
-def _provider_row(feed, name: str, interval_hint: str | None = None) -> dict[str, Any]:
+def _provider_row(feed, name: str, inst=None) -> dict[str, Any]:
     a = feed.registry.get(name)
     terms = SOURCES.get(name)
     policy_ok = allowed(name)
@@ -53,8 +53,12 @@ def _provider_row(feed, name: str, interval_hint: str | None = None) -> dict[str
         why = (a.health().reason or "disabled") if a else "disabled"
     else:
         why = "ok"
+    ivs = list(a.caps.intervals) if a else []
+    plan = feed.plan_intervals(name, inst) if inst is not None else None
+    if plan is not None:
+        ivs = [i for i in ivs if i in plan]
     return {"provider": name, "cost": terms.cost if terms else "unknown", "latency": latency(name), "delay_s": delay_s(name),
-            "intervals": list(a.caps.intervals) if a else [], "env": list(a.caps.auth_env) if a else [], "register": terms.register if terms else "",
+            "intervals": ivs, "env": list(a.caps.auth_env) if a else [], "register": terms.register if terms else "",
             "policy_allowed": policy_ok, "keys_missing": keys_missing, "usable": policy_ok and enabled, "why": why}
 
 
@@ -65,7 +69,8 @@ def _fix(rows: list[dict], status: str) -> str:
     if keyed:
         r = keyed[0]
         extra = f" (or {keyed[1]['provider']})" if len(keyed) > 1 else ""
-        return f"Add a free {r['provider']} key{extra}: set {', '.join(r['keys_missing'])} in Settings > Setup" + (f" (register: {r['register']})" if r["register"] else "")
+        return (f"Needs verification: add a free {r['provider']} key{extra}: set {', '.join(r['keys_missing'])} in Settings > Setup, then press Verify"
+                + (f" (sign up: {r['register']})" if r["register"] else ""))
     blocked = [r for r in rows if not r["policy_allowed"]]
     if blocked:
         return "Only paid or unofficial sources exist for this series; the free-data policy refuses them. Use the labelled free proxy."
@@ -76,8 +81,8 @@ def asset_coverage(feed, instrument_id: str, now: float | None = None) -> dict[s
     from .status import toronto
     now = now or time.time()
     inst = feed.instruments.get(instrument_id)
-    names = list(inst.provider_priority)
-    rows = [_provider_row(feed, n) for n in names]
+    names = list(feed.chain(inst))
+    rows = [_provider_row(feed, n, inst) for n in names]
     usable = [r for r in rows if r["usable"]]
     intervals = sorted({iv for r in usable for iv in r["intervals"]}, key=lambda x: ["1m", "5m", "15m", "1h", "4h", "1d"].index(x) if x in ["1m", "5m", "15m", "1h", "4h", "1d"] else 9)
     last = None
@@ -106,7 +111,8 @@ def asset_coverage(feed, instrument_id: str, now: float | None = None) -> dict[s
             "chain": rows, "last_bar_interval": last.interval if last else None, "last_bar_provider": last.provider if last else None,
             "last_bar_toronto": toronto(last.bar_end if last.interval != "1d" else last.event_time) if last else None,
             "fix": _fix(rows, status),
-            "label": ("Daily reference rate only (no intraday): bars are 1D and labelled so on the chart." if daily_only else
+            "label": (("Daily reference rate only (no intraday): bars are 1D and labelled so on the chart." if inst.asset_class == "fx" else
+                       "End-of-day bars only on the free plan (previous close). Intraday needs a free-account source (Questrade, Alpaca) or a paid plan.") if daily_only else
                       "Delayed data" if served and (served["delay_s"] or 0) > 0 else "")}
 
 

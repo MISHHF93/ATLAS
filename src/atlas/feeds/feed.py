@@ -15,6 +15,7 @@ from .aggregate import aggregate
 from .core import INTERVALS, FeedBar, ProviderAdapter, ProviderError
 from .instruments import Instrument, InstrumentMaster
 from .providers import ALL_ADAPTERS
+from . import stock_providers
 from .free_sources import allowed as free_allowed
 from .quality import Quality, assess, find_gaps
 from .store import FeedStore
@@ -68,13 +69,35 @@ class AtlasFeed:
         self.events: list[dict] = []
 
     # ---- provider selection ----
+    def env(self) -> dict:
+        """The env the registry's adapters currently see (tests inject one; production re-reads the signed-in user's keys)."""
+        for n in self.registry.names():
+            a = self.registry.get(n)
+            if a is not None:
+                a.refresh_env()
+                return dict(a.env)
+        return {}
+
+    def chain(self, inst: Instrument) -> tuple[str, ...]:
+        """Failover order for an instrument. Stocks/ETFs follow ATLAS_STOCK_PROVIDER (stock_providers); everything else is fixed."""
+        if inst.asset_class in ("equity", "etf"):
+            return stock_providers.equity_priority(self.env())
+        return tuple(inst.provider_priority)
+
+    def plan_intervals(self, name: str, inst: Instrument):
+        """Intervals the provider's current plan serves for this instrument (None = no plan limit beyond the adapter's caps)."""
+        return stock_providers.intervals_for(name, self.env()) if inst.asset_class in ("equity", "etf") else None
+
     def candidates(self, instrument: str, interval: str) -> list[ProviderAdapter]:
         inst = self.instruments.get(instrument)
         out = []
-        for name in inst.provider_priority:
+        for name in self.chain(inst):
             a = self.registry.get(name)
             if a is not None:
                 a.refresh_env()
+            plan_iv = self.plan_intervals(name, inst)
+            if plan_iv is not None and interval not in plan_iv:
+                continue   # the provider's FREE plan does not serve this interval (e.g. Massive Basic is end-of-day only)
             if a and a.enabled and free_allowed(name) and interval in a.caps.intervals and a.health().consecutive_errors < 5:
                 out.append(a)
         return out
@@ -142,7 +165,8 @@ class AtlasFeed:
     # ---- reads (the authoritative series) ----
     def priority(self, instrument: str) -> list[str]:
         inst = self.instruments.get(instrument)
-        return list(inst.provider_priority) + [p for p in inst.sanity_providers if p not in inst.provider_priority]
+        chain = list(self.chain(inst))
+        return chain + [p for p in inst.sanity_providers if p not in chain]
 
     _AGG_FALLBACKS: dict[str, tuple[str, ...]] = {
         "5m": ("1m",),
@@ -160,7 +184,7 @@ class AtlasFeed:
             return self.store.bars(instrument, interval, start, end, provider=provider, as_of=as_of, confirmed_only=confirmed_only)
         inst = self.instruments.get(instrument)
         # Unofficial providers (Yahoo) stay in the store for audit. They are not the trade series.
-        prio = [p for p in inst.provider_priority if free_allowed(p)]
+        prio = [p for p in self.chain(inst) if free_allowed(p)]
         merged: dict[int, FeedBar] = {}
         for p in reversed(prio):
             for b in self.store.bars(instrument, interval, start, end, provider=p, as_of=as_of, confirmed_only=confirmed_only):

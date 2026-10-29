@@ -48,19 +48,56 @@ def test_without_keys_fx_and_crypto_are_served_stocks_report_needs_key_futures_p
     assert by["BTCUSDT"]["served_by"] == "alpaca_crypto"
     for sym in ("AAPL", "SPY", "GLD", "QQQ"):
         assert by[sym]["status"] == "needs_key" and by[sym]["served_by"] is None
-        assert "ALPACA_API_KEY_ID" in by[sym]["fix"]
+        assert "POLYGON_API_KEY" in by[sym]["fix"] and "Verify" in by[sym]["fix"]
     assert by["GC"]["status"] == "policy_blocked"           # databento is paid, yahoo is unofficial: both stay off
     assert not any(p["usable"] for p in by["GC"]["chain"])
     assert by["AAPL"]["label"] == "" and by["EUR_USD"]["label"].startswith("Daily reference rate only")
 
 
-def test_alpaca_is_primary_when_keys_exist_and_falls_back_otherwise():
-    with_alpaca = asset_coverage(_feed(dict(KEYS)), "AAPL")
-    assert with_alpaca["served_by"] == "alpaca" and "1h" in with_alpaca["intervals"] and with_alpaca["status"] == "awaiting_data"
+def test_default_primary_is_canada_eligible_and_alpaca_is_optional():
+    from atlas.feeds.stock_providers import DEFAULT_PRIMARY, equity_priority
+    assert DEFAULT_PRIMARY == "polygon" and equity_priority({})[0] == "polygon" and "alpaca" in equity_priority({})
+    poly = asset_coverage(_feed({"POLYGON_API_KEY": "x"}), "AAPL")
+    assert poly["served_by"] == "polygon" and poly["intervals"] == ["1d"] and poly["daily_only"] and poly["status"] == "awaiting_data"
+    assert poly["label"].startswith("End-of-day bars only")
+    both = asset_coverage(_feed({"POLYGON_API_KEY": "x", **KEYS}), "SPY")
+    assert both["served_by"] == "polygon" and "1h" in both["intervals"]        # intraday comes from Alpaca while polygon is EOD only
+    only_alpaca = asset_coverage(_feed(dict(KEYS)), "GLD")
+    assert only_alpaca["served_by"] == "alpaca" and "1h" in only_alpaca["intervals"]
+
+
+def test_stock_provider_setting_reorders_the_chain(monkeypatch):
+    monkeypatch.setenv("ATLAS_STOCK_PROVIDER", "alpaca")
+    monkeypatch.delenv("ALPACA_API_KEY_ID", raising=False)
+    inst = InstrumentMaster().get("AAPL")
+    assert inst.provider_priority[0] == "alpaca" and inst.provider_priority[1] == "polygon"
+    monkeypatch.setenv("ATLAS_STOCK_PROVIDER", "nonsense")
+    assert InstrumentMaster().get("AAPL").provider_priority[0] == "polygon"
+    from atlas.feeds.stock_providers import configured_primary
+    assert configured_primary()[1] and "not a known provider" in configured_primary()[1]
+
+
+def test_free_plans_that_forbid_storage_or_have_no_candles_stay_out_of_the_automatic_chain():
+    from atlas.feeds.stock_providers import STOCK_PROVIDERS, equity_priority
+    chain = equity_priority({})
+    for restricted in ("tiingo", "twelvedata", "finnhub"):
+        assert STOCK_PROVIDERS[restricted].restricted and restricted not in chain
     only_tiingo = asset_coverage(_feed({"TIINGO_API_KEY": "x"}), "AAPL")
-    assert only_tiingo["served_by"] == "tiingo"
-    gld = asset_coverage(_feed(dict(KEYS)), "GLD")
-    assert gld["served_by"] == "alpaca"
+    assert only_tiingo["served_by"] is None and only_tiingo["status"] == "needs_key"
+    explicit = asset_coverage(_feed({"TIINGO_API_KEY": "x", "ATLAS_STOCK_PROVIDER": "tiingo"}), "AAPL")   # explicit opt-in only
+    assert "tiingo" in [r["provider"] for r in explicit["chain"]]
+
+
+def test_every_catalog_stock_and_etf_resolves_to_a_provider_with_a_signup_and_a_verify_key():
+    from atlas.feeds.stock_providers import STOCK_PROVIDERS
+    feed = _feed({})
+    for s in ui_symbols():
+        iid = resolve(s)
+        inst = feed.instruments.get(iid)
+        if inst.asset_class in ("equity", "etf"):
+            row = asset_coverage(feed, iid)
+            assert row["status"] == "needs_key" and row["chain"][0]["provider"] == "polygon" and row["chain"][0]["register"]
+            assert all(p in STOCK_PROVIDERS or p == "yahoo" for p in inst.provider_priority)
 
 
 def test_free_data_gate_is_not_loosened_by_coverage():

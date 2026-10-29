@@ -26,9 +26,24 @@ class QuestradeAdapter(ProviderAdapter):
         terms_url='https://www.questrade.com/api/home',
         notes='OAuth refresh-token flow: refresh token -> access_token + api_server (login.questrade.com/oauth2/token). Refresh tokens are single-use; ATLAS keeps the rotated token in memory only. Symbol ids resolved via /v1/symbols/search.')
 
+    # Questrade refresh tokens are single-use: the rotated token and the access token live in memory (never on disk, never logged).
+    _TOKENS: dict = {}
+
+    def _session(self, now):
+        seed = self.env["QUESTRADE_REFRESH_TOKEN"]
+        cur = self._TOKENS.get(seed)
+        if cur and cur["exp"] > now + 30:
+            return cur
+        refresh = cur["refresh"] if cur else seed
+        tok = self.get_json("https://login.questrade.com/oauth2/token", {"grant_type": "refresh_token", "refresh_token": refresh})
+        cur = {"access": tok["access_token"], "server": tok["api_server"].rstrip("/"), "refresh": tok.get("refresh_token") or refresh,
+               "exp": now + int(tok.get("expires_in", 1800))}
+        self._TOKENS[seed] = cur
+        return cur
+
     def _history(self, instrument, interval, start, end, now):
-        tok = self.get_json("https://login.questrade.com/oauth2/token", {"grant_type": "refresh_token", "refresh_token": self.env["QUESTRADE_REFRESH_TOKEN"]})
-        srv, h = tok["api_server"].rstrip("/"), {"Authorization": "Bearer " + tok["access_token"]}
+        cur = self._session(now)
+        srv, h = cur["server"], {"Authorization": "Bearer " + cur["access"]}
         sid = self.get_json(f"{srv}/v1/symbols/search", {"prefix": self.provider_symbol(instrument)}, headers=h)["symbols"][0]["symbolId"]
         iso = lambda x: dt.datetime.fromtimestamp(x, dt.timezone.utc).isoformat()
         g = {"1m": "OneMinute", "5m": "FiveMinutes", "15m": "FifteenMinutes", "1h": "OneHour", "1d": "OneDay"}[interval]

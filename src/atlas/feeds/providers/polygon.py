@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from zoneinfo import ZoneInfo
 
-from ..core import INTERVALS, Capabilities, ProviderAdapter, ProviderError
+from ..core import INTERVALS, Capabilities, ProviderAdapter, ProviderError, RateLimiter
 
 NY = ZoneInfo("America/New_York")
 
@@ -31,6 +31,9 @@ class PolygonAdapter(ProviderAdapter):
             env = {**env, "POLYGON_API_KEY": env["MASSIVE_API_KEY"]}
         if env is not None and env.get("MASSIVE_BASE_URL") and not env.get("POLYGON_BASE_URL"):
             env = {**env, "POLYGON_BASE_URL": env["MASSIVE_BASE_URL"]}
+        if "limiter" not in kwargs:   # Basic plan: 5 calls/min. Paid plans (ATLAS_POLYGON_PLAN=paid) are not throttled by ATLAS.
+            from ..stock_providers import plan_is_paid
+            kwargs["limiter"] = RateLimiter(5, 1.0 if plan_is_paid("polygon", env) else 60.0, sleep=kwargs.get("sleep", __import__("time").sleep))
         super().__init__(transport=transport, env=env, **kwargs)
 
     def _history(self, instrument, interval, start, end, now):
