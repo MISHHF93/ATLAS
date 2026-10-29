@@ -98,6 +98,8 @@ from atlas.api.ext_api import router as ext_router  # noqa: E402
 app.include_router(ext_router, prefix="/api/ext")
 from atlas.api.integrations_api import router as integrations_router  # noqa: E402
 app.include_router(integrations_router, prefix="/api/integrations")
+from atlas.api.account_snapshot_api import router as account_snapshot_router  # noqa: E402
+app.include_router(account_snapshot_router)
 from atlas.api.context_api import router as context_router  # noqa: E402
 app.include_router(context_router, prefix="/api/context")
 from atlas.api.pump_api import router as pump_router  # noqa: E402

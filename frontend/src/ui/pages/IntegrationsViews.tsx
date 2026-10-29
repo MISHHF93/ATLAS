@@ -3,7 +3,7 @@
  *  nothing here places an order, and no secret value is ever fetched or shown (the API returns names and booleans). */
 import { useEffect, useRef, useState } from "react";
 import { AtlasChart } from "../../components/market/AtlasChart";
-import { Async, Badge, Card, DataTable, EmptyState, StatTile, useApi, type Tone } from "../primitives";
+import { Async, Badge, Card, DataTable, EmptyState, StatTile, money as fmtMoney, useApi, type Tone } from "../primitives";
 import { api } from "./acct";
 
 type R = Record<string, unknown>;
@@ -123,10 +123,63 @@ export function AlpacaChartCard() {
   );
 }
 
+
+type Snap = { snapshot: { broker: string; environment: string; status: string; reason: string; as_of: string; currency: string | null; account_ref: string | null;
+    balances: Record<string, number | null>; positions: unknown[]; open_orders: unknown[]; warnings: string[];
+    rules: { min_order_notional: number | null; fractional: boolean | null; pdt_applies: boolean | null; margin_enabled: boolean | null; notes: string[] };
+    fees: { commission_per_order: number | null; notes: string[] }; market: { is_open: boolean | null; source: string | null } };
+  sizing: { ideal_notional: number | null; min_order_notional: number | null; feasible: boolean | null; forced_risk_fraction: number | null; min_equity_for_policy: number | null };
+  brokers: { broker: string; environment: string; state: string; detail: string }[]; context: string };
+
+const yn = (v: boolean | null | undefined) => (v === null || v === undefined ? "unknown" : v ? "yes" : "no");
+
+/** Read-only broker account snapshot (cash, buying power, positions, orders, minimum order, fees, market state) for ATLAS paper sim,
+ *  Alpaca paper and OANDA practice. A broker is read only after its key is verified. The ML reads this; it grants no execution. */
+export function AccountSnapshotCard() {
+  const [broker, setBroker] = useState("paper_sim");
+  const [eq, setEq] = useState("100");
+  const q = broker === "paper_sim" && Number(eq) >= 0.5 ? `&sim_equity=${encodeURIComponent(eq)}` : "";
+  const st = useApi<Snap>(`/api/account/snapshot?broker=${broker}${q}`, 30000);
+  return (
+    <Card title="Broker account snapshot" span="full" subtitle="What the ML is allowed to know about the account: balances, constraints and fees. Read-only; sizing stays with the control plane."
+      actions={<>
+        <select aria-label="Broker" value={broker} onChange={(e) => setBroker(e.target.value)}>
+          <option value="paper_sim">ATLAS paper (simulated)</option>
+          <option value="alpaca">Alpaca paper</option>
+          <option value="oanda">OANDA practice</option>
+        </select>
+        {broker === "paper_sim" && <input aria-label="Simulated starting equity" type="number" min={0.5} step="any" value={eq} onChange={(e) => setEq(e.target.value)} style={{ width: 90 }} />}
+      </>}>
+      <Async state={st} label="Reading account snapshot">{(d) => {
+        const s = d.snapshot, b = s.balances, c = s.currency ?? "USD";
+        if (s.status !== "ok") {
+          const v = d.brokers.find((x) => x.broker === broker);
+          return <EmptyState title={`${s.broker} ${s.environment}: ${s.status.replace(/_/g, " ")}`}>{s.reason} {v && v.state === "needs_verification" ? "Settings → Setup shows the Verify action." : ""}</EmptyState>;
+        }
+        return (
+          <div className="ux-layout">
+            <StatTile label="Equity" value={fmtMoney(b.equity, c)} hint={`${s.environment}${s.account_ref ? " · " + s.account_ref : ""}`} />
+            <StatTile label="Cash" value={fmtMoney(b.cash, c)} />
+            <StatTile label="Buying power" value={fmtMoney(b.buying_power, c)} hint={b.leverage_max ? `up to ${b.leverage_max.toFixed(0)}× leverage` : "no margin"} />
+            <StatTile label="Positions / open orders" value={`${s.positions.length} / ${s.open_orders.length}`} />
+            <StatTile label="Minimum order" value={s.rules.min_order_notional === null ? "unknown" : fmtMoney(s.rules.min_order_notional, c)} hint={`fractional: ${yn(s.rules.fractional)}`} />
+            <StatTile label="Fee per order" value={s.fees.commission_per_order === null ? "unknown" : fmtMoney(s.fees.commission_per_order, c)} hint={`margin: ${yn(s.rules.margin_enabled)} · PDT flag: ${yn(s.rules.pdt_applies)}`} />
+            <StatTile label="Market" value={s.market.is_open === null ? "not reported" : s.market.is_open ? "open" : "closed"} hint={s.market.source ?? ""} />
+            <StatTile label="Policy-sized trade fits?" value={d.sizing.feasible === null ? "unknown" : d.sizing.feasible ? "yes" : "no"}
+              hint={d.sizing.feasible === false && d.sizing.min_equity_for_policy !== null ? `needs about ${fmtMoney(d.sizing.min_equity_for_policy, c)} at 0.5% risk, 2% stop; waiting beats oversizing` : "0.5% risk, 2% stop (illustrative)"} />
+            {s.warnings.length > 0 && <p className="ux-small">{s.warnings.join(" · ")}</p>}
+          </div>
+        );
+      }}</Async>
+    </Card>
+  );
+}
+
 export function PaperAccountView() {
   const rc = useApi<Recon>("/api/ext/alpaca/reconcile", 30000);
   return (
     <div className="ux-layout">
+      <AccountSnapshotCard />
       <AlpacaChartCard />
       <Async state={rc} label="Loading paper account">{(d) => d.status !== "ok" && d.status !== "partial" ? (
         <Card title="Alpaca paper account" span="full">
