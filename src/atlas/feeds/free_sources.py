@@ -27,7 +27,7 @@ SOURCES: dict[str, SourceTerms] = {
     "binance": SourceTerms("free", "realtime", "Public REST 6000 weight/min; geo-restricted in US/Ontario", True),
     "okx": SourceTerms("free", "realtime", "Public REST 20 req/2s", True),
     "bybit": SourceTerms("free", "realtime", "Public REST 600 req/5s per IP; geo-restricted in some regions", True),
-    "polygon": SourceTerms("free_key", "eod", "Massive/Polygon Basic: 5 calls/min, end-of-day, 2 years", True, "https://massive.com/dashboard/signup"),
+    "polygon": SourceTerms("free_key", "eod", "Massive/Polygon Basic: 5 calls/min, 15m + daily bars up to the previous completed day, 2 years", True, "https://massive.com/dashboard/signup"),
     "tiingo": SourceTerms("free_key", "eod", "Free: 50 req/hour, 1000/day. Free plan forbids persistent storage and chart display (ToS 1.6): not in the automatic chain", True, "https://www.tiingo.com"),
     "finnhub": SourceTerms("free_key", "realtime", "Free: 60 calls/min; US quotes only, stock candles are premium: not in the automatic chain", True, "https://finnhub.io/register"),
     "twelvedata": SourceTerms("free_key", "delayed_15m", "Basic: 8 credits/min, 800/day, internal non-display use only: not in the automatic chain", True, "https://twelvedata.com/register"),

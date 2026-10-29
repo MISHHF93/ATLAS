@@ -58,8 +58,8 @@ def test_default_primary_is_canada_eligible_and_alpaca_is_optional():
     from atlas.feeds.stock_providers import DEFAULT_PRIMARY, equity_priority
     assert DEFAULT_PRIMARY == "polygon" and equity_priority({})[0] == "polygon" and "alpaca" in equity_priority({})
     poly = asset_coverage(_feed({"POLYGON_API_KEY": "x"}), "AAPL")
-    assert poly["served_by"] == "polygon" and poly["intervals"] == ["1d"] and poly["daily_only"] and poly["status"] == "awaiting_data"
-    assert poly["label"].startswith("End-of-day bars only")
+    assert poly["served_by"] == "polygon" and poly["intervals"] == ["15m", "1d"] and not poly["daily_only"] and poly["status"] == "awaiting_data"
+    assert poly["latency"] == "eod"        # Basic serves up to the previous completed ET day, never live
     both = asset_coverage(_feed({"POLYGON_API_KEY": "x", **KEYS}), "SPY")
     assert both["served_by"] == "polygon" and "1h" in both["intervals"]        # intraday comes from Alpaca while polygon is EOD only
     only_alpaca = asset_coverage(_feed(dict(KEYS)), "GLD")

@@ -321,7 +321,7 @@ CATALOG: tuple[ConnectorSpec, ...] = (
     ConnectorSpec("fmp", "Financial Modeling Prep", "market_data", "https://site.financialmodelingprep.com/developer/docs", "https://site.financialmodelingprep.com/developer/docs/dashboard",
                   "Basic free: 250 calls/day. Display / redistribution needs a separate agreement.", (_KEY("FMP_API_KEY"),), _guard(_t_fmp), loop_use="fundamentals / EOD cross-check"),
     ConnectorSpec("massive", "Massive (ex-Polygon)", "market_data", "https://massive.com/docs", "https://massive.com/dashboard/keys",
-                  "Recommended default stock/ETF source (email signup, works from Canada). Free plan: end-of-day daily bars, 5 calls/min, 2 years, personal use.", (_KEY("POLYGON_API_KEY"),), _guard(_t_massive), loop_use="US stock/ETF daily bars (default primary)"),
+                  "Recommended default stock/ETF source (email signup, works from Canada). Free plan: 15m + daily bars up to the previous completed day, 5 calls/min, 2 years, personal use only.", (_KEY("POLYGON_API_KEY"),), _guard(_t_massive), loop_use="US stock/ETF daily bars (default primary)"),
     ConnectorSpec("coingecko", "CoinGecko (demo)", "market_data", "https://docs.coingecko.com/", "https://www.coingecko.com/en/api/pricing",
                   "Demo plan: 100 calls/min, 10,000/month. Attribution ('Data provided by CoinGecko') required.",
                   (_f("demo_key", "Demo API key", "COINGECKO_DEMO_KEY", placeholder="CG-…"),), _guard(_t_gecko), loop_use="crypto reference price (not bars)"),
