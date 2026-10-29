@@ -1,6 +1,6 @@
 # ATLAS data feed
 
-There is one authoritative feed: `atlas.feeds`. Every consumer reads from the same point-in-time (PIT) SQLite store: the UDF/chart worker, training, setup/selector evidence and replay. Nothing fetches market data on its own. Paper and simulation only; live trading stays disabled.
+There is one authoritative feed: `atlas.feeds`. Every consumer reads from the same point-in-time (PIT) SQLite store: the UDF/chart worker, training, setup/selector evidence and replay. Nothing fetches market data on its own. Paper and simulation only; live trading stays disabled. The official evolution book is 4h `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` from that store. Yahoo stays an unofficial adapter and is not that book.
 
 ```
 providers (plugins + capability manifests) -> AtlasFeed (failover, rate limit, backoff, gap fill)

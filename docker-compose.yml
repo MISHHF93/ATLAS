@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    network_mode: "none"
+    read_only: true
+    cap_drop:
+      - ALL
+    environment:
+      LIVE_ENABLED: "false"
+      TRADING_MODE: paper
+  watchdog:
+    network_mode: "none"
+    read_only: true
+    cap_drop:
+      - ALL
+    environment:
+      LIVE_ENABLED: "false"
+      TRADING_MODE: paper
+  dashboard:
+    network_mode: "none"
+    read_only: true
+    cap_drop:
+      - ALL
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      LIVE_ENABLED: "false"
+      TRADING_MODE: paper
+      DASHBOARD_TOKEN: "${DASHBOARD_TOKEN:-}"

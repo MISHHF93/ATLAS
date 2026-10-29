@@ -18,7 +18,7 @@ from atlas.ops.sessions import SessionModel
 from atlas.ops.summary import daily_summary, write_daily_summary
 from atlas.risk.state_store import StateStore
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 TOR = ZoneInfo("America/Toronto")
 U = lambda *a: datetime(*a, tzinfo=timezone.utc)  # noqa: E731
 ORDER = dict(symbol="SPY", side="buy", qty=10, order_type="limit", limit_price=100, reference_price=100,
@@ -195,7 +195,6 @@ def test_dashboard_refuses_non_loopback_bind_outside_container(svc, monkeypatch)
 
 
 # ---------------------------------------------------------------- docker (static)
-@pytest.mark.skip(reason="Lola Docker packaging not ported; ATLAS ships no Dockerfile/compose")
 def test_compose_is_paper_offline_and_secret_free():
     raw = (ROOT / "docker-compose.yml").read_text()
     c = yaml.safe_load(raw)
@@ -213,7 +212,6 @@ def test_compose_is_paper_offline_and_secret_free():
     assert "env_file" not in raw
 
 
-@pytest.mark.skip(reason="Lola Docker packaging not ported; ATLAS ships no Dockerfile/compose")
 def test_dockerfile_non_root_no_secrets():
     d = (ROOT / "Dockerfile").read_text()
     assert "USER bot" in d and "HEALTHCHECK" in d and "atlas-run" in d

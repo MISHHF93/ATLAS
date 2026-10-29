@@ -6,10 +6,12 @@ venue's local time zone. Weekend mode (fx close Fri 17:00 ET to fx open Sun 17:0
 venues in weekend_mode.active_venues accept NEW orders."""
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from atlas.marketdata.pit.calendars import fx_open, is_open
+from atlas.marketdata.pit.calendars import (
+    CalendarUnavailable, _utc, calendar_metadata, fx_open, trading_windows,
+)
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 from atlas.ops.timez import TORONTO as TOR  # noqa: E402
@@ -50,27 +52,89 @@ class SessionModel:
         return phase, mult
 
     def status(self, name: str, now: datetime) -> dict:
+        now = _utc(now)
         v = self.venues[name]
-        op = is_open(name, now)
+        error = None
+        try:
+            active = next(iter(trading_windows(name, now, now + timedelta(microseconds=1))), None)
+        except CalendarUnavailable as exc:
+            active, error = None, str(exc)
+        op = active is not None
         phase, mult = self._phase(name, v, now) if op else ("closed", 0.0)
         if phase == "lunch_break":
             op = False
         wk = self.weekend_mode(now)
-        new_ok = op and (not wk or name in self.s.get("weekend_mode", {}).get("active_venues", []))
+        weekend_ok = not wk or name in self.s.get("weekend_mode", {}).get("active_venues", [])
+        buffer_min = max(0, float(self.s.get("defaults", {}).get("no_new_entries_before_close_min", 0)))
+        cutoff = active.session_close - timedelta(minutes=buffer_min) if active and name != "crypto" else None
+        near_close = cutoff is not None and now >= cutoff
+        new_ok = op and weekend_ok and not near_close
         return {"venue": name, "tz": v.get("tz"), "open": op, "phase": phase, "size_mult": mult,
                 "new_orders_allowed": new_ok, "brokers": v.get("brokers", []),
+                "entry_block_reason": "calendar_unavailable" if error else "calendar_closed" if not op else
+                                      "weekend_mode" if not weekend_ok else "close_buffer" if near_close else None,
+                "session_close_utc": active.session_close.isoformat() if active else None,
+                "entry_cutoff_utc": cutoff.isoformat() if cutoff else None,
+                "calendar": calendar_metadata(name), "schedule_error": error,
                 "local_time": now.astimezone(ZoneInfo(v.get("tz", "UTC"))).strftime("%a %H:%M")}
 
     def next_change(self, name: str, now: datetime, step_min: int = 15, horizon_h: int = 96) -> str | None:
-        cur = is_open(name, now)
-        t = now.replace(second=0, microsecond=0)
-        t += timedelta(minutes=step_min - t.minute % step_min)
+        """Exact next scheduled open/break/close; ``step_min`` is retained for compatibility."""
+        now = _utc(now)
+        if name not in self.venues:
+            return None
+        try:
+            windows = trading_windows(name, now, now + timedelta(hours=horizon_h))
+        except CalendarUnavailable:
+            return None
+        # Crypto's midnight accounting boundary does not close its continuous market.
+        if name == "crypto":
+            return None
+        window = next(iter(windows), None)
+        if window is None:
+            return None
+        change = window.close if window.open <= now < window.close else window.open
+        if change > now + timedelta(hours=horizon_h):
+            return None
+        return change.astimezone(TOR).isoformat(timespec="minutes")
+
+    def plan(self, now: datetime, horizon_h: float = 24) -> dict:
+        """Read-only global session plan. An open schedule conveys no order permission."""
+        now = _utc(now)
+        if not 0 < horizon_h <= 168:
+            raise ValueError("horizon_h must be greater than zero and at most 168 hours")
         end = now + timedelta(hours=horizon_h)
-        while t <= end:
-            if is_open(name, t) != cur:
-                return t.astimezone(TOR).isoformat(timespec="minutes")
-            t += timedelta(minutes=step_min)
-        return None
+        rows, windows, transitions = [], [], []
+        for name in self.venues:
+            row = self.status(name, now)
+            row["next_change_et"] = self.next_change(name, now, horizon_h=horizon_h)
+            rows.append(row)
+            try:
+                upcoming = trading_windows(name, now, end)
+            except CalendarUnavailable:
+                continue
+            for window in upcoming:
+                buffer_min = max(0, float(self.s.get("defaults", {}).get("no_new_entries_before_close_min", 0)))
+                cutoff = window.session_close - timedelta(minutes=buffer_min) if name != "crypto" else None
+                windows.append({"venue": name, "session_date": window.session_date.isoformat(),
+                                "open_utc": window.open.isoformat(), "close_utc": window.close.isoformat(),
+                                "entry_cutoff_utc": cutoff.isoformat() if cutoff else None,
+                                "in_progress": window.open <= now < window.close,
+                                "source": calendar_metadata(name)})
+                if name != "crypto":
+                    for kind, at in (("open", window.open), ("close", window.close)):
+                        if now < at <= end:
+                            transitions.append({"venue": name, "kind": kind, "at_utc": at.isoformat(),
+                                                "at_et": at.astimezone(TOR).isoformat(timespec="minutes")})
+        rows.sort(key=lambda row: (not row["open"], row["next_change_et"] or "~", row["venue"]))
+        windows.sort(key=lambda window: (window["open_utc"], window["venue"]))
+        transitions.sort(key=lambda transition: (transition["at_utc"], transition["venue"], transition["kind"]))
+        return {"now_utc": now.isoformat(), "now_et": now.astimezone(TOR).isoformat(),
+                "horizon_end_utc": end.isoformat(), "purpose": "scheduled_sessions_only",
+                "execution_permission": "none", "weekend_mode": self.weekend_mode(now),
+                "eligibility_note": "Broker permissions, feed quality, model validation, and portfolio risk are not evaluated.",
+                "active": [row["venue"] for row in rows if row["new_orders_allowed"]],
+                "venues": rows, "windows": windows, "transitions": transitions}
 
     def strip(self, now: datetime, with_next: bool = True) -> dict:
         rows = []

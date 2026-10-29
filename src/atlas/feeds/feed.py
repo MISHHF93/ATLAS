@@ -20,6 +20,21 @@ from .quality import Quality, assess, find_gaps
 from .store import FeedStore
 
 DEFAULT_STORE = os.environ.get("ATLAS_FEED_DB", "var/feeds/atlas_feed.sqlite")
+# A provider change is not a trade. Same-venue 1h opens usually gap under 15 bp.
+# Joins wider than this (measured up to 73 bp on SOL) are left as a hole.
+PROVIDER_SWITCH_MAX_BPS = 25.0
+
+
+def drop_provider_jumps(bars: list[FeedBar], max_bps: float = PROVIDER_SWITCH_MAX_BPS) -> list[FeedBar]:
+    """Drop a bar that gaps the previous close only because the provider changed."""
+    kept: list[FeedBar] = []
+    for bar in bars:
+        prev = kept[-1] if kept else None
+        if prev is not None and bar.provider != prev.provider and prev.close > 0:
+            if abs(bar.open - prev.close) / prev.close * 1e4 > max_bps:
+                continue
+        kept.append(bar)
+    return kept
 
 
 class ProviderRegistry:
@@ -140,13 +155,14 @@ class AtlasFeed:
         if provider:
             return self.store.bars(instrument, interval, start, end, provider=provider, as_of=as_of, confirmed_only=confirmed_only)
         inst = self.instruments.get(instrument)
-        prio = list(inst.provider_priority)
+        # Unofficial providers (Yahoo) stay in the store for audit. They are not the trade series.
+        prio = [p for p in inst.provider_priority if free_allowed(p)]
         merged: dict[int, FeedBar] = {}
         for p in reversed(prio):
             for b in self.store.bars(instrument, interval, start, end, provider=p, as_of=as_of, confirmed_only=confirmed_only):
                 merged[b.event_time] = b
         if merged:
-            return [merged[k] for k in sorted(merged)]
+            return drop_provider_jumps([merged[k] for k in sorted(merged)])
         for sub_iv in self._AGG_FALLBACKS.get(interval, ()):
             sub_map: dict[int, FeedBar] = {}
             for p in reversed(prio):
@@ -155,9 +171,50 @@ class AtlasFeed:
             if sub_map:
                 now_ts = int(as_of if as_of is not None else self.clock())
                 anchor = 1800 if (inst.session == "us_equity_rth" and interval == "1h") else 0
-                agg = aggregate([sub_map[k] for k in sorted(sub_map)], interval, now_ts, anchor=anchor)
+                ordered = drop_provider_jumps([sub_map[k] for k in sorted(sub_map)])
+                agg = aggregate(ordered, interval, now_ts, anchor=anchor)
                 return [b for b in agg if (not confirmed_only or b.confirmed)]
         return []
+
+    def ensure_recent(self, instrument: str, interval: str, *, ttl: float = 45.0, lookback_s: int | None = None) -> bool:
+        """Fill the gap after the newest stored bar from an official provider.
+
+        A call inside the wait window does not hit the network again. Daily bars wait six hours.
+        There is no unofficial fallback. Returns True only when an official provider wrote bars.
+        """
+        if interval not in ("1m", "5m", "15m", "1h", "1d"):
+            return False
+        now = float(self.clock())
+        wait = 6 * 3600.0 if interval == "1d" else ttl
+        recent = getattr(self, "_recent_fetch", None)
+        if recent is None:
+            recent = self._recent_fetch = {}
+        key = (instrument, interval)
+        if now - recent.get(key, 0.0) < wait:
+            return False
+        step = INTERVALS[interval]
+        try:
+            last = self.store.latest_bar(instrument, (interval,))
+        except Exception:
+            return False
+        provider = getattr(last, "provider", None) if last is not None else None
+        if last is not None and provider is not None and not free_allowed(provider):
+            official = self.bars(instrument, interval)
+            last = official[-1] if official else None
+        if last is not None and now - last.bar_end < 2 * step:
+            recent[key] = now
+            return False
+        if not self.candidates(instrument, interval):
+            recent[key] = now
+            return False
+        recent[key] = now
+        start = int(last.bar_end) if last is not None else int(now - (lookback_s or 7 * 86400))
+        end = int(now) + step
+        try:
+            prov, _res = self.fetch(instrument, interval, start, end)
+        except Exception:
+            return False
+        return bool(prov)
 
     def quality(self, instrument: str, interval: str, now: int | None = None, lookback_bars: int = 200,
                 max_age_seconds: int | None = None, cross_check: bool = True) -> Quality:

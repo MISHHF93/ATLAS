@@ -110,11 +110,11 @@ def test_udf_seam_reads_atlas_feed_and_matches_detectors(monkeypatch: pytest.Mon
     store = FeedStore(tmp_path / "feed.sqlite")
     rows = _rows(60)
     now = int(time.time())
-    store.ingest([FeedBar("SPY", "1h", t, o, h, l, c, v, "yahoo", now, True, "SPY") for t, o, h, l, c, v in rows])
+    store.ingest([FeedBar("SPY", "1h", t, o, h, l, c, v, "alpaca", now, True, "SPY") for t, o, h, l, c, v in rows])
     monkeypatch.setattr(feed_mod, "_DEFAULT", AtlasFeed(store))
 
     report = udf.udf_feed_bars(None, "SPY", BUCKET)
-    assert report["feed_origin"].startswith("atlas_feed:yahoo")
+    assert report["feed_origin"].startswith("atlas_feed:alpaca")
     assert [c["close"] for c in report["candles"]] == [r[4] for r in rows]
 
     client = TestClient(app)

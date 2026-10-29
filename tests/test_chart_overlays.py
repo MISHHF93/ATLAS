@@ -92,6 +92,38 @@ def test_1h_resampled_from_15m_when_no_stored_1h(monkeypatch, tmp_path):
     assert len(d["bars"]) == 900 // 4 - 1  # the hour with a missing 15m bar is dropped
 
 
+class MinuteTail:
+    """Stored 15m stops, and the following minutes are already in the store."""
+
+    def bars(self, sym, iv, start=None, end=None):
+        if sym != "BTCUSDT":
+            return []
+        if iv == "15m":
+            return _rows(10, 900)
+        if iv != "1m":
+            return []
+        last = _rows(10, 900)[-1].event_time
+        mins = []
+        for i in range(30):
+            t = last + 900 + i * 60
+            if start is not None and t < start:
+                continue
+            c = 50 + i
+            mins.append(SimpleNamespace(event_time=t, open=c, high=c + 1, low=c - 1, close=c + 0.4, volume=4, provider="binance", confirmed=True, receipt_time=t + 60))
+        return mins
+
+
+def test_15m_chart_extends_through_newer_one_minute_bars(monkeypatch, tmp_path):
+    monkeypatch.setenv("ATLAS_ML_REGISTRY", str(tmp_path))
+    monkeypatch.setattr(co, "_feed", lambda: MinuteTail())
+    d = TestClient(app).get("/api/ai/chart/overlays?symbol=BTCUSDT&interval=15m&limit=50").json()
+    last_stored = 1_700_000_000 - 1_700_000_000 % 86400 + 9 * 900
+    assert d["status"] == "ok"
+    assert d["bars"][-1]["time"] == last_stored + 1800
+    assert "extended from 1m" in d["provider"]["built"]
+    assert len(d["bars"]) == 12
+
+
 def test_1h_prefers_stored_1h(monkeypatch, tmp_path):
     monkeypatch.setenv("ATLAS_ML_REGISTRY", str(tmp_path))
     monkeypatch.setattr(co, "_feed", lambda: FakeFeed())

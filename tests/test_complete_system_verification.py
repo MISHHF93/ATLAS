@@ -11,6 +11,9 @@ Covers:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
+import math
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -43,24 +46,68 @@ ET = ZoneInfo("America/New_York")
 client = TestClient(app)
 
 
+@pytest.fixture
+def isolated_live_models(tmp_path, monkeypatch):
+    """Explicit passing fixtures; local research artifacts never imply live eligibility."""
+    from atlas.ai.ml import live_intelligence as live
+    from atlas.api import feeds_api
+
+    registry = tmp_path / "registry"
+    registry.mkdir()
+    monkeypatch.setenv("ATLAS_ML_REGISTRY", str(registry))
+    monkeypatch.setattr(live, "_MODEL_CACHE", {})
+    model = SimpleNamespace(
+        calibrator=SimpleNamespace(kind="platt"),
+        conformal=SimpleNamespace(qhat=0.15),
+        win_r={}, loss_r={},
+        decide=lambda frame, use_conformal: {"p": [0.6], "take": [True]},
+    )
+    monkeypatch.setattr(live, "load_model", lambda version, path: model)
+    for group in ("crypto-15m", "crypto-1h", "crypto-4h", "equity-15m", "equity-1h"):
+        asset_class, interval = group.split("-")
+        symbols = ("BTCUSDT", "ETHUSDT", "SOLUSDT") if asset_class == "crypto" else ("SPY", "QQQ")
+        directory = registry / group
+        directory.mkdir()
+        manifest = {
+            "version": group, "group": group, "status": "eligible",
+            "created_at": "2026-10-20T00:00:00+00:00", "calibrator": "platt",
+            "gates": [{"gate": "test_validation", "passed": True}],
+            "series": [{"instrument": symbol, "asset_class": asset_class, "interval": interval}
+                       for symbol in symbols],
+        }
+        (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    cutoff = datetime(2026, 10, 21, 14, 30, tzinfo=timezone.utc).timestamp()
+    def bars(symbol, interval):
+        duration = {"15m": 900, "1h": 3600, "4h": 14400}.get(interval, 900)
+        return [SimpleNamespace(
+            event_time=int(cutoff - (300 - i) * duration),
+            open=100 + math.sin(i / 5), high=102 + math.sin(i / 5),
+            low=98 + math.sin(i / 5), close=100 + math.sin((i + 1) / 5), volume=1000 + i,
+        ) for i in range(300)]
+    feed = SimpleNamespace(bars=bars)
+    monkeypatch.setattr(feeds_api, "_feed", lambda: feed)
+    return feed
+
+
 # ============================================================================
 # SECTION 22: END-TO-END LIVE PREDICTION DIAGNOSTIC TESTS
 # ============================================================================
 
 
 @pytest.mark.parametrize(
-    "symbol,interval",
+    "symbol,interval,expected_status",
     [
-        ("BTC-USD", "15m"),
-        ("ETH-USD", "15m"),
-        ("SOL-USD", "15m"),
-        ("SPY", "15m"),
-        ("QQQ", "15m"),
-        ("NQ", "1h"),
-        ("GC", "15m"),
+        ("BTC-USD", "15m", "VALID"),
+        ("ETH-USD", "15m", "VALID"),
+        ("SOL-USD", "15m", "VALID"),
+        ("SPY", "15m", "VALID"),
+        ("QQQ", "15m", "VALID"),
+        ("NQ", "1h", "MODEL_UNAVAILABLE"),
+        ("GC", "15m", "MODEL_UNAVAILABLE"),
     ],
 )
-def test_end_to_end_live_prediction_across_universe(symbol: str, interval: str) -> None:
+def test_end_to_end_live_prediction_across_universe(symbol: str, interval: str, expected_status: str, isolated_live_models) -> None:
     """Verify candle -> feature -> model -> calibration -> persistence -> API response across all required asset classes."""
     # Evaluate during a regular Wednesday morning session so markets are open
     wed_open = datetime(2026, 10, 21, 10, 30, tzinfo=ET).astimezone(timezone.utc)
@@ -72,7 +119,11 @@ def test_end_to_end_live_prediction_across_universe(symbol: str, interval: str) 
         persist=True,
     )
     assert pred["execution_permission"] == "none"
-    assert pred["prediction_status"] == "VALID"
+    assert pred["prediction_status"] == expected_status
+    if expected_status != "VALID":
+        assert pred["probability_target_before_stop"] is None
+        assert "No eligible model" in pred["status_reason"]
+        return
     assert pred["data_quality_status"] == "VALID"
     assert pred["feature_schema_version"] == FEATURE_SCHEMA_VERSION
     assert pred["model_version"] != "MODEL_UNAVAILABLE"
@@ -85,7 +136,7 @@ def test_end_to_end_live_prediction_across_universe(symbol: str, interval: str) 
     assert pred["uncertainty"] is not None and float(pred["uncertainty"]) > 0.0
 
 
-def test_live_prediction_non_fabricated_failure_states(tmp_path) -> None:
+def test_live_prediction_non_fabricated_failure_states(tmp_path, isolated_live_models) -> None:
     """Verify explicit non-fabricated statuses when model is unavailable, data is stale, or market is closed."""
     wed_open = datetime(2026, 10, 21, 10, 30, tzinfo=ET).astimezone(timezone.utc)
 
@@ -136,7 +187,7 @@ def test_live_prediction_non_fabricated_failure_states(tmp_path) -> None:
     assert res_unknown["data_quality_status"] == "INVALID_SYMBOL"
 
 
-def test_prediction_health_monitoring_endpoint() -> None:
+def test_prediction_health_monitoring_endpoint(isolated_live_models) -> None:
     """Section 8: Verify GET /api/ml/prediction-health returns valid health classification and telemetry."""
     r = client.get("/api/ml/prediction-health?symbol=BTC-USD")
     assert r.status_code == 200
@@ -146,6 +197,37 @@ def test_prediction_health_monitoring_endpoint() -> None:
     assert body["execution_permission"] == "none"
     assert "inference_latency_ms" in body
     assert "prediction_success_rate" in body
+
+
+def test_live_prediction_abstains_when_cached_model_fails_validation(tmp_path, isolated_live_models) -> None:
+    now = datetime(2026, 10, 21, 10, 30, tzinfo=ET)
+    first = generate_live_prediction("BTC-USD", "15m", now=now, persist=False)
+    assert first["prediction_status"] == "VALID"
+    path = tmp_path / "registry" / "crypto-15m" / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["status"] = "not_eligible"
+    manifest["gates"][0]["passed"] = False
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = generate_live_prediction("BTC-USD", "15m", now=now, persist=False)
+    assert result["prediction_status"] == "MODEL_UNAVAILABLE"
+    assert result["probability_target_before_stop"] is None
+    assert result["expected_value"] is None
+    assert result["execution_permission"] == "none"
+
+
+@pytest.mark.parametrize("interval", ["1m", "1h", "4h"])
+def test_missing_interval_bars_are_not_relabelled(interval, isolated_live_models) -> None:
+    requested = []
+    def bars(symbol, requested_interval):
+        requested.append(requested_interval)
+        return isolated_live_models.bars(symbol, "15m") if requested_interval == "15m" else []
+    result = generate_live_prediction(
+        "BTC-USD", interval, feed=SimpleNamespace(bars=bars),
+        now=datetime(2026, 10, 21, 10, 30, tzinfo=ET), persist=False,
+    )
+    assert result["prediction_status"] == "INSUFFICIENT_HISTORY"
+    assert result["probability_target_before_stop"] is None
+    assert requested == [interval]
 
 
 # ============================================================================
@@ -220,12 +302,25 @@ def test_us_equity_sessions_holidays_early_close_and_nasdaq_23_5() -> None:
     assert s_early_after["scheduled_market_status"] == "AFTER_HOURS"
     assert s_early_after["is_open"] is False
 
-    # 7. Nasdaq 23/5 effective date check (effective 2026-12-01)
-    assert NASDAQ_23_5_EFFECTIVE_DATE.isoformat() == "2026-12-01"
+    # 7. Nasdaq 23/5: 2026-12-06 21:00 ET, pause 20:00–21:00, no Friday night.
+    assert NASDAQ_23_5_EFFECTIVE_DATE.isoformat() == "2026-12-06"
     before_23_5 = evaluate_instrument_market_status("QQQ", now=datetime(2026, 10, 21, 22, 30, tzinfo=ET))
     assert before_23_5["scheduled_market_status"] == "CLOSED"
-    after_23_5 = evaluate_instrument_market_status("QQQ", now=datetime(2026, 12, 2, 22, 30, tzinfo=ET))
-    assert after_23_5["scheduled_market_status"] == "OVERNIGHT_SESSION"
+    still_before = evaluate_instrument_market_status("QQQ", now=datetime(2026, 12, 2, 22, 30, tzinfo=ET))
+    assert still_before["scheduled_market_status"] == "CLOSED"
+    assert still_before["nasdaq_23_5_active"] is False
+    sunday_open = evaluate_instrument_market_status("QQQ", now=datetime(2026, 12, 6, 21, 30, tzinfo=ET))
+    assert sunday_open["scheduled_market_status"] == "OVERNIGHT_SESSION"
+    sunday_early = evaluate_instrument_market_status("QQQ", now=datetime(2026, 12, 6, 20, 30, tzinfo=ET))
+    assert sunday_early["scheduled_market_status"] == "CLOSED"
+    pause = evaluate_instrument_market_status("QQQ", now=datetime(2026, 12, 7, 20, 30, tzinfo=ET))
+    assert pause["scheduled_market_status"] == "MAINTENANCE"
+    assert pause["trading_session"] == "NASDAQ_23_5_PAUSE"
+    night = evaluate_instrument_market_status("QQQ", now=datetime(2026, 12, 7, 21, 30, tzinfo=ET))
+    assert night["scheduled_market_status"] == "OVERNIGHT_SESSION"
+    friday_night = evaluate_instrument_market_status("QQQ", now=datetime(2026, 12, 11, 21, 30, tzinfo=ET))
+    assert friday_night["scheduled_market_status"] == "CLOSED"
+    assert friday_night["nasdaq_23_5_active"] is True
 
 
 def test_cme_maintenance_dst_and_venue_restrictions() -> None:

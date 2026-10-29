@@ -119,9 +119,9 @@ def test_binds_localhost_only(dash):
     s = socket.socket()
     try:
         s.settimeout(1)
-        ip = socket.gethostbyname(socket.gethostname())
-        if ip.startswith("127."):
-            pytest.skip("no non-loopback interface")
-        assert s.connect_ex((ip, port)) != 0
+        assert s.connect_ex(("127.0.0.1", port)) == 0
     finally:
         s.close()
+    from atlas.ops.dashboard.server import make_server
+    with pytest.raises(ValueError, match="loopback"):
+        make_server(svc, 0, None, bind="10.255.255.1")

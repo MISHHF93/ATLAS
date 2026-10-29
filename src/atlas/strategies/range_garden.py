@@ -477,6 +477,11 @@ class RangeGardenBook:
         action = decision["action"]
         symbol = decision["symbol"]
         if action in ("harvest_buy", "harvest_sell"):
+            if getattr(engine, "cash_tracked", False):
+                decision["action"] = "stand_down"
+                decision["reason"] = "paper_capital_is_operator_only"
+                decision["direction"] = "HOLD"
+                return decision
             if getattr(engine, "kill_switch_engaged", False):
                 decision["action"] = "stand_down"
                 decision["reason"] = "kill_switch_engaged"

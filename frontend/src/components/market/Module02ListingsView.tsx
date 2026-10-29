@@ -57,6 +57,11 @@ export interface Module02ListingPacket {
   expenseRatioBps?: number | null;
   custodyForm?: string;
   disclosureNote?: string;
+  marketId?: string;
+  marketName?: string;
+  marketOpen?: boolean;
+  marketLabel?: string;
+  marketCountdown?: string;
 }
 
 function makePacket(
@@ -639,6 +644,17 @@ function Module02InnerWorkbench() {
   const [selectedSymbol, setSelectedSymbol] = useState<string>("GC");
   const [chartTimeframe, setChartTimeframe] = useState<"1s" | "1m" | "5m" | "15m" | "1h" | "1D">("15m");
   const [listings, setListings] = useState<Module02ListingPacket[]>(INITIAL_MODULE02_LISTINGS);
+  const listingsRef = useRef(listings);
+  listingsRef.current = listings;
+  const [openNowOnly, setOpenNowOnly] = useState(false);
+  const [sessionVenues, setSessionVenues] = useState<Array<{
+    venue_id: string;
+    venue_name: string;
+    is_open: boolean;
+    status_label?: string;
+    look_symbol?: string;
+    countdown?: string;
+  }>>([]);
   const [displayCurrency, setDisplayCurrency] = useState<"USD" | "CAD">("USD");
   const [metalUnit, setMetalUnit] = useState<"troy_oz" | "gram" | "kg">("troy_oz");
   const [watchlistSymbols, setWatchlistSymbols] = useState<string[]>([
@@ -716,19 +732,53 @@ function Module02InnerWorkbench() {
     trailingDdRoomUsd: number;
     trailingDdRoomPct: number;
   }>({
-    currentEquityUsd: 101850.0,
-    startOfDayUsd: 102900.0,
-    referenceUsd: 103100.0,
-    dailyFloorUsd: 98784.0,
-    trailingFloorUsd: 94852.0,
+    currentEquityUsd: 0,
+    startOfDayUsd: 0,
+    referenceUsd: 0,
+    dailyFloorUsd: 0,
+    trailingFloorUsd: 0,
     dailyLossLimitPct: 4,
     drawdownLimitPct: 8,
     drawdownMode: "trailing",
-    dailyLossRoomUsd: 3066.0,
-    dailyLossRoomPct: 2.98,
-    trailingDdRoomUsd: 7098.0,
-    trailingDdRoomPct: 6.88,
+    dailyLossRoomUsd: 0,
+    dailyLossRoomPct: 0,
+    trailingDdRoomUsd: 0,
+    trailingDdRoomPct: 0,
   });
+
+  useEffect(() => {
+    let alive = true;
+    const pullSessions = async () => {
+      const symbols = listingsRef.current.map((item) => item.symbol);
+      const query = symbols.length ? `?symbols=${encodeURIComponent(symbols.join(","))}` : "";
+      try {
+        const res = await fetch(`/api/market/sessions${query}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!alive) return;
+        const venues = Array.isArray(body.venues) ? body.venues : [];
+        setSessionVenues(venues);
+        const by = body.by_symbol && typeof body.by_symbol === "object" ? body.by_symbol : {};
+        setListings((prev) => prev.map((item) => {
+          const st = by[item.symbol.toUpperCase()];
+          if (!st) return item;
+          return {
+            ...item,
+            marketId: st.venue_id,
+            marketName: st.venue_name,
+            marketOpen: Boolean(st.is_open),
+            marketLabel: st.status_label,
+            marketCountdown: st.countdown,
+          };
+        }));
+      } catch {
+        // Keep the last clock stamp. Prices stay on the feed poll.
+      }
+    };
+    void pullSessions();
+    const timer = setInterval(pullSessions, 15000);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
 
   const pollModule02Stream = useCallback(async () => {
     try {
@@ -747,9 +797,9 @@ function Module02InnerWorkbench() {
         if (data.remaining_room_hud) {
           const hud = data.remaining_room_hud;
           setRemainingRoomHud({
-            currentEquityUsd: Number(hud.current_equity_usd ?? 101850),
-            startOfDayUsd: Number(hud.start_of_day_equity_usd ?? 102900),
-            referenceUsd: Number(hud.high_water_mark_usd ?? 103100),
+            currentEquityUsd: Number(hud.current_equity_usd ?? 0),
+            startOfDayUsd: Number(hud.start_of_day_equity_usd ?? 0),
+            referenceUsd: Number(hud.high_water_mark_usd ?? 0),
             dailyFloorUsd: Number(hud.daily_floor_usd ?? 0),
             trailingFloorUsd: Number(hud.trailing_floor_usd ?? 0),
             dailyLossLimitPct: Number(hud.daily_loss_limit_pct ?? 4),
@@ -855,9 +905,9 @@ function Module02InnerWorkbench() {
           if (incoming.remaining_room_hud) {
             const hud = incoming.remaining_room_hud;
             setRemainingRoomHud({
-              currentEquityUsd: Number(hud.current_equity_usd ?? 101850),
-              startOfDayUsd: Number(hud.start_of_day_equity_usd ?? 102900),
-              referenceUsd: Number(hud.high_water_mark_usd ?? 103100),
+              currentEquityUsd: Number(hud.current_equity_usd ?? 0),
+              startOfDayUsd: Number(hud.start_of_day_equity_usd ?? 0),
+              referenceUsd: Number(hud.high_water_mark_usd ?? 0),
               dailyFloorUsd: Number(hud.daily_floor_usd ?? 0),
               trailingFloorUsd: Number(hud.trailing_floor_usd ?? 0),
               dailyLossLimitPct: Number(hud.daily_loss_limit_pct ?? 4),
@@ -907,6 +957,7 @@ function Module02InnerWorkbench() {
     const q = searchQuery.trim().toUpperCase();
     return listings.filter((l) => {
       if (categoryFilter === "watchlist" && !watchlistSymbols.includes(l.symbol)) return false;
+      if (openNowOnly && l.marketOpen !== true) return false;
       if (categoryFilter !== "all" && categoryFilter !== "watchlist" && l.category !== categoryFilter) {
         return false;
       }
@@ -920,7 +971,7 @@ function Module02InnerWorkbench() {
         (l.issuer && l.issuer.toUpperCase().includes(q))
       );
     });
-  }, [listings, categoryFilter, searchQuery, watchlistSymbols]);
+  }, [listings, categoryFilter, searchQuery, watchlistSymbols, openNowOnly]);
 
   const activeListing = useMemo(
     () => listings.find((l) => l.symbol === selectedSymbol) ?? listings[0],
@@ -1245,6 +1296,15 @@ function Module02InnerWorkbench() {
             </button>
             <button
               type="button"
+              className={`clean-tf-btn ${openNowOnly ? "active" : ""}`}
+              aria-pressed={openNowOnly}
+              style={{ padding: "7px 12px", fontSize: "12.5px" }}
+              onClick={() => setOpenNowOnly((on) => !on)}
+            >
+              Open now
+            </button>
+            <button
+              type="button"
               className={`clean-tf-btn ${categoryFilter === "watchlist" ? "active" : ""}`}
               style={{ padding: "7px 12px", fontSize: "12.5px" }}
               onClick={() => setCategoryFilter("watchlist")}
@@ -1292,6 +1352,37 @@ function Module02InnerWorkbench() {
           </div>
         </div>
 
+        {sessionVenues.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", fontSize: 12.5, marginBottom: 8 }}>
+            <span style={{ color: "#94A3B8" }}>Open now</span>
+            {sessionVenues.filter((venue) => venue.is_open).map((venue) => (
+              <button
+                key={venue.venue_id}
+                type="button"
+                className="clean-tf-btn"
+                style={{ padding: "4px 8px", fontSize: 12 }}
+                onClick={() => {
+                  if (!venue.look_symbol) return;
+                  setCategoryFilter("all");
+                  setSelectedSymbol(venue.look_symbol);
+                }}
+              >
+                {venue.venue_name}
+              </button>
+            ))}
+            <span style={{ color: "#94A3B8" }}>
+              The research hand watches these clocks. The scored book is crypto 4h. Positions stay where they are.
+            </span>
+          </div>
+        )}
+        {activeListing.marketOpen === false && (
+          <div style={{ fontSize: 12.5, color: "#F0803C", marginBottom: 8 }}>
+            {activeListing.symbol} is {activeListing.marketLabel || "closed"} on {activeListing.marketName}.
+            {activeListing.marketCountdown ? ` ${activeListing.marketCountdown}.` : ""}
+            {" "}Choose an open market above to look there. This chart change leaves positions open.
+          </div>
+        )}
+
         {catalogView === "cards" ? (
           <div className="asset-grid">
             {filteredListings.map((item) => (
@@ -1301,6 +1392,8 @@ function Module02InnerWorkbench() {
                 name={item.name.replace(/ \(SEC CIK \d+\)$/, "")}
                 kind={item.subCategory}
                 venue={item.venue}
+                market={item.marketName ? `${item.marketOpen ? "Open" : "Closed"} · ${item.marketName}` : undefined}
+                marketOpen={item.marketOpen}
                 quote={feedQuotes[item.symbol]}
                 selected={item.symbol === selectedSymbol}
                 onSelect={() => setSelectedSymbol(item.symbol)}
@@ -1313,6 +1406,8 @@ function Module02InnerWorkbench() {
               symbol: i.symbol,
               name: i.name.replace(/ \(SEC CIK \d+\)$/, ""),
               kind: i.subCategory,
+              market: i.marketName ? `${i.marketOpen ? "Open" : "Closed"} · ${i.marketName}` : undefined,
+              marketOpen: i.marketOpen,
             }))}
             quotes={feedQuotes}
             selected={selectedSymbol}
@@ -1334,6 +1429,12 @@ function Module02InnerWorkbench() {
           >
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               <strong>{activeListing.symbol} — {activeListing.name}</strong>
+              {activeListing.marketName ? (
+                <span className="asset-card-market" data-market-open={activeListing.marketOpen ? "1" : "0"}>
+                  {activeListing.marketOpen ? "Open" : "Closed"} · {activeListing.marketName}
+                  {activeListing.marketLabel ? ` · ${activeListing.marketLabel}` : ""}
+                </span>
+              ) : null}
               <span className="badge badge-emerald">AUTHENTICITY VERIFIED</span>
               {activeListing.isin && (
                 <span className="badge badge-blue mono-cell">ISIN {activeListing.isin}</span>

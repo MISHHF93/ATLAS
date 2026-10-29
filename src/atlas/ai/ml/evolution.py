@@ -3,7 +3,10 @@
 Population genome = {model, features, regime, bar_type, context}:
   model     logit | ridge | hgb | xgb | lgbm           (ml.train.make_model; xgb/lgbm are challengers)
   features  full | no_setup | no_signed | no_time | bar_only        (ablations of ml.dataset.FEATURES)
-  regime    none | vol_conditioned  (adds low/high rv_pctile_480 flags and their interaction with the signed features)
+  regime    none | vol_conditioned | trend_conditioned | daily_trend
+            vol_conditioned adds low/high rv_pctile_480 flags and their interaction with the signed features.
+            trend_conditioned uses the bar-timeframe EMA trend. daily_trend uses the closed daily trend
+            (close versus its 20-day mean, in ATR), the same horizon as the trend ledger.
   bar_type  time | heikin_ashi | renko_atr | range_atr | volume | dollar | kagi_atr | pnf_atr   (features.representations; tick is gated)
   context   none | htf | macro | htf_macro   (ml.context: closed 1d/4h buckets; section-22 FRED macro gated on availability date)
 
@@ -21,9 +24,10 @@ test block -> take iff EV_R(p) > 0 (payoffs from the training blocks). Pre-decla
   beats_baseline = ev > max(0, take_all_ev) AND bss > 0          (take_all_ev = mean R of every opportunity)
 Evolution: generation 0 = seeds; each later generation mutates one gene of each of the top-3 genomes (2 children
 each, deterministic RNG, no re-evaluation of seen genomes). Leaderboard + lineage (generation, parent, mutation,
-metrics) are appended to the ML registry root (``<registry>/evolution/``). Champion/challenger: the best genome that
-beats baseline becomes the *research* champion only if it beats the previous research champion; nothing is ever
-promoted to execution (``promoted_to_execution`` is always False).
+metrics) are appended to the ML registry root (``<registry>/evolution/``). Champion/challenger: a genome becomes
+the research champion only when ``strict_gate.passed`` is true and its fitness beats the stored strict-gate
+champion. Beating the take-all baseline is not sufficient. Nothing is ever promoted to execution
+(``promoted_to_execution`` is always False). A niche or island run publishes through the same ``record`` path.
 
 evo8 strict champion gate (stricter only; applied on top of beats_baseline, see ``strict_gate``):
   * min_trades_per_fold: every one of the N_FOLDS folds must be evaluated and take >= MIN_TRADES_PER_FOLD trades;
@@ -55,7 +59,7 @@ from atlas.ai.ml.registry import _clean, code_sha, root
 GENES: dict[str, tuple[str, ...]] = {
     "model": ("logit", "ridge", "hgb", "xgb", "lgbm"),
     "features": ("full", "no_setup", "no_signed", "no_time", "bar_only"),
-    "regime": ("none", "vol_conditioned", "trend_conditioned"),
+    "regime": ("none", "vol_conditioned", "trend_conditioned", "daily_trend"),
     "bar_type": ("time", "heikin_ashi", "renko_atr", "range_atr", "volume", "dollar", "kagi_atr", "pnf_atr"),
     "context": ("none", "htf", "macro", "htf_macro"),
 }
@@ -83,7 +87,32 @@ SEEDS += [
     {"model": "logit", "features": "full", "regime": "none", "bar_type": "time", "context": "htf_macro"},
 ]
 DEFAULTS = {"context": "none"}
+# Compact seed set for a live research run. The full SEEDS list stays the pooled search.
+LIVE_SEEDS = [
+    {"model": "hgb", "features": "full", "regime": "none", "bar_type": "time"},
+    {"model": "logit", "features": "full", "regime": "none", "bar_type": "time"},
+    {"model": "ridge", "features": "full", "regime": "none", "bar_type": "time"},
+    {"model": "hgb", "features": "full", "regime": "vol_conditioned", "bar_type": "time"},
+    {"model": "hgb", "features": "full", "regime": "trend_conditioned", "bar_type": "time"},
+    {"model": "hgb", "features": "full", "regime": "none", "bar_type": "time", "context": "htf"},
+    # Stored baseline-beater from niches_1793221168. It failed evo8. Kept in the seed list so a later run still scores it.
+    {"model": "ridge", "features": "full", "regime": "none", "bar_type": "time", "context": "htf"},
+    # Continues the only genome that beat its own baseline (prior-day range, ATR stops).
+    # It still has to pass the evo8 strict gate on the data of this run.
+    {"model": "logit", "features": "no_signed", "regime": "none", "bar_type": "time", "context": "macro"},
+    # Links that genome to the closed daily trend. The bar-timeframe EMA trend does not separate R.
+    {"model": "logit", "features": "no_setup", "regime": "daily_trend", "bar_type": "time", "context": "macro"},
+    # Declared challengers (GENES["model"]). Same features as the stored baseline-beater so the
+    # comparison is the model gene only. They stay research-only and still face evo8.
+    {"model": "lgbm", "features": "full", "regime": "none", "bar_type": "time", "context": "htf"},
+    {"model": "xgb", "features": "full", "regime": "none", "bar_type": "time", "context": "htf"},
+]
 UNIVERSE = [(i, "15m") for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM")]
+# Keyless official venues only. 4h is complete UTC buckets of official 1h bars.
+# The 1h cost-capped book is still about -0.15R per trade, so it is not in this search.
+# Equities stay out until an official provider is configured.
+UNIVERSE_OFFICIAL = [(i, "4h") for i in ("BTCUSDT", "ETHUSDT", "SOLUSDT")]
+OFFICIAL_VARIANT = "atr2_rr2_cf15"
 # Extended pooled universe (opt-in): 1h history back to 2023/24 (lower cost per R) + 15m crypto alts.
 UNIVERSE_EXTENDED = UNIVERSE + [(i, "1h") for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM")]
 # evo6: the only setup family with positive mean gross R (before costs) in docs/research/evo6-setup-variants.md:
@@ -117,9 +146,19 @@ def gid(g: dict[str, str]) -> str:
     return "|".join(f"{k}={g.get(k, DEFAULTS.get(k))}" for k in GENES)
 
 
+def alt_bar_types(bar_types: Sequence[str] | None = None) -> tuple[str, ...]:
+    """Bar types whose feature columns must be joined. ``time`` is the base frame, so it is never joined."""
+    wanted = GENES["bar_type"] if bar_types is None else tuple(bar_types)
+    return tuple(bt for bt in wanted if bt != "time" and bt in GENES["bar_type"])
+
+
 def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, as_of: int | None = None,
-                          variant: str | None = None, detectors: Sequence[str] | None = None) -> tuple[pd.DataFrame, dict]:
-    """``variant``/``detectors``: evo6 re-labelling on a research setup variant (research.setup_variants)."""
+                          variant: str | None = None, detectors: Sequence[str] | None = None,
+                          bar_types: Sequence[str] | None = None, log=None) -> tuple[pd.DataFrame, dict]:
+    """``variant``/``detectors``: evo6 re-labelling on a research setup variant (research.setup_variants).
+
+    ``bar_types`` limits which alternative bar features are built. ``None`` keeps every gene.
+    """
     from atlas.ai.ml.context import htf_frame
     frames, meta = [], {"series": [], "bar_type_availability": {}, "variant": variant, "detectors": list(detectors) if detectors else None}
     v = None
@@ -131,12 +170,12 @@ def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, 
         df = build_rows(sd, variant=v, detectors=detectors)
         meta["series"].append({"instrument": inst, "interval": iv, "n_bars": len(sd.bars), "n_rows": len(df),
                                "first_bar": sd.bars[0].start if sd.bars else None, "last_bar_end": sd.bars[-1].end if sd.bars else None})
+        if log:
+            log(f"series {inst} {iv} bars={len(sd.bars)} rows={len(df)}")
         if not len(df):
             continue
         meta["bar_type_availability"][f"{inst}:{iv}"] = availability(sd.bars)
-        for bt in GENES["bar_type"]:
-            if bt == "time":
-                continue
+        for bt in alt_bar_types(bar_types):
             rf = rep_features(sd.bars, bt)
             rf.columns = [f"{bt}:{c}" for c in rf.columns]
             df = df.join(rf, on="t")
@@ -163,6 +202,13 @@ def build_population_data(feed, universe: Sequence[tuple[str, str]] = UNIVERSE, 
     data["reg_trend_counter"] = (tr_align < 0).astype(float)
     for s in SIGNED_X:
         data[f"{s}_x_trend"] = data[s] * tr_with
+    d1 = data["d1_trend20"] if "d1_trend20" in data.columns else pd.Series(np.nan, index=data.index)
+    d1_align = pd.Series(np.sign(d1.to_numpy(float)) * dir_sign, index=data.index).replace(0, np.nan)
+    d1_with = (d1_align > 0).astype(float)
+    data["reg_d1_with"] = d1_with
+    data["reg_d1_counter"] = (d1_align < 0).astype(float)
+    for s in SIGNED_X:
+        data[f"{s}_x_d1"] = data[s] * d1_with
     data = add_macro(data, getattr(feed, "store", None), meta)
     meta["data_hash"], meta["n_rows"] = data_hash(data), len(data)
     return data, meta
@@ -197,6 +243,8 @@ def feature_list(g: dict[str, str]) -> tuple[str, ...]:
         f += ["reg_hi", "reg_lo"] + [f"{s}_x_hi" for s in SIGNED_X]
     elif g["regime"] == "trend_conditioned":
         f += ["reg_trend_with", "reg_trend_counter"] + [f"{s}_x_trend" for s in SIGNED_X]
+    elif g["regime"] == "daily_trend":
+        f += ["reg_d1_with", "reg_d1_counter"] + [f"{s}_x_d1" for s in SIGNED_X]
     if g["bar_type"] != "time":
         f += [f"{g['bar_type']}:{c}" for c in REP_FEATURES]
     ctx = g.get("context", "none")
@@ -302,17 +350,29 @@ def apply_gate(board: list[dict], n_folds: int = N_FOLDS) -> None:
         v["metrics"]["strict_gate"] = strict_gate(v["metrics"], v["metrics"].get("_taken_r", np.array([])), srs, n_folds)
     for v in board:
         v["metrics"].pop("_taken_r", None)
+        if "strict_gate" not in v["metrics"]:
+            v["metrics"]["strict_gate"] = {
+                "gate_version": GATE_VERSION, "passed": False, "checks": {},
+                "failed": [v["metrics"].get("status") or "not_ok"], "values": {},
+            }
 
 
-def mutate(g: dict[str, str], rng: random.Random) -> tuple[dict[str, str], str]:
-    gene = rng.choice(list(GENES))
-    opts = [v for v in GENES[gene] if v != g[gene]]
+def mutate(g: dict[str, str], rng: random.Random, genes: dict[str, tuple[str, ...]] | None = None) -> tuple[dict[str, str], str]:
+    """Change one gene. ``genes`` limits the search to values the built dataset can score."""
+    space = genes or GENES
+    g = {**DEFAULTS, **g}
+    movable = [k for k in space if any(v != g.get(k) for v in space[k])]
+    if not movable:
+        return dict(g), "none"
+    gene = rng.choice(movable)
+    opts = [v for v in space[gene] if v != g.get(gene)]
     v = rng.choice(opts)
-    return {**g, gene: v}, f"{gene}:{g[gene]}->{v}"
+    return {**g, gene: v}, f"{gene}:{g.get(gene)}->{v}"
 
 
 def evolve(data: pd.DataFrame, meta: dict, generations: int = 3, seed: int = 11, seeds: list | None = None,
-           children_per_parent: int = 2, top_k: int = 3, n_folds: int = N_FOLDS, log=print) -> dict[str, Any]:
+           children_per_parent: int = 2, top_k: int = 3, n_folds: int = N_FOLDS, log=print,
+           genes: dict[str, tuple[str, ...]] | None = None) -> dict[str, Any]:
     rng = random.Random(seed)
     fs = folds(data, n_folds)
     seen: dict[str, dict] = {}
@@ -332,7 +392,7 @@ def evolve(data: pd.DataFrame, meta: dict, generations: int = 3, seed: int = 11,
         for par in ranked[:top_k]:
             for _ in range(children_per_parent):
                 for _try in range(10):
-                    child, mut = mutate(par["genome"], rng)
+                    child, mut = mutate(par["genome"], rng, genes)
                     if gid(child) not in seen and gid(child) not in [gid(c) for c, _, _ in pop]:
                         pop.append((child, par["genome_id"], mut))
                         break
@@ -365,6 +425,8 @@ def record(result: dict[str, Any], path=None, now: int | None = None, oos: pd.Da
     run_id = hashlib.sha256(f"{result['data'].get('data_hash')}|{result['seed']}|{result['generations']}|{now}".encode()).hexdigest()[:12]
     prev = champion(path)
     chal = result.get("best_passing_strict_gate")
+    if not ((chal or {}).get("metrics") or {}).get("strict_gate", {}).get("passed"):
+        chal = None
     decision = "no_challenger_beats_baseline" if not result.get("best_beating_baseline") else "no_challenger_passes_strict_gate"
     new_champ = prev
     if prev is not None and not (prev.get("metrics", {}).get("strict_gate") or {}).get("passed"):
@@ -394,10 +456,136 @@ def champion(path=None) -> dict | None:
     return json.loads(p.read_text()) if p.exists() else None
 
 
+def publish_research_champion(results: list[dict], path=None) -> list[str]:
+    """Crown a research champion from evolve() results that already passed the strict gate.
+
+    Results that only beat the take-all baseline are ignored. The run file still records
+    ``execution_permission: none`` and ``promoted_to_execution: false``. This does not call
+    ``registry.load_eligible`` and does not submit an order.
+    """
+    crowned = []
+    for result in results:
+        chal = (result or {}).get("best_passing_strict_gate") or {}
+        if not ((chal.get("metrics") or {}).get("strict_gate") or {}).get("passed"):
+            continue
+        run = record(result, path=path)
+        if run.get("decision") == "challenger_becomes_research_champion":
+            crowned.append(run["run_id"])
+    return crowned
+
+
 def latest_run(path=None) -> dict | None:
     d = evo_dir(path)
     runs = sorted(d.glob("run_*.json"), key=lambda p: p.stat().st_mtime) if d.exists() else []
     return json.loads(runs[-1].read_text()) if runs else None
+
+
+_HAND_METRICS = (
+    "brier", "brier_baseline", "brier_skill", "auc", "ece", "n_oos", "n_taken",
+    "ev_r_per_opportunity", "take_all_ev", "mean_r_taken", "stability", "fitness", "beats_baseline",
+)
+
+
+def _closed_hand(**extra: Any) -> dict[str, Any]:
+    hand = {
+        "linked": False,
+        "role": "research_hand",
+        "source": None,
+        "created_at": None,
+        "genome_id": None,
+        "stance": "abstain",
+        "stance_reason": None,
+        "beats_baseline": False,
+        "strict_gate_passed": False,
+        "strict_gate_failed": [],
+        "metrics": {},
+        "research_champion": False,
+        "champion_genome_id": None,
+        "can_buy": False,
+        "can_sell": False,
+        "execution_permission": "none",
+        "promoted_to_execution": False,
+        "may_propose_order": False,
+        "orders": "none",
+    }
+    hand.update(extra)
+    hand["can_buy"] = False
+    hand["can_sell"] = False
+    hand["execution_permission"] = "none"
+    hand["promoted_to_execution"] = False
+    hand["may_propose_order"] = False
+    hand["orders"] = "none"
+    return hand
+
+
+def research_hand(path=None) -> dict[str, Any]:
+    """Newest stored research genome as a desk hand.
+
+    Reads niches_*.json and run_*.json. Does not write champion.json, does not call
+    registry.load_eligible, and does not grant an order.
+    """
+    d = evo_dir(path)
+    champ = champion(path)
+    champ_gate = ((champ or {}).get("metrics") or {}).get("strict_gate") or {}
+    champ_passed = bool(champ_gate.get("passed")) if isinstance(champ_gate, dict) else False
+    if not d.exists():
+        return _closed_hand(
+            research_champion=champ_passed,
+            champion_genome_id=(champ or {}).get("genome_id") if champ_passed else None,
+        )
+    candidates: list[tuple[int, float, str, dict]] = []
+    for file in list(d.glob("niches_*.json")) + list(d.glob("run_*.json")):
+        try:
+            doc = json.loads(file.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(doc, dict):
+            continue
+        created = doc.get("created_at")
+        created_i = int(created) if isinstance(created, (int, float)) and not isinstance(created, bool) else 0
+        candidates.append((created_i, file.stat().st_mtime, file.name, doc))
+    if not candidates:
+        return _closed_hand(
+            research_champion=champ_passed,
+            champion_genome_id=(champ or {}).get("genome_id") if champ_passed else None,
+        )
+    created_i, _mtime, name, doc = max(candidates, key=lambda row: (row[0], row[1], row[2]))
+    genome_id = None
+    metrics: dict[str, Any] = {}
+    stance = "abstain"
+    reason = None
+    if name.startswith("niches_"):
+        islands = [row for row in (doc.get("islands") or []) if isinstance(row, dict) and row.get("genome_id")]
+        picked = next((row for row in islands if not row.get("no_model_beats_baseline")), None) or (islands[0] if islands else None)
+        if picked:
+            genome_id = picked.get("genome_id")
+            metrics = dict(picked.get("metrics") or {})
+        selection = doc.get("selection") if isinstance(doc.get("selection"), dict) else {}
+        stance = str(selection.get("decision") or "abstain")
+        reason = selection.get("reason")
+    else:
+        best = doc.get("best_beating_baseline") or doc.get("best") or {}
+        if isinstance(best, dict):
+            genome_id = best.get("genome_id")
+            metrics = dict(best.get("metrics") or {})
+        stance = "abstain" if doc.get("no_model_beats_baseline", True) else "research"
+        reason = doc.get("decision")
+    gate = metrics.get("strict_gate") if isinstance(metrics.get("strict_gate"), dict) else {}
+    compact = {key: metrics.get(key) for key in _HAND_METRICS}
+    return _closed_hand(
+        linked=bool(genome_id),
+        source=name,
+        created_at=created_i or None,
+        genome_id=genome_id,
+        stance=stance,
+        stance_reason=reason,
+        beats_baseline=bool(metrics.get("beats_baseline")),
+        strict_gate_passed=bool(gate.get("passed")),
+        strict_gate_failed=list(gate.get("failed") or []),
+        metrics=compact,
+        research_champion=champ_passed,
+        champion_genome_id=(champ or {}).get("genome_id") if champ_passed else None,
+    )
 
 
 def oos_predictions(data: pd.DataFrame, g: dict[str, str], n_folds: int = N_FOLDS) -> pd.DataFrame:

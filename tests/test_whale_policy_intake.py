@@ -482,11 +482,16 @@ def test_whale_policy_api_endpoints():
     assert pred_data["execution_permission"] == "none"
     assert pred_data["signal"]["execution_permission"] == "none"
 
+    before = client.get("/api/control/state").json()
+    open_before = len(before["open_positions"])
     res_ingest = client.post("/api/control/ingest-whale-signal", json={"symbol": "BTC-USD", "data_age_ms": 8.4})
     assert res_ingest.status_code == 200
     ingest_data = res_ingest.json()
     assert ingest_data["execution_permission"] == "none"
-    assert ingest_data["intake_report"]["execution_permission"] == "none"
+    assert ingest_data["orders"] == "none"
+    assert ingest_data["may_propose_order"] is False
+    assert ingest_data["intake_report"] is None
+    assert len(client.get("/api/control/state").json()["open_positions"]) == open_before
 
 
 def test_audit_deduplication_and_control_gateway():

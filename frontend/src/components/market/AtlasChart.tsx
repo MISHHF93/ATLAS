@@ -8,6 +8,8 @@ import { createChart, type CandlestickData, type IChartApi, type ISeriesApi, typ
 import type { LiveSnapshot } from "./liveTypes";
 import { deskTimeOptions } from "./lwTime";
 import { MARKER_CLASSES, altToCandles, type OppMarker } from "./opportunityMarkers";
+import { orderedChartPoints } from "./chartSeries";
+import { useFeedQuotes } from "../../lib/feedQuotes";
 
 export const CHART_INTERVALS = ["live", "1m", "5m", "15m", "1h", "4h", "1d"] as const;
 export type ChartInterval = (typeof CHART_INTERVALS)[number];
@@ -59,6 +61,17 @@ export type Overlays = {
   };
   ml_panel: null | {
     execution_permission: string;
+    can_buy?: boolean;
+    can_sell?: boolean;
+    research_hand?: null | {
+      genome_id?: string | null;
+      stance?: string;
+      stance_reason?: string | null;
+      can_buy?: boolean;
+      can_sell?: boolean;
+      strict_gate_passed?: boolean;
+      research_champion?: boolean;
+    };
     evolution: null | { run_id: string; created_at: number; decision: string; no_model_beats_baseline: boolean; challenger: string;
       metrics: Record<string, number | boolean | null>;
       symbol_live_metrics?: Record<string, number | boolean | null> | null };
@@ -81,18 +94,29 @@ export function tradingViewUrl(sym: string) {
 
 function useOverlays(symbol: string, interval: string, barType: string, live: boolean) {
   const [d, setD] = useState<Overlays | null>(null);
+  const [barsRev, setBarsRev] = useState<Bar[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
-    setLoading(true); setErr(null);
-    fetch(`/api/ai/chart/overlays?symbol=${encodeURIComponent(symbol)}&interval=${interval}&bar_type=${barType}&limit=600`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((p: Overlays) => { if (alive) setD(p); })
-      .catch((e: Error) => { if (alive) { if (!live) setD(null); setErr(e.message); } })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
+    const pull = (initial: boolean) => {
+      if (initial) { setLoading(true); setErr(null); }
+      fetch(`/api/ai/chart/overlays?symbol=${encodeURIComponent(symbol)}&interval=${interval}&bar_type=${barType}&limit=600`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((p: Overlays) => {
+          if (!alive) return;
+          // Bar polls must not rebuild the chart. Layers refresh only on the first load and the live minute tick.
+          if (initial) setD(p);
+          if (Array.isArray(p.bars)) setBarsRev(p.bars);
+        })
+        .catch((e: Error) => { if (alive && initial) { if (!live) setD(null); setErr(e.message); } })
+        .finally(() => { if (alive && initial) setLoading(false); });
+    };
+    pull(true);
+    // Closed bars arrive after the provider bar ends. Poll so a 15m/1h chart moves without a reload.
+    const timer = window.setInterval(() => pull(false), 20_000);
+    return () => { alive = false; window.clearInterval(timer); };
   }, [symbol, interval, barType, live, tick]);
   // Live: every layer is recomputed on bar CLOSE only. Refetch a few seconds after each minute closes.
   useEffect(() => {
@@ -102,7 +126,7 @@ function useOverlays(symbol: string, interval: string, barType: string, live: bo
     arm();
     return () => window.clearTimeout(t);
   }, [live]);
-  return { data: d, error: err, loading, refresh: () => setTick((n) => n + 1) };
+  return { data: d, barsRev, error: err, loading, refresh: () => setTick((n) => n + 1) };
 }
 
 /** Live tape: /api/market/live-view (genuine public candles only), polled at the server's refresh cadence. */
@@ -202,13 +226,15 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const [barType, setBarType] = useState("time");
   const [on, setOn] = useState<Record<LayerId, boolean>>(() => Object.fromEntries(LAYERS.map((l) => [l.id,
     allLayers || ["ml_markers", "ml_probability", "setups", "zones", "vwap", "conviction", "predictions", "marker_details", "trade_lines", "prediction_zone", "outcomes"].includes(l.id)])) as Record<LayerId, boolean>);
-  const { data, error, loading, refresh } = useOverlays(sym, live ? "1m" : interval, live ? "time" : barType, live);
+  const { data, barsRev, error, loading, refresh } = useOverlays(sym, live ? "1m" : interval, live ? "time" : barType, live);
+  const quote = useFeedQuotes([symbol])[symbol];
   const tape = useLiveTape(symbol, live, onLiveSnapshot);
   const box = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const candlesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volRef = useRef<ReturnType<IChartApi["addHistogramSeries"]> | null>(null);
   const [geo, setGeo] = useState<Geo>({ chips: [], band: null });
   const [sel, setSel] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
@@ -230,10 +256,13 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   }, [data, on.ml_markers, on.setups]);
   const fwd = data?.layers.forward;
   const preds = data?.layers.predictions;
+  const bars = useMemo(() => orderedChartPoints(barsRev ?? data?.bars ?? []), [barsRev, data]);
+  const barsRef = useRef(bars);
+  barsRef.current = bars;
 
   useEffect(() => {
     const el = box.current;
-    if (!el || !data || !data.bars.length) return;
+    if (!el || !data || !bars.length) return;
     const css = getComputedStyle(el);
     const text = css.getPropertyValue("--c-muted").trim() || "#98A3B3";
     const grid = css.getPropertyValue("--c-border").trim() || "#27303D";
@@ -249,13 +278,14 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       const rg = chart.addHistogramSeries({ priceScaleId: "regime", lastValueVisible: false, priceLineVisible: false });
       chart.priceScale("regime").applyOptions({ scaleMargins: { top: 0, bottom: 0 }, visible: false });
       const pts: { time: UTCTimestamp; value: number; color: string }[] = [];
-      for (const s of data.layers.regimes.spans) for (const b of data.bars) if (b.time >= s.from && b.time <= s.to)
+      for (const s of data.layers.regimes.spans) for (const b of bars) if (b.time >= s.from && b.time <= s.to)
         pts.push({ time: b.time as UTCTimestamp, value: 1, color: REGIME_COLORS[s.trend] ?? "transparent" });
-      rg.setData(pts);
+      rg.setData(orderedChartPoints(pts));
     }
     const vol = chart.addHistogramSeries({ priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
+    volRef.current = vol;
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 1 - bottom - 0.1, bottom }, visible: false });
-    vol.setData(data.bars.map((b) => ({ time: b.time as UTCTimestamp, value: b.volume, color: b.close >= b.open ? "rgba(46,184,138,0.35)" : "rgba(240,128,60,0.35)" })));
+    vol.setData(bars.map((b) => ({ time: b.time as UTCTimestamp, value: b.volume, color: b.close >= b.open ? "rgba(46,184,138,0.35)" : "rgba(240,128,60,0.35)" })));
     const candles: ISeriesApi<"Candlestick"> = chart.addCandlestickSeries({ upColor: "#2EB88A", downColor: "#F0803C", borderVisible: false,
       wickUpColor: "#2EB88A", wickDownColor: "#F0803C" });
     candlesRef.current = candles;
@@ -263,23 +293,23 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
     const alt = !live && data.display?.kind !== "time" && data.display?.status === "ok" && data.display.bars?.length
       ? altToCandles(data.display.bars.map((a) => ({ ...a, completed_at: a.time })), dur) : null;
     const series: (CandlestickData<UTCTimestamp> | WhitespaceData<UTCTimestamp>)[] =
-      alt ?? data.bars.map((b) => ({ time: b.time as UTCTimestamp, open: b.open, high: b.high, low: b.low, close: b.close }));
+      alt ?? bars.map((b) => ({ time: b.time as UTCTimestamp, open: b.open, high: b.high, low: b.low, close: b.close }));
     // Prediction horizon: whitespace (no fabricated candles) out to horizon_end so the band has room at the right edge.
     if (on.prediction_zone && !alt && fwd?.status === "ok" && fwd.horizon_end) {
-      const last = data.bars[data.bars.length - 1].time;
+      const last = bars[bars.length - 1].time;
       for (let t = last + dur; t <= fwd.horizon_end + dur; t += dur) series.push({ time: t as UTCTimestamp });
     }
-    candles.setData(series);
+    candles.setData(orderedChartPoints(series));
     // Past predictions as hit/miss (resolved only), native markers under the bar.
     if (on.predictions && preds?.items.length) {
-      const times = new Set(data.bars.map((b) => b.time));
+      const times = new Set(bars.map((b) => b.time));
       candles.setMarkers(preds.items.filter((p) => p.hit != null && times.has(p.time)).sort((a, b) => a.time - b.time).map((p) => ({
         time: p.time as UTCTimestamp, position: "belowBar" as const, shape: "circle" as const, size: 0.6,
         color: p.hit ? "#2EB88A" : "#F0803C", text: `${p.hit ? "hit" : "miss"} ${Math.round(p.p * 100)}%` })));
     }
     if (on.vwap && data.layers.vwap?.points.length) {
       const vw = chart.addLineSeries({ color: "#F0E442", lineWidth: 1, lastValueVisible: false, priceLineVisible: false, title: "VWAP" });
-      vw.setData(data.layers.vwap.points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
+      vw.setData(orderedChartPoints(data.layers.vwap.points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value }))));
     }
     if (on.zones) for (const z of data.layers.zones?.items ?? []) {
       const color = ZONE_COLORS[z.kind] ?? "#98A3B3";
@@ -290,13 +320,13 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       const pr = chart.addLineSeries({ priceScaleId: "left", color: "#56B4E9", lineWidth: 1, pointMarkersVisible: true, lastValueVisible: true,
         priceLineVisible: false, title: "ML p(win)" });
       chart.priceScale("left").applyOptions({ scaleMargins: { top: 0.74, bottom: 0.02 }, visible: true, borderColor: grid });
-      pr.setData(data.layers.ml_probability!.points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value, color: p.take ? "#0072B2" : "#98A3B3" })));
+      pr.setData(orderedChartPoints(data.layers.ml_probability!.points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value, color: p.take ? "#0072B2" : "#98A3B3" }))));
     }
     const layout = () => {
       const ts = chart.timeScale();
       const chips = visibleMarkers.map((m) => {
         const x = ts.timeToCoordinate(m.time as UTCTimestamp);
-        const b = data.bars.find((r) => r.time === m.time);
+        const b = bars.find((r) => r.time === m.time);
         const y = candles.priceToCoordinate(b ? (m.direction === "short" ? b.high : b.low) : m.price);
         return x == null || y == null ? null : { m, x, y };
       }).filter(Boolean) as Geo["chips"];
@@ -331,15 +361,61 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => relayout.current());
     const ro = new ResizeObserver(() => relayout.current()); ro.observe(el);
     const t = setTimeout(() => relayout.current(), 60);
-    return () => { clearTimeout(t); cancelAnimationFrame(raf); ro.disconnect(); chart.remove(); chartRef.current = null; candlesRef.current = null; relayout.current = () => {}; };
+    return () => { clearTimeout(t); cancelAnimationFrame(raf); ro.disconnect(); chart.remove(); chartRef.current = null; candlesRef.current = null; volRef.current = null; relayout.current = () => {}; };
   }, [data, on, visibleMarkers, height, fwd, preds, live]);
+
+  // Newer closed bars replace the candle series in place. The chart is not rebuilt, and a user who is at the
+  // right edge keeps following the latest bar.
+  const drawnRev = useRef<Bar[] | null>(null);
+  useEffect(() => {
+    const c = candlesRef.current, v = volRef.current, chart = chartRef.current;
+    if (!c || !chart || !barsRev?.length || drawnRev.current === barsRev) return;
+    const alt = !live && data?.display?.kind && data.display.kind !== "time" && data.display.status === "ok";
+    if (alt) { drawnRev.current = barsRev; return; }
+    const points = orderedChartPoints(barsRev.map((b) => ({ time: b.time as UTCTimestamp, open: b.open, high: b.high, low: b.low, close: b.close })));
+    if (!points.length) return;
+    const range = chart.timeScale().getVisibleLogicalRange();
+    const prev = drawnRev.current?.length ?? points.length;
+    drawnRev.current = barsRev;
+    try { c.setData(points); } catch { return; }
+    if (v) {
+      try {
+        v.setData(orderedChartPoints(barsRev.map((b) => ({ time: b.time as UTCTimestamp, value: b.volume, color: b.close >= b.open ? "rgba(46,184,138,0.35)" : "rgba(240,128,60,0.35)" }))));
+      } catch { /* series already removed */ }
+    }
+    const added = points.length - prev;
+    if (range && Number.isFinite(added)) {
+      const follow = range.to >= prev - 1.5;
+      chart.timeScale().setVisibleLogicalRange(follow ? { from: range.from + added, to: range.to + added } : range);
+    }
+  }, [barsRev, data, live]);
+
+  // Last print from the feed store moves the forming candle between bar closes.
+  useEffect(() => {
+    const c = candlesRef.current;
+    if (!c || !quote || quote.price == null || quote.observed_at == null) return;
+    if (quote.status === "stale" || quote.status === "no_data" || quote.status === "market_closed") return;
+    if (!quote.source || quote.source === "yahoo") return;
+    if (Date.now() / 1000 - quote.observed_at > 20 * 60) return;
+    if (!live && barType !== "time") return;
+    const dur = DUR[live ? "1m" : interval] ?? 900;
+    const stamp = Math.floor(quote.observed_at);
+    const bucket = (stamp - (stamp % dur)) as UTCTimestamp;
+    const last = barsRef.current[barsRef.current.length - 1];
+    if (!last || bucket < last.time || bucket > last.time + dur) return;
+    const price = quote.price;
+    const same = bucket === last.time;
+    try {
+      c.update({ time: bucket, open: same ? last.open : price, high: same ? Math.max(last.high, price) : price, low: same ? Math.min(last.low, price) : price, close: price });
+    } catch { /* the series has no bar this update can follow */ }
+  }, [quote, live, interval, barType]);
 
   // Live: update the forming minute from genuine public candles only. Layers stay on closed bars.
   useEffect(() => {
     const c = candlesRef.current, s = tape.snap;
-    if (!live || !c || !data?.bars.length || !s) return;
+    if (!live || !c || !bars.length || !s) return;
     if (!["public_last_trade", "public_market_candles"].includes(s.chart_source ?? "")) return;
-    const lastClosed = data.bars[data.bars.length - 1].time;
+    const lastClosed = bars[bars.length - 1].time;
     const byMin = new Map<number, { time: UTCTimestamp; open: number; high: number; low: number; close: number }>();
     for (const b of s.candles ?? []) {
       const t = Math.floor(Date.parse(b.timestamp) / 1000);
@@ -350,7 +426,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       byMin.set(m, cur ? { ...cur, high: Math.max(cur.high, b.high), low: Math.min(cur.low, b.low), close: b.close } : { time: m as UTCTimestamp, open: b.open, high: b.high, low: b.low, close: b.close });
     }
     try { [...byMin.values()].sort((a, b) => a.time - b.time).forEach((p) => c.update(p)); } catch { /* whitespace ahead: skip */ }
-  }, [tape.snap, live, data]);
+  }, [tape.snap, live, data, bars]);
 
   const all = useMemo(() => [...(data?.layers.ml_markers?.items ?? []), ...(data?.layers.setups?.items ?? [])], [data]);
   const selected = all.find((m) => m.id === sel) ?? null;
@@ -365,7 +441,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       c.createPriceLine({ price: selected.stop, color: "#F0803C", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "stop" }),
       c.createPriceLine({ price: selected.target, color: "#2EB88A", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "target" }),
     ];
-    const path = (selected.resolution_path ?? []).filter((p, i, a) => i === 0 || p.time > a[i - 1].time);
+    const path = orderedChartPoints(selected.resolution_path ?? []);
     const ps = path.length > 1 ? chart.addLineSeries({ color: "#E8EEF5", lineWidth: 2, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false }) : null;
     ps?.setData(path.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
     return () => { try { lines.forEach((l) => c.removePriceLine(l)); if (ps) chart.removeSeries(ps); } catch { /* chart already gone */ } };
@@ -571,7 +647,8 @@ export function AtlasMlPanel({ data, showConviction, showPredictions, onRefresh 
           <dt>Current model</dt><dd>{cm ? `${cm.version} (${cm.status})` : "none registered for this market"}</dd>
           <dt>Evolution run</dt><dd>{ev ? ev.run_id : "no run yet"}</dd>
           <dt>Decision</dt><dd>{ev ? ev.decision.replace(/_/g, " ") : "—"}</dd>
-          <dt>Champion</dt><dd>{ml?.champion ? String((ml.champion as { genome_id?: string }).genome_id ?? "set") : "none (baseline stays)"}</dd>
+          <dt>Research hand</dt><dd>{ml?.research_hand?.genome_id ?? "not linked"} · stance {ml?.research_hand?.stance ?? "abstain"} · cannot buy or sell</dd>
+          <dt>Champion</dt><dd>{ml?.champion ? String((ml.champion as { genome_id?: string }).genome_id ?? "set") : "none (strict gate has not passed)"}</dd>
         </dl>
         <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
           <button

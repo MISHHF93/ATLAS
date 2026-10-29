@@ -41,6 +41,13 @@ export interface CatalogListingItem {
   quote_source?: string | null;
   quote_time?: string | null;
   execution_permission: "none";
+  market_id?: string;
+  market_name?: string;
+  market_open?: boolean;
+  market_label?: string;
+  market_session?: string;
+  market_countdown?: string;
+  market_status?: string;
 }
 
 interface BlotterPosition {
@@ -57,6 +64,38 @@ interface BlotterPosition {
   unrealizedPnlUsd: number;
   tactic: string;
   status: "OPEN" | "FLATTENED";
+}
+
+function readServerPositions(rows: unknown): BlotterPosition[] {
+  if (!Array.isArray(rows)) return [];
+  const out: BlotterPosition[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const item = row as Record<string, unknown>;
+    if (String(item.status ?? "open") !== "open") continue;
+    const notional = Number(item.notional_usd ?? 0);
+    const entry = Number(item.entry_price ?? 0);
+    const bps = Number(item.stop_distance_bps ?? 0);
+    const side = String(item.side ?? "buy").toLowerCase() === "sell" ? "SHORT" : "LONG";
+    const stop =
+      entry > 0 && bps > 0 ? entry * (side === "LONG" ? 1 - bps / 10000 : 1 + bps / 10000) : 0;
+    out.push({
+      positionId: String(item.position_id ?? ""),
+      symbol: String(item.instrument_id ?? ""),
+      track: String(item.track) === "open_market" ? "open_market" : "competition",
+      side,
+      quantity: entry > 0 ? Number((notional / entry).toFixed(entry > 500 ? 4 : 2)) : 0,
+      notionalUsd: notional,
+      entryPrice: entry,
+      markPrice: entry,
+      stopLossPrice: Number(stop.toFixed(entry > 0 && entry < 5 ? 4 : 2)),
+      takeProfitPrice: 0,
+      unrealizedPnlUsd: 0,
+      tactic: "paper",
+      status: "OPEN",
+    });
+  }
+  return out;
 }
 
 interface WorkingOrderItem {
@@ -545,6 +584,7 @@ export function StreamlinedTradingStudio() {
       countdown: string;
       schedule_summary: string;
       reason: string;
+      look_symbol?: string;
     }>;
     by_symbol?: Record<string, {
       symbol: string;
@@ -556,8 +596,11 @@ export function StreamlinedTradingStudio() {
       countdown: string;
       schedule_summary: string;
       reason: string;
+      trading_session?: string;
+      scheduled_market_status?: string;
     }>;
   } | null>(null);
+  const [openNowOnly, setOpenNowOnly] = useState(false);
   const [killSwitchEngaged, setKillSwitchEngaged] = useState<boolean>(false);
 
   // Collapsible Bottom Drawer State
@@ -581,7 +624,7 @@ export function StreamlinedTradingStudio() {
   }>({
     status: "nominal",
     message:
-      "ActionableControlPlaneEngine Ready · Strict 0.50%–0.75% Equity Risk Sizing · Mandatory ATR Bracket Armed.",
+      "No deposited capital is loaded. The model can show a stance and cannot buy or sell.",
   });
 
   const [positions, setPositions] = useState<BlotterPosition[]>([]);
@@ -594,9 +637,44 @@ export function StreamlinedTradingStudio() {
     high_water_mark_usd: string;
     best_day_profit_usd: string;
     total_cumulative_profit_usd: string;
+    cash_usd?: string;
+    cash_tracked?: boolean;
   } | null>(null);
+  const [researchHand, setResearchHand] = useState("");
+  const [depositsLoaded, setDepositsLoaded] = useState(false);
+  const [freeCashUsd, setFreeCashUsd] = useState(0);
+  const [capitalAmount, setCapitalAmount] = useState("1000");
+  const [capitalBusy, setCapitalBusy] = useState(false);
   const [controlAvailable, setControlAvailable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [closingPositionId, setClosingPositionId] = useState<string | null>(null);
+  const applyControlState = useCallback((state: {
+    account?: {
+      current_equity_usd?: string;
+      cash_usd?: string;
+      cash_tracked?: boolean;
+    };
+    deposits_loaded?: boolean;
+    kill_switch_engaged?: boolean;
+    open_positions?: unknown;
+    audit_log?: unknown;
+    research_hand?: { genome_id?: string } | null;
+  } | null) => {
+    if (!state || typeof state !== "object") return;
+    if (state.account && typeof state.account === "object") {
+      setAccount(state.account as NonNullable<typeof account>);
+      setDepositsLoaded(state.deposits_loaded !== false && Number(state.account.current_equity_usd ?? 0) > 0);
+      setFreeCashUsd(state.account.cash_tracked ? Number(state.account.cash_usd ?? 0) : 0);
+    }
+    if ("kill_switch_engaged" in state) setKillSwitchEngaged(Boolean(state.kill_switch_engaged));
+    if ("open_positions" in state) setPositions(readServerPositions(state.open_positions));
+    if (Array.isArray(state.audit_log)) setAuditLogs(state.audit_log.map(String));
+    if ("research_hand" in state) {
+      const hand = state.research_hand;
+      setResearchHand(hand && typeof hand === "object" && hand.genome_id ? String(hand.genome_id) : "");
+    }
+    setControlAvailable(true);
+  }, []);
   useEffect(() => {
     let active = true;
     const refresh = async () => {
@@ -604,16 +682,17 @@ export function StreamlinedTradingStudio() {
         const response = await fetch("/api/control/state", { cache: "no-store" });
         if (!response.ok) throw new Error("Control plane unavailable");
         const state = await response.json();
-        if (active) { setAccount(state.account); setKillSwitchEngaged(state.kill_switch_engaged); setControlAvailable(true); }
+        if (active) applyControlState(state);
       } catch { if (active) setControlAvailable(false); }
     };
     void refresh();
     const timer = setInterval(refresh, 2000);
     return () => { active = false; clearInterval(timer); };
-  }, []);
+  }, [applyControlState]);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const catalogListRef = useRef<HTMLDivElement | null>(null);
+  const catalogSymbolsRef = useRef<string[]>([]);
   const catalogOffsetRef = useRef(0);
   const catalogTotalRef = useRef<number | null>(null);
   const catalogLoadingRef = useRef(false);
@@ -627,6 +706,7 @@ export function StreamlinedTradingStudio() {
   const nativeQuoteSymbolRef = useRef<string | null>(null);
   const prevSymbolRef = useRef<string>("BTC-USD");
   selectedSymbolRef.current = selectedSymbol;
+  catalogSymbolsRef.current = catalogListings.map((item) => item.symbol);
 
   // Ctrl + K global command palette shortcut
   useEffect(() => {
@@ -1203,10 +1283,31 @@ export function StreamlinedTradingStudio() {
     let alive = true;
     const pullSessions = async () => {
       try {
-        const r = await fetch("/api/market/sessions", { cache: "no-store" });
+        const symbols = catalogSymbolsRef.current.slice(0, 60);
+        const selected = selectedSymbolRef.current;
+        if (selected && !symbols.includes(selected)) symbols.unshift(selected);
+        const query = symbols.length ? `?symbols=${encodeURIComponent(symbols.slice(0, 60).join(","))}` : "";
+        const r = await fetch(`/api/market/sessions${query}`, { cache: "no-store" });
         if (!r.ok) return;
         const body = await r.json();
-        if (alive) setMarketSessions(body);
+        if (!alive) return;
+        setMarketSessions(body);
+        const by = body?.by_symbol;
+        if (!by || typeof by !== "object") return;
+        setCatalogListings((prev) => prev.map((item) => {
+          const st = by[item.symbol.toUpperCase()] ?? by[item.symbol];
+          if (!st) return item;
+          return {
+            ...item,
+            market_id: st.venue_id,
+            market_name: st.venue_name,
+            market_open: Boolean(st.is_open),
+            market_label: st.status_label,
+            market_session: st.trading_session,
+            market_countdown: st.countdown,
+            market_status: st.scheduled_market_status ?? st.status,
+          };
+        }));
       } catch {
         // fallback to local clock
       }
@@ -1259,8 +1360,13 @@ export function StreamlinedTradingStudio() {
       Math.round(drawdownReferenceUsd * (trailingDdFloorPct / 100) - Math.max(0, drawdownReferenceUsd - accountEquityUsd))
     );
 
+    const noDepositedCapital = !depositsLoaded || accountEquityUsd <= 0;
+    const cashTracked = Boolean(account?.cash_tracked);
+    const exceedsFreeCash = cashTracked && cappedNotionalUsd > freeCashUsd + 0.001;
     const withinRiskCap = equityRiskPct >= 0.5 && equityRiskPct <= riskCapPct;
     const hardRiskBreach =
+      noDepositedCapital ||
+      exceedsFreeCash ||
       !hasQuote ||
       !profile.canExecuteTraderOrders ||
       !feedAvailable || !controlAvailable || submitting || killSwitchEngaged ||
@@ -1282,9 +1388,10 @@ export function StreamlinedTradingStudio() {
       trailingRoomUsd,
       withinRiskCap,
       hardRiskBreach,
+      exceedsFreeCash,
     };
   }, [
-    account, accountEquityUsd, controlAvailable, feedAvailable, submitting, dailyLossUsedPct, trailingDdUsedPct,
+    account, accountEquityUsd, controlAvailable, depositsLoaded, feedAvailable, freeCashUsd, submitting, dailyLossUsedPct, trailingDdUsedPct,
     activeAsset.last_price,
     atrStopBps,
     dailyLossLimitPct,
@@ -1322,6 +1429,7 @@ export function StreamlinedTradingStudio() {
         }),
       });
       if (!response.ok) throw new Error(response.status === 403 ? "This role cannot turn the desk off." : "The desk did not change. State is unconfirmed.");
+      applyControlState(await response.json());
     } catch (error) {
       setOrderFeedback({
         status: "rejected",
@@ -1331,7 +1439,6 @@ export function StreamlinedTradingStudio() {
     }
     setKillSwitchEngaged(nextState);
     if (nextState) {
-      setPositions((prev) => prev.map((p) => ({ ...p, status: "FLATTENED" })));
       setOrderFeedback({
         status: "rejected",
         message: "The desk is off. Open paper positions were closed. New orders stay stopped.",
@@ -1339,8 +1446,66 @@ export function StreamlinedTradingStudio() {
     } else {
       setOrderFeedback({
         status: "nominal",
-        message: "The desk is on. Paper orders can be submitted again.",
+        message: accountEquityUsd <= 0 || !depositsLoaded
+          ? "The desk is on. No deposited capital is loaded. The model can show a stance and cannot buy or sell."
+          : "The desk is on. Paper orders can be submitted again.",
       });
+    }
+  };
+
+  const handlePaperCapital = async (path: "deposit" | "withdraw") => {
+    const amount = Number(capitalAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setOrderFeedback({ status: "rejected", message: "Enter a paper amount greater than zero." });
+      return;
+    }
+    setCapitalBusy(true);
+    try {
+      const response = await fetch(`/api/capital/${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount_usd: amount.toFixed(2) }),
+      });
+      const body = await response.json().catch(() => ({}));
+      const detail = body?.detail && typeof body.detail === "object" ? body.detail : body;
+      if (!response.ok) {
+        const reason = String(detail?.reason || "paper_capital_refused");
+        setOrderFeedback({
+          status: "rejected",
+          message:
+            reason === "insufficient_paper_cash"
+              ? "That withdrawal is larger than free paper cash."
+              : reason === "no_deposited_capital"
+              ? "Load paper cash before a withdrawal."
+              : `Paper ${path} was refused (${reason}).`,
+        });
+        return;
+      }
+      const nextEquity = String(detail.equity_usd ?? "0");
+      const nextCash = String(detail.free_cash_usd ?? "0");
+      setFreeCashUsd(Number(nextCash));
+      setDepositsLoaded(Boolean(detail.deposits_loaded));
+      setAccount((prev) =>
+        prev
+          ? {
+              ...prev,
+              current_equity_usd: nextEquity,
+              cash_usd: nextCash,
+              cash_tracked: Boolean(detail.cash_tracked),
+              initial_equity_usd: detail.deposits_loaded ? nextEquity : prev.initial_equity_usd,
+              start_of_day_equity_usd: detail.deposits_loaded ? nextEquity : "0",
+              high_water_mark_usd: detail.deposits_loaded ? nextEquity : prev.high_water_mark_usd,
+            }
+          : prev
+      );
+      setOrderFeedback({
+        status: "authorized",
+        message: `Paper ${path} booked. Free cash $${Number(detail.free_cash_usd ?? 0).toLocaleString()} · equity $${Number(detail.equity_usd ?? 0).toLocaleString()}. The research hand cannot buy or sell.`,
+      });
+    } catch {
+      setOrderFeedback({ status: "rejected", message: "Paper capital request did not reach the desk." });
+    } finally {
+      setCapitalBusy(false);
     }
   };
 
@@ -1362,6 +1527,7 @@ export function StreamlinedTradingStudio() {
         body: JSON.stringify({ reason: "studio_one_click_flatten" }),
       });
       if (!response.ok) throw new Error(response.status === 403 ? "Role is not authorized to flatten." : "Flatten request failed; state is unconfirmed.");
+      applyControlState(await response.json());
     } catch (error) {
       setOrderFeedback({
         status: "rejected",
@@ -1369,26 +1535,66 @@ export function StreamlinedTradingStudio() {
       });
       return;
     }
-    setPositions((prev) => prev.map((p) => ({ ...p, status: "FLATTENED" })));
     setOrderFeedback({
       status: "authorized",
       message: "Paper positions closed. Nothing was sent to a broker.",
     });
-    setAuditLogs((prev) => [
-      `${new Date().toISOString()} | control_plane | 1-Click Auto-Flatten closed all active positions | status=FLATTENED`,
-      ...prev.slice(0, 24),
-    ]);
+  };
+
+  const handleClosePosition = async (pos: BlotterPosition) => {
+    if (!profile.canExecuteTraderOrders || closingPositionId) return;
+    const base = activeAsset.symbol.split("-")[0].toLowerCase();
+    const chartMatches = base.length > 0 && pos.symbol.toLowerCase().includes(base);
+    const exit = chartMatches && activeAsset.last_price > 0 ? activeAsset.last_price : pos.entryPrice;
+    if (!(exit > 0)) {
+      setOrderFeedback({ status: "rejected", message: "This paper position has no price to close against." });
+      return;
+    }
+    setClosingPositionId(pos.positionId);
+    try {
+      const response = await fetch("/api/control/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Atlas-Role": role },
+        body: JSON.stringify({
+          position_id: pos.positionId,
+          exit_price: exit,
+          fraction: 1,
+          fee_usd: "0",
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.close?.status === "rejected") {
+        throw new Error(body?.close?.reason || `Close returned HTTP ${response.status}`);
+      }
+      if (body?.state) applyControlState(body.state);
+      const pnl = Number(body?.close?.paper_pnl_usd ?? 0);
+      setOrderFeedback({
+        status: "authorized",
+        message: `Paper ${pos.positionId} closed at ${exit}. P&L $${pnl.toFixed(2)}. The research hand cannot buy or sell.`,
+      });
+    } catch (error) {
+      setOrderFeedback({
+        status: "rejected",
+        message: error instanceof Error ? error.message : "Close did not reach the paper book.",
+      });
+    } finally {
+      setClosingPositionId(null);
+    }
   };
 
   // Submit Pre-Trade Bracket Order to ActionableControlPlaneEngine
   const handleSubmitBracketOrder = async () => {
     if (sizingCalculation.hardRiskBreach) {
-      const rejectReason = !profile.canExecuteTraderOrders
+      const rejectReason = accountEquityUsd <= 0 || !depositsLoaded
+        ? "No deposited capital is loaded. The model can show a stance and cannot buy or sell."
+        : !profile.canExecuteTraderOrders
         ? "Rejected: this role cannot submit orders. Research output stays execution_permission none."
         : activeAsset.last_price <= 0
         ? "Rejected: this name has no quote. Nothing was sent."
         : killSwitchEngaged
         ? "The desk is off. Nothing was sent."
+        : sizingCalculation.exceedsFreeCash
+        ? `Rejected: ticket $${sizingCalculation.notionalUsd.toLocaleString()} is above free paper cash $${freeCashUsd.toLocaleString()}.`
         : equityRiskPct > riskCapPct
         ? `Rejected: Per-trade risk (${equityRiskPct.toFixed(2)}%) exceeds the ${riskCapPct.toFixed(2)}% ${deskTrack} cap.`
         : equityRiskPct < 0.5
@@ -1426,31 +1632,29 @@ export function StreamlinedTradingStudio() {
           reference_price: activeAsset.last_price,
           suggested_stop_loss: sizingCalculation.stopLossPrice,
           suggested_take_profit: sizingCalculation.takeProfitPrice,
-          execution_permission: "none", telemetry: { vpin: activeAsset.vpin },
+          execution_permission: "none",
+          telemetry: { vpin: activeAsset.vpin, desired_notional_usd: sizingCalculation.notionalUsd },
         }),
       });
       if (!response.ok) throw new Error(`Control plane returned HTTP ${response.status}`);
       intake = await response.json();
       if (intake.decision.control_plane_decision !== "authorized_and_executed") {
-        throw new Error(intake.decision.violations.join("; "));
+        throw new Error((intake.decision.violations || []).join("; ") || "rejected_by_control_plane");
       }
+      if (intake.state) applyControlState(intake.state);
     } catch (error) {
       setOrderFeedback({ status: "rejected", message: error instanceof Error ? error.message : "Order status unavailable. Check the control plane before retrying." });
       return;
     } finally { setSubmitting(false); }
 
     const newOrderId = intake.order_id;
-    const authReason = `Authorized by ActionableControlPlaneEngine (${equityRiskPct.toFixed(
-      2
-    )}% risk = $${sizingCalculation.riskDollars} · SL $${sizingCalculation.stopLossPrice} · TP $${
-      sizingCalculation.takeProfitPrice
-    })`;
+    const bookedNotional = Number(intake.decision?.notional_usd ?? intake.sized_notional_usd ?? sizingCalculation.notionalUsd);
+    const bookedPosition = intake.decision?.position_id ? String(intake.decision.position_id) : "paper";
+    const authReason = `Paper book ${bookedPosition} · $${bookedNotional.toLocaleString()} · the research hand cannot buy or sell`;
 
     setOrderFeedback({
       status: "authorized",
-      message: `PAPER ${newOrderId} AUTHORIZED: ${orderSide} ${sizingCalculation.quantity} ${
-        activeAsset.symbol
-      } ($${sizingCalculation.notionalUsd.toLocaleString()}) via ${executionTactic}`,
+      message: `PAPER ${newOrderId} booked ${bookedPosition}: ${orderSide} ${activeAsset.symbol} ($${bookedNotional.toLocaleString()}). The research hand cannot buy or sell.`,
     });
 
     setWorkingOrders((prev) => [
@@ -1460,41 +1664,15 @@ export function StreamlinedTradingStudio() {
         symbol: activeAsset.symbol,
         side: orderSide,
         orderType: executionTactic,
-        notionalUsd: sizingCalculation.notionalUsd,
+        notionalUsd: bookedNotional,
         riskPct: equityRiskPct,
         entryPrice: activeAsset.last_price,
         stopLossPrice: sizingCalculation.stopLossPrice,
         takeProfitPrice: sizingCalculation.takeProfitPrice,
-        status: executionTactic === "ALMGREN_CHRISS_TWAP" ? "WORKING_TWAP_CHILD" : "AUTHORIZED_FILLED",
+        status: "AUTHORIZED_FILLED",
         reason: authReason,
       },
       ...prev,
-    ]);
-
-    setPositions((prev) => [
-      {
-        positionId: `POS-${Date.now().toString().slice(-3)}`,
-        symbol: activeAsset.symbol,
-        track: activeAsset.track,
-        side: orderSide === "BUY" ? "LONG" : "SHORT",
-        quantity: sizingCalculation.quantity,
-        notionalUsd: sizingCalculation.notionalUsd,
-        entryPrice: activeAsset.last_price,
-        markPrice: activeAsset.last_price,
-        stopLossPrice: sizingCalculation.stopLossPrice,
-        takeProfitPrice: sizingCalculation.takeProfitPrice,
-        unrealizedPnlUsd: 0.0,
-        tactic: executionTactic,
-        status: "OPEN",
-      },
-      ...prev,
-    ]);
-
-    setAuditLogs((prev) => [
-      `${new Date().toISOString()} | control_plane | Authorized ${newOrderId} ${orderSide} ${
-        activeAsset.symbol
-      } notional=$${sizingCalculation.notionalUsd} risk=${equityRiskPct.toFixed(2)}% | execution_permission=none`,
-      ...prev.slice(0, 24),
     ]);
   };
 
@@ -1874,6 +2052,47 @@ export function StreamlinedTradingStudio() {
           ))}
         </div>
       )}
+      {activeAsset.market_open === false && (marketSessions?.venues?.length ?? 0) > 0 && (
+        <div
+          style={{
+            padding: "4px 14px 8px",
+            background: "var(--c-surface)",
+            borderBottom: "1px solid var(--c-border)",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "8px",
+            alignItems: "center",
+            fontSize: "12px",
+            color: "#F0803C",
+          }}
+        >
+          <span>
+            {activeAsset.symbol} is {activeAsset.market_label || "closed"} on {activeAsset.market_name}.
+            {activeAsset.market_countdown ? ` ${activeAsset.market_countdown}.` : ""}
+          </span>
+          {(marketSessions?.venues ?? []).filter((venue) => venue.is_open).map((venue) => (
+            <button
+              key={venue.venue_id}
+              type="button"
+              onClick={() => {
+                if (venue.look_symbol) handleSelectSymbol(venue.look_symbol);
+              }}
+              style={{
+                padding: "2px 8px",
+                borderRadius: "5px",
+                border: "1px solid rgba(46, 184, 138, 0.45)",
+                background: "rgba(46, 184, 138, 0.1)",
+                color: "#2EB88A",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Look at {venue.venue_name}
+            </button>
+          ))}
+          <span style={{ color: "var(--c-muted)" }}>The chart can move. Open positions stay open.</span>
+        </div>
+      )}
       {/* ====================================================================
           MAIN 3-PANEL STUDIO GRID (20% Left | 55% Center | 25% Right)
          ==================================================================== */}
@@ -2000,6 +2219,23 @@ export function StreamlinedTradingStudio() {
               );
             })}
           </div>
+          <button
+            type="button"
+            aria-pressed={openNowOnly}
+            onClick={() => setOpenNowOnly((on) => !on)}
+            style={{
+              padding: "5px 8px",
+              borderRadius: "5px",
+              border: openNowOnly ? "1px solid rgba(46, 184, 138, 0.7)" : "1px solid var(--c-border)",
+              background: openNowOnly ? "rgba(46, 184, 138, 0.16)" : "var(--c-surface)",
+              color: openNowOnly ? "#2EB88A" : "var(--c-muted)",
+              fontSize: "12px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Open now
+          </button>
           <AssetMarkLegend />
 
           <details style={{ fontSize: "12px", color: "var(--c-muted)", lineHeight: 1.45 }}>
@@ -2017,7 +2253,7 @@ export function StreamlinedTradingStudio() {
             onScroll={onCatalogScroll}
             style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minHeight: 0, maxHeight: "max(360px, calc(100vh - 300px))", overflowY: "auto" }}
           >
-            {catalogListings.map((item) => {
+            {(openNowOnly ? catalogListings.filter((item) => item.market_open === true) : catalogListings).map((item) => {
               const isSelected = item.symbol === selectedSymbol;
               const mark = markForAsset(item.asset_class, item.exchange);
               return (
@@ -2025,7 +2261,7 @@ export function StreamlinedTradingStudio() {
                   key={item.symbol}
                   type="button"
                   onClick={() => handleSelectSymbol(item.symbol)}
-                  title={`${markLabel(mark)} · ${item.name} · ${item.exchange} · VPIN ${(item.vpin * 100).toFixed(1)}% · ${item.regime}`}
+                  title={`${markLabel(mark)} · ${item.name} · ${item.market_name ?? item.exchange} · ${item.market_open ? "Open" : "Closed"} · VPIN ${(item.vpin * 100).toFixed(1)}% · ${item.regime}`}
                   className={`watch-row${isSelected ? " is-selected" : ""}`}
                   aria-pressed={isSelected}
                   data-asset-row={item.symbol}
@@ -2052,6 +2288,12 @@ export function StreamlinedTradingStudio() {
                   ) : <span />}
                   {item.exchange !== "UNLISTED" && item.last_price > 0 ? (
                     <span className="watch-row-meta"><QuoteMeta quote={itemQuote(item)} compact /></span>
+                  ) : null}
+                  {item.is_active !== false && item.market_name ? (
+                    <span className="watch-row-mkt" data-market-open={item.market_open ? "1" : "0"}>
+                      {item.market_open ? "Open" : "Closed"} · {item.market_name}
+                      {item.market_label ? ` · ${item.market_label}` : ""}
+                    </span>
                   ) : null}
                 </button>
               );
@@ -2115,6 +2357,15 @@ export function StreamlinedTradingStudio() {
                   >
                     {activeAsset.asset_class.toUpperCase()} · {activeAsset.exchange === "UNLISTED" ? "Not listed" : activeAsset.exchange}
                   </span>
+                  {activeAsset.market_name ? (
+                    <span
+                      className="asset-card-market"
+                      data-market-open={activeAsset.market_open ? "1" : "0"}
+                    >
+                      {activeAsset.market_open ? "Open" : "Closed"} · {activeAsset.market_name}
+                      {activeAsset.market_label ? ` · ${activeAsset.market_label}` : ""}
+                    </span>
+                  ) : null}
                 </div>
                 <div style={{ fontSize: "11.5px", color: "var(--c-muted)" }}>{activeAsset.name}</div>
               </div>
@@ -2323,6 +2574,13 @@ export function StreamlinedTradingStudio() {
                       </tr>
                     </thead>
                     <tbody>
+                      {positions.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ padding: "8px 6px", color: "var(--c-muted)" }}>
+                            No open paper positions.
+                          </td>
+                        </tr>
+                      ) : null}
                       {positions.map((pos) => (
                         <tr key={pos.positionId} style={{ borderBottom: "1px solid var(--c-border)" }}>
                           <td style={{ padding: "6px", fontWeight: 700, fontFamily: "var(--font-mono, monospace)" }}>
@@ -2338,7 +2596,8 @@ export function StreamlinedTradingStudio() {
                             ${pos.entryPrice.toLocaleString()} / ${pos.markPrice.toLocaleString()}
                           </td>
                           <td style={{ padding: "6px", fontFamily: "var(--font-mono, monospace)", color: "var(--c-muted)" }}>
-                            SL ${pos.stopLossPrice} · TP ${pos.takeProfitPrice}
+                            {pos.stopLossPrice > 0 ? `SL $${pos.stopLossPrice}` : "SL —"}
+                            {pos.takeProfitPrice > 0 ? ` · TP $${pos.takeProfitPrice}` : ""}
                           </td>
                           <td
                             style={{
@@ -2363,6 +2622,24 @@ export function StreamlinedTradingStudio() {
                             >
                               {pos.status}
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => void handleClosePosition(pos)}
+                              disabled={closingPositionId === pos.positionId || !profile.canExecuteTraderOrders}
+                              style={{
+                                marginLeft: "6px",
+                                border: "1px solid var(--c-border)",
+                                background: "transparent",
+                                color: "var(--c-text)",
+                                borderRadius: "4px",
+                                padding: "2px 6px",
+                                cursor: "pointer",
+                                fontSize: "10px",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {closingPositionId === pos.positionId ? "Closing" : "Close"}
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -2468,8 +2745,65 @@ export function StreamlinedTradingStudio() {
                 Risk room
               </span>
               <span style={{ fontSize: "11.5px", fontFamily: "var(--font-mono, monospace)", fontWeight: 700 }}>
-                Equity ${accountEquityUsd.toLocaleString()}
+                Equity ${accountEquityUsd.toLocaleString()} · free cash ${freeCashUsd.toLocaleString()} · {researchHand ? `hand ${researchHand}` : "hand not linked"} · watching {(marketSessions?.venues ?? []).filter((venue) => venue.is_open).map((venue) => venue.venue_name).join(", ") || "the session clock"} · scored book crypto 4h · cannot buy or sell
               </span>
+            </div>
+            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              <input
+                type="number"
+                min={0.01}
+                step={0.01}
+                value={capitalAmount}
+                onChange={(event) => setCapitalAmount(event.target.value)}
+                aria-label="Paper amount in USD"
+                style={{
+                  width: "110px",
+                  padding: "6px 8px",
+                  borderRadius: "5px",
+                  background: "var(--c-bg)",
+                  border: "1px solid var(--c-border)",
+                  color: "var(--c-text)",
+                  fontFamily: "var(--font-mono, monospace)",
+                  fontSize: "12px",
+                }}
+              />
+              <button
+                type="button"
+                disabled={capitalBusy}
+                onClick={() => void handlePaperCapital("deposit")}
+                style={{
+                  padding: "6px 8px",
+                  borderRadius: "5px",
+                  border: "1px solid var(--c-border)",
+                  background: "var(--c-bg)",
+                  color: "var(--c-text)",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Deposit paper cash
+              </button>
+              <button
+                type="button"
+                disabled={capitalBusy}
+                onClick={() => void handlePaperCapital("withdraw")}
+                style={{
+                  padding: "6px 8px",
+                  borderRadius: "5px",
+                  border: "1px solid var(--c-border)",
+                  background: "var(--c-bg)",
+                  color: "var(--c-text)",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Withdraw free cash
+              </button>
+            </div>
+            <div style={{ fontSize: "10.5px", color: "var(--c-muted)" }}>
+              Paper ledger on this desk. A deposit funds operator orders up to free cash. The research hand cannot buy or sell.
             </div>
 
             {/* 1. 4.0% Daily Loss Breaker */}
@@ -2761,7 +3095,11 @@ export function StreamlinedTradingStudio() {
                 color: sizingCalculation.hardRiskBreach ? "var(--c-bad)" : "var(--c-bg)",
               }}
             >
-              {sizingCalculation.hardRiskBreach
+              {accountEquityUsd <= 0 || !depositsLoaded
+                ? "NO CAPITAL · CANNOT BUY OR SELL"
+                : sizingCalculation.exceedsFreeCash
+                ? "ABOVE FREE CASH · PAPER ONLY"
+                : sizingCalculation.hardRiskBreach
                 ? "⚠️ RISK GATE BLOCKED (CLICK TO INSPECT)"
                 : `SUBMIT PAPER ${orderSide} BRACKET (${executionTactic})`}
             </button>

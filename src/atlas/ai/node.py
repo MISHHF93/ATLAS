@@ -21,7 +21,7 @@ EXECUTION_PERMISSION = "none"
 
 # Legacy HTTP namespaces served by the AI node. ``/api/ai/<ns>/...`` aliases
 # ``/api/<ns>/...``; both are guarded by the same boundary.
-AI_NAMESPACES: tuple[str, ...] = ("ml", "research", "intel", "advanced-ml", "agent")
+AI_NAMESPACES: tuple[str, ...] = ("ml", "research", "intel", "advanced-ml", "agent", "multi-agent")
 # AI endpoints living outside those namespaces: guarded (not aliased).
 AI_GUARDED_PREFIXES: tuple[str, ...] = ("/api/ext/dossier", "/api/ext/personas", "/api/ext/pipeline", "/api/pump", "/api/investment-intelligence")
 
@@ -83,6 +83,10 @@ REGISTRY: tuple[AIComponent, ...] = (
     AIComponent("daily_investment_brief", "intel", ("atlas.ai.daily_brief", "atlas.investment_intelligence", "atlas.ext.dossier", "atlas.ext.personas", "atlas.ext.agents"),
                 api=("/api/ai/daily-brief", "/api/assets/daily-brief", "/api/investment-intelligence"), ui=("Module02ListingsView", "AiDailyInvestmentBriefPanel"),
                 notes="AI Daily Investment Intelligence System (10 Vertical Features: Ledger, Yesterday Brief, Today Brief, Market Data, Multifactor Ratings v2.1, ML Forecasting v2.4, TWR/MWR Analytics, 11 Governed MCP Tools, 10-View Workspace, Canadian NI 31-103 Governance); execution_permission=none"),
+    AIComponent("multi_agent_research", "intel", ("atlas.multi_agent", "atlas.multi_agent.orchestrator", "atlas.multi_agent.agents",
+                                                  "atlas.multi_agent.evidence", "atlas.multi_agent.reflection", "atlas.multi_agent.evolution"),
+                api=("/api/multi-agent",), ui=("MultiAgentView",),
+                notes="TradingAgents/LangGraph-compatible role graph: parallel analysts, bounded bull/bear debate, research manager, trader candidate, multi-perspective risk, portfolio review; final authority is ActionableControlPlaneEngine.preview_order; execution_permission=none"),
 )
 
 

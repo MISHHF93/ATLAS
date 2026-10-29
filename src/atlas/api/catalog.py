@@ -25,6 +25,7 @@ def overlay_feed_prices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     The remaining microstructure columns (vpin, ofi_z, regime, ...) stay labelled ``analytics_source: synthetic_fixture``."""
     from atlas.api.feeds_api import feed_quotes
     from atlas.assets.master import get_canonical_asset_master
+    from atlas.market.sessions import listing_market
 
     master = get_canonical_asset_master()
     q = feed_quotes([str(r.get("symbol")) for r in rows]) if rows else {}
@@ -38,6 +39,11 @@ def overlay_feed_prices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
         canon = master.get_instrument(sym)
         issuer = master.get_issuer(canon.issuer_id) if canon else None
+        stamp = listing_market(
+            sym,
+            asset_class=str(r.get("asset_class") or ""),
+            exchange=str(r.get("exchange") or ""),
+        )
         canon_fields = {
             "isin": canon.identifiers.isin if canon else None,
             "cusip": canon.identifiers.cusip if canon else None,
@@ -52,6 +58,7 @@ def overlay_feed_prices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         out.append(
             {
                 **r,
+                **stamp,
                 **canon_fields,
                 "asset_category": asset_cat,
                 "sub_category": sub_cat,
@@ -88,10 +95,17 @@ def catalog_search_endpoint(
         offset=offset,
     )
     res["results"] = overlay_feed_prices(res.get("results") or [])
+    from atlas.ai.ml.market_islands import desk_attention
+    attention = desk_attention()
+    res["open_markets"] = attention["open_markets"]
+    res["markets"] = attention["venues"]
+    res["market_attention"] = attention
     res["notice"] = (
         res.get("notice", "")
         + " Prices come from the ATLAS feed with source, Toronto time and status; "
-        "names without a stored print show no price (no_data)."
+        "names without a stored print show no price (no_data). "
+        "Each row names the market on the session clock. "
+        "Open markets are in open_markets. Positions stay on their own market."
     ).strip()
     return res
 
@@ -164,4 +178,9 @@ def catalog_snapshot_endpoint(
         page_size=page_size,
     )
     res["listings"] = overlay_feed_prices(res.get("listings") or [])
+    from atlas.ai.ml.market_islands import desk_attention
+    attention = desk_attention()
+    res["open_markets"] = attention["open_markets"]
+    res["markets"] = attention["venues"]
+    res["market_attention"] = attention
     return res

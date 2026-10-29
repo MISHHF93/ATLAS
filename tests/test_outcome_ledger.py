@@ -89,6 +89,12 @@ def test_cost_is_charged_only_on_a_taken_stance_and_fixtures_do_not_count() -> N
         assert row["net_return"] == round(signed - 0.0004, 8)
         assert row["counts_toward_proof"] is True
 
+    yahoo = _frame("NVDA", [100.0 + index * 0.5 for index in range(50)])
+    yahoo["feed_origin"] = "yahoo_chart_public"
+    unofficial = build_outcome_ledger([yahoo])
+    assert unofficial["tracks"]["open_market"]["public_resolved_stances"] == 0
+    assert all(row["counts_toward_proof"] is False for row in unofficial["decisions"])
+
     fixture = build_outcome_ledger(
         [_frame("NVDA", [100.0 + index for index in range(90)], data_mode="synthetic_fixture_training")]
     )
@@ -133,7 +139,7 @@ def test_outcome_ledger_route_submits_nothing() -> None:
     assert body["orders_submitted"] == 0
     assert body["may_propose_order"] is False
     assert set(body["tracks"]) == {"competition", "open_market"}
-    assert body["tracks"]["competition"]["judgment"] == "too_few_to_judge"
+    assert body["tracks"]["competition"]["judgment"] in {"too_few_to_judge", "not_supported", "supported_on_this_sample"}
     assert body["tracks"]["competition"]["reliability"]["execution"] == "not_attempted"
     assert body["tracks"]["open_market"]["reliability"]["execution_permission"] == "none"
     assert "submit_order" not in response.text

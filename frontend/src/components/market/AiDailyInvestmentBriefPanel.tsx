@@ -859,6 +859,83 @@ const INITIAL_FALLBACK_BRIEF: FullInvestmentIntelligenceBrief = {
   execution_permission: "none",
 };
 
+INITIAL_FALLBACK_BRIEF.epistemic_separation.VERIFIED_TRANSACTION =
+  "No deposited capital is loaded. The ledger has no verified buys, sells, or funding.";
+INITIAL_FALLBACK_BRIEF.epistemic_separation.MARKET_OBSERVATION =
+  "No holdings are loaded, so there is no mark-to-market on a deposited book.";
+INITIAL_FALLBACK_BRIEF.epistemic_separation.AI_COMMENTARY =
+  "The research hand can show a stance. It cannot buy or sell until capital is loaded.";
+INITIAL_FALLBACK_BRIEF.yesterday_activity_brief.summary_metrics = {
+  confirmed_transactions_count: 0,
+  imported_unreconciled_count: 0,
+  open_or_proposed_orders_count: 0,
+  confirmed_purchases_usd: 0,
+  confirmed_purchases_cad: 0,
+  confirmed_sales_usd: 0,
+  confirmed_contributions_usd: 0,
+  confirmed_withdrawals_usd: 0,
+  confirmed_income_dividends_usd: 0,
+  confirmed_income_dividends_cad: 0,
+  confirmed_fees_usd: 0,
+  net_transaction_cash_flow_usd: 0,
+  separate_mark_to_market_change_usd: 0,
+  separate_mark_to_market_change_cad: 0,
+};
+INITIAL_FALLBACK_BRIEF.yesterday_activity_brief.completed_investments = [];
+INITIAL_FALLBACK_BRIEF.yesterday_activity_brief.open_or_proposed_orders = [];
+INITIAL_FALLBACK_BRIEF.yesterday_activity_brief.market_movements_on_existing_holdings = [];
+INITIAL_FALLBACK_BRIEF.yesterday_activity_brief.narrative_summary =
+  "No deposited capital is loaded. There are no buys, sells, dividends, or fees on the ledger.";
+INITIAL_FALLBACK_BRIEF.portfolio_analytics.returns.time_weighted_return_pct = 0;
+INITIAL_FALLBACK_BRIEF.portfolio_analytics.returns.money_weighted_return_pct = 0;
+INITIAL_FALLBACK_BRIEF.portfolio_analytics.nav_and_attribution_bridge = {
+  external_deposits_usd: 0,
+  external_withdrawals_usd: 0,
+  net_external_contributions_usd: 0,
+  realized_price_gains_usd: 0,
+  unrealized_price_gains_usd: 0,
+  dividend_and_interest_income_usd: 0,
+  fx_translation_gain_loss_usd: 0,
+  execution_and_account_fees_usd: 0,
+  net_investment_performance_usd: 0,
+  net_investment_performance_cad: 0,
+  ending_total_nav_usd: 0,
+  ending_total_nav_cad: 0,
+  bridge_reconciled_exact: true,
+};
+INITIAL_FALLBACK_BRIEF.portfolio_analytics.risk_and_exposure_metrics.currency_exposure_usd_equivalent = {
+  USD: 0,
+  CAD: 0,
+  usd_share_pct: 0,
+  cad_share_pct: 0,
+};
+INITIAL_FALLBACK_BRIEF.portfolio_analytics.risk_and_exposure_metrics.concentration = {
+  herfindahl_hirschman_index_hhi: 0,
+  effective_n_holdings: 0,
+  largest_holding_symbol: "",
+  largest_holding_weight_pct: 0,
+};
+for (const scenario of INITIAL_FALLBACK_BRIEF.portfolio_analytics.stress_scenarios) {
+  scenario.estimated_pnl_usd = 0;
+  scenario.estimated_return_pct = 0;
+}
+INITIAL_FALLBACK_BRIEF.portfolio_analytics.risk_alerts = [
+  {
+    alert_id: "alert-no-deposited-capital",
+    severity: "INFO",
+    category: "NO_DEPOSITED_CAPITAL",
+    message: "No deposited capital is loaded. The research hand can show a stance and cannot buy or sell.",
+  },
+];
+INITIAL_FALLBACK_BRIEF.portfolio_analytics.holdings = [];
+INITIAL_FALLBACK_BRIEF.portfolio_analytics.cash_balances = {
+  USD: 0,
+  CAD: 0,
+  total_cash_usd_equivalent: 0,
+  total_cash_cad_equivalent: 0,
+  cash_weight_pct: 0,
+};
+
 interface AiDailyInvestmentBriefPanelProps {
   selectedSymbol?: string;
   onSelectSymbol?: (symbol: string) => void;

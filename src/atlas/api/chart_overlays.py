@@ -6,7 +6,9 @@ Every layer reports its own status; a layer without data says so and is never fi
 Advisory only: no orders, execution_permission none (also enforced by the AI-node guard)."""
 from __future__ import annotations
 
+import math
 import time
+from numbers import Real
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -34,6 +36,62 @@ def _raw(feed, sym: str, iv: str, max_rows: int = 3500):
         return res[-max_rows:] if max_rows and len(res) > max_rows else res
     except Exception:  # unknown instrument etc.
         return []
+
+
+def _bars_from(feed, sym: str, iv: str, start: int):
+    """Lower-timeframe bars at or after ``start``. A feed that only accepts (symbol, interval) is filtered in memory."""
+    try:
+        if feed is None:
+            return []
+        try:
+            res = list(feed.bars(sym, iv, start, None))
+        except TypeError:
+            res = [b for b in feed.bars(sym, iv) if int(b.event_time) >= start]
+        return res
+    except Exception:
+        return []
+
+
+def extend_from_lower(feed, sym: str, interval: str, bars):
+    """Append higher-timeframe buckets built from confirmed lower bars that start after the stored series.
+
+    Live ingest writes 1m crypto bars. Stored 15m/1h series stop at the last backfill, so a chart that
+    reads only those series looks frozen while the minutes are already in the store. A partial current
+    bucket is kept so the forming candle is on the chart. Incomplete buckets in the middle are not invented.
+    """
+    sources = {"5m": ("1m",), "15m": ("1m",), "1h": ("1m", "15m"), "4h": ("1h", "15m", "1m")}.get(interval)
+    if not sources or feed is None:
+        return bars, None
+    step = INTERVALS[interval]
+    last = bars[-1].start if bars else None
+    start = (last + step) if last is not None else int(time.time()) - 3 * 86400
+    anchor = 0
+    if interval == "1h":
+        try:
+            if feed.instruments.get(sym).session == "us_equity_rth":
+                anchor = 1800
+        except Exception:
+            anchor = 0
+    from atlas.feeds.aggregate import aggregate
+    from atlas.feeds.core import FeedBar
+    for src in sources:
+        raw = _bars_from(feed, sym, src, start)
+        if not raw:
+            continue
+        feed_bars = []
+        for b in raw:
+            et = int(b.event_time)
+            feed_bars.append(FeedBar(
+                sym, src, et, float(b.open), float(b.high), float(b.low), float(b.close), float(getattr(b, "volume", 0) or 0),
+                str(getattr(b, "provider", "") or ""), int(getattr(b, "receipt_time", et) or et),
+                bool(getattr(b, "confirmed", True)), str(getattr(b, "provider_symbol", "") or "")))
+        agg = aggregate(feed_bars, interval, int(time.time()), anchor=anchor, require_complete=True)
+        extra = [b for b in agg if (last is None or b.event_time > last) and (b.confirmed or b is agg[-1])]
+        added = _to_bars(extra, step)
+        if not added:
+            continue
+        return bars + added, f"extended from {src} ({len(added)} bars)"
+    return bars, None
 
 
 def _to_bars(rows, dur: int):
@@ -73,24 +131,41 @@ def _resample(bars, dur: int, need: int | None = None):
 
 def load(sym: str, interval: str):
     """Bars + provider info. 4h is built from completed 1h (else 15m) feed bars; 1h uses stored 1h bars, else is
-    resampled from complete 15m hours (4 of 4 bars). Resampled series are labelled as such in ``built``."""
+    resampled from complete 15m hours (4 of 4 bars). A stale intraday series is refreshed from the provider chain,
+    then extended with any newer lower-timeframe bars already in the store. Resampled series are labelled as such."""
     feed = _feed()
+    ensure = getattr(feed, "ensure_recent", None)
+    if ensure is not None and interval in INTERVALS:
+        try:
+            ensure(sym, interval)
+        except Exception:
+            pass
     if interval == "1h":
         rows = _raw(feed, sym, "1h")
         if rows:
-            return _to_bars(rows, 3600), rows, "feed bars"
-        rows = _raw(feed, sym, "15m")
-        if rows:
-            return _resample(_to_bars(rows, 900), 3600, need=4), rows, "resampled from 15m feed bars (complete hours only)"
-        return [], [], "no 1h/15m feed bars"
-    if interval == "4h":
+            base, built = _to_bars(rows, 3600), "feed bars"
+        else:
+            rows = _raw(feed, sym, "15m")
+            if rows:
+                base, built = _resample(_to_bars(rows, 900), 3600, need=4), "resampled from 15m feed bars (complete hours only)"
+            else:
+                return [], [], "no 1h/15m feed bars"
+    elif interval == "4h":
+        base, rows, built = [], [], "no 1h/15m feed bars"
         for src in ("1h", "15m"):
             rows = _raw(feed, sym, src)
             if rows:
-                return _resample(_to_bars(rows, INTERVALS[src]), 14400), rows, f"resampled from {src} feed bars"
-        return [], [], "no 1h/15m feed bars"
-    rows = _raw(feed, sym, interval)
-    return _to_bars(rows, INTERVALS[interval]), rows, "feed bars"
+                base, built = _resample(_to_bars(rows, INTERVALS[src]), 14400), f"resampled from {src} feed bars"
+                break
+        else:
+            return [], [], built
+    else:
+        rows = _raw(feed, sym, interval)
+        base, built = _to_bars(rows, INTERVALS[interval]), "feed bars"
+    extended, note = extend_from_lower(feed, sym, interval, base)
+    if note:
+        built = f"{built}; {note}"
+    return extended, rows, built
 
 
 def provider_info(rows, built: str) -> dict[str, Any]:
@@ -215,33 +290,64 @@ def _conviction(sym, interval, feed):
 
 
 def _ml_panel(sym, interval, markers, evo_meta=None):
-    from atlas.ml.evolution import champion, latest_run
+    from atlas.ml.evolution import champion, latest_run, research_hand
+    from atlas.ml.market_islands import desk_attention
     from atlas.ml.registry import list_models
     run = latest_run()
-    panel: dict[str, Any] = {"execution_permission": EXECUTION_PERMISSION, "promoted_to_execution": False}
+    hand = research_hand()
+    panel: dict[str, Any] = {
+        "execution_permission": EXECUTION_PERMISSION,
+        "promoted_to_execution": False,
+        "can_buy": False,
+        "can_sell": False,
+        "orders": "none",
+        "research_hand": hand,
+        "market_attention": desk_attention(),
+    }
     live_m = (evo_meta or {}).get("live_metrics") if isinstance(evo_meta, dict) else None
-    if run:
+    metric_keys = (
+        "brier",
+        "brier_baseline",
+        "brier_skill",
+        "auc",
+        "ece",
+        "n_oos",
+        "n_taken",
+        "ev_r_per_opportunity",
+        "take_all_ev",
+        "mean_r_taken",
+        "stability",
+        "fitness",
+        "beats_baseline",
+    )
+    if hand.get("linked"):
+        m = dict(hand.get("metrics") or {})
+        if live_m:
+            for k, v in live_m.items():
+                if m.get(k) is None:
+                    m[k] = v
+        panel["evolution"] = {
+            "run_id": hand.get("source"),
+            "created_at": hand.get("created_at"),
+            "decision": hand.get("stance") or "abstain",
+            "no_model_beats_baseline": not hand.get("beats_baseline"),
+            "challenger": hand.get("genome_id"),
+            "no_model_passes_strict_gate": not hand.get("strict_gate_passed"),
+            "strict_gate": {
+                "passed": hand.get("strict_gate_passed"),
+                "failed": hand.get("strict_gate_failed") or [],
+                "gate_version": "evo8-strict-1",
+            },
+            "metrics": {k: m.get(k) for k in metric_keys},
+            "symbol_live_metrics": live_m,
+        }
+    elif run:
         best = run.get("best_beating_baseline") or run.get("best") or {}
         m = dict(best.get("metrics") or {})
         if live_m:
             for k, v in live_m.items():
                 if m.get(k) is None:
                     m[k] = v
-        metric_keys = (
-            "brier",
-            "brier_baseline",
-            "brier_skill",
-            "auc",
-            "ece",
-            "n_oos",
-            "n_taken",
-            "ev_r_per_opportunity",
-            "take_all_ev",
-            "mean_r_taken",
-            "stability",
-            "fitness",
-            "beats_baseline",
-        )
         panel["evolution"] = {"run_id": run["run_id"], "created_at": run.get("created_at"), "decision": run.get("decision"),
                               "no_model_beats_baseline": run.get("no_model_beats_baseline"), "challenger": best.get("genome_id"),
                               "no_model_passes_strict_gate": run.get("no_model_passes_strict_gate"),
@@ -250,7 +356,8 @@ def _ml_panel(sym, interval, markers, evo_meta=None):
                               "symbol_live_metrics": live_m}
     else:
         panel["evolution"] = None
-    panel["champion"] = champion()
+    stored = champion()
+    panel["champion"] = stored if ((stored or {}).get("metrics") or {}).get("strict_gate", {}).get("passed") else None
     group = f"{'crypto' if sym.endswith(('USDT', 'USD')) else 'equity'}-{interval}"
     reg = [x for x in list_models() if x.get("group") == group][:1]
     if reg:
@@ -307,6 +414,31 @@ def _calib(preds):
     return calibration(preds)
 
 
+def _probability_layer(preds: list[dict[str, Any]]) -> dict[str, Any]:
+    """A line has one value per bar; candidate-level predictions remain separate."""
+    by_time: dict[int, dict[str, Any]] = {}
+    for prediction in preds:
+        timestamp, probability = prediction.get("time"), prediction.get("p")
+        if any(isinstance(value, bool) or not isinstance(value, Real) for value in (timestamp, probability)):
+            continue
+        try:
+            t, p = float(timestamp), float(probability)
+        except (OverflowError, ValueError):
+            continue
+        if not (math.isfinite(t) and t.is_integer() and abs(t) <= 2**53 - 1 and math.isfinite(p) and 0 <= p <= 1):
+            continue
+        # Input order is the stable candidate order; a later valid candidate wins
+        # only for rendering. Never average probabilities for different setups.
+        by_time[int(t)] = {"time": int(t), "value": p, "take": bool(prediction.get("take"))}
+    points = [by_time[t] for t in sorted(by_time)]
+    return {
+        "status": "ok" if points else "unavailable",
+        "points": points,
+        "selection": "last_valid_prediction_per_timestamp",
+        "note": "One display point per bar: the last valid prediction in candidate order. All candidate predictions, markers, and calibration samples remain separate.",
+    }
+
+
 @router.get("/overlays")
 def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str = Query("15m"), bar_type: str = Query("time"),
                    limit: int = Query(600, ge=50, le=3000)) -> dict[str, Any]:
@@ -314,7 +446,9 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
         raise HTTPException(400, "unsupported_interval")
     if bar_type not in BAR_TYPES:
         raise HTTPException(400, "unknown_bar_type")
-    sym = symbol.upper().replace("-USD", "USDT") if symbol.upper().endswith("-USD") else symbol.upper()
+    from atlas.feeds.universe import resolve
+    # BTC-USD is the crypto book. EUR-USD is the ECB pair, not a USDT coin.
+    sym = resolve(symbol) or (symbol.upper().replace("-USD", "USDT") if symbol.upper().endswith("-USD") else symbol.upper())
     bars, rows, built = load(sym, interval)
     now = int(time.time())
     from atlas.market.sessions import get_market_sessions_status
@@ -360,7 +494,7 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
     em = ((panel.get("evolution") or {}).get("symbol_live_metrics") or (panel.get("evolution") or {}).get("metrics")) if isinstance(panel, dict) and panel.get("evolution") else None
     layers = {
         "ml_markers": {**mstat, "items": ml, "evolution": evo, **({} if ml else {"note": "no OOS predictions for this symbol/interval in the latest evolution run"})},
-        "ml_probability": {"status": "ok" if preds else "unavailable", "points": [{"time": p["time"], "value": p["p"], "take": p["take"]} for p in preds]},
+        "ml_probability": _probability_layer(preds),
         "setups": {**mstat, "items": [m for m in markers if m["source"] != "evolution_oos"], "classes": classes,
                    "categories": {"taken": "ml_suggested", "skipped_by_ml": "ml_skip", "rejected_by_risk": "risk_rejected", "rule_only": "rule_only"}},
         "zones": _layer(_zones, sym, interval, bars, feed),

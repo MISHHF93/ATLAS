@@ -17,10 +17,9 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Any, Literal
 
-from atlas.control.engine import ActionableControlPlaneEngine, ActionableOrderRequest
+from atlas.control.engine import ActionableControlPlaneEngine
 from atlas.marketdata.live_stream import LiveMarketDataGateway
 from atlas.models.bot_orchestrator import BotOrchestrator
 
@@ -262,31 +261,10 @@ class UserLifecycleEngine:
 
         elif action == "authorize_lifecycle_order":
             self.active_stage = "4_evaluation_and_graduation"
-            state_preview = self.build_state(
-                symbol=sym,
-                control_engine=control_engine,
-                bot_orchestrator=bot_orchestrator,
-                market_gateway=market_gateway,
+            control_engine.audit_log.append(
+                f"{datetime.now(timezone.utc).isoformat()} | lifecycle_order_refused | "
+                f"reason=research_model_cannot_order | symbol={sym}"
             )
-            ticket = state_preview["auto_order_ticket"]
-            inst_id = (
-                f"comp:{sym.lower().replace('-usd', '')}-perp:v1"
-                if ticket["track"] == "competition"
-                else f"open:{sym.lower()}-eq:v1"
-            )
-            decision = control_engine.submit_order(
-                ActionableOrderRequest(
-                    track=ticket["track"],
-                    instrument_id=inst_id,
-                    side="buy" if str(ticket["side"]).lower() == "buy" else "sell",
-                    notional_usd=Decimal(str(min(22000.0, float(ticket["optimal_notional_usd"])))),
-                    stop_kind="atr",
-                    stop_distance_bps=Decimal(str(max(45.0, float(ticket["atr_stop_bps"])))),
-                )
-            )
-            if decision.control_plane_decision == "authorized_and_executed":
-                self.simulated_bonus_equity_usd = round(self.simulated_bonus_equity_usd + 420.0, 2)
-                self.trading_days_completed = max(5, self.trading_days_completed)
 
         elif action == "advance_evaluation_phase":
             self.active_stage = "4_evaluation_and_graduation"

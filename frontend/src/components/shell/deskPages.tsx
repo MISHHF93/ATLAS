@@ -499,6 +499,7 @@ type ReadinessReport = {
   live_money?: string;
   trading?: string;
   notice?: string;
+  official?: { notice?: string; paper_broker?: string; live_endpoint?: string };
   execution_permission?: string;
   orders_submitted?: number;
   checks?: ReadinessCheck[];
@@ -585,6 +586,9 @@ export function TradeReadinessPanel() {
           ))}
         </tbody>
       </table>
+      <p className="clean-card-subtitle" style={{ marginTop: "12px" }}>
+        {report?.official?.notice ?? "Official feeds have not loaded."} Broker {report?.official?.paper_broker ?? "internal_simulator"}. Live endpoint {report?.official?.live_endpoint ?? "refused"}.
+      </p>
       <p className="clean-card-subtitle" style={{ marginTop: "12px" }}>
         {report?.trials?.notice ?? "The trial log has not loaded."}
       </p>

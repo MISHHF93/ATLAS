@@ -945,6 +945,12 @@ export type LiveListing = {
   quote_status?: QuoteStatus;
   quote_time?: string | null;
   quote_epoch?: number | null;
+  market_id?: string;
+  market_name?: string;
+  market_open?: boolean;
+  market_label?: string;
+  market_countdown?: string;
+  look_symbol?: string;
 };
 
 export type SyncPipeline = {
@@ -1864,20 +1870,20 @@ const DEFAULT_SNAPSHOT: PlatformSnapshot = {
     execution_permission: "none",
     competition_paper_simulation: {
       simulation_id: "sim:competition:v1",
-      initial_equity_usd: "100000.00",
-      final_equity_usd: "100840.25",
-      max_realized_drawdown_fraction: 0.0042,
-      total_steps: 31,
-      permitted_paper_trades: 18,
+      initial_equity_usd: "0.00",
+      final_equity_usd: "0.00",
+      max_realized_drawdown_fraction: 0,
+      total_steps: 0,
+      permitted_paper_trades: 0,
       blocked_paper_trades: 0,
     },
     open_market_paper_simulation: {
       simulation_id: "sim:open_market:v1",
-      initial_equity_usd: "100000.00",
-      final_equity_usd: "100612.80",
-      max_realized_drawdown_fraction: 0.0031,
-      total_steps: 31,
-      permitted_paper_trades: 19,
+      initial_equity_usd: "0.00",
+      final_equity_usd: "0.00",
+      max_realized_drawdown_fraction: 0,
+      total_steps: 0,
+      permitted_paper_trades: 0,
       blocked_paper_trades: 0,
     },
     horizon_strategy_comparison: {
@@ -1974,18 +1980,17 @@ export function AtlasTerminal({
   const [killSwitchEngaged, setKillSwitchEngaged] = useState(false);
   const [openPositions, setOpenPositions] = useState<
     Array<{ position_id: string; track: string; instrument_id: string; side: string; notional_usd: string; stop_kind: string; stop_distance_bps: string; status: string }>
-  >([
-    { position_id: "pos-001", track: "competition", instrument_id: "comp:btc-perp:v1", side: "buy", notional_usd: "25000.00", stop_kind: "atr", stop_distance_bps: "180", status: "open" },
-  ]);
+  >([]);
   const [orderDecisions, setOrderDecisions] = useState<
     Array<{ order_id: string; track: string; instrument_id: string; side: string; notional_usd: string; decision: string; violations: string[] }>
   >([]);
-  const [championAlias, setChampionAlias] = useState("naive:last_value:v1");
-  const [challengerAlias, setChallengerAlias] = useState("local_tree:boosted_stump_v1:v1");
-  const [challengerApproved, setChallengerApproved] = useState(true);
-  const [trainingRuns, setTrainingRuns] = useState(1);
+  const [championAlias, setChampionAlias] = useState("none");
+  const [challengerAlias, setChallengerAlias] = useState("none");
+  const [challengerApproved, setChallengerApproved] = useState(false);
+  const [researchHand, setResearchHand] = useState("");
+  const [trainingRuns, setTrainingRuns] = useState(0);
   const [auditLog, setAuditLog] = useState<string[]>([
-    "Control plane active | Track: competition | Kill switch: STANDBY | Active position: pos-001 ($25,000)",
+    "No deposited capital is loaded. The research hand can show a stance and cannot buy or sell.",
   ]);
 
   // Interactive Tool States
@@ -2043,7 +2048,60 @@ export function AtlasTerminal({
       observed_at_toronto: item.quote_time ?? null,
       status: item.quote_status ?? "no_data",
     };
-  const [listingTrackFilter, setListingTrackFilter] = useState<"all" | "competition" | "open_market">("all");
+  const [listingTrackFilter, setListingTrackFilter] = useState<"all" | "competition" | "open_market" | "open_now">("all");
+  const [openMarkets, setOpenMarkets] = useState<Array<{ market_id: string; market_name: string; look_symbol?: string; market_open?: boolean }>>([]);
+  const listingsRef = useRef(listingsList);
+  listingsRef.current = listingsList;
+  useEffect(() => {
+    let alive = true;
+    const pull = async () => {
+      try {
+        const res = await fetch(`${API}/api/listings`, { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (!alive) return;
+          if (Array.isArray(data.listings) && data.listings.length > 0) setListingsList(data.listings);
+          if (Array.isArray(data.open_markets)) setOpenMarkets(data.open_markets);
+        }
+      } catch {
+        // Keep the rows already shown.
+      }
+      const symbols = listingsRef.current.map((item) => item.symbol);
+      if (!symbols.length) return;
+      try {
+        const res = await fetch(`${API}/api/market/sessions?symbols=${encodeURIComponent(symbols.join(","))}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!alive || !body?.by_symbol) return;
+        if (Array.isArray(body.venues)) {
+          setOpenMarkets(body.venues.filter((venue: { is_open?: boolean }) => venue.is_open).map((venue: { venue_id: string; venue_name: string; look_symbol?: string; is_open?: boolean }) => ({
+            market_id: venue.venue_id,
+            market_name: venue.venue_name,
+            look_symbol: venue.look_symbol,
+            market_open: Boolean(venue.is_open),
+          })));
+        }
+        setListingsList((prev) => prev.map((item) => {
+          const st = body.by_symbol[item.symbol.toUpperCase()];
+          if (!st) return item;
+          return {
+            ...item,
+            market_id: st.venue_id,
+            market_name: st.venue_name,
+            market_open: Boolean(st.is_open),
+            market_label: st.status_label,
+            market_countdown: st.countdown,
+            look_symbol: st.look_symbol,
+          };
+        }));
+      } catch {
+        // The session clock will refresh on the next pass.
+      }
+    };
+    const timer = setInterval(pull, 15000);
+    void pull();
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
   const [newListingSymbol, setNewListingSymbol] = useState("AVAX-USD");
   const [newListingName, setNewListingName] = useState("Avalanche Perpetual Swap");
   const [newListingTrack, setNewListingTrack] = useState<"competition" | "open_market">("competition");
@@ -2400,7 +2458,7 @@ export function AtlasTerminal({
           symbol: newListingSymbol.toUpperCase(),
           name: newListingName,
           track: newListingTrack,
-          venue: newListingTrack === "competition" ? "Crypto Perp 24/7 Venue" : "NYSE / Nasdaq Session",
+          venue: "Session clock",
           asset_class: newListingTrack === "competition" ? "crypto_perp" : "us_equity_etf",
           price: null,
           change_24h_pct: null,
@@ -2887,44 +2945,13 @@ export function AtlasTerminal({
     } catch {
       // Local deterministic control-plane execution
     }
-    const violations: string[] = [];
-    if (killSwitchEngaged) violations.push("kill_switch_engaged");
-    const maxNotional = orderTrack === "competition" ? 50000 : 40000;
-    const minStop = orderTrack === "competition" ? 25 : 30;
-    const maxRiskFrac = orderTrack === "competition" ? 0.0075 : 0.005;
-    const riskFrac = (notionalNum * (stopBpsNum / 10000)) / 101850;
-    if (notionalNum <= 0 || notionalNum > maxNotional) violations.push("position_notional_cap_exceeded");
-    if (stopBpsNum < minStop) violations.push("stop_distance_too_tight");
-    if (riskFrac > maxRiskFrac) violations.push("per_trade_risk_exceeded");
-
+    const violations = ["no_deposited_capital"];
     const orderId = `ord-00${orderDecisions.length + 2}`;
-    if (violations.length === 0) {
-      const posId = `pos-00${openPositions.length + 2}`;
-      setOpenPositions((prev) => [
-        ...prev,
-        {
-          position_id: posId,
-          track: orderTrack,
-          instrument_id: orderInstrument,
-          side: orderSide,
-          notional_usd: notionalNum.toFixed(2),
-          stop_kind: orderStopKind,
-          stop_distance_bps: String(stopBpsNum),
-          status: "open",
-        },
-      ]);
-      setOrderDecisions((prev) => [
-        { order_id: orderId, track: orderTrack, instrument_id: orderInstrument, side: orderSide, notional_usd: notionalNum.toFixed(2), decision: "authorized_and_executed", violations: [] },
-        ...prev,
-      ]);
-      setAuditLog((prev) => [...prev, `${new Date().toISOString()} | order_authorized | ${orderId} | ${orderSide.toUpperCase()} ${orderInstrument} $${notionalNum.toFixed(2)}`]);
-    } else {
-      setOrderDecisions((prev) => [
-        { order_id: orderId, track: orderTrack, instrument_id: orderInstrument, side: orderSide, notional_usd: notionalNum.toFixed(2), decision: "rejected_by_control_plane", violations },
-        ...prev,
-      ]);
-      setAuditLog((prev) => [...prev, `${new Date().toISOString()} | order_rejected | ${orderId} | reasons=${violations.join(",")}`]);
-    }
+    setOrderDecisions((prev) => [
+      { order_id: orderId, track: orderTrack, instrument_id: orderInstrument, side: orderSide, notional_usd: notionalNum.toFixed(2), decision: "rejected_by_control_plane", violations },
+      ...prev,
+    ]);
+    setAuditLog((prev) => [...prev, `${new Date().toISOString()} | order_rejected | ${orderId} | reasons=${violations.join(",")}`]);
   }
 
   async function handleToggleKillSwitch() {
@@ -2991,7 +3018,7 @@ export function AtlasTerminal({
     if (action === "approve_challenger") setChallengerApproved(true);
     if (action === "revoke_challenger") setChallengerApproved(false);
     if (action === "promote_challenger" && challengerApproved) setChampionAlias(challengerAlias);
-    if (action === "rollback_to_champion") setChampionAlias("naive:last_value:v1");
+    if (action === "rollback_to_champion") setChampionAlias("none");
     setAuditLog((prev) => [...prev, `${new Date().toISOString()} | lifecycle_action | action=${action}`]);
   }
 
@@ -3028,7 +3055,7 @@ export function AtlasTerminal({
       readJson<{ documents: PlatformDoc[] }>("/api/docs", controller.signal).catch(() => ({ documents: DEFAULT_DOCS })),
       readJson<{ connectors: ConnectorRecord[] }>("/api/connectors", controller.signal).catch(() => ({ connectors: DEFAULT_CONNECTORS })),
       readJson<OperatorProfile>("/api/profile", controller.signal).catch(() => DEFAULT_PROFILE),
-      readJson<{ listings: LiveListing[] }>("/api/listings", controller.signal).catch(() => ({ listings: DEFAULT_LISTINGS })),
+      readJson<{ listings: LiveListing[]; open_markets?: Array<{ market_id: string; market_name: string; look_symbol?: string; market_open?: boolean }> }>("/api/listings", controller.signal).catch(() => ({ listings: DEFAULT_LISTINGS })),
       readJson<{ pipelines: SyncPipeline[] }>("/api/sync", controller.signal).catch(() => ({ pipelines: DEFAULT_SYNC_PIPELINES })),
       readJson<PlatformConfig>("/api/configurations", controller.signal).catch(() => DEFAULT_PLATFORM_CONFIG),
       readJson<{ nodes: WarehouseNode[] }>("/api/warehouse", controller.signal).catch(() => ({ nodes: DEFAULT_WAREHOUSE_NODES })),
@@ -3074,6 +3101,9 @@ export function AtlasTerminal({
           }
           if (Array.isArray(listingsBody.listings) && listingsBody.listings.length > 0) {
             setListingsList(listingsBody.listings);
+          }
+          if (Array.isArray(listingsBody.open_markets)) {
+            setOpenMarkets(listingsBody.open_markets);
           }
           if (Array.isArray(syncBody.pipelines) && syncBody.pipelines.length > 0) {
             setSyncPipelines(syncBody.pipelines);
@@ -3237,6 +3267,11 @@ export function AtlasTerminal({
         setKillSwitchEngaged(Boolean(state.kill_switch_engaged));
         if (Array.isArray(state.open_positions)) setOpenPositions(state.open_positions);
         if (Array.isArray(state.audit_log)) setAuditLog(state.audit_log);
+        if (typeof state.active_champion_model === "string") setChampionAlias(state.active_champion_model);
+        if (typeof state.active_challenger_model === "string") setChallengerAlias(state.active_challenger_model);
+        setChallengerApproved(Boolean(state.challenger_approved));
+        const hand = state.research_hand;
+        setResearchHand(hand && typeof hand === "object" && hand.genome_id ? String(hand.genome_id) : "");
       } catch {
         // Keep the last confirmed control-plane snapshot.
       }
@@ -3950,7 +3985,7 @@ export function AtlasTerminal({
                       <h2 className="panel-title">Live Tradable & Research Listings</h2>
                     </div>
                     <div className="segmented-tabs">
-                      {(["all", "competition", "open_market"] as const).map((flt) => (
+                      {(["all", "open_now", "competition", "open_market"] as const).map((flt) => (
                         <button
                           key={flt}
                           type="button"
@@ -3959,6 +3994,8 @@ export function AtlasTerminal({
                         >
                           {flt === "all"
                             ? `All (${listingsList.length})`
+                            : flt === "open_now"
+                              ? "Open now"
                             : flt === "competition"
                               ? "Competition Perps"
                               : "Open-Market Equities"}
@@ -3969,6 +4006,25 @@ export function AtlasTerminal({
                   <div className="panel-body">
                     <div className="telemetry-console">
                       <div className="console-line">&gt; {listingNotice}</div>
+                      <div className="console-line">
+                        &gt; Open now: {openMarkets.length ? openMarkets.map((market) => market.market_name).join(" · ") : "session clock loading"}.
+                        {" "}The research hand watches those clocks. The scored book is crypto 4h. Positions stay on their own market.
+                        {openMarkets.map((market) => (
+                          <button
+                            key={market.market_id}
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            style={{ marginLeft: 8 }}
+                            onClick={() => {
+                              const match = listingsList.find((item) => item.enabled && (item.symbol === market.look_symbol || item.market_id === market.market_id));
+                              if (match) handleRouteListingToOrderDesk(match);
+                              setListingNotice(`Looking at ${market.market_name}. Positions stay where they are.`);
+                            }}
+                          >
+                            Look at {market.market_name}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="table-wrap">
@@ -3987,7 +4043,8 @@ export function AtlasTerminal({
                         </thead>
                         <tbody>
                           {listingsList
-                            .filter((item) => listingTrackFilter === "all" || item.track === listingTrackFilter)
+                            .filter((item) => listingTrackFilter === "all"
+                              || (listingTrackFilter === "open_now" ? item.enabled && item.market_open === true : item.track === listingTrackFilter))
                             .map((item) => (
                               <tr key={item.instrument_id}>
                                 <td>
@@ -4001,7 +4058,9 @@ export function AtlasTerminal({
                                     {item.track}
                                   </span>
                                   <div style={{ fontSize: "10.5px", color: "var(--text-muted)", marginTop: "2px" }}>
-                                    {item.venue}
+                                    {item.market_name
+                                      ? `${item.market_open ? "Open" : "Closed"} · ${item.market_name}${item.market_label ? ` · ${item.market_label}` : ""}`
+                                      : item.venue}
                                   </div>
                                 </td>
                                 <td className="mono-cell" style={{ fontWeight: 700 }}>
@@ -7039,7 +7098,7 @@ export function AtlasTerminal({
                         <h2 className="panel-title">Champion / Challenger Promotion Gate</h2>
                       </div>
                       <span className={`badge ${challengerApproved ? "badge-emerald" : "badge-amber"}`}>
-                        {challengerApproved ? "CHALLENGER APPROVED" : "APPROVAL REVOKED"}
+                        {challengerApproved ? "CHALLENGER APPROVED" : "NOT APPROVED · CANNOT BUY OR SELL"}
                       </span>
                     </div>
                     <div className="panel-body">
@@ -7054,6 +7113,12 @@ export function AtlasTerminal({
                           <span className="kv-label">Candidate Challenger Alias</span>
                           <span className="kv-val" style={{ fontSize: "12px" }}>
                             {challengerAlias}
+                          </span>
+                        </div>
+                        <div className="kv-box">
+                          <span className="kv-label">Research hand</span>
+                          <span className="kv-val" style={{ fontSize: "12px" }}>
+                            {researchHand || "not linked"} · cannot buy or sell
                           </span>
                         </div>
                       </div>
@@ -7306,11 +7371,11 @@ export function AtlasTerminal({
                 <div className="kpi-card blue">
                   <div className="kpi-top">
                     <span className="kpi-label">Rule-Checked Paper Simulation</span>
-                    <span className="badge badge-blue">0 BLOCKED TRADES</span>
+                    <span className="badge badge-blue">NO DEPOSITED CAPITAL</span>
                   </div>
-                  <div className="kpi-value">${formatPrice(activeSim?.final_equity_usd ?? "100840.25")}</div>
+                  <div className="kpi-value">${formatPrice(activeSim?.final_equity_usd ?? "0.00")}</div>
                   <div className="kpi-sub">
-                    <span>Initial: ${formatPrice(activeSim?.initial_equity_usd ?? "100000.00")}</span>
+                    <span>Initial: ${formatPrice(activeSim?.initial_equity_usd ?? "0.00")}</span>
                     <span>Max DD: {((activeSim?.max_realized_drawdown_fraction ?? 0.0042) * 100).toFixed(2)}%</span>
                   </div>
                 </div>

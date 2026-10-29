@@ -7,4 +7,8 @@
    - Constructs such as `request.footprint`, `matrix.*`, `polyline.*`, or unshifted `lookahead_on` are explicitly rejected with diagnostic reasons.
 3. **Bar-Level Intrabar Ambiguity**:
    - When both stop-loss and take-profit fall inside the same historical OHLC bar, ATLAS conservative replay resolves the stop-loss first (`intrabar_stop_first`).
+4. **evo8 has not passed** (checked 2026-10-28):
+   - Latest file `var/ml/registry/evolution/niches_1793235961.json` (genome `ridge|full|none|time|htf`) fails minimum trades per fold, DSR, and Bonferroni. LightGBM and XGBoost did not beat it on the full 4h book. `champion.json` is absent. The research hand can show that genome and cannot buy or sell.
+5. **The live paper book stays unfunded until an operator deposit**:
+   - Control-plane equity is a snapshot of `default_workspace_paper_capital`. A model ingest on a cash-tracked book is refused (`research_model_cannot_order`). Customer custody, deposit addresses, and live withdrawals are unimplemented.
 

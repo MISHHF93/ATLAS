@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from atlas.feeds import feed as feed_mod
-from atlas.feeds.live import parse_binance, parse_coinbase, parse_kraken, parse_spark
+from atlas.feeds.core import FeedBar
+from atlas.feeds.live import LiveIngest, parse_binance, parse_coinbase, parse_kraken, parse_okx, parse_spark
 from atlas.feeds.status import (DELAYED, LIVE, MARKET_CLOSED, NO_DATA, STALE, classify, nyse_open, toronto)
 from atlas.feeds.store import FeedStore
 from atlas.feeds.universe import resolve, ui_symbols
@@ -93,6 +94,91 @@ def test_upsert_quotes_idempotent_and_never_older(tmp_path):
     assert len(rows) == 1 and rows[0]["price"] == 100.0 and rows[0]["event_time"] == 1000.0
     s.upsert_quotes([{**row, "price": 101.0, "event_time": 1001.0}])
     assert s.last_quotes("BTCUSDT")[0]["price"] == 101.0
+
+
+def test_rollup_stores_a_complete_15m_and_skips_a_partial_hour(tmp_path):
+    t0 = 1_700_000_000 - 1_700_000_000 % 900
+    store = FeedStore(tmp_path / "f.sqlite")
+    ing = LiveIngest(store)
+    bars = [FeedBar("BTCUSDT", "1m", t0 + i * 60, 1, 2, 0.5, 1.5, 3, "binance", t0 + (i + 1) * 60, True, "BTCUSDT") for i in range(15)]
+    store.ingest(bars)
+    rolled = ing._rollup(bars)
+    got = [b for b in rolled if b.interval == "15m"]
+    assert len(got) == 1 and got[0].event_time == t0 and got[0].confirmed and got[0].close == 1.5
+    assert not any(b.interval == "1h" for b in rolled)
+
+
+def test_ensure_recent_fetches_a_stale_interval_once(tmp_path, monkeypatch):
+    from atlas.feeds.feed import AtlasFeed
+    store = FeedStore(tmp_path / "f.sqlite")
+    feed = AtlasFeed(store=store, clock=lambda: 1_000_000.0)
+    calls = []
+    monkeypatch.setattr(feed, "fetch", lambda *a, **k: calls.append(a) or ("binance", {}))
+    monkeypatch.setattr(store, "latest_bar", lambda *a, **k: type("B", (), {"bar_end": 1})())
+    assert feed.ensure_recent("BTCUSDT", "15m") is True
+    assert feed.ensure_recent("BTCUSDT", "15m") is False
+    assert len(calls) == 1 and calls[0][0] == "BTCUSDT" and calls[0][1] == "15m"
+    fresh = AtlasFeed(store=store, clock=lambda: 1_000_000.0)
+    monkeypatch.setattr(fresh, "fetch", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr(store, "latest_bar", lambda *a, **k: type("B", (), {"bar_end": 1_000_000})())
+    assert fresh.ensure_recent("BTCUSDT", "15m") is False
+    assert len(calls) == 1
+
+
+def test_ensure_recent_does_not_write_yahoo_bars(tmp_path, monkeypatch):
+    from atlas.feeds.feed import AtlasFeed
+    store = FeedStore(tmp_path / "f.sqlite")
+    feed = AtlasFeed(store=store, clock=lambda: 1_000_000.0)
+    monkeypatch.setattr(feed, "fetch", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no official candidate, no fetch")))
+    monkeypatch.setattr(feed, "candidates", lambda *a, **k: [])
+    monkeypatch.setattr(store, "latest_bar", lambda *a, **k: type("B", (), {"bar_end": 1_000, "provider": "yahoo"})())
+    assert feed.ensure_recent("SPY", "15m") is False
+    assert store.bars("SPY", "15m") == []
+
+
+def test_provider_switch_wider_than_25bp_is_left_as_a_hole(tmp_path):
+    from atlas.feeds.feed import AtlasFeed
+    store = FeedStore(tmp_path / "f.sqlite")
+    feed = AtlasFeed(store=store)
+    t0 = 1_700_000_000
+    store.ingest([
+        FeedBar("BTCUSDT", "1h", t0, 100, 101, 99, 100, 1, "alpaca_crypto", t0 + 3600, True, "BTC/USD"),
+        FeedBar("BTCUSDT", "1h", t0 + 3600, 100.1, 101, 99, 100.2, 1, "binance", t0 + 7200, True, "BTCUSDT"),
+        FeedBar("BTCUSDT", "1h", t0 + 7200, 105, 106, 104, 105, 1, "okx", t0 + 10800, True, "BTC-USDT"),
+        FeedBar("BTCUSDT", "1h", t0 + 10800, 105.2, 106, 104, 105.4, 1, "binance", t0 + 14400, True, "BTCUSDT"),
+    ])
+    out = feed.bars("BTCUSDT", "1h")
+    assert [b.event_time for b in out] == [t0, t0 + 3600, t0 + 10800]
+    assert [b.provider for b in out] == ["alpaca_crypto", "binance", "binance"]
+    # A new venue that stays dislocated does not take over the rest of the series.
+    store.ingest([
+        FeedBar("ETHUSDT", "1h", t0, 100, 101, 99, 100, 1, "alpaca_crypto", t0 + 3600, True, "ETH/USD"),
+        FeedBar("ETHUSDT", "1h", t0 + 3600, 100.5, 101, 99, 100.6, 1, "binance", t0 + 7200, True, "ETHUSDT"),
+        FeedBar("ETHUSDT", "1h", t0 + 7200, 100.7, 101, 99, 100.8, 1, "binance", t0 + 10800, True, "ETHUSDT"),
+    ])
+    eth = feed.bars("ETHUSDT", "1h")
+    assert [b.event_time for b in eth] == [t0]
+
+
+def test_authoritative_bars_omit_yahoo(tmp_path):
+    from atlas.feeds.feed import AtlasFeed
+    store = FeedStore(tmp_path / "f.sqlite")
+    feed = AtlasFeed(store=store)
+    store.ingest([FeedBar("SPY", "15m", 1_000, 1, 2, 0.5, 1.5, 3, "yahoo", 2_000, True, "SPY")])
+    assert store.bars("SPY", "15m")[-1].provider == "yahoo"
+    assert feed.bars("SPY", "15m") == []
+
+
+def test_okx_confirmed_candle_is_a_bar():
+    msg = {"arg": {"channel": "candle1m", "instId": "BTC-USDT"},
+           "data": [["1700000000000", "1", "2", "0.5", "1.5", "3", "0", "0", "1"]]}
+    qs, bars = parse_okx(msg, 1_700_000_100.0, {"BTC-USDT": "BTCUSDT"})
+    assert qs[0]["provider"] == "okx" and qs[0]["instrument"] == "BTCUSDT"
+    assert len(bars) == 1 and bars[0].confirmed and bars[0].close == 1.5
+    partial = {"arg": {"channel": "candle1m", "instId": "BTC-USDT"},
+               "data": [["1700000060000", "1", "2", "0.5", "1.6", "1", "0", "0", "0"]]}
+    qs2, bars2 = parse_okx(partial, 1_700_000_100.0, {"BTC-USDT": "BTCUSDT"})
+    assert qs2 and bars2 == []
 
 
 def test_bars_ingest_idempotent(tmp_path):

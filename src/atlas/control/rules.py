@@ -70,10 +70,10 @@ class AccountRiskSnapshot(Record):
     """Point-in-time read-only snapshot of simulated or observed account state."""
     as_of: AwareDatetime
     source: Text
-    initial_equity_usd: PositiveDecimal
-    current_equity_usd: PositiveDecimal
-    high_water_mark_usd: PositiveDecimal
-    start_of_day_equity_usd: PositiveDecimal
+    initial_equity_usd: NonnegativeDecimal
+    current_equity_usd: NonnegativeDecimal
+    high_water_mark_usd: NonnegativeDecimal
+    start_of_day_equity_usd: NonnegativeDecimal
     gross_notional_usd: NonnegativeDecimal
     correlated_exposure_usd: NonnegativeDecimal = Decimal("0")
     sector_exposure_usd: NonnegativeDecimal = Decimal("0")
@@ -81,6 +81,8 @@ class AccountRiskSnapshot(Record):
     best_day_profit_usd: NonnegativeDecimal = Decimal("0")
     total_cumulative_profit_usd: Decimal = Decimal("0")
     kill_switch_engaged: bool = False
+    cash_usd: NonnegativeDecimal = Decimal("0")
+    cash_tracked: bool = False
     is_book_of_record: Literal[False] = False
 
     @model_validator(mode="after")
@@ -175,6 +177,41 @@ def _proximity(name: str, current: Decimal, limit: Decimal | None) -> LimitProxi
     )
 
 
+def refuse_without_capital(
+    rulebook: TradingRuleBook,
+    *,
+    evaluated_at: datetime,
+    kill_switch_active: bool = False,
+) -> RuleEvaluationReport:
+    """Deny every order when the account has no deposited capital."""
+    if evaluated_at.tzinfo is None or evaluated_at.utcoffset() is None:
+        raise ValueError("evaluated_at must be timezone-aware")
+    remaining = RemainingRoomReport(
+        rulebook_id=rulebook.rulebook_id,
+        track=rulebook.track,
+        as_of=evaluated_at,
+        max_safe_trade_notional_usd="0.00",
+        daily_loss_room_usd="0.00",
+        drawdown_room_usd="0.00",
+        leverage_room_usd="0.00",
+        consistency_compliant=True,
+        minimum_days_met=False,
+        proximities=(),
+    )
+    return RuleEvaluationReport(
+        rulebook_id=rulebook.rulebook_id,
+        revision=rulebook.revision,
+        track=rulebook.track,
+        evaluated_at=evaluated_at,
+        compliance_passed=False,
+        auto_flatten_required=False,
+        kill_switch_active=kill_switch_active,
+        time_exit_triggered=False,
+        violations=("no_deposited_capital",),
+        remaining_room=remaining,
+    )
+
+
 def evaluate_trading_rules(
     rulebook: TradingRuleBook,
     account: AccountRiskSnapshot,
@@ -186,6 +223,15 @@ def evaluate_trading_rules(
     now = evaluated_at or account.as_of
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("evaluated_at must be timezone-aware")
+    if (
+        account.current_equity_usd <= 0
+        or account.start_of_day_equity_usd <= 0
+        or account.initial_equity_usd <= 0
+        or account.high_water_mark_usd <= 0
+    ):
+        return refuse_without_capital(
+            rulebook, evaluated_at=now, kill_switch_active=account.kill_switch_engaged
+        )
 
     violations: list[str] = []
     auto_flatten = False

@@ -24,7 +24,7 @@ from sklearn.preprocessing import StandardScaler
 
 from atlas.ai.ml import metrics as M
 from atlas.ai.ml.calibration import Calibrator, Conformal, fit_calibrator, fit_conformal
-from atlas.ai.ml.cv import inner_split, walk_forward_splits
+from atlas.ai.ml.cv import MIN_CAL, MIN_CONF, MIN_FIT, inner_split, walk_forward_splits
 from atlas.ai.ml.dataset import FEATURES
 
 PRIMARY = "hgb_conformal"
@@ -92,6 +92,38 @@ class MetaModel:
         return {"p": p, "ev_r": ev, "take": take, "size": np.where(take, self.size(X, p), 0.0)}
 
 
+def average_uniqueness(t: np.ndarray, exit_at: np.ndarray) -> np.ndarray:
+    """AFML ch. 4: a label that overlaps other labels counts for less than one observation.
+
+    The returned weights average to 1. Concurrency uses only the rows passed in, so a
+    test fold never changes the training weights.
+    """
+    t = np.asarray(t, np.int64)
+    e = np.asarray(exit_at, np.int64)
+    if len(t) == 0:
+        return np.zeros(0)
+    knots = np.unique(np.concatenate([t, np.maximum(e, t)]))
+    pos = {int(ts): i for i, ts in enumerate(knots)}
+    conc = np.zeros(len(knots))
+    spans = []
+    for a, b in zip(t, e):
+        i0, i1 = pos[int(a)], pos[int(max(int(b), int(a)))]
+        if i1 < i0:
+            i0, i1 = i1, i0
+        conc[i0:i1 + 1] += 1.0
+        spans.append((i0, i1))
+    w = np.array([float(np.mean(1.0 / conc[i0:i1 + 1])) for i0, i1 in spans])
+    mean = float(w.mean())
+    return w / mean if mean > 0 else np.ones(len(w))
+
+
+def _fit_weighted(model, X, y, sample_weight):
+    if hasattr(model, "named_steps"):
+        last = list(model.named_steps)[-1]
+        return model.fit(X, y, **{f"{last}__sample_weight": sample_weight})
+    return model.fit(X, y, sample_weight=sample_weight)
+
+
 def _payoffs(df: pd.DataFrame) -> tuple[dict[str, float], dict[str, float]]:
     w, l = {}, {}
     for d, g in df.groupby("detector"):
@@ -104,10 +136,14 @@ def _payoffs(df: pd.DataFrame) -> tuple[dict[str, float], dict[str, float]]:
 def fit_meta(df: pd.DataFrame, idx: np.ndarray, kind: str, features: tuple[str, ...] = FEATURES) -> MetaModel | None:
     t, e = df.t.to_numpy(np.int64), df.exit_at.to_numpy(np.int64)
     fit, cal, conf = inner_split(t, e, idx, embargo=EMBARGO)
-    if len(fit) < 60 or len(cal) < 20 or len(conf) < 20 or df.y.iloc[fit].nunique() < 2:
+    if len(fit) < MIN_FIT or len(cal) < MIN_CAL or len(conf) < MIN_CONF or df.y.iloc[fit].nunique() < 2:
         return None
     X = df[list(features)].to_numpy(float)
-    m = make_model(kind).fit(X[fit], df.y.to_numpy()[fit])
+    sw = average_uniqueness(t[idx], e[idx])
+    order = {int(i): k for k, i in enumerate(np.asarray(idx))}
+    w_fit = np.array([sw[order[int(i)]] for i in fit])
+    w_fit = w_fit / w_fit.mean()
+    m = _fit_weighted(make_model(kind), X[fit], df.y.to_numpy()[fit], w_fit)
     c = fit_calibrator(m.predict_proba(X[cal])[:, 1], df.y.to_numpy()[cal], fitted_through=int(e[cal].max()))
     pc = c(m.predict_proba(X[conf])[:, 1])
     cf = fit_conformal(pc, df.y.to_numpy()[conf], ALPHA)

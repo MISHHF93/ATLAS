@@ -1,8 +1,12 @@
-# Current State — ATLAS Institutional Prop Trading & Stock Quant Platform
+# Current state
 
-> **Superseded snapshot (checked 2026-10-23).** This page describes the 2026-10-21 state, before the six-section IA, the price-action engine, predict()/EV gate, replay, setup autopilot, API keys/MCP and the 2026-10-23 real-data evidence. For current status see [../README.md](../README.md) (docs index), [../spec/audit-and-gap.md](../spec/audit-and-gap.md) and the root workbook `ATLAS Platform Master Roadmap & Technical Specifications (A-Z).xlsx`. Polygon/Databento are still not configured; everything is paper only.
+> **Live desk, checked 2026-10-28.** The product status is the root [README](../../README.md). The inventory under "Snapshot checked 2026-10-21" is that date's notes.
 
-Verified in `C:\Users\borah\ATLAS-main` on **2026-10-21**. The operating plan is [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
+The running checkout is `C:\Users\borah\ATLAS-main` ([github.com/MISHHF93/ATLAS](https://github.com/MISHHF93/ATLAS), branch `main`). The paper ledger is unfunded (`$0.00` cash, no open positions). The research hand is `ridge|full|none|time|htf` from `niches_1793235961` and cannot buy or sell. Gate `evo8-strict-1` has not passed (DSR 0.368 over 15 trials). There is no champion file. Yahoo is not the evolution book's bar source. Customer custody and live orders are unimplemented. Polygon and Databento are still not configured.
+
+## Snapshot checked 2026-10-21
+
+Verified in `C:\Users\borah\ATLAS-main` on **2026-10-21**. The sentences below still mention a `$101,850` evaluation book, Yahoo equity bars, TradingView widgets as the chart path, and an open `pos-001`. Those sentences describe 2026-10-21. The operating plan of that date is [EXECUTION_PLAN.md](EXECUTION_PLAN.md). For the six-section IA, the price-action engine, and the 2026-10-23 evidence, see the root README and [../spec/audit-and-gap.md](../spec/audit-and-gap.md).
 
 ATLAS is a dual-track research and paper desk: a deterministic Python control plane (`src/atlas/`) and a Next.js terminal (`frontend/`). The shell is six primary destinations (Desk, Markets, Trade, Risk, Research, Data). Older routes still exist. Public crypto and equity candles load when Coinbase or Yahoo answer. Otherwise the chart stays on the labeled fixture. The whale policy trains on those candles for both books and cannot send an order.
 

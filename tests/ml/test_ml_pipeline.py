@@ -75,6 +75,20 @@ def test_walk_forward_purge_and_embargo():
     assert n >= 3
 
 
+def test_first_fold_keeps_a_full_calibration_block_after_embargo():
+    # One event a day, exit two days later. The old first fold kept 19 calibration rows.
+    n = 710
+    t = np.arange(n) * 86400
+    e = t + 2 * 86400
+    folds = list(walk_forward_splits(t, e, n_folds=5, embargo=86400))
+    assert len(folds) == 5
+    for _, tr, te in folds:
+        fit, cal, conf = inner_split(t, e, tr, embargo=86400)
+        assert len(fit) >= 60 and len(cal) >= 20 and len(conf) >= 20
+        assert e[tr].max() < t[te].min() - 86400
+        assert not set(tr) & set(te)
+
+
 def test_walk_forward_rejects_unsorted():
     with pytest.raises(ValueError):
         list(walk_forward_splits(np.array([2, 1]), np.array([3, 3])))
@@ -97,6 +111,36 @@ def test_noise_is_not_eligible_and_signal_learns():
 
 
 # ---------------------------------------------------------------- calibration + conformal
+def test_overlapping_labels_weigh_less_than_a_unique_label():
+    from atlas.ml.train import average_uniqueness
+    t = np.array([0, 0, 100])
+    e = np.array([10, 10, 110])
+    w = average_uniqueness(t, e)
+    assert w[0] == pytest.approx(w[1])
+    assert w[2] > w[0]
+    assert w.mean() == pytest.approx(1.0)
+
+
+def test_small_platt_does_not_run_away_from_the_raw_score():
+    s = np.linspace(0.2, 0.8, 24)
+    y = (np.arange(24) % 2).astype(int)
+    c = fit_calibrator(s, y, fitted_through=1)
+    p = c(s)
+    assert c.kind == "platt"
+    assert np.corrcoef(s, p)[0, 1] > 0.5
+    assert np.max(np.abs(p - s)) < 0.35
+
+
+def test_platt_keeps_a_real_ranking():
+    s = np.linspace(0.05, 0.95, 80)
+    y = (s > 0.5).astype(int)
+    y[:3] = 1
+    y[-3] = 0
+    c = fit_calibrator(s, y, fitted_through=1)
+    p = c(np.array([0.2, 0.8]))
+    assert c.kind == "platt" and p[1] > p[0]
+
+
 def test_calibrator_refuses_in_sample_times():
     r = np.random.default_rng(0)
     s = r.random(500)

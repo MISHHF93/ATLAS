@@ -1,11 +1,7 @@
-from pathlib import Path
-
 import pytest
 import yaml
 
 from atlas.control.policy import ConfigError, load_all
-
-SPEC_DIR = Path("/workspace/trading-bot/config")
 
 
 def edit(d, name, fn):
@@ -26,9 +22,11 @@ def test_app_config_valid(cfg):
     assert {k: v.target_pct for k, v in cfg.risk.sleeves.items()} == {"core": 60, "active": 30, "high_risk": 10, "derivatives": 0}
 
 
-@pytest.mark.skipif(not SPEC_DIR.exists(), reason="spec dir absent")
-def test_original_spec_config_fails_closed():
-    e = errs(SPEC_DIR)
+def test_original_spec_config_fails_closed(cfg_dir):
+    """The pre-fix spec referenced a sleeve and a broker that do not exist. It must fail closed."""
+    edit(cfg_dir, "schedule.yaml", lambda d: d["intraday_rules"].__setitem__("hold_overnight_allowed_sleeves", ["core", "active_swing"]))
+    edit(cfg_dir, "schedule.yaml", lambda d: d["venues"]["fx"].__setitem__("brokers", ["ibkr", "oanda"]))
+    e = errs(cfg_dir)
     assert "active_swing" in e and "oanda" in e
 
 

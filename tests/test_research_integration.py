@@ -201,13 +201,27 @@ def test_pine_to_python_signal_parity(strategy_id: str) -> None:
     assert res["checks"]["lookahead_free"] is True
 
 
-def test_realistic_backtesting_engine_and_walk_forward_oos() -> None:
-    """Section 8: Realistic backtest with transaction costs, slippage, tail risk, and purged walk-forward split."""
-    bt_1x = run_realistic_strategy_backtest("sfp", symbol="GC", timeframe="15m", cost_multiplier=1.0)
-    bt_3x = run_realistic_strategy_backtest("sfp", symbol="GC", timeframe="15m", cost_multiplier=3.0)
-    if bt_1x["status"] in ("insufficient_data", "zero_trades"):
-        import pytest
-        pytest.skip(f"real feed produced no trades for GC 15m ({bt_1x['status']}); no synthetic fallback")
+def test_realistic_backtesting_engine_and_walk_forward_oos(monkeypatch) -> None:
+    """Section 8: Realistic backtest with transaction costs, slippage, tail risk, and purged walk-forward split.
+
+    GC 15m in this store is unofficial (Yahoo) and is not the authoritative series, so the engine
+    correctly reports insufficient official bars. The cost and walk-forward checks run on official
+    BTCUSDT 1h bars. No synthetic trades are substituted.
+    """
+    import atlas.feeds.feed as feed_mod
+    db = Path(__file__).resolve().parents[1] / "var" / "feeds" / "atlas_feed.sqlite"
+    monkeypatch.setenv("ATLAS_FEED_DB", str(db))
+    monkeypatch.setattr(feed_mod, "DEFAULT_STORE", str(db))
+    monkeypatch.setattr(feed_mod, "_DEFAULT", None)
+    missing = run_realistic_strategy_backtest("sfp", symbol="GC", timeframe="15m", cost_multiplier=1.0)
+    assert missing["status"] == "insufficient_data"
+    assert missing["execution_permission"] == "none"
+    bt_1x = run_realistic_strategy_backtest(
+        "prior_day_range_reversal", symbol="BTCUSDT", timeframe="1h", cost_multiplier=1.0
+    )
+    bt_3x = run_realistic_strategy_backtest(
+        "prior_day_range_reversal", symbol="BTCUSDT", timeframe="1h", cost_multiplier=3.0
+    )
     assert bt_1x["status"] == "ok"
     assert bt_1x["n_trades"] > 0
     assert bt_1x["net_profit_r"] <= bt_1x["gross_profit_r"]

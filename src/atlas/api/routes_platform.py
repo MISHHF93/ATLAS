@@ -836,8 +836,9 @@ class PlatformConfigPayload(BaseModel):
 
 
 def _with_feed_quotes(rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    """Overlay the ATLAS feed quote on each row: price/change/source/status/Toronto time. No feed print -> price None."""
+    """Overlay the ATLAS feed quote and the live session clock. No feed print -> price None."""
     from atlas.api.feeds_api import feed_quotes
+    from atlas.market.sessions import listing_market
     if os.environ.get("ATLAS_DISABLE_FEED_QUOTES") == "1":
         q = {}
     else:
@@ -845,7 +846,13 @@ def _with_feed_quotes(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     out = []
     for r in rows:
         v = q.get(str(r["symbol"])) or {"status": "no_data", "price": None, "source": None}
-        out.append({**r, "price": None if v.get("price") is None else f"{v['price']:.8g}" if v["price"] < 1 else f"{v['price']:.2f}",
+        stamp = listing_market(
+            str(r["symbol"]),
+            asset_class=str(r.get("asset_class") or ""),
+            exchange=str(r.get("venue") or ""),
+        )
+        out.append({**r, **stamp,
+                    "price": None if v.get("price") is None else f"{v['price']:.8g}" if v["price"] < 1 else f"{v['price']:.2f}",
                     "change_24h_pct": v.get("change_pct"), "quote_source": v.get("source"), "quote_status": v["status"],
                     "quote_time": v.get("observed_at_toronto"), "quote_epoch": v.get("observed_at"),
                     "freshness_seconds": v.get("age_seconds"), "feed_instrument": v.get("instrument")})
@@ -854,19 +861,33 @@ def _with_feed_quotes(rows: list[dict[str, object]]) -> list[dict[str, object]]:
 
 @router.get("/api/listings", include_in_schema=False)
 def get_live_listings() -> dict[str, object]:
-    return {"listings": _with_feed_quotes(list(_LIVE_LISTINGS_STATE))}
+    from atlas.ai.ml.market_islands import desk_attention
+    attention = desk_attention()
+    return {
+        "listings": _with_feed_quotes(list(_LIVE_LISTINGS_STATE)),
+        "open_markets": attention["open_markets"],
+        "markets": attention["venues"],
+        "market_attention": attention,
+        "execution_permission": "none",
+        "notice": (
+            "Each listing names the market on the session clock. "
+            "The research hand watches the markets that are open. "
+            "Positions stay on their own market. The hand cannot buy or sell."
+        ),
+    }
 
 
 @router.post("/api/listings/action", include_in_schema=False)
 def listing_action_endpoint(payload: ListingActionPayload) -> dict[str, object]:
     now = datetime.now(timezone.utc).isoformat()
     if payload.action == "add_listing":
+        from atlas.market.sessions import listing_market
         new_item = {
             "instrument_id": payload.instrument_id,
             "symbol": payload.symbol.upper(),
             "name": payload.name,
             "track": payload.track,
-            "venue": "Crypto Perp 24/7 Venue" if payload.track == "competition" else "NYSE / Nasdaq Session",
+            "venue": listing_market(payload.symbol)["market_name"],
             "asset_class": "crypto_perp" if payload.track == "competition" else "us_equity_etf",
             "price": None,  # the client-supplied price is ignored: quotes come from the ATLAS feed only
             "change_24h_pct": None,

@@ -1,12 +1,12 @@
 # ATLAS master spec
 
-This file is the product boundary. The explanation of the platform is [the README](../README.md). This spec is not a claim that the live trading system has been inspected.
+This file is the product boundary. The explanation of the platform is [the README](../README.md). The repository is [github.com/MISHHF93/ATLAS](https://github.com/MISHHF93/ATLAS), checked out at `C:\Users\borah\ATLAS-main`.
 
 ## Product
 
-ATLAS (Autonomous Trading, Liquidity, Allocation & Strategy Intelligence) is founder-owned software for market research and, later, supervision of accounts the customer already holds. The live Python trading system remains the execution engine until a read-only audit shows a defect that a small patch cannot fix. This repository does not replace that engine.
+ATLAS (Autonomous Trading, Liquidity, Allocation & Strategy Intelligence) is founder-owned software for market research and paper supervision. The paper control plane in this tree (`ActionableControlPlaneEngine`) can authorize a paper order after an operator deposit, inside free cash.
 
-The first releasable product is software. It researches markets and can later show a read-only view of a venue the customer already uses. Customer custody, deposit addresses, withdrawals, and changes to live orders stay unimplemented until counsel, a licensed partner, and written provider approval all exist. A software subscription is not a trading deposit.
+The first releasable product is software. It researches markets and can later show a read-only view of a venue the customer already uses. Customer custody, deposit addresses, live withdrawals, and changes to live venue orders stay unimplemented until counsel, a licensed partner, and written provider approval all exist. A software subscription is not a trading deposit.
 
 The founder retains proprietary source, algorithms, strategy logic, data models, and model weights. An infrastructure retainer does not transfer that ownership and does not grant discretion over orders or signing keys.
 
@@ -15,7 +15,7 @@ The founder retains proprietary source, algorithms, strategy logic, data models,
 Research and authorization are different.
 
 - A language model may classify observations and draft a research note. In this tree that model is Gemini, on the paid tier, with no tools attached.
-- The installed local quantitative providers are naive last-value and zero-return baselines. No trained market model or tree/neural worker is installed.
+- Local research models are stored. The evolution hand has not passed `evo8-strict-1` and cannot order. Naive last-value and zero-return baselines also exist. No model in this tree is eligible to order.
 - A research note and a forecast are stored records. Neither is an order.
 - Deterministic services alone may authorize, size, and release an order. Those services must run when every model process is down.
 - Gemini is absent from the order path, the risk path, and the kill switch.
@@ -41,7 +41,7 @@ The only wallet shape allowed in a design is the user signing in a wallet they c
 
 ## Markets and models
 
-ATLAS is not limited to one symbol or one interval in its design. Version 0.1.0 ships fixture candles for `BTC-USD` at `1h` so the read-only route can be tested. Those candles are invented.
+ATLAS is not limited to one symbol or one interval in its design. The running desk reads confirmed bars from the feed store. Version 0.1.0 also shipped invented fixture candles for `BTC-USD` at `1h` so a read-only route could be tested. Those fixtures are not the live chart source.
 
 No model in this tree is a universal predictor. Eligibility is per instrument and per horizon, after a human approval and an evaluation against a naive baseline on a point-in-time, costed sample. Uncontrolled live weight updates are forbidden.
 
@@ -57,20 +57,16 @@ The operating entity’s country is unknown. Research notes may discuss Canada, 
 
 ## This repository
 
-The initial version 0.1.0 scaffold includes:
+Checked out at `C:\Users\borah\ATLAS-main` from `https://github.com/MISHHF93/ATLAS.git`, branch `main`. Decision 44 in [architecture/DECISIONS.md](architecture/DECISIONS.md) records that identity. The 2026-10-19 path `C:\Users\borah\ATLAS` is not present on this machine.
 
-- `GeminiResearchProvider`, with mocked tests and a paid-tier gate.
-- Read-only health, fixture candle, research capability, and synthetic research demo GET routes.
-- A Next.js research terminal with no order controls.
+The tree includes a paper control plane, an append-only paper ledger, a research terminal, and stored research genomes. Paper orders, paper closes, and paper withdrawals stay inside that ledger. The research hand cannot buy or sell.
 
-The terminal's market observations and simulated approval are invented fixtures.
-The capability route reports only adapters registered in this process. The
-research API adds no account, order, or funds access.
+The version 0.1.0 scaffold also includes `GeminiResearchProvider` (mocked tests, paid-tier gate) and read-only health, capability, and research demo routes. The capability route reports only adapters registered in this process.
 
-No module in this tree submits, cancels, or modifies an order. No module moves funds.
+No module here custodies customer funds, issues a deposit address, or submits an order to a live broker. The Alpaca adapter, when configured, talks only to the paper endpoint.
 
 
-## Universal AI ecosystem directive � 2026-10-19
+## Universal AI ecosystem directive — 2026-10-19
 
 ATLAS now also targets universal AI model orchestration, training, evaluation and
 forecasting across permitted instruments, sampling resolutions, horizons and
@@ -80,9 +76,10 @@ The implementation and remaining integrations are specified in
 official-source evidence in [AI_ECOSYSTEM.md](research/AI_ECOSYSTEM.md).
 
 This directive allows isolated offline research infrastructure to proceed before
-any separate live-engine audit. The user confirmed this repository path as
-`C:\Users\borah\ATLAS`; no execution engine is present in its inspected source.
-Earlier milestone sequencing still applies to live connectors and execution.
+any separate live-broker audit. The checkout path recorded on 2026-10-19 as
+`C:\Users\borah\ATLAS` is not present on this machine. The paper control plane
+is in this tree. Live broker execution is not.
+Earlier milestone sequencing still applies to live connectors and live execution.
 
 Providers advertise only implemented capabilities. Gemini remains the preferred
 generative research provider, behind a replaceable protocol. Training, inference,

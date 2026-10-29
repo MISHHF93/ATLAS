@@ -22,6 +22,7 @@ from atlas.control.rules import (
     RuleEvaluationReport,
     TradingRuleBook,
     evaluate_trading_rules,
+    refuse_without_capital,
 )
 from atlas.schemas import Record, Text
 from atlas.ops.correlation import current as _correlation_id
@@ -42,6 +43,7 @@ class ActionableOrderRequest(Record):
     holding_horizon_seconds: int = 14400
     vpin_toxicity: float = Field(default=0.0, ge=0, le=1, allow_inf_nan=False)
     data_age_ms: float = Field(default=8.4, ge=0, allow_inf_nan=False)
+    reference_price: float | None = None
 
 
 class ActionablePositionRecord(Record):
@@ -54,6 +56,7 @@ class ActionablePositionRecord(Record):
     stop_distance_bps: Decimal
     opened_at: AwareDatetime
     status: Literal["open", "flattened", "closed"] = "open"
+    entry_price: float | None = None
 
 
 class ActionableOrderDecision(Record):
@@ -109,6 +112,8 @@ class ActionableControlState(Record):
     challenger_approved: bool
     training_runs_completed: int
     audit_log: tuple[str, ...]
+    deposits_loaded: bool = True
+    research_hand: dict[str, Any] | None = None
 
 
 class ActionableControlPlaneEngine:
@@ -207,6 +212,104 @@ class ActionableControlPlaneEngine:
         self.execution_connector = None
         self._order_seq = 1
         self._pos_seq = 1
+        self.deposits_loaded = True
+        self.research_hand: dict[str, Any] | None = None
+        self.cash_tracked = False
+        self.cash_usd = Decimal("0")
+        self.paper_journal = None
+
+    def unload_deposits(self) -> None:
+        """Drop the fabricated book. Orders stay refused until capital is actually loaded."""
+        now = datetime.now(timezone.utc)
+        zero = Decimal("0")
+        self.deposits_loaded = False
+        self.initial_equity_usd = zero
+        self.current_equity_usd = zero
+        self.high_water_mark_usd = zero
+        self.start_of_day_equity_usd = zero
+        self.gross_notional_usd = zero
+        self.correlated_exposure_usd = zero
+        self.sector_exposure_usd = zero
+        self.completed_trading_days = 0
+        self.best_day_profit_usd = zero
+        self.total_cumulative_profit_usd = zero
+        self.open_positions = []
+        self.active_champion_model = "none"
+        self.active_challenger_model = "none"
+        self.challenger_approved = False
+        self.cash_tracked = False
+        self.cash_usd = zero
+        self.audit_log.append(
+            f"{now.isoformat()} | deposits_unloaded | equity=0 | open_positions=0 | orders=refused"
+        )
+
+    def link_research_hand(self, hand: dict[str, Any] | None) -> None:
+        """Name a research genome on the desk. This does not promote it and cannot buy or sell."""
+        linked = dict(hand or {})
+        linked["can_buy"] = False
+        linked["can_sell"] = False
+        linked["execution_permission"] = "none"
+        linked["promoted_to_execution"] = False
+        linked["may_propose_order"] = False
+        linked["orders"] = "none"
+        self.research_hand = linked
+        now = datetime.now(timezone.utc)
+        genome = linked.get("genome_id") or "unlinked"
+        self.audit_log.append(
+            f"{now.isoformat()} | research_hand_linked | genome={genome} | can_buy=false | can_sell=false"
+        )
+
+    def apply_external_cash(self, delta: Decimal) -> None:
+        """Apply a paper deposit or withdrawal. The flow is external cash, not trading P&L.
+
+        A funded demo book is left alone. An empty book starts tracking cash at zero, then applies the flow.
+        """
+        delta = delta.quantize(Decimal("0.01"))
+        if delta == 0:
+            return
+        if not self.cash_tracked:
+            if self.deposits_loaded:
+                raise PermissionError("paper_capital_requires_unfunded_or_tracked_book")
+            if self.kill_switch_engaged and not any(pos.status == "open" for pos in self.open_positions):
+                self.kill_switch_engaged = False
+            zero = Decimal("0")
+            self.cash_tracked = True
+            self.cash_usd = zero
+            self.initial_equity_usd = zero
+            self.current_equity_usd = zero
+            self.high_water_mark_usd = zero
+            self.start_of_day_equity_usd = zero
+            self.gross_notional_usd = zero
+            self.correlated_exposure_usd = zero
+            self.sector_exposure_usd = zero
+        if delta < 0 and (-delta) > self.cash_usd:
+            raise ValueError("insufficient_paper_cash")
+        equity_before = self.current_equity_usd
+        self.cash_usd = (self.cash_usd + delta).quantize(Decimal("0.01"))
+        self.current_equity_usd = (self.current_equity_usd + delta).quantize(Decimal("0.01"))
+        if delta > 0:
+            self.initial_equity_usd = (self.initial_equity_usd + delta).quantize(Decimal("0.01"))
+            self.start_of_day_equity_usd = (self.start_of_day_equity_usd + delta).quantize(Decimal("0.01"))
+            self.high_water_mark_usd = (self.high_water_mark_usd + delta).quantize(Decimal("0.01"))
+            self.deposits_loaded = True
+        elif equity_before > 0:
+            ratio = (equity_before + delta) / equity_before
+            self.initial_equity_usd = (self.initial_equity_usd * ratio).quantize(Decimal("0.01"))
+            self.start_of_day_equity_usd = (self.start_of_day_equity_usd * ratio).quantize(Decimal("0.01"))
+            self.high_water_mark_usd = (self.high_water_mark_usd * ratio).quantize(Decimal("0.01"))
+        if self.high_water_mark_usd < self.initial_equity_usd:
+            self.high_water_mark_usd = self.initial_equity_usd
+        if self.high_water_mark_usd < self.current_equity_usd:
+            self.high_water_mark_usd = self.current_equity_usd
+        if self.current_equity_usd > 0 and self.start_of_day_equity_usd <= 0:
+            self.start_of_day_equity_usd = self.current_equity_usd
+        open_left = any(pos.status == "open" for pos in self.open_positions)
+        if self.cash_usd <= 0 and self.current_equity_usd <= 0 and not open_left:
+            hand = self.research_hand
+            journal = self.paper_journal
+            self.unload_deposits()
+            self.research_hand = hand
+            self.paper_journal = journal
 
     @property
     def kill_switch_engaged(self) -> bool:
@@ -240,6 +343,8 @@ class ActionableControlPlaneEngine:
             best_day_profit_usd=self.best_day_profit_usd,
             total_cumulative_profit_usd=self.total_cumulative_profit_usd,
             kill_switch_engaged=self.kill_switch_engaged,
+            cash_usd=self.cash_usd if self.cash_tracked else Decimal("0"),
+            cash_tracked=self.cash_tracked,
         )
 
     def get_state(self, now: datetime | None = None) -> ActionableControlState:
@@ -260,7 +365,12 @@ class ActionableControlPlaneEngine:
             correlated_group_add_usd=Decimal("6250"),
             sector_add_usd=Decimal("6250"),
         )
-        eval_rep = evaluate_trading_rules(rulebook, snap, default_cand, evaluated_at=ts)
+        if self.deposits_loaded:
+            eval_rep = evaluate_trading_rules(rulebook, snap, default_cand, evaluated_at=ts)
+        else:
+            eval_rep = refuse_without_capital(
+                rulebook, evaluated_at=ts, kill_switch_active=self.kill_switch_engaged
+            )
         return ActionableControlState(
             track=self.active_track,
             kill_switch_engaged=self.kill_switch_engaged,
@@ -273,6 +383,8 @@ class ActionableControlPlaneEngine:
             challenger_approved=self.challenger_approved,
             training_runs_completed=self.training_runs_completed,
             audit_log=tuple(self.audit_log[-20:]),
+            deposits_loaded=self.deposits_loaded,
+            research_hand=self.research_hand,
         )
 
     def _evaluate_request(self, request: ActionableOrderRequest, ts: datetime,
@@ -282,6 +394,10 @@ class ActionableControlPlaneEngine:
         self.active_track = request.track          # snapshot source label only
         try:
             rulebook = self._rulebook_for(request.track)
+            if not self.deposits_loaded:
+                return refuse_without_capital(
+                    rulebook, evaluated_at=ts, kill_switch_active=self.kill_switch_engaged
+                )
             snap = self._snapshot(ts)
             cand = ProposedTradeCheck(
                 instrument_id=request.instrument_id,
@@ -300,6 +416,8 @@ class ActionableControlPlaneEngine:
             )
             eval_rep = evaluate_trading_rules(rulebook, snap, cand, evaluated_at=ts)
             extra_violations = list(eval_rep.violations) + list(intake_violations)
+            if self.cash_tracked and request.notional_usd > self.cash_usd:
+                extra_violations.append("insufficient_paper_cash")
             if request.track == "open_market" and request.data_age_ms > 2000.0:
                 extra_violations.append("data_stale_open_market_2000ms")
             if request.track == "competition" and float(request.data_age_ms) > 500.0:
@@ -330,26 +448,54 @@ class ActionableControlPlaneEngine:
         ts = now or datetime.now(timezone.utc)
         self.active_track = request.track
         eval_rep = self._evaluate_request(request, ts, intake_violations)
-        exposure_add = (request.notional_usd * Decimal("0.25")).quantize(Decimal("0.01"))  # == candidate group/sector add
         self._order_seq += 1
         order_id = f"ord-{self._order_seq:03d}"
 
         if eval_rep.compliance_passed:
             self._pos_seq += 1
             pos_id = f"pos-{self._pos_seq:03d}"
+            booked_notional = request.notional_usd.quantize(Decimal("0.01"))
+            entry_price = None
+            if (
+                request.reference_price is not None
+                and math.isfinite(request.reference_price)
+                and request.reference_price > 0
+            ):
+                entry_price = float(request.reference_price)
+            if self.cash_tracked and self.paper_journal is not None:
+                booked = self.paper_journal(
+                    {
+                        "event": "fill",
+                        "position_id": pos_id,
+                        "instrument_id": request.instrument_id,
+                        "side": request.side,
+                        "notional_usd": str(booked_notional),
+                        "entry_price": entry_price,
+                        "stop_kind": request.stop_kind,
+                        "stop_distance_bps": str(request.stop_distance_bps),
+                        "track": request.track,
+                    }
+                )
+                booked_notional = Decimal(str(booked["gross_usd"])).quantize(Decimal("0.01"))
+                if not booked.get("deduplicated"):
+                    self.cash_usd = (self.cash_usd + Decimal(str(booked["net_cash_usd"]))).quantize(Decimal("0.01"))
+            elif self.cash_tracked:
+                self.cash_usd = (self.cash_usd - booked_notional).quantize(Decimal("0.01"))
+            exposure_add = (booked_notional * Decimal("0.25")).quantize(Decimal("0.01"))
             pos = ActionablePositionRecord(
                 position_id=pos_id,
                 track=request.track,
                 instrument_id=request.instrument_id,
                 side=request.side,
-                notional_usd=request.notional_usd,
+                notional_usd=booked_notional,
                 stop_kind=request.stop_kind,
                 stop_distance_bps=request.stop_distance_bps,
                 opened_at=ts,
                 status="open",
+                entry_price=entry_price,
             )
             self.open_positions.append(pos)
-            self.gross_notional_usd += request.notional_usd
+            self.gross_notional_usd += booked_notional
             self.correlated_exposure_usd += exposure_add
             self.sector_exposure_usd += exposure_add
             decision = ActionableOrderDecision(
@@ -358,14 +504,15 @@ class ActionableControlPlaneEngine:
                 track=request.track,
                 instrument_id=request.instrument_id,
                 side=request.side,
-                notional_usd=request.notional_usd,
+                notional_usd=booked_notional,
                 control_plane_decision="authorized_and_executed",
                 violations=(),
                 position_id=pos_id,
+                entry_price=entry_price,
                 rule_evaluation=eval_rep,
             )
             self.audit_log.append(
-                f"{ts.isoformat()} | order_authorized | {order_id} | {request.side.upper()} {request.instrument_id} ${request.notional_usd}"
+                f"{ts.isoformat()} | order_authorized | {order_id} | {request.side.upper()} {request.instrument_id} ${booked_notional}"
             )
         else:
             decision = ActionableOrderDecision(
@@ -395,6 +542,25 @@ class ActionableControlPlaneEngine:
     ) -> ActionableControlState:
         ts = now or datetime.now(timezone.utc)
         flattened_count = 0
+        returned_cash: list[tuple[ActionablePositionRecord, Decimal]] = []
+        for pos in self.open_positions:
+            if pos.status != "open":
+                continue
+            cash_in = pos.notional_usd
+            if self.cash_tracked and self.paper_journal is not None:
+                booked = self.paper_journal(
+                    {
+                        "event": "flatten",
+                        "position_id": pos.position_id,
+                        "instrument_id": pos.instrument_id,
+                        "side": pos.side,
+                        "notional_usd": str(pos.notional_usd),
+                        "entry_price": pos.entry_price,
+                        "track": pos.track,
+                    }
+                )
+                cash_in = Decimal(str(booked["cash_in"])).quantize(Decimal("0.01"))
+            returned_cash.append((pos, cash_in))
         updated: list[ActionablePositionRecord] = []
         for pos in self.open_positions:
             if pos.status == "open":
@@ -402,6 +568,12 @@ class ActionableControlPlaneEngine:
                 updated.append(pos.model_copy(update={"status": "flattened"}))
             else:
                 updated.append(pos)
+        if self.cash_tracked:
+            for pos, cash_in in returned_cash:
+                self.cash_usd = (self.cash_usd + cash_in).quantize(Decimal("0.01"))
+                dust = (cash_in - pos.notional_usd).quantize(Decimal("0.01"))
+                if dust != 0:
+                    self.current_equity_usd = (self.current_equity_usd + dust).quantize(Decimal("0.01"))
         self.open_positions = updated
         self.gross_notional_usd = Decimal("0")
         self.correlated_exposure_usd = Decimal("0")
@@ -447,6 +619,8 @@ class ActionableControlPlaneEngine:
             if order.position_id == position_id and order.entry_price:
                 entry = float(order.entry_price)
                 break
+        if entry is None and pos.entry_price:
+            entry = float(pos.entry_price)
         full = fraction >= 1
         closed_notional = pos.notional_usd if full else (pos.notional_usd * Decimal(str(fraction))).quantize(Decimal("0.01"))
         remaining = (pos.notional_usd - closed_notional).quantize(Decimal("0.01"))
@@ -457,7 +631,28 @@ class ActionableControlPlaneEngine:
             sign = Decimal("1") if pos.side == "buy" else Decimal("-1")
             pnl = (Decimal(str((exit_price - entry) / entry)) * closed_notional * sign).quantize(Decimal("0.01"))
         net = (pnl - fee_usd).quantize(Decimal("0.01"))
+        cash_in = (closed_notional + net).quantize(Decimal("0.01"))
+        if self.cash_tracked and self.paper_journal is not None:
+            booked = self.paper_journal(
+                {
+                    "event": "close",
+                    "position_id": position_id,
+                    "instrument_id": pos.instrument_id,
+                    "side": pos.side,
+                    "closed_notional_usd": str(closed_notional),
+                    "pnl_usd": str(pnl),
+                    "fee_usd": str(fee_usd),
+                    "exit_price": exit_price,
+                    "entry_price": entry,
+                    "fraction": fraction,
+                    "track": pos.track,
+                }
+            )
+            cash_in = Decimal(str(booked["cash_in"])).quantize(Decimal("0.01"))
+            net = (cash_in - closed_notional).quantize(Decimal("0.01"))
         self.current_equity_usd = (self.current_equity_usd + net).quantize(Decimal("0.01"))
+        if self.cash_tracked:
+            self.cash_usd = (self.cash_usd + cash_in).quantize(Decimal("0.01"))
         if self.current_equity_usd > self.high_water_mark_usd:
             self.high_water_mark_usd = self.current_equity_usd
         self.gross_notional_usd = max(Decimal("0"), self.gross_notional_usd - closed_notional)
@@ -511,15 +706,26 @@ class ActionableControlPlaneEngine:
     ) -> ActionableControlState:
         ts = now or datetime.now(timezone.utc)
         if action == "approve_challenger":
+            if not self.deposits_loaded:
+                self.challenger_approved = False
+                self.audit_log.append(
+                    f"{ts.isoformat()} | lifecycle_refused | action={action} | reason=no_deposited_capital"
+                )
+                return self.get_state(ts)
             self.challenger_approved = True
         elif action == "revoke_challenger":
             self.challenger_approved = False
         elif action == "promote_challenger":
+            if not self.deposits_loaded:
+                self.audit_log.append(
+                    f"{ts.isoformat()} | lifecycle_refused | action={action} | reason=no_deposited_capital"
+                )
+                return self.get_state(ts)
             if not self.challenger_approved:
                 raise PermissionError("Cannot promote challenger without active scoped approval")
             self.active_champion_model = self.active_challenger_model
         elif action == "rollback_to_champion":
-            self.active_champion_model = "naive:last_value:v1"
+            self.active_champion_model = "naive:last_value:v1" if self.deposits_loaded else "none"
         self.audit_log.append(
             f"{ts.isoformat()} | lifecycle_action | action={action} | champion={self.active_champion_model} | approved={self.challenger_approved}"
         )
@@ -577,6 +783,28 @@ class ActionableControlPlaneEngine:
     ) -> dict[str, object]:
         """Compute exact dollar and percentage buffers remaining before breaching daily or trailing drawdown limits."""
         active_trk = track or self.active_track
+        if not self.deposits_loaded:
+            return {
+                "track": active_trk,
+                "current_equity_usd": 0.0,
+                "start_of_day_equity_usd": 0.0,
+                "high_water_mark_usd": 0.0,
+                "daily_floor_usd": 0.0,
+                "trailing_floor_usd": 0.0,
+                "daily_loss_room_usd": 0.0,
+                "daily_loss_room_pct": 0.0,
+                "trailing_dd_room_usd": 0.0,
+                "trailing_dd_room_pct": 0.0,
+                "daily_drawdown_fraction": 0.0,
+                "trailing_drawdown_fraction": 0.0,
+                "daily_loss_limit_pct": 0.0,
+                "drawdown_limit_pct": 0.0,
+                "drawdown_mode": "unfunded",
+                "rulebook_id": "no_deposited_capital",
+                "safe_stop_engaged": self.kill_switch_engaged,
+                "deposits_loaded": False,
+                "orders": "refused",
+            }
         rulebook = self.founder_rulebook if active_trk == "founder_capital" else self._rulebook_for(active_trk)
         sod = max(Decimal("1"), self.start_of_day_equity_usd)
         hwm = max(Decimal("1"), self.initial_equity_usd if rulebook.drawdown_mode == "static" else self.high_water_mark_usd)
@@ -660,6 +888,22 @@ class ActionableControlPlaneEngine:
             provider=provider,
             now=ts,
         )
+        if not self.deposits_loaded or self.current_equity_usd <= 0:
+            # An empty book is not a drawdown. The $1 floor would otherwise read a total loss.
+            return {
+                "status": "STALE_DATA_ALERT" if bool(freshness["data_freshness_breach"]) else "NOMINAL",
+                "symbol": symbol.upper(),
+                "price": round(float(price), 4),
+                "track": track,
+                "latency_ms": round(float(latency_ms), 2),
+                "data_freshness_breach": bool(freshness["data_freshness_breach"]),
+                "auto_flattened": False,
+                "kill_switch_engaged": self.kill_switch_engaged,
+                "breach_reasons": (),
+                "open_positions_count": sum(1 for pos in self.open_positions if pos.status == "open"),
+                "remaining_room_hud": self.get_remaining_room_hud(track=track),
+                "evaluated_at": ts.isoformat(),
+            }
 
         if mark_to_market_equity_usd is not None:
             new_eq = Decimal(str(round(float(mark_to_market_equity_usd), 2)))
@@ -727,6 +971,7 @@ class ActionableControlPlaneEngine:
         data_age_ms: float = 8.4,
         execution_connector: Any | None = None,
         require_connector: bool = False,
+        operator_ticket: bool = False,
         now: datetime | None = None,
     ) -> BracketOrderIntakeReport:
         """Signal Intake & Bracket Order Bridge inside `ActionableControlPlaneEngine`.
@@ -763,6 +1008,8 @@ class ActionableControlPlaneEngine:
         telemetry = sig_dict.get("telemetry") or {}
         vpin_val = float(telemetry.get("vpin", 0.0))
         intake_violations: list[str] = []
+        if self.cash_tracked and not operator_ticket:
+            intake_violations.append("research_model_cannot_order")
         if require_connector and execution_connector is None:
             intake_violations.append("execution_connector_unconfigured")
         if direction not in ("BUY", "SELL"):
@@ -858,6 +1105,7 @@ class ActionableControlPlaneEngine:
             holding_horizon_seconds=3600,
             vpin_toxicity=min(1.0, max(0.0, vpin_val)),
             data_age_ms=float(data_age_ms),
+            reference_price=entry_px if entry_px > 0 else None,
         )
         decision = self.submit_order(req, now=ts, intake_violations=tuple(intake_violations))
         decision = decision.model_copy(update={
@@ -902,9 +1150,23 @@ class ActionableControlPlaneEngine:
         """Deterministic entry point. Equity must include realized and floating P&L.
 
         Existing connectors are paper simulators; this method does not claim a venue fill.
+        A caller-supplied equity number cannot fund an account that has no deposit loaded.
         """
         if signal.execution_permission != "none":
             raise ValueError("Signal execution_permission must be none")
+        if not self.deposits_loaded:
+            return self.ingest_whale_policy_signal(
+                signal, execution_connector=None, require_connector=False, operator_ticket=True
+            )
+        if self.cash_tracked:
+            # The desk ticket names the size. Rules and free cash still accept or refuse it.
+            return self.ingest_whale_policy_signal(
+                signal,
+                desired_notional_usd=_paper_ticket_notional(signal),
+                execution_connector=self.execution_connector,
+                require_connector=self.execution_connector is not None,
+                operator_ticket=True,
+            )
         if not math.isfinite(current_equity) or current_equity <= 0:
             raise ValueError("current_equity must be finite and positive")
         self.current_equity_usd = Decimal(str(current_equity))
@@ -912,6 +1174,21 @@ class ActionableControlPlaneEngine:
         return self.ingest_whale_policy_signal(signal, execution_connector=self.execution_connector, require_connector=True)
 
     evaluate_and_bracket_signal = ingest_whale_policy_signal
+
+
+def _paper_ticket_notional(signal: Any) -> Decimal | None:
+    """Operator ticket size carried on the signal. Absent means the risk-budget sizer."""
+    telemetry = getattr(signal, "telemetry", None) or {}
+    raw = telemetry.get("desired_notional_usd") if isinstance(telemetry, dict) else None
+    if raw is None:
+        return None
+    try:
+        amount = Decimal(str(raw))
+    except Exception:
+        return None
+    if not amount.is_finite() or amount <= 0:
+        return None
+    return amount.quantize(Decimal("0.01"))
 
 
 

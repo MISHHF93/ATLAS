@@ -38,6 +38,11 @@ ROUND_TRIP_BPS = {"competition": 16.0, "open_market": 4.0}
 _CACHE: dict[str, Any] = {"key": None, "report": None, "at": 0.0}
 
 
+def _official_proof(data_mode: str, feed_origin: str) -> bool:
+    from atlas.feeds.official import counts_for_proof
+    return counts_for_proof(data_mode, feed_origin)
+
+
 def combine_stance(primary_side: str, probability: float | None) -> tuple[str, str | None]:
     """Return the research stance and, when it abstains, the reason."""
     side = primary_side.upper()
@@ -161,7 +166,7 @@ def _walk_symbol(frame: dict[str, Any]) -> list[dict[str, Any]]:
                 "net_return": None if net is None else round(net, 8),
                 "data_mode": data_mode,
                 "feed_origin": feed_origin,
-                "counts_toward_proof": data_mode == "public_market_candles" and taken and resolved,
+                "counts_toward_proof": _official_proof(data_mode, feed_origin) and taken and resolved,
                 "execution_permission": "none",
                 "may_propose_order": False,
             }
@@ -196,7 +201,7 @@ def _reliability(decisions: list[dict[str, Any]]) -> dict[str, Any]:
     public = [
         row for row in decisions
         if row["status"] == "resolved"
-        and row["data_mode"] == "public_market_candles"
+        and _official_proof(str(row.get("data_mode") or ""), row.get("feed_origin"))
         and row.get("exit_close") is not None
         and row.get("entry_close")
     ]
@@ -367,30 +372,41 @@ def ledger_from_gateway(gateway: Any) -> dict[str, Any]:
     """Read the cached daily pages. This does not start a new public fetch."""
     from atlas.marketdata.bar_projection import project_symbol_bars
 
+    from atlas.feeds.official import daily_frame
+
     frames: list[dict[str, Any]] = []
-    key_parts: list[tuple[str, str, str, int, float]] = []
+    key_parts: list[tuple] = []
     for symbol in (*COMPETITION_SYMBOLS, *OPEN_MARKET_SYMBOLS):
-        projected = project_symbol_bars(gateway, symbol, bucket_seconds=86_400, limit=120)
-        candles = list(projected.get("candles") or [])
-        data_mode = (
-            "public_market_candles"
-            if projected.get("chart_source") == "public_market_candles"
-            else "synthetic_fixture_training"
-        )
-        frames.append(
-            {
-                "symbol": symbol,
-                "track": projected.get("track"),
-                "candles": candles,
-                "data_mode": data_mode,
-                "feed_origin": projected.get("feed_origin"),
-            }
-        )
+        official = daily_frame(symbol)
+        if official is not None:
+            frames.append(official)
+            candles = list(official.get("candles") or [])
+            data_mode = "public_market_candles"
+            origin = official.get("feed_origin")
+        else:
+            projected = project_symbol_bars(gateway, symbol, bucket_seconds=86_400, limit=120)
+            candles = list(projected.get("candles") or [])
+            data_mode = (
+                "public_market_candles"
+                if projected.get("chart_source") == "public_market_candles"
+                else "synthetic_fixture_training"
+            )
+            origin = projected.get("feed_origin")
+            frames.append(
+                {
+                    "symbol": symbol,
+                    "track": projected.get("track"),
+                    "candles": candles,
+                    "data_mode": data_mode,
+                    "feed_origin": origin,
+                }
+            )
         last = candles[-1] if candles else {}
         key_parts.append(
             (
                 symbol,
                 data_mode,
+                str(origin or ""),
                 str(last.get("timestamp") or ""),
                 len(candles),
                 float(last.get("close") or 0.0),

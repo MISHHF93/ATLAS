@@ -137,30 +137,58 @@ def _canonical_symbol(symbol: str) -> str:
 def load_cached_registered_model(
     group: str,
     reg_path: str | os.PathLike | None = None,
+    *,
+    instrument: str | None = None,
 ) -> tuple[dict[str, Any] | None, Any | None, str | None]:
-    """Thread-safe model loader from `var/ml/registry` with fallback across timeframe groups."""
-    r_root = str(registry_root(reg_path))
-    cache_key = f"{r_root}:{group}"
-    with _MODEL_CACHE_LOCK:
-        if cache_key in _MODEL_CACHE:
-            man, mdl = _MODEL_CACHE[cache_key]
-            return man, mdl, None
+    """Load an eligible model only within its explicit training series scope.
 
+    Re-read eligibility and scope before consulting the binary cache: a cached model
+    must stop serving immediately when its manifest is withdrawn or its gates change.
+    There is no fallback across asset classes, timeframes, or instruments.
+    """
+    if not instrument:
+        return None, None, "Live inference requires an explicit instrument scope"
+    r_root = str(registry_root(reg_path).resolve())
     models = list_models(reg_path)
     if not models:
         with _TELEMETRY_LOCK:
             _HEALTH_TELEMETRY["model_load_failures"] += 1
         return None, None, "No registered models found in model registry"
 
-    ac = group.split("-")[0]
-    candidates = [m for m in models if m.get("group") == group]
+    ac, _, interval = group.rpartition("-")
+    feed_symbol = _feed_symbol(instrument)
+    candidates = []
+    for m in models:
+        gates = m.get("gates")
+        if m.get("group") != group or m.get("status") != "eligible":
+            continue
+        if not isinstance(gates, list) or not gates or not all(
+            isinstance(g, dict) and g.get("passed") is True for g in gates
+        ):
+            continue
+        series = m.get("series")
+        if not isinstance(series, list) or not any(
+            isinstance(s, dict)
+            and s.get("instrument") == feed_symbol
+            and s.get("asset_class") == ac
+            and s.get("interval") == interval
+            for s in series
+        ):
+            continue
+        candidates.append(m)
     if not candidates:
-        candidates = [m for m in models if str(m.get("group", "")).startswith(f"{ac}-")]
-    if not candidates:
-        candidates = models
+        return None, None, f"No eligible model with passed validation gates for {feed_symbol} in {group}"
 
     chosen = candidates[0]
     ver = str(chosen.get("version") or "")
+    # Include all manifest metadata so eligibility-preserving revisions also invalidate
+    # the cached binary. Registry versions are otherwise immutable by contract.
+    manifest_hash = hashlib.sha256(json.dumps(chosen, sort_keys=True).encode()).hexdigest()
+    cache_key = f"{r_root}:{ver}:{manifest_hash}"
+    with _MODEL_CACHE_LOCK:
+        if cache_key in _MODEL_CACHE:
+            _, mdl = _MODEL_CACHE[cache_key]
+            return chosen, mdl, None
     try:
         mdl = load_model(ver, reg_path)
         if mdl is None:
@@ -248,8 +276,8 @@ def generate_live_prediction(
     now_utc = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     canon_sym = _canonical_symbol(symbol)
     feed_sym = _feed_symbol(symbol)
-    iv = interval.lower() if interval.lower() in ("1m", "5m", "15m", "1h", "4h", "1d") else "15m"
-    horizon_sec = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}[iv]
+    iv = interval.lower()
+    horizon_sec = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}.get(iv, 900)
 
     if feed is None:
         from atlas.api.feeds_api import _feed as get_default_feed
@@ -263,10 +291,7 @@ def generate_live_prediction(
     raw_bars = []
     if feed is not None:
         try:
-            load_iv = "1h" if iv == "4h" else ("15m" if iv in ("1m", "5m") else iv)
-            raw_bars = (feed.bars(feed_sym, load_iv) or [])[-300:]
-            if not raw_bars and iv == "1h":
-                raw_bars = (feed.bars(feed_sym, "15m") or [])[-300:]
+            raw_bars = (feed.bars(feed_sym, iv) or [])[-300:]
         except Exception:
             raw_bars = []
 
@@ -345,6 +370,9 @@ def generate_live_prediction(
     if mkt.get("data_feed_health") in {"STALE", "DISCONNECTED"} and mkt.get("is_open"):
         return _build_non_valid_response("STALE_MARKET_DATA", "STALE_MARKET_DATA", f"Market {inst_id} is open but market data feed is {mkt.get('data_feed_health')}.")
 
+    if (mkt.get("market_closed_behavior") or {}).get("prediction_status_override") == "MARKET_CLOSED":
+        return _build_non_valid_response("MARKET_CLOSED", "VALID", f"Market {inst_id} is closed; live inference is suppressed.")
+
     if len(raw_bars) < 60:
         return _build_non_valid_response("INSUFFICIENT_HISTORY", "INSUFFICIENT_HISTORY", f"Need >= 60 bars for indicator warmup; found {len(raw_bars)} bars.")
 
@@ -375,14 +403,11 @@ def generate_live_prediction(
         return _build_non_valid_response("INSUFFICIENT_HISTORY", "MISSING_FEATURES", f"{missing_feats} required bar features are NaN.")
 
     # 4. Load registered model for (asset_class, interval)
-    is_crypto = feed_sym.endswith(("USDT", "USD"))
-    ac_group = "crypto" if is_crypto else "equity"
-    reg_iv = iv if iv in ("15m", "1h", "4h") else "15m"
-    if not is_crypto and reg_iv == "4h":
-        reg_iv = "1h"
-    group = f"{ac_group}-{reg_iv}"
+    asset_class = str(mkt.get("asset_class") or "unknown")
+    ac_group = "equity" if asset_class in {"equity", "etf", "canadian_etf_etr"} else asset_class
+    group = f"{ac_group}-{iv}"
 
-    man, mdl, load_err = load_cached_registered_model(group, reg_path=reg_path)
+    man, mdl, load_err = load_cached_registered_model(group, reg_path=reg_path, instrument=feed_sym)
     if mdl is None or man is None:
         return _build_non_valid_response("MODEL_UNAVAILABLE", "VALID", load_err or f"No model registered for {group}.")
 
@@ -559,6 +584,9 @@ def get_prediction_health(
     """Section 8: Live Prediction Health Monitoring Service."""
     now_utc = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     models = list_models(reg_path)
+    eligible_models = [m for m in models if m.get("status") == "eligible"
+                       and isinstance(m.get("gates"), list) and m["gates"]
+                       and all(isinstance(g, dict) and g.get("passed") is True for g in m["gates"])]
 
     if symbol:
         canon = _canonical_symbol(symbol)
@@ -574,7 +602,7 @@ def get_prediction_health(
     total = max(1, int(snap["total_inferences"]))
     succ = int(snap["successful_inferences"])
     fail = int(snap["failed_inferences"])
-    succ_rate = round(succ / total, 4) if snap["total_inferences"] > 0 else (1.0 if models else 0.0)
+    succ_rate = round(succ / total, 4) if snap["total_inferences"] > 0 else 0.0
     err_rate = round(fail / total, 4) if snap["total_inferences"] > 0 else 0.0
 
     last_pred_ts = snap.get("last_prediction_timestamp")
@@ -585,12 +613,13 @@ def get_prediction_health(
         except Exception:
             pred_age_s = None
 
-    active_ver = snap.get("active_model_version") or (models[0]["version"] if models else None)
-    active_cal = snap.get("active_calibration_version") or (f"{models[0].get('calibrator')}-v1" if models else None)
+    eligible_versions = {m["version"] for m in eligible_models}
+    active_ver = snap.get("active_model_version") if snap.get("active_model_version") in eligible_versions else None
+    active_cal = snap.get("active_calibration_version") if active_ver else None
 
-    if not models or active_ver is None:
-        classification = "MODEL_ERROR"
-        reason = "No registered model artifacts found in var/ml/registry."
+    if not eligible_models:
+        classification = "UNAVAILABLE"
+        reason = "No registered models have passed all live-inference eligibility gates."
     elif int(snap.get("model_load_failures") or 0) > 0 and succ == 0:
         classification = "MODEL_ERROR"
         reason = "Model load failure encountered during inference."
@@ -606,6 +635,9 @@ def get_prediction_health(
     elif err_rate > 0.25:
         classification = "DEGRADED"
         reason = f"Prediction error rate is {err_rate * 100:.1f}%."
+    elif active_ver is None:
+        classification = "UNAVAILABLE"
+        reason = "Eligible model artifacts exist, but no scoped live inference has succeeded."
     else:
         classification = "HEALTHY"
         reason = f"Active model {active_ver} ({active_cal}) serving calibrated predictions in {snap.get('inference_latency_ms', 0.0):.2f} ms."
@@ -629,6 +661,7 @@ def get_prediction_health(
         "model_load_failures": int(snap.get("model_load_failures") or 0),
         "frontend_delivery_latency_ms": float(snap.get("frontend_delivery_latency_ms") or 4.2),
         "registered_models_count": len(models),
+        "eligible_models_count": len(eligible_models),
         "by_symbol": by_sym,
         "execution_permission": "none",
     }
@@ -1220,7 +1253,7 @@ def get_evolution_intelligence_dashboard(
             {
                 "proposal_id": "EVO-SW-002",
                 "component": "src/atlas/market/sessions.py",
-                "summary": "Enforce effective-date check (2026-12-01) on Nasdaq 23/5 overnight session transition.",
+                "summary": "Nasdaq 23/5 night session starts 2026-12-06 at 21:00 ET. 20:00–21:00 ET is a closed pause.",
                 "review_status": "GOVERNED_APPLIED",
                 "expands_trading_permissions": False,
             },

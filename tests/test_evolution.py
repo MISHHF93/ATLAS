@@ -42,6 +42,19 @@ def test_noise_population_does_not_beat_baseline_and_records_lineage(tmp_path):
     assert (tmp_path / "evolution" / "lineage.jsonl").exists()
 
 
+def test_mutate_stays_inside_the_bar_types_that_were_built():
+    import random
+    g = {"model": "hgb", "features": "full", "regime": "none", "bar_type": "time", "context": "none"}
+    space = {**E.GENES, "bar_type": ("time",)}
+    rng = random.Random(0)
+    for _ in range(40):
+        child, mut = E.mutate(g, rng, space)
+        assert child["bar_type"] == "time"
+        assert not mut.startswith("bar_type")
+    same, note = E.mutate(g, rng, {k: (g[k],) for k in E.GENES})
+    assert note == "none" and same["model"] == "hgb"
+
+
 def test_feature_list_genes():
     g = {"model": "hgb", "features": "no_setup", "regime": "vol_conditioned", "bar_type": "heikin_ashi"}
     f = E.feature_list(g)
@@ -49,6 +62,10 @@ def test_feature_list_genes():
     gt = {"model": "hgb", "features": "full", "regime": "trend_conditioned", "bar_type": "time"}
     ft = E.feature_list(gt)
     assert "reg_trend_with" in ft and "reg_trend_counter" in ft and f"{E.SIGNED_X[0]}_x_trend" in ft
+    gd = {"model": "logit", "features": "no_setup", "regime": "daily_trend", "bar_type": "time", "context": "macro"}
+    fd = E.feature_list(gd)
+    assert "reg_d1_with" in fd and "reg_d1_counter" in fd and f"{E.SIGNED_X[0]}_x_d1" in fd
+    assert "m_vix" in fd and "reward_risk" not in fd
 
 
 def test_markers_causal_anchor_and_never_ml_authorized():
@@ -78,3 +95,12 @@ def test_rule_only_risk_status_is_not_called_a_rejection():
     from atlas.intel import markers
     src = inspect.getsource(markers.from_replay)
     assert '"rule_only", "rejected' not in src and "not a risk rejection" in src
+
+
+def test_official_book_uses_the_cost_capped_higher_timeframe():
+    assert E.OFFICIAL_VARIANT == "atr2_rr2_cf15"
+    assert E.UNIVERSE_OFFICIAL == [(i, "4h") for i in ("BTCUSDT", "ETHUSDT", "SOLUSDT")]
+    assert "daily_trend" in E.GENES["regime"]
+    assert E.EVO6_DETECTORS == ("prior_day_range_reversal",)
+    assert E.MIN_TRADES_PER_FOLD == 20 and E.DSR_MIN == 0.95 and E.BONFERRONI_ALPHA == 0.05
+    assert any(s.get("features") == "no_signed" and s.get("context") == "macro" for s in E.LIVE_SEEDS)

@@ -88,9 +88,9 @@ Every AI/assistant/MCP output carries `execution_permission: "none"`.
 2. **TradingRuleBook.track literal.** It is `competition | open_market` in about 40 places. The founder rulebook is `track="open_market"` with its own `rulebook_id` (`founder-capital-2026-q4:v1`), so the literal was not widened.
 3. **Two kill switches.** ATLAS `control_engine.kill_switch_engaged` (in-process, prop desk) and Lola `atlas.risk.killswitch.KillSwitch` (persisted, shared with the watchdog) both remain. The founder API uses the persisted one. Unifying them is left as a follow-up.
 4. **Model registry.** Lola's registry in `atlas.models.quant` coexists with ATLAS `model_store` / `trial_log` / `uncertainty_calibration`. Nothing was merged, so ATLAS model artefacts are unaffected.
-5. **Lola console SPA not ported.** The UI was rebuilt as ATLAS Next.js pages. `atlas.console` is kept API-only and loopback-only. Two SPA-shell tests are skipped and one `portal.js` assertion was removed.
+5. **Lola console SPA not ported.** The UI was rebuilt as ATLAS Next.js pages. `atlas.console` stays loopback-only and serves a local shell (security headers, known routes, no remote assets) so the old SPA tests run against that shell.
 6. **Env prefix.** `TRADINGBOT_*` → `ATLAS_*`, `tradingbot-*` CLIs → `atlas-*`, and `tradingbot://` → `atlas://`. Lola config defaults `config` → `config/founder`.
-7. **Docker not ported.** The 2 Docker tests are skipped.
+7. **Docker packaging is paper-only.** `Dockerfile` and `docker-compose.yml` run offline, as non-root, with no baked-in secrets. The two static Docker tests check those files. No image is built in the test run.
 8. **Pre-existing failures.** 8 ATLAS tests fail on `main` because `estimate_kyles_lambda` is undefined in `marketdata/live_stream.py`. They were left as is (not part of this port).
 9. **Two dashboards.** Lola's stdlib dashboard is kept as `atlas.ops.dashboard` because its tests depend on it. The ATLAS frontend is the primary UI.
 

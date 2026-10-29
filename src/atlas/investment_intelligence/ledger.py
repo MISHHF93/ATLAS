@@ -205,12 +205,15 @@ def compute_tx_dedup_hash(
     price: float,
     gross_amount: float,
     correction_of_tx_id: str | None = None,
+    dedup_salt: str | None = None,
 ) -> str:
     raw = (
         f"{tenant_id.strip()}|{account_id.strip()}|{tx_type.strip().upper()}|"
         f"{(symbol or '').strip().upper()}|{trade_date.strip()}|"
         f"{quantity:.8f}|{price:.8f}|{gross_amount:.4f}|{correction_of_tx_id or ''}"
     )
+    if dedup_salt:
+        raw = f"{raw}|{dedup_salt}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 
@@ -335,15 +338,25 @@ class InvestmentPortfolioLedger:
             )
 
     def ensure_pilot_seeded(self, tenant_id: str = "default_workspace") -> None:
-        """Seed the verified multi-asset pilot portfolio if this tenant has no transactions yet."""
+        """Do not invent a deposit. Holdings appear only when a transaction is recorded.
+
+        ``seed_pilot_portfolio`` remains for an explicit pilot test.
+        """
+        return
+
+    def drop_seeded_deposit_book(self, tenant_id: str = "default_workspace") -> dict[str, int]:
+        """Remove the fabricated pilot account for this tenant. Other tenants and accounts stay."""
+        account_id = f"{tenant_id}_core_multi_asset"
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) AS cnt FROM cm_investment_transactions WHERE tenant_id = ?",
-                (tenant_id,),
-            ).fetchone()
-            if row and int(row["cnt"]) > 0:
-                return
-        self.seed_pilot_portfolio(tenant_id=tenant_id)
+            transactions = conn.execute(
+                "DELETE FROM cm_investment_transactions WHERE tenant_id = ? AND account_id = ?",
+                (tenant_id, account_id),
+            ).rowcount
+            accounts = conn.execute(
+                "DELETE FROM cm_investment_accounts WHERE tenant_id = ? AND account_id = ?",
+                (tenant_id, account_id),
+            ).rowcount
+        return {"transactions": int(transactions or 0), "accounts": int(accounts or 0)}
 
     def create_account(
         self,
@@ -410,6 +423,7 @@ class InvestmentPortfolioLedger:
         correction_of_tx_id: str | None = None,
         notes: str = "",
         tx_id: str | None = None,
+        dedup_salt: str | None = None,
     ) -> dict[str, Any]:
         """Record an append-only transaction with SHA-256 deduplication."""
         if not tenant_id or not tenant_id.strip():
@@ -427,6 +441,7 @@ class InvestmentPortfolioLedger:
             price,
             gross,
             correction_of_tx_id=correction_of_tx_id,
+            dedup_salt=dedup_salt,
         )
         now_iso = datetime.now(timezone.utc).isoformat()
         new_tx_id = tx_id or f"tx-{uuid.uuid4().hex[:12]}"

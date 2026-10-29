@@ -1,0 +1,783 @@
+{
+  "generated_at_utc": "2026-10-28T15:01:27.284851+00:00",
+  "analysis_at_utc": "2026-10-28T04:00:00+00:00",
+  "execution_permission": "none",
+  "mode": "read_only_assessment",
+  "model_evidence": {
+    "n_registered": 5,
+    "n_gate_eligible": 0,
+    "eligibility_note": "Gate eligibility still requires exact instrument, asset class, and interval checks at inference.",
+    "models": [
+      {
+        "version": "atlas-meta-equity-1h-6a29eaec31-7e1d14a",
+        "group": "equity-1h",
+        "status": "not_eligible",
+        "created_at": "2026-10-27T13:46:58.735533+00:00",
+        "passes_recorded_gates": false,
+        "failed_gates": [
+          "brier_beats_base_rate",
+          "logloss_beats_base_rate",
+          "deflated_sharpe",
+          "shadow_weeks"
+        ],
+        "n_oos": 1245,
+        "brier_skill": -0.03816050025506379,
+        "n_taken": 37,
+        "mean_r_taken": -0.8621352161240748,
+        "deflated_sharpe_probability": 0.0,
+        "training_scope": [
+          {
+            "instrument": "GC",
+            "asset_class": "equity",
+            "interval": "1h"
+          },
+          {
+            "instrument": "SI",
+            "asset_class": "equity",
+            "interval": "1h"
+          },
+          {
+            "instrument": "SPY",
+            "asset_class": "equity",
+            "interval": "1h"
+          },
+          {
+            "instrument": "QQQ",
+            "asset_class": "equity",
+            "interval": "1h"
+          },
+          {
+            "instrument": "GLD",
+            "asset_class": "equity",
+            "interval": "1h"
+          },
+          {
+            "instrument": "NVDA",
+            "asset_class": "equity",
+            "interval": "1h"
+          }
+        ]
+      },
+      {
+        "version": "atlas-meta-equity-15m-09bf22eaba-7e1d14a",
+        "group": "equity-15m",
+        "status": "not_eligible",
+        "created_at": "2026-10-27T13:46:57.101840+00:00",
+        "passes_recorded_gates": false,
+        "failed_gates": [
+          "brier_beats_base_rate",
+          "logloss_beats_base_rate",
+          "deflated_sharpe",
+          "shadow_weeks"
+        ],
+        "n_oos": 558,
+        "brier_skill": -0.03814784724187259,
+        "n_taken": 0,
+        "mean_r_taken": null,
+        "deflated_sharpe_probability": 0.0,
+        "training_scope": [
+          {
+            "instrument": "GC",
+            "asset_class": "equity",
+            "interval": "15m"
+          },
+          {
+            "instrument": "SI",
+            "asset_class": "equity",
+            "interval": "15m"
+          },
+          {
+            "instrument": "SPY",
+            "asset_class": "equity",
+            "interval": "15m"
+          },
+          {
+            "instrument": "QQQ",
+            "asset_class": "equity",
+            "interval": "15m"
+          },
+          {
+            "instrument": "GLD",
+            "asset_class": "equity",
+            "interval": "15m"
+          },
+          {
+            "instrument": "NVDA",
+            "asset_class": "equity",
+            "interval": "15m"
+          }
+        ]
+      },
+      {
+        "version": "atlas-meta-crypto-4h-6877644e06-7e1d14a",
+        "group": "crypto-4h",
+        "status": "not_eligible",
+        "created_at": "2026-10-27T13:46:56.055399+00:00",
+        "passes_recorded_gates": false,
+        "failed_gates": [
+          "brier_beats_base_rate",
+          "logloss_beats_base_rate",
+          "deflated_sharpe",
+          "pbo",
+          "shadow_weeks"
+        ],
+        "n_oos": 793,
+        "brier_skill": -0.010391964575443335,
+        "n_taken": 6,
+        "mean_r_taken": -0.20386226519260056,
+        "deflated_sharpe_probability": 0.0,
+        "training_scope": [
+          {
+            "instrument": "BTCUSDT",
+            "asset_class": "crypto",
+            "interval": "4h"
+          },
+          {
+            "instrument": "ETHUSDT",
+            "asset_class": "crypto",
+            "interval": "4h"
+          }
+        ]
+      },
+      {
+        "version": "atlas-meta-crypto-1h-e6de4d8f38-7e1d14a",
+        "group": "crypto-1h",
+        "status": "not_eligible",
+        "created_at": "2026-10-27T13:46:54.459074+00:00",
+        "passes_recorded_gates": false,
+        "failed_gates": [
+          "brier_beats_base_rate",
+          "logloss_beats_base_rate",
+          "deflated_sharpe",
+          "shadow_weeks"
+        ],
+        "n_oos": 4479,
+        "brier_skill": -0.005645013247455699,
+        "n_taken": 21,
+        "mean_r_taken": -0.35147159349197094,
+        "deflated_sharpe_probability": 0.0,
+        "training_scope": [
+          {
+            "instrument": "BTCUSDT",
+            "asset_class": "crypto",
+            "interval": "1h"
+          },
+          {
+            "instrument": "ETHUSDT",
+            "asset_class": "crypto",
+            "interval": "1h"
+          },
+          {
+            "instrument": "SOLUSDT",
+            "asset_class": "crypto",
+            "interval": "1h"
+          }
+        ]
+      },
+      {
+        "version": "atlas-meta-crypto-15m-d0434d3fba-7e1d14a",
+        "group": "crypto-15m",
+        "status": "not_eligible",
+        "created_at": "2026-10-27T13:46:53.057215+00:00",
+        "passes_recorded_gates": false,
+        "failed_gates": [
+          "brier_beats_base_rate",
+          "logloss_beats_base_rate",
+          "deflated_sharpe",
+          "shadow_weeks"
+        ],
+        "n_oos": 10688,
+        "brier_skill": -0.004241755354489785,
+        "n_taken": 10,
+        "mean_r_taken": 0.16523228400566,
+        "deflated_sharpe_probability": 0.0,
+        "training_scope": [
+          {
+            "instrument": "BTCUSDT",
+            "asset_class": "crypto",
+            "interval": "15m"
+          },
+          {
+            "instrument": "ETHUSDT",
+            "asset_class": "crypto",
+            "interval": "15m"
+          },
+          {
+            "instrument": "SOLUSDT",
+            "asset_class": "crypto",
+            "interval": "15m"
+          }
+        ]
+      }
+    ]
+  },
+  "session_plan": {
+    "now_utc": "2026-10-28T04:00:00+00:00",
+    "now_et": "2026-10-28T00:00:00-04:00",
+    "horizon_end_utc": "2026-10-29T04:00:00+00:00",
+    "purpose": "scheduled_sessions_only",
+    "execution_permission": "none",
+    "weekend_mode": false,
+    "eligibility_note": "Broker permissions, feed quality, model validation, and portfolio risk are not evaluated.",
+    "active": [
+      "XASX",
+      "XTKS",
+      "crypto",
+      "fx"
+    ],
+    "venues": [
+      {
+        "venue": "XASX",
+        "tz": "Australia/Sydney",
+        "open": true,
+        "phase": "regular",
+        "size_mult": 1.0,
+        "new_orders_allowed": true,
+        "brokers": [
+          "ibkr"
+        ],
+        "entry_block_reason": null,
+        "session_close_utc": "2026-10-28T05:00:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T04:50:00+00:00",
+        "calendar": {
+          "calendar": "XASX",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        },
+        "schedule_error": null,
+        "local_time": "Wed 15:00",
+        "next_change_et": "2026-10-28T01:00-04:00"
+      },
+      {
+        "venue": "XTKS",
+        "tz": "Asia/Tokyo",
+        "open": true,
+        "phase": "afternoon",
+        "size_mult": 1.0,
+        "new_orders_allowed": true,
+        "brokers": [
+          "ibkr"
+        ],
+        "entry_block_reason": null,
+        "session_close_utc": "2026-10-28T06:30:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T06:20:00+00:00",
+        "calendar": {
+          "calendar": "XTKS",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        },
+        "schedule_error": null,
+        "local_time": "Wed 13:00",
+        "next_change_et": "2026-10-28T02:30-04:00"
+      },
+      {
+        "venue": "crypto",
+        "tz": "UTC",
+        "open": true,
+        "phase": "continuous",
+        "size_mult": 0.5,
+        "new_orders_allowed": true,
+        "brokers": [
+          "coinbase",
+          "kraken"
+        ],
+        "entry_block_reason": null,
+        "session_close_utc": "2026-10-29T00:00:00+00:00",
+        "entry_cutoff_utc": null,
+        "calendar": {
+          "calendar": "24/7",
+          "source": "ATLAS continuous-session convention",
+          "version": null
+        },
+        "schedule_error": null,
+        "local_time": "Wed 04:00",
+        "next_change_et": null
+      },
+      {
+        "venue": "fx",
+        "tz": "America/New_York",
+        "open": true,
+        "phase": "open",
+        "size_mult": 1.0,
+        "new_orders_allowed": true,
+        "brokers": [
+          "ibkr"
+        ],
+        "entry_block_reason": null,
+        "session_close_utc": "2026-10-30T21:00:00+00:00",
+        "entry_cutoff_utc": "2026-10-30T20:50:00+00:00",
+        "calendar": {
+          "calendar": "FX_24x5",
+          "source": "ATLAS continuous-session convention",
+          "version": null
+        },
+        "schedule_error": null,
+        "local_time": "Wed 00:00",
+        "next_change_et": null
+      },
+      {
+        "venue": "XHKG",
+        "tz": "Asia/Hong_Kong",
+        "open": false,
+        "phase": "closed",
+        "size_mult": 0.0,
+        "new_orders_allowed": false,
+        "brokers": [
+          "ibkr"
+        ],
+        "entry_block_reason": "calendar_closed",
+        "session_close_utc": null,
+        "entry_cutoff_utc": null,
+        "calendar": {
+          "calendar": "XHKG",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        },
+        "schedule_error": null,
+        "local_time": "Wed 12:00",
+        "next_change_et": "2026-10-28T01:00-04:00"
+      },
+      {
+        "venue": "XETR",
+        "tz": "Europe/Berlin",
+        "open": false,
+        "phase": "closed",
+        "size_mult": 0.0,
+        "new_orders_allowed": false,
+        "brokers": [
+          "ibkr"
+        ],
+        "entry_block_reason": "calendar_closed",
+        "session_close_utc": null,
+        "entry_cutoff_utc": null,
+        "calendar": {
+          "calendar": "XETR",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        },
+        "schedule_error": null,
+        "local_time": "Wed 05:00",
+        "next_change_et": "2026-10-28T04:00-04:00"
+      },
+      {
+        "venue": "XLON",
+        "tz": "Europe/London",
+        "open": false,
+        "phase": "closed",
+        "size_mult": 0.0,
+        "new_orders_allowed": false,
+        "brokers": [
+          "ibkr"
+        ],
+        "entry_block_reason": "calendar_closed",
+        "session_close_utc": null,
+        "entry_cutoff_utc": null,
+        "calendar": {
+          "calendar": "XLON",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        },
+        "schedule_error": null,
+        "local_time": "Wed 04:00",
+        "next_change_et": "2026-10-28T04:00-04:00"
+      },
+      {
+        "venue": "XPAR_XAMS",
+        "tz": "Europe/Paris",
+        "open": false,
+        "phase": "closed",
+        "size_mult": 0.0,
+        "new_orders_allowed": false,
+        "brokers": [
+          "ibkr"
+        ],
+        "entry_block_reason": "calendar_closed",
+        "session_close_utc": null,
+        "entry_cutoff_utc": null,
+        "calendar": {
+          "calendar": "XPAR",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        },
+        "schedule_error": null,
+        "local_time": "Wed 05:00",
+        "next_change_et": "2026-10-28T04:00-04:00"
+      },
+      {
+        "venue": "XNYS_XNAS",
+        "tz": "America/New_York",
+        "open": false,
+        "phase": "closed",
+        "size_mult": 0.0,
+        "new_orders_allowed": false,
+        "brokers": [
+          "alpaca",
+          "ibkr"
+        ],
+        "entry_block_reason": "calendar_closed",
+        "session_close_utc": null,
+        "entry_cutoff_utc": null,
+        "calendar": {
+          "calendar": "XNYS",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        },
+        "schedule_error": null,
+        "local_time": "Wed 00:00",
+        "next_change_et": "2026-10-28T09:30-04:00"
+      },
+      {
+        "venue": "XTSE",
+        "tz": "America/Toronto",
+        "open": false,
+        "phase": "closed",
+        "size_mult": 0.0,
+        "new_orders_allowed": false,
+        "brokers": [
+          "ibkr"
+        ],
+        "entry_block_reason": "calendar_closed",
+        "session_close_utc": null,
+        "entry_cutoff_utc": null,
+        "calendar": {
+          "calendar": "XTSE",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        },
+        "schedule_error": null,
+        "local_time": "Wed 00:00",
+        "next_change_et": "2026-10-28T09:30-04:00"
+      }
+    ],
+    "windows": [
+      {
+        "venue": "fx",
+        "session_date": "2026-10-25",
+        "open_utc": "2026-10-25T21:00:00+00:00",
+        "close_utc": "2026-10-30T21:00:00+00:00",
+        "entry_cutoff_utc": "2026-10-30T20:50:00+00:00",
+        "in_progress": true,
+        "source": {
+          "calendar": "FX_24x5",
+          "source": "ATLAS continuous-session convention",
+          "version": null
+        }
+      },
+      {
+        "venue": "XASX",
+        "session_date": "2026-10-28",
+        "open_utc": "2026-10-27T23:00:00+00:00",
+        "close_utc": "2026-10-28T05:00:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T04:50:00+00:00",
+        "in_progress": true,
+        "source": {
+          "calendar": "XASX",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "crypto",
+        "session_date": "2026-10-28",
+        "open_utc": "2026-10-28T00:00:00+00:00",
+        "close_utc": "2026-10-29T00:00:00+00:00",
+        "entry_cutoff_utc": null,
+        "in_progress": true,
+        "source": {
+          "calendar": "24/7",
+          "source": "ATLAS continuous-session convention",
+          "version": null
+        }
+      },
+      {
+        "venue": "XTKS",
+        "session_date": "2026-10-28",
+        "open_utc": "2026-10-28T03:30:00+00:00",
+        "close_utc": "2026-10-28T06:30:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T06:20:00+00:00",
+        "in_progress": true,
+        "source": {
+          "calendar": "XTKS",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "XHKG",
+        "session_date": "2026-10-28",
+        "open_utc": "2026-10-28T05:00:00+00:00",
+        "close_utc": "2026-10-28T08:00:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T07:50:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XHKG",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "XETR",
+        "session_date": "2026-10-28",
+        "open_utc": "2026-10-28T08:00:00+00:00",
+        "close_utc": "2026-10-28T16:30:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T16:20:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XETR",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "XLON",
+        "session_date": "2026-10-28",
+        "open_utc": "2026-10-28T08:00:00+00:00",
+        "close_utc": "2026-10-28T16:30:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T16:20:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XLON",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "XPAR_XAMS",
+        "session_date": "2026-10-28",
+        "open_utc": "2026-10-28T08:00:00+00:00",
+        "close_utc": "2026-10-28T16:30:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T16:20:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XPAR",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "XNYS_XNAS",
+        "session_date": "2026-10-28",
+        "open_utc": "2026-10-28T13:30:00+00:00",
+        "close_utc": "2026-10-28T20:00:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T19:50:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XNYS",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "XTSE",
+        "session_date": "2026-10-28",
+        "open_utc": "2026-10-28T13:30:00+00:00",
+        "close_utc": "2026-10-28T20:00:00+00:00",
+        "entry_cutoff_utc": "2026-10-28T19:50:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XTSE",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "XASX",
+        "session_date": "2026-10-29",
+        "open_utc": "2026-10-28T23:00:00+00:00",
+        "close_utc": "2026-10-29T05:00:00+00:00",
+        "entry_cutoff_utc": "2026-10-29T04:50:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XASX",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "XTKS",
+        "session_date": "2026-10-29",
+        "open_utc": "2026-10-29T00:00:00+00:00",
+        "close_utc": "2026-10-29T02:30:00+00:00",
+        "entry_cutoff_utc": "2026-10-29T06:20:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XTKS",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "crypto",
+        "session_date": "2026-10-29",
+        "open_utc": "2026-10-29T00:00:00+00:00",
+        "close_utc": "2026-10-30T00:00:00+00:00",
+        "entry_cutoff_utc": null,
+        "in_progress": false,
+        "source": {
+          "calendar": "24/7",
+          "source": "ATLAS continuous-session convention",
+          "version": null
+        }
+      },
+      {
+        "venue": "XHKG",
+        "session_date": "2026-10-29",
+        "open_utc": "2026-10-29T01:30:00+00:00",
+        "close_utc": "2026-10-29T04:00:00+00:00",
+        "entry_cutoff_utc": "2026-10-29T07:50:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XHKG",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      },
+      {
+        "venue": "XTKS",
+        "session_date": "2026-10-29",
+        "open_utc": "2026-10-29T03:30:00+00:00",
+        "close_utc": "2026-10-29T06:30:00+00:00",
+        "entry_cutoff_utc": "2026-10-29T06:20:00+00:00",
+        "in_progress": false,
+        "source": {
+          "calendar": "XTKS",
+          "source": "exchange_calendars",
+          "version": "4.13.2"
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "venue": "XASX",
+        "kind": "close",
+        "at_utc": "2026-10-28T05:00:00+00:00",
+        "at_et": "2026-10-28T01:00-04:00"
+      },
+      {
+        "venue": "XHKG",
+        "kind": "open",
+        "at_utc": "2026-10-28T05:00:00+00:00",
+        "at_et": "2026-10-28T01:00-04:00"
+      },
+      {
+        "venue": "XTKS",
+        "kind": "close",
+        "at_utc": "2026-10-28T06:30:00+00:00",
+        "at_et": "2026-10-28T02:30-04:00"
+      },
+      {
+        "venue": "XETR",
+        "kind": "open",
+        "at_utc": "2026-10-28T08:00:00+00:00",
+        "at_et": "2026-10-28T04:00-04:00"
+      },
+      {
+        "venue": "XHKG",
+        "kind": "close",
+        "at_utc": "2026-10-28T08:00:00+00:00",
+        "at_et": "2026-10-28T04:00-04:00"
+      },
+      {
+        "venue": "XLON",
+        "kind": "open",
+        "at_utc": "2026-10-28T08:00:00+00:00",
+        "at_et": "2026-10-28T04:00-04:00"
+      },
+      {
+        "venue": "XPAR_XAMS",
+        "kind": "open",
+        "at_utc": "2026-10-28T08:00:00+00:00",
+        "at_et": "2026-10-28T04:00-04:00"
+      },
+      {
+        "venue": "XNYS_XNAS",
+        "kind": "open",
+        "at_utc": "2026-10-28T13:30:00+00:00",
+        "at_et": "2026-10-28T09:30-04:00"
+      },
+      {
+        "venue": "XTSE",
+        "kind": "open",
+        "at_utc": "2026-10-28T13:30:00+00:00",
+        "at_et": "2026-10-28T09:30-04:00"
+      },
+      {
+        "venue": "XETR",
+        "kind": "close",
+        "at_utc": "2026-10-28T16:30:00+00:00",
+        "at_et": "2026-10-28T12:30-04:00"
+      },
+      {
+        "venue": "XLON",
+        "kind": "close",
+        "at_utc": "2026-10-28T16:30:00+00:00",
+        "at_et": "2026-10-28T12:30-04:00"
+      },
+      {
+        "venue": "XPAR_XAMS",
+        "kind": "close",
+        "at_utc": "2026-10-28T16:30:00+00:00",
+        "at_et": "2026-10-28T12:30-04:00"
+      },
+      {
+        "venue": "XNYS_XNAS",
+        "kind": "close",
+        "at_utc": "2026-10-28T20:00:00+00:00",
+        "at_et": "2026-10-28T16:00-04:00"
+      },
+      {
+        "venue": "XTSE",
+        "kind": "close",
+        "at_utc": "2026-10-28T20:00:00+00:00",
+        "at_et": "2026-10-28T16:00-04:00"
+      },
+      {
+        "venue": "XASX",
+        "kind": "open",
+        "at_utc": "2026-10-28T23:00:00+00:00",
+        "at_et": "2026-10-28T19:00-04:00"
+      },
+      {
+        "venue": "XTKS",
+        "kind": "open",
+        "at_utc": "2026-10-29T00:00:00+00:00",
+        "at_et": "2026-10-28T20:00-04:00"
+      },
+      {
+        "venue": "XHKG",
+        "kind": "open",
+        "at_utc": "2026-10-29T01:30:00+00:00",
+        "at_et": "2026-10-28T21:30-04:00"
+      },
+      {
+        "venue": "XTKS",
+        "kind": "close",
+        "at_utc": "2026-10-29T02:30:00+00:00",
+        "at_et": "2026-10-28T22:30-04:00"
+      },
+      {
+        "venue": "XTKS",
+        "kind": "open",
+        "at_utc": "2026-10-29T03:30:00+00:00",
+        "at_et": "2026-10-28T23:30-04:00"
+      },
+      {
+        "venue": "XHKG",
+        "kind": "close",
+        "at_utc": "2026-10-29T04:00:00+00:00",
+        "at_et": "2026-10-29T00:00-04:00"
+      }
+    ]
+  },
+  "unattended_execution": {
+    "status": "not_validated",
+    "note": "An open schedule and a saved model do not establish a tradable opportunity.",
+    "checks_not_performed": [
+      "real-time feed freshness, licensing, and instrument coverage",
+      "broker connection, account permissions, balances, and reconciliation",
+      "point-in-time FX valuation and executable currency conversion",
+      "portfolio risk, existing positions, and correlated exposure",
+      "always-on hosting, watchdog recovery, and alerts"
+    ]
+  }
+}

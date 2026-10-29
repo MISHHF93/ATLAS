@@ -42,6 +42,32 @@ def test_more_trials_is_stricter():
     assert many["values"]["dsr"] <= few["values"]["dsr"]
 
 
+def _run_shell(chal, *, now, data_hash="h"):
+    return {"leaderboard": [chal], "best_beating_baseline": chal, "best_passing_strict_gate": chal,
+            "data": {"data_hash": data_hash}, "seed": 1, "generations": 1,
+            "no_model_beats_baseline": False, "by_bar_type": {}}
+
+
+def test_record_refuses_a_challenger_whose_gate_flag_is_false(tmp_path):
+    chal = {"genome_id": "x", "genome": {}, "generation": 0, "parent": None, "mutation": "seed",
+            "metrics": {"fitness": 1.0, "beats_baseline": True, "strict_gate": {"passed": False, "failed": ["dsr"]}}}
+    run = E.record(_run_shell(chal, now=2), path=tmp_path, now=2)
+    assert run["decision"] == "no_challenger_passes_strict_gate"
+    assert E.champion(tmp_path) is None
+    assert E.publish_research_champion([_run_shell(chal, now=3)], path=tmp_path) == []
+
+
+def test_publish_crowns_a_strict_pass_and_leaves_execution_closed(tmp_path):
+    chal = {"genome_id": "ok", "genome": {}, "generation": 0, "parent": None, "mutation": "seed",
+            "metrics": {"fitness": 1.0, "beats_baseline": True, "strict_gate": {"passed": True, "failed": []}}}
+    ids = E.publish_research_champion([_run_shell(chal, now=4)], path=tmp_path)
+    assert len(ids) == 1
+    champ = E.champion(tmp_path)
+    assert champ["genome_id"] == "ok" and champ["metrics"]["strict_gate"]["passed"] is True
+    run = json.loads((E.evo_dir(tmp_path) / f"run_{ids[0]}.json").read_text())
+    assert run["execution_permission"] == "none" and run["promoted_to_execution"] is False
+
+
 def test_record_never_crowns_without_strict_pass(tmp_path):
     chal = {"genome_id": "x", "genome": {}, "generation": 0, "parent": None, "mutation": "seed", "metrics": {"fitness": 1.0, "beats_baseline": True,
                                                        "strict_gate": {"passed": False, "failed": ["dsr"]}}}
@@ -65,6 +91,21 @@ def test_regate_demotes_failing_champion(tmp_path, monkeypatch):
     out = E.regate(run, pd.DataFrame(), path=tmp_path, now=5)
     assert out["decision"] == "champion_demoted_to_research_only" and "min_trades_per_fold" in out["reason"]
     assert E.champion(tmp_path) is None and (d / "demoted_r1.json").exists()
+
+
+def test_regate_survives_a_genome_that_fails_to_refit(tmp_path, monkeypatch):
+    d = E.evo_dir(tmp_path); d.mkdir(parents=True)
+    g = {"model": "logit", "features": "full", "regime": "none", "bar_type": "time", "context": "none"}
+    gid = E.gid(g)
+    run = {"run_id": "r2", "data": {"data_hash": None}, "folds": [{}] * 5,
+           "best_beating_baseline": {"genome_id": gid},
+           "leaderboard": [{"genome_id": gid, "genome": g, "metrics": {"status": "ok", "fitness": 0.1}}]}
+    monkeypatch.setattr(E, "folds", lambda data, n=5: [])
+    monkeypatch.setattr(E, "evaluate_genome", lambda data, gg, fs: {"status": "insufficient", "reason": "no fold"})
+    out = E.regate(run, pd.DataFrame(), path=tmp_path, now=6)
+    assert out["any_genome_passes"] is False
+    assert out["leaderboard_gate"][0]["passed"] is False
+    assert "insufficient" in out["leaderboard_gate"][0]["failed"]
 
 
 def test_block_bootstrap_and_stability():

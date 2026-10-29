@@ -93,6 +93,7 @@ def test_feature_2_yesterdays_investment_activity_brief_and_market_calendar(tmp_
     assert previous_trading_day("2026-04-06") == "2026-04-02"
 
     ledger = InvestmentPortfolioLedger(tmp_path / "yest_ledger.sqlite")
+    ledger.seed_pilot_portfolio(tenant_id="tenant_yest")
     yest = build_yesterday_investment_activity_brief(
         tenant_id="tenant_yest",
         as_of_date="2026-10-26",

@@ -114,7 +114,6 @@ def su(env, domain: str, good: bool = True) -> dict:
 
 
 # ------------------------------------------------------------------------------------------- transport
-@pytest.mark.skip(reason="Lola console SPA assets not ported; ATLAS frontend (Next.js) owns the UI")
 def test_security_headers_csp_and_spa_shell(env):
     r = env.c.call("GET", "/")
     assert r.status == 200 and b"<main" in r.raw

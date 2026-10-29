@@ -108,7 +108,6 @@ def test_home_inbox_matches_every_page(env):
         assert c.call("GET", path).status == 200, path
 
 
-@pytest.mark.skip(reason="Lola console SPA assets not ported; ATLAS frontend (Next.js) owns the UI")
 def test_every_nav_route_and_old_url_is_served(env):
     import re
     js = (PKG / "static" / "js" / "app.js").read_text()

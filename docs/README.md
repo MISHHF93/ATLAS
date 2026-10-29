@@ -1,6 +1,8 @@
 # ATLAS documentation index
 
-Last verified: **2026-10-23** against `main (integration, 2026-10-23)`, where pytest gives 1447 passed and 9 skipped. Everything runs on paper or simulation only.
+Last checked: **2026-10-28**. The checkout is `C:\Users\borah\ATLAS-main` on `main`, remote `https://github.com/MISHHF93/ATLAS`. Current desk status is the root [README](../README.md). The 2026-10-23 full-suite note was 1447 passed and 9 skipped. That suite was not re-run for this index update. Everything on the desk is paper or simulation.
+
+The rows marked "Current?" below were the governing price-action spec and evidence as of 2026-10-23. They still govern those slices. The 2026-10-28 research hand and the paper ledger are in the root README, [ml/evo8-strict-gate.md](ml/evo8-strict-gate.md), and [architecture/DECISIONS.md](architecture/DECISIONS.md) item 44.
 
 Status vocabulary, used here and in the root workbook:
 
@@ -43,13 +45,13 @@ These documents describe the target or vision. Some of their claims are **not** 
 
 | Doc | Last changed |
 |---|---|
-| [ATLAS_MASTER_SPEC.md](ATLAS_MASTER_SPEC.md): product, authority, tracks, non-custodial boundaries | 2026-10-20 |
+| [ATLAS_MASTER_SPEC.md](ATLAS_MASTER_SPEC.md): product boundary. Custody and live orders stay rejected. The checkout and paper desk are corrected to 2026-10-28 | 2026-10-28 |
 | [ATLAS_PRODUCT_VISION.md](ATLAS_PRODUCT_VISION.md): long-form vision | 2026-10-23 |
 | [ADVANCED_ML_INFRASTRUCTURE.md](ADVANCED_ML_INFRASTRUCTURE.md): ML infrastructure notes (its endpoints are retired and answer 410) | 2026-10-23 |
-| [architecture/CURRENT_STATE.md](architecture/CURRENT_STATE.md): state as of 2026-10-21, before the 6-section IA | 2026-10-22 |
+| [architecture/CURRENT_STATE.md](architecture/CURRENT_STATE.md): 2026-10-21 inventory, with a 2026-10-28 desk pointer at the top | 2026-10-28 |
 | [architecture/TARGET_STATE.md](architecture/TARGET_STATE.md) | 2026-10-19 |
 | [architecture/EXECUTION_PLAN.md](architecture/EXECUTION_PLAN.md) | 2026-10-22 |
-| [architecture/DECISIONS.md](architecture/DECISIONS.md): decisions 1–43 | 2026-10-20 |
+| [architecture/DECISIONS.md](architecture/DECISIONS.md): decisions 1–44. Item 44 is the checkout and the paper desk | 2026-10-28 |
 | [architecture/RESEARCH_OPERATING_CONTRACT.md](architecture/RESEARCH_OPERATING_CONTRACT.md): research gates and rulebook fields (cited by `control/engine.py`) | 2026-10-19 |
 | [architecture/ISO_GOVERNANCE_ALIGNMENT.md](architecture/ISO_GOVERNANCE_ALIGNMENT.md): standards alignment (a mapping, not a certification) | 2026-10-19 |
 | [architecture/INTEGRATION_MATRIX.md](architecture/INTEGRATION_MATRIX.md) | 2026-10-19 |

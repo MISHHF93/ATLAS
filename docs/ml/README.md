@@ -1,8 +1,18 @@
 # ATLAS ML: feed-only meta-labeling pipeline
 
-Status (2026-10-23 run): **no version is eligible**. Every group fails the pre-declared gates out of sample. See
+## Where evolution stands (2026-10-28)
+
+The desk shows `src/atlas/ai/ml/evolution.py`, gate `evo8-strict-1` (`DSR_MIN` 0.95, `MIN_TRADES_PER_FOLD` 20, five purged folds, Bonferroni alpha 0.05). The official universe is 4h `BTCUSDT`, `ETHUSDT`, and `SOLUSDT`, variant `atr2_rr2_cf15` (prior-day-range reversal, 2 ATR stop, cost/R cap 0.15). Latest stored file `var/ml/registry/evolution/niches_1793235961.json`: genome `ridge|full|none|time|htf`, decision abstain, strict gate failed (`min_trades_per_fold`, DSR 0.368, Bonferroni; one-sided t p-value 0.183 over 15 trials). LightGBM and XGBoost with the same full features and higher-timeframe context had fitness −0.049 and −0.106 on that book. `champion.json` is absent. `execution_permission` is `none`. The hand cannot buy or sell.
+
+Meta-labeling (López de Prado, *Advances in Financial Machine Learning*, 2018, §3.6) filters a primary that already has an edge. It does not create that edge. Deflated Sharpe follows Bailey and López de Prado, *Journal of Portfolio Management* 40(5), 2014. `src/atlas/ai/models/quant/metrics.py` implements that formula: per-period Sharpe, raw kurtosis, and the expected-maximum threshold with the Euler–Mascheroni constant. The bar used here is 0.95. Citations live in [sources.md](sources.md). On the current 4h book the primary's gross edge is short of that bar before any model search, so another genome search on the same labels does not pass the gate.
+
+## Registry path (status 2026-10-23)
+
+**No registry version is eligible.** Every group fails the pre-declared gates out of sample. See
 [model-card.md](model-card.md) for the real numbers and [limitations.md](limitations.md). Paper only; nothing in
 `atlas.ml` places, proposes or approves orders. Safe stop and the control plane are untouched.
+
+The sections below are this older `src/atlas/ml` path (`scripts/ml_refresh.py`, `atlas.ml.train.GATES`, including four shadow weeks). That path still exists. `registry.load_eligible()` is still the only way a registered meta-model becomes a `predict()` model. It is separate from the island search above.
 
 ## Pipeline (`src/atlas/ml`, `scripts/ml_refresh.py`)
 

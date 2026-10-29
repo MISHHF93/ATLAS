@@ -8,7 +8,7 @@ from tests.price_action.test_predict import synthetic_setup_registry
 
 def _open(tmp_path):
     ap = _ap(tmp_path, registry=synthetic_setup_registry(0.6), model_version="synthetic-setup-v1"); _on(ap)
-    ap.tick(BARS[-2].start)      # place the order, do not reach the target bar
+    ap.tick(BARS[-1].start)      # fill bar has closed; the target bar has not
     return ap
 
 

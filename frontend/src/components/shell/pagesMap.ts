@@ -121,6 +121,8 @@ export const PAGES: AtlasPage[] = [
       { id: "forecasts", label: "Forecast ledger", workspaceRoute: "/research/prediction-ledger", aliases: ["/research/prediction-ledger"],
         summary: "Every recorded forecast, the data it used, and how it turned out." },
       { id: "scan", label: "Scan & Pine", summary: "Watchlist pivot/Fibonacci/zone crossings, VWAP and volume profile, and Pine v5 export with ATLAS replay statistics. Research only." },
+      { id: "multi-agent", label: "Multi-agent",
+        summary: "Parallel analysts, a bounded bull/bear debate, risk perspectives and a deterministic control-plane dry run. Research only: never submits an order." },
     ],
   },
   {

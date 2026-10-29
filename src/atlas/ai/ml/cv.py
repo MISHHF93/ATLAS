@@ -10,21 +10,51 @@ from typing import Iterator
 
 import numpy as np
 
+# Same floors fit_meta uses after the embargo purge. A fold that cannot meet them is not a test.
+MIN_FIT, MIN_CAL, MIN_CONF = 60, 20, 20
+
+
+def _train_ready(t: np.ndarray, e: np.ndarray, lo: int, embargo: int, min_train: int,
+                 min_fit: int, min_cal: int, min_conf: int) -> bool:
+    t0 = int(t[lo])
+    train = np.flatnonzero((t < t0) & (e < t0 - embargo))
+    if len(train) < min_train:
+        return False
+    fit, cal, conf = inner_split(t, e, train, embargo=embargo)
+    return len(fit) >= min_fit and len(cal) >= min_cal and len(conf) >= min_conf
+
 
 def walk_forward_splits(t: np.ndarray, exit_at: np.ndarray, n_folds: int = 5, embargo: int = 86400,
-                        min_train: int = 100) -> Iterator[tuple[int, np.ndarray, np.ndarray]]:
+                        min_train: int = 100, min_fit: int = MIN_FIT, min_cal: int = MIN_CAL,
+                        min_conf: int = MIN_CONF) -> Iterator[tuple[int, np.ndarray, np.ndarray]]:
     t, e = np.asarray(t, np.int64), np.asarray(exit_at, np.int64)
     if np.any(np.diff(t) < 0):
         raise ValueError("rows must be sorted by t")
     if np.any(e < t):
         raise ValueError("exit_at must be >= t")
     n = len(t)
-    edges = [int(n * k / (n_folds + 1)) for k in range(1, n_folds + 2)]
+    last = n - n_folds
+    if last < 1 or not _train_ready(t, e, last, embargo, min_train, min_fit, min_cal, min_conf):
+        return
+    left, right = 1, last
+    while left < right:
+        mid = (left + right) // 2
+        if _train_ready(t, e, mid, embargo, min_train, min_fit, min_cal, min_conf):
+            right = mid
+        else:
+            left = mid + 1
+    start = left
+    while start <= last and not _train_ready(t, e, start, embargo, min_train, min_fit, min_cal, min_conf):
+        start += 1
+    if start > last:
+        return
+    span = n - start
+    edges = [start + int(span * k / n_folds) for k in range(n_folds + 1)]
     for k in range(n_folds):
         lo, hi = edges[k], edges[k + 1]
         if hi <= lo:
             continue
-        t0 = t[lo]
+        t0 = int(t[lo])
         test = np.arange(lo, hi)
         test = test[t[test] >= t0]
         train = np.flatnonzero((t < t0) & (e < t0 - embargo))

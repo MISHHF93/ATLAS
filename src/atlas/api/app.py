@@ -104,6 +104,8 @@ from atlas.api.investment_intelligence_api import router as investment_intellige
 app.include_router(investment_intelligence_router, prefix="/api/investment-intelligence")
 from atlas.api.research_integration_api import router as research_integration_router  # noqa: E402
 app.include_router(research_integration_router, prefix="/api/research-integration")
+from atlas.api.multi_agent_api import router as multi_agent_router  # noqa: E402
+app.include_router(multi_agent_router)
 app.state.experimental_ml_status = {
     "state": "retired",
     "audited_path": "/api/research/vertical-slice",
@@ -148,6 +150,17 @@ class KillSwitchPayload(BaseModel):
 
 class LifecycleActionPayload(BaseModel):
     action: Literal["approve_challenger", "revoke_challenger", "promote_challenger", "rollback_to_champion"]
+
+
+class CapitalAmountPayload(BaseModel):
+    amount_usd: Decimal
+
+
+class ClosePositionPayload(BaseModel):
+    position_id: str
+    exit_price: float
+    fraction: float = 1.0
+    fee_usd: Decimal = Decimal("0")
 
 
 class WalkForwardRunPayload(BaseModel):
@@ -384,7 +397,57 @@ def submit_control_order(request: ActionableOrderRequest) -> dict[str, object]:
     return {
         "decision": decision.model_dump(mode="json"),
         "state": control_engine.get_state().model_dump(mode="json"),
+        "execution_permission": "none",
     }
+
+
+@app.post("/api/control/close", include_in_schema=False)
+def close_control_position(payload: ClosePositionPayload) -> dict[str, object]:
+    """Book a paper exit. Cash returns to the paper ledger when that book is tracking cash."""
+    result = control_engine.close_position(
+        payload.position_id,
+        exit_price=payload.exit_price,
+        fraction=payload.fraction,
+        fee_usd=payload.fee_usd,
+    )
+    return {
+        "close": result,
+        "state": control_engine.get_state().model_dump(mode="json"),
+        "execution_permission": "none",
+    }
+
+
+def _paper_ledger():
+    from atlas.investment_intelligence.ledger import get_investment_ledger
+
+    return get_investment_ledger()
+
+
+@app.get("/api/capital", include_in_schema=False)
+def get_paper_capital() -> dict[str, object]:
+    from atlas.capital.paper import capital_status
+
+    return capital_status(control_engine, _paper_ledger())
+
+
+@app.post("/api/capital/deposit", include_in_schema=False)
+def deposit_paper_capital(payload: CapitalAmountPayload) -> dict[str, object]:
+    from atlas.capital.paper import deposit_paper
+
+    result = deposit_paper(control_engine, _paper_ledger(), payload.amount_usd)
+    if result.get("status") != "deposited":
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
+@app.post("/api/capital/withdraw", include_in_schema=False)
+def withdraw_paper_capital(payload: CapitalAmountPayload) -> dict[str, object]:
+    from atlas.capital.paper import withdraw_paper
+
+    result = withdraw_paper(control_engine, _paper_ledger(), payload.amount_usd)
+    if result.get("status") != "withdrawn":
+        raise HTTPException(status_code=400, detail=result)
+    return result
 
 
 SAFE_STOP_RELEASE_CLI = "atlas-owner reset"
@@ -556,6 +619,9 @@ def trade_readiness_endpoint() -> dict[str, object]:
     ledger = ledger_from_gateway(live_market_gateway)
     report = build_trade_readiness(ledger)
     report["trials"] = remember_ledger(ledger)
+    from atlas.feeds.official import desk_status, official_checks
+    report["official"] = desk_status()
+    report["checks"] = [*report["checks"], *official_checks()]
     return report
 
 
@@ -1085,9 +1151,7 @@ def live_train_now() -> dict[str, object]:
 
 @app.post("/api/control/ingest-whale-signal", include_in_schema=False)
 def ingest_whale_signal_endpoint(payload: dict[str, object] | None = None) -> dict[str, object]:
-    """Ingest a WhalePolicyModel StrategySignal into ActionableControlPlaneEngine.ingest_whale_policy_signal(),
-    size strictly within 0.50%-0.75% equity risk, attach ATR brackets, and dispatch to execution connectors.
-    """
+    """Return the whale stance. This route does not size, authorize, or submit an order."""
     body = payload or {}
     symbol = str(body.get("symbol", "BTC-USD")).upper().strip()
     data_age_ms = float(body.get("data_age_ms", 8.4))
@@ -1108,24 +1172,19 @@ def ingest_whale_signal_endpoint(payload: dict[str, object] | None = None) -> di
             "execution_permission": "none",
         }
     sig = _WHALE_POLICY_MODEL.predict(symbol=symbol, candles=candles)
-    if sig.direction == "HOLD":
-        return {
-            "status": "hold_no_order",
-            "intake_report": None,
-            "signal": sig.model_dump(mode="json"),
-            "reason": "Whale policy produced a HOLD (neutral) signal; no order submitted to the control plane",
-            "candle_feed_source": live_batch.get("feed_source", "unavailable"),
-            "execution_permission": "none",
-        }
-    conn = CCXTPerpConnector() if symbol.endswith("-USD") else AlpacaEquitiesConnector()
-    intake = control_engine.ingest_whale_policy_signal(
-        sig,
-        data_age_ms=data_age_ms,
-        execution_connector=conn,
+    reason = (
+        "Whale policy produced a HOLD. No order was submitted."
+        if sig.direction == "HOLD"
+        else "The research model can show a stance and cannot buy or sell."
     )
     return {
-        "status": "ok",
-        "intake_report": intake.model_dump(mode="json"),
+        "status": "hold_no_order" if sig.direction == "HOLD" else "research_only",
+        "intake_report": None,
+        "signal": sig.model_dump(mode="json"),
+        "reason": reason,
+        "orders": "none",
+        "may_propose_order": False,
+        "data_age_ms": data_age_ms,
         "candle_feed_source": live_batch.get("feed_source", "unavailable"),
         "execution_permission": "none",
     }
@@ -2196,13 +2255,41 @@ bot_orchestrator = BotOrchestrator(control_engine=control_engine)
 _universe_pump_stop: asyncio.Event | None = None
 
 
+def _arm_unfunded_research_desk() -> None:
+    """Live process only: no fabricated deposit, research hand visible, orders refused.
+
+    Pytest keeps the funded in-memory book its tests construct. The desk process does not.
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST") is not None:
+        return
+    if getattr(app.state, "unfunded_research_desk", False):
+        return
+    from atlas.ai.ml.evolution import research_hand
+    from atlas.investment_intelligence.ledger import get_investment_ledger
+
+    from atlas.capital.paper import bind_paper_journal, replay_paper_capital
+
+    control_engine.unload_deposits()
+    control_engine.link_research_hand(research_hand())
+    ledger = get_investment_ledger()
+    removed = ledger.drop_seeded_deposit_book("default_workspace")
+    bind_paper_journal(control_engine, ledger)
+    replay_paper_capital(control_engine, ledger)
+    control_engine.audit_log.append(
+        f"{datetime.now(timezone.utc).isoformat()} | seeded_deposit_book_removed | "
+        f"transactions={removed['transactions']} | accounts={removed['accounts']} | tenant=default_workspace"
+    )
+    app.state.unfunded_research_desk = True
+
+
 @app.on_event("startup")
 async def start_universe_tick_pump() -> None:
     """1Hz labeled-demo universe pump so visual consumers stream per-second ticks.
 
-    Every frame carries ``data_mode="demo"`` (never silently presented as observed);
-    real entitled provider feeds attach later via ``LiveMarketDataGateway.run_provider``.
+    Every frame carries data_mode demo (never silently presented as observed);
+    real entitled provider feeds attach later via LiveMarketDataGateway.run_provider.
     """
+    _arm_unfunded_research_desk()
     global _universe_pump_stop
     stop = asyncio.Event()
     _universe_pump_stop = stop
@@ -2505,4 +2592,6 @@ def process_strategy_signal_endpoint(
     """Manual intent intake; all sizing and authorization remains in the control plane."""
     _reject_forbidden_role(x_atlas_role, "submit_bracket_order")
     report = control_engine.process_strategy_signal(signal, float(control_engine.current_equity_usd))
-    return report.model_dump(mode="json")
+    body = report.model_dump(mode="json")
+    body["state"] = control_engine.get_state().model_dump(mode="json")
+    return body

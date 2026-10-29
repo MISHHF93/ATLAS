@@ -13,7 +13,8 @@ Implements Sections 9, 10, 11, 12, and 23 of the ATLAS Complete System Verificat
   * Nasdaq / NYSE (https://www.nasdaq.com/market-activity/stock-market-holiday-schedule):
     Regular hours (09:30–16:00 ET), Premarket (04:00–09:30 ET), After-hours (16:00–20:00 ET),
     official holidays (2025–2027), official 13:00 ET early closes, and effective-dated
-    transition to 23/5 trading beginning December 1, 2026 (never applied before its effective date).
+    transition to 23/5 trading beginning December 6, 2026 at 21:00 ET (never applied before
+    its effective date; 20:00–21:00 ET stays a closed pause).
   * Toronto Stock Exchange (TSX): Regular 09:30–16:00 ET, Pre-open 07:00–09:30 ET, Canadian holidays.
   * CME Group (https://www.cmegroup.com/trading-hours.html): Contract-specific schedules
     distinguishing standard COMEX GC / MGC / SI, CME Equity Index ES / NQ / MNQ, and NYMEX CL
@@ -55,8 +56,11 @@ VALID_MARKET_STATES: tuple[str, ...] = (
     "UNKNOWN",
 )
 
-# Effective date for Nasdaq's announced 23/5 overnight session transition (December 2026)
-NASDAQ_23_5_EFFECTIVE_DATE = date(2026, 12, 1)
+# Nasdaq 23/5 night session: Sunday 6 December 2026, 21:00 ET through Friday 20:00 ET.
+# Weekday pause 20:00–21:00 ET is closed. Sources: Nasdaq ETA #2026-46 / ETA #2026-56.
+NASDAQ_23_5_EFFECTIVE_DATE = date(2026, 12, 6)
+NASDAQ_NIGHT_OPEN_MIN = 21 * 60
+NASDAQ_PAUSE_START_MIN = 20 * 60
 
 # Official NYSE / NASDAQ holidays (2025–2027)
 US_MARKET_HOLIDAYS: dict[date, str] = {
@@ -194,6 +198,27 @@ KNOWN_CRYPTO: set[str] = {
 KNOWN_FX: set[str] = {
     "EUR_USD", "USD_CAD", "GBP_USD", "USD_JPY", "AUD_USD", "USD_CHF", "EUR/USD", "USD/CAD",
 }
+# Globex roots listed on the desk that share the CME electronic clock.
+# They are not US cash names. A root absent from CME_CONTRACT_SPECS still
+# uses the venue session; the gold contract spec is not copied onto it.
+CME_GLOBEX_ROOTS: frozenset[str] = frozenset({
+    *CME_CONTRACT_SPECS,
+    "PL", "PA", "ZN", "ZB", "YM", "RTY", "MCL", "NG", "6E", "6J",
+    "MES", "MYM", "M2K", "HG", "SIL", "HO", "RB",
+})
+# Same admission set as market_islands.ADMITTED_STATUS. Defined here so the
+# session clock does not import the evolution module.
+LISTING_ADMITTED_STATUS: frozenset[str] = frozenset({
+    "OPEN", "REGULAR_SESSION", "EARLY_CLOSE", "PREMARKET", "AFTER_HOURS", "OVERNIGHT_SESSION",
+})
+# Symbol the desk shows when the operator looks at that venue.
+LOOK_SYMBOL: dict[str, str] = {
+    "US_EQUITIES_ETFS": "SPY",
+    "CANADA_TSX": "XIU.TO",
+    "CME_COMEX_FUTURES": "ES",
+    "GLOBAL_FX": "EUR_USD",
+    "CRYPTO_24_7": "BTC-USD",
+}
 
 
 def _fmt_minutes_delta(minutes: int) -> str:
@@ -213,7 +238,7 @@ def classify_symbol_venue(symbol: str) -> str:
         return "SOLANA_PUMP"
     if s in KNOWN_CRYPTO or s.endswith("-USD") or s.endswith("USDT"):
         return "CRYPTO_24_7"
-    if s in CME_CONTRACT_SPECS or s.endswith("=F"):
+    if s in CME_GLOBEX_ROOTS or s.endswith("=F"):
         return "CME_COMEX_FUTURES"
     if s in KNOWN_FX or ("_" in s and len(s) == 7) or ("/" in s and len(s) == 7):
         return "GLOBAL_FX"
@@ -274,8 +299,8 @@ def _us_equities_session(dt_et: datetime) -> dict[str, Any]:
         }
 
     if wd >= 5:
-        # Check Sunday night >= 20:00 ET if Nasdaq 23/5 is effective (>= 2026-12-01)
-        if nasdaq_23_5_active and wd == 6 and mins >= 20 * 60:
+        # Sunday night session starts at 21:00 ET on or after 2026-12-06. 20:00 is still closed.
+        if nasdaq_23_5_active and wd == 6 and mins >= NASDAQ_NIGHT_OPEN_MIN:
             rem = (24 * 60 - mins) + reg_open
             return {
                 "venue_id": "US_EQUITIES_ETFS",
@@ -312,7 +337,10 @@ def _us_equities_session(dt_et: datetime) -> dict[str, Any]:
             "reason": "Closed for Weekend",
             "schedule_et": "Regular: 09:30–16:00 ET | Pre-Market: 04:00–09:30 ET | After-Hours: 16:00–20:00 ET",
             "schedule_summary": "Regular: 09:30–16:00 ET | Pre-Market: 04:00–09:30 ET | After-Hours: 16:00–20:00 ET",
-            "countdown": "Reopens Mon 09:30 ET (Pre-Market 04:00 ET)",
+            "countdown": (
+                "Night session Sun 21:00 ET; regular cash Mon 09:30 ET"
+                if nasdaq_23_5_active else "Reopens Mon 09:30 ET (Pre-Market 04:00 ET)"
+            ),
             "next_scheduled_open": next_open_dt.isoformat(),
             "next_scheduled_close": None,
             "nasdaq_23_5_active": nasdaq_23_5_active,
@@ -397,8 +425,33 @@ def _us_equities_session(dt_et: datetime) -> dict[str, Any]:
             "nasdaq_23_5_active": nasdaq_23_5_active,
         }
 
-    # Overnight window (20:00–04:00 ET): only OVERNIGHT_SESSION on or after 2026-12-01 (and Mon–Thu night / early Fri)
-    if nasdaq_23_5_active and not (wd == 4 and mins >= 20 * 60):
+    # 20:00–21:00 ET is the published clearing pause, not a trading session (Mon–Thu).
+    if nasdaq_23_5_active and wd != 4 and NASDAQ_PAUSE_START_MIN <= mins < NASDAQ_NIGHT_OPEN_MIN:
+        return {
+            "venue_id": "US_EQUITIES_ETFS",
+            "venue_name": "NYSE / NASDAQ / Arca",
+            "asset_classes": ["US Equities (SPY, QQQ, NVDA, AAPL)", "Precious Metal & Bond ETFs (GLD, SLV, TLT)"],
+            "status": "MAINTENANCE",
+            "scheduled_market_status": "MAINTENANCE",
+            "trading_session": "NASDAQ_23_5_PAUSE",
+            "is_open": False,
+            "extended_hours_active": False,
+            "badge": "PAUSE (20:00–21:00 ET)",
+            "status_label": "PAUSE (20:00–21:00 ET)",
+            "label": "Nasdaq 23/5 session pause (20:00–21:00 ET)",
+            "reason": "Nasdaq 23/5 session pause for clearing (20:00–21:00 ET)",
+            "schedule_et": "Night 21:00–04:00 ET | Pause 20:00–21:00 ET | Day 04:00–20:00 ET",
+            "schedule_summary": "Night 21:00–04:00 ET | Pause 20:00–21:00 ET | Day 04:00–20:00 ET",
+            "countdown": f"Night session in {_fmt_minutes_delta(NASDAQ_NIGHT_OPEN_MIN - mins)} (21:00 ET)",
+            "next_scheduled_open": datetime.combine(d, time(21, 0), tzinfo=ET_TZ).isoformat(),
+            "next_scheduled_close": None,
+            "nasdaq_23_5_active": True,
+        }
+
+    # Night session is 21:00–04:00 ET. Friday morning before 04:00 is still Thursday night.
+    # Friday after 20:00 stays closed until Sunday 21:00.
+    in_night = mins >= NASDAQ_NIGHT_OPEN_MIN or mins < pre_open
+    if nasdaq_23_5_active and in_night and not (wd == 4 and mins >= NASDAQ_PAUSE_START_MIN):
         rem = (reg_open - mins) if mins < pre_open else ((24 * 60 - mins) + reg_open)
         return {
             "venue_id": "US_EQUITIES_ETFS",
@@ -413,8 +466,8 @@ def _us_equities_session(dt_et: datetime) -> dict[str, Any]:
             "status_label": "OVERNIGHT (23/5)",
             "label": "Nasdaq 23/5 Overnight Session Active (Effective Dec 2026)",
             "reason": "Nasdaq 23/5 Overnight Session Active (Effective Dec 2026)",
-            "schedule_et": "Nasdaq 23/5 Overnight + Regular 09:30–16:00 ET",
-            "schedule_summary": "Nasdaq 23/5 Overnight + Regular 09:30–16:00 ET",
+            "schedule_et": "Night 21:00–04:00 ET | Pause 20:00–21:00 ET | Day 04:00–20:00 ET",
+            "schedule_summary": "Night 21:00–04:00 ET | Pause 20:00–21:00 ET | Day 04:00–20:00 ET",
             "countdown": f"Regular open in {_fmt_minutes_delta(rem)} (09:30 ET)",
             "next_scheduled_open": next_open_dt.isoformat(),
             "next_scheduled_close": None,
@@ -445,7 +498,7 @@ def _us_equities_session(dt_et: datetime) -> dict[str, Any]:
         "countdown": cd,
         "next_scheduled_open": next_open_dt.isoformat(),
         "next_scheduled_close": None,
-        "nasdaq_23_5_active": False,
+        "nasdaq_23_5_active": nasdaq_23_5_active,
     }
 
 
@@ -944,10 +997,15 @@ def evaluate_instrument_market_status(
 
     # Contract-specific exchange & asset class
     if vid == "CME_COMEX_FUTURES":
-        cspec = CME_CONTRACT_SPECS.get(sym, CME_CONTRACT_SPECS["GC"])
-        exchange = cspec["exchange"]
-        asset_class = cspec["asset_class"]
-        sched_summary = cspec["schedule_et"]
+        cspec = CME_CONTRACT_SPECS.get(sym)
+        if cspec is None:
+            exchange = "CME"
+            asset_class = "futures"
+            sched_summary = base_v["schedule_summary"]
+        else:
+            exchange = cspec["exchange"]
+            asset_class = cspec["asset_class"]
+            sched_summary = cspec["schedule_et"]
     elif vid == "US_EQUITIES_ETFS":
         exchange = "NASDAQ" if sym in {"QQQ", "NVDA", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "AMD", "AVGO", "TLT", "IEF", "SHY"} else "NYSE_ARCA"
         asset_class = "etf" if sym in {"SPY", "QQQ", "IWM", "DIA", "GLD", "IAU", "SLV", "SIVR", "PPLT", "PALL", "TLT", "IEF", "SHY", "SGOV", "BIL", "MUB", "LQD", "AGG", "BND", "VTI", "VOO"} else "equity"
@@ -1038,6 +1096,75 @@ def evaluate_instrument_market_status(
     }
 
 
+def _hint_venue(asset_class: str | None, exchange: str | None) -> str | None:
+    """Directory hint used only when the symbol root would otherwise look like a cash equity."""
+    blob = f"{asset_class or ''} {exchange or ''}".upper()
+    if any(token in blob for token in ("FUTURE", "CME", "COMEX", "NYMEX", "GLOBEX")):
+        return "CME_COMEX_FUTURES"
+    if " FX" in f" {blob}" or blob.startswith("FX") or "FOREX" in blob:
+        return "GLOBAL_FX"
+    return None
+
+
+def _stamp_from_status(st: dict[str, Any]) -> dict[str, Any]:
+    status = str(st.get("scheduled_market_status") or st.get("status") or "UNKNOWN")
+    venue_id = str(st.get("venue_id") or "UNKNOWN")
+    return {
+        "market_id": venue_id,
+        "market_name": st.get("venue_name"),
+        "market_status": status,
+        "market_open": bool(st.get("is_open")),
+        "market_label": st.get("status_label") or st.get("badge"),
+        "market_session": st.get("trading_session"),
+        "market_countdown": st.get("countdown"),
+        "market_admitted": status in LISTING_ADMITTED_STATUS,
+        "look_symbol": LOOK_SYMBOL.get(venue_id),
+        "execution_permission": "none",
+    }
+
+
+def listing_market(
+    symbol: str,
+    now: datetime | None = None,
+    *,
+    asset_class: str | None = None,
+    exchange: str | None = None,
+) -> dict[str, Any]:
+    """Clock stamp for one listing. Does not invent a price or a quote."""
+    st = evaluate_instrument_market_status(symbol, now=now)
+    hint = _hint_venue(asset_class, exchange)
+    if hint and st.get("venue_id") in {"US_EQUITIES_ETFS", "UNKNOWN"} and hint != st.get("venue_id"):
+        now_utc = (now or datetime.now(UTC_TZ)).astimezone(UTC_TZ)
+        dt_et = now_utc.astimezone(ET_TZ)
+        base = _cme_comex_session(dt_et) if hint == "CME_COMEX_FUTURES" else _global_fx_session(dt_et)
+        st = {
+            **st,
+            "venue_id": base["venue_id"],
+            "venue_name": base["venue_name"],
+            "scheduled_market_status": base.get("scheduled_market_status") or base.get("status"),
+            "trading_session": base.get("trading_session"),
+            "is_open": bool(base.get("is_open")),
+            "status_label": base.get("status_label") or base.get("badge"),
+            "badge": base.get("badge"),
+            "countdown": base.get("countdown"),
+        }
+    return _stamp_from_status(st)
+
+
+def open_market_venues(now: datetime | None = None) -> list[dict[str, Any]]:
+    """Every venue clock, including the ones that are closed. No prices."""
+    now_utc = (now or datetime.now(UTC_TZ)).astimezone(UTC_TZ)
+    dt_et = now_utc.astimezone(ET_TZ)
+    venues = [
+        _us_equities_session(dt_et),
+        _canada_tsx_session(dt_et),
+        _cme_comex_session(dt_et),
+        _global_fx_session(dt_et),
+        _crypto_session(),
+    ]
+    return [_stamp_from_status(v) for v in venues]
+
+
 def get_market_sessions_status(
     now: datetime | None = None,
     symbols: Sequence[str] | None = None,
@@ -1060,6 +1187,7 @@ def get_market_sessions_status(
         v.setdefault("status_label", v["badge"])
         v.setdefault("schedule_summary", v["schedule_et"])
         v.setdefault("reason", v["label"])
+        v["look_symbol"] = LOOK_SYMBOL.get(v["venue_id"])
 
     default_syms = (
         "BTC-USD",
