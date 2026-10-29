@@ -128,7 +128,7 @@ def test_equity_live_prediction_uses_15m_and_is_honest_without_a_model(tmp_path,
     rows = ML.live_predictions(feed, ["BTCUSDT", "AAPL"], {"MASSIVE_API_KEY": SECRET})
     by = {r["symbol"]: r for r in rows}
     assert by["AAPL"]["interval"] == "15m" and by["AAPL"]["asset"] == "stock" and "End-of-day" in by["AAPL"]["delay"]
-    assert by["BTCUSDT"]["interval"] == "1m" and by["BTCUSDT"]["asset"] == "crypto"
+    assert by["BTCUSDT"]["interval"] == "15m" and by["BTCUSDT"]["asset"] == "crypto"
     assert all(r["execution_permission"] == "none" for r in rows)
     assert all(r["direction"] is None for r in rows)         # nothing invented without a model or bars
 

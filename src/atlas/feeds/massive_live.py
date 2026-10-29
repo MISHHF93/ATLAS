@@ -138,15 +138,18 @@ def status_for(feed, symbol: str, env: Mapping[str, str], now: float | None = No
 
 
 def live_predictions(feed, symbols: Iterable[str], env: Mapping[str, str], now: float | None = None) -> list[dict]:
-    """The directional research model on the newest closed bar for each symbol on its live-chart timeframe: crypto 1m, stocks 15m (the finest the
+    """The directional research model on the newest closed bar for each symbol on a 15m timeframe (crypto pools are trained at 15m/1h/1d; stocks: the finest the
     free plan serves). Research display only: execution_permission none. A symbol with no model or too little history says so."""
     from atlas.ai.ml.dataset import load_series
     from atlas.ai.ml.directional.live import directional_prediction
     now = time.time() if now is None else now
     rows = []
-    for sym in symbols:
-        crypto = sym.endswith("USDT") or sym.endswith("-USD")
-        iv = "1m" if crypto else "15m"
+    from atlas.feeds.universe import resolve
+    for raw in symbols:
+        up = str(raw).upper()
+        sym = resolve(raw) or (up.replace("-USD", "USDT") if up.endswith("-USD") else up)   # same symbol mapping as the chart overlays
+        crypto = sym.endswith("USDT")
+        iv = "15m"   # crypto's live tape is 1m but the directional pools are trained at 15m/1h/1d; stocks: 15m is the finest the free plan serves
         try:
             bars = list(load_series(feed, sym, iv).bars)
             closed = [b for b in bars if b.start + b.duration <= now]
