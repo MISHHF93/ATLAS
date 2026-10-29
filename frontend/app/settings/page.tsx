@@ -4,12 +4,16 @@ import { AtlasTerminal } from "@/app/AtlasTerminal";
 import { FeedHealthPanel } from "@/src/components/market/FeedHealthPanel";
 import { DocsReader } from "@/src/components/shell/DocsReader";
 import { ApiKeysView } from "@/src/ui/pages/Console";
+import { BillingPanel, ProfilePanel, SetupWizard } from "@/src/ui/pages/AccountViews";
 import { Hub, tabParam, type HubProps } from "@/src/ui/Hub";
 
 export default async function Page(props: HubProps) {
   const tab = await tabParam(props);
   return (
     <Hub id="settings" tab={tab} panels={{
+        "setup": <SetupWizard />,
+        "profile": <ProfilePanel />,
+        "billing": <BillingPanel />,
         "keys": <ApiKeysView />,
         "connectors": (
           <>

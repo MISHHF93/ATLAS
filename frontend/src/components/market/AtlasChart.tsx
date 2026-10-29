@@ -291,7 +291,12 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
 
   useEffect(() => {
     const el = box.current;
-    if (!el || !data || !bars.length) return;
+    if (!el || !data || !bars.length) {
+      // evo-11: an empty chart must not keep the previous symbol's volume profile, marker chips or prediction band
+      if (profileRef.current) profileRef.current.innerHTML = "";
+      setGeo({ chips: [], band: null });
+      return;
+    }
     const css = getComputedStyle(el);
     const text = css.getPropertyValue("--c-muted").trim() || "#98A3B3";
     const grid = css.getPropertyValue("--c-border").trim() || "#27303D";

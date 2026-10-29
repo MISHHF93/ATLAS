@@ -684,3 +684,29 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .ux-hub .clean-main-scroll { overflow: visible; min-height: auto; flex: 0 0 auto; }
 .ux-hub .institutional-shell { overflow: visible; height: auto; }
 .ux-hub .clean-body-layout { overflow: visible; flex: 0 0 auto; }
+
+/* evo-11: accounts + connector setup wizard */
+.ux-linkbtn { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.ux-wiz-steps { list-style: none; display: flex; flex-wrap: wrap; gap: var(--s-2); padding: 0; margin: var(--s-3) 0 0; }
+.ux-wiz-step { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid var(--c-border); background: var(--c-surface-2); color: var(--c-text); font: inherit; font-size: var(--t-sm); cursor: pointer; white-space: nowrap; }
+.ux-wiz-step[aria-current="step"] { border-color: var(--c-accent); box-shadow: inset 0 0 0 1px var(--c-accent); font-weight: 650; }
+.ux-wiz-step__n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--c-surface-3); font-size: var(--t-xs); }
+.ux-wiz-step[data-done="true"] .ux-wiz-step__n { background: var(--c-good-bg); color: var(--c-good, inherit); }
+.ux-wiz-grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
+.ux-wiz-card { border: 1px solid var(--c-border); border-left-width: 4px; border-radius: var(--r-md); padding: var(--s-3); background: var(--c-surface-2); min-width: 0; display: grid; gap: 6px; align-content: start; }
+.ux-wiz-card[data-light="green"] { border-left-color: var(--c-good); } .ux-wiz-card[data-light="amber"] { border-left-color: var(--c-warn); }
+.ux-wiz-card[data-light="red"] { border-left-color: var(--c-bad); } .ux-wiz-card[data-light="gray"] { border-left-color: var(--c-border-strong); }
+.ux-wiz-card__head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.ux-wiz-card__head .ux-h3 { margin: 0; }
+.ux-wiz-card p { margin: 0; overflow-wrap: anywhere; }
+.ux-wiz-safe { color: var(--c-muted); }
+.ux-wiz-form { display: grid; gap: var(--s-2); margin-top: var(--s-2); }
+.ux-light { font-size: var(--t-xs); font-weight: 650; white-space: nowrap; }
+.ux-light[data-light="green"] { color: var(--c-good); } .ux-light[data-light="amber"] { color: var(--c-warn); } .ux-light[data-light="red"] { color: var(--c-bad); } .ux-light[data-light="gray"] { color: var(--c-muted); }
+
+/* evo-11: these hub tabs scroll as one page (#ux-main); tables, code blocks and text areas grow instead of adding a scroller of their own */
+.ux-hub[data-hub="research"][data-tab="scan"] .ux-table-wrap, .ux-hub[data-hub="lab"][data-tab="memory"] .ux-table-wrap,
+.ux-hub[data-hub="research"][data-tab="scan"] .ux-pre, .ux-hub[data-hub="lab"][data-tab="memory"] .ux-pre { max-height: none !important; }
+.ux-hub[data-hub="research"][data-tab="scan"] textarea, .ux-hub[data-hub="lab"][data-tab="memory"] textarea { field-sizing: content; max-height: none; overflow-y: hidden; resize: none; }
+.atlas-feed-scroll { max-height: 420px; overflow: auto; }
+.ux-hub .atlas-feed-scroll { max-height: none; overflow: visible; } /* evo-11: inside a hub the page scrolls, not the panel */

@@ -163,8 +163,11 @@ export const PAGES: AtlasPage[] = [
   },
   {
     id: "settings", href: "/settings", label: "Settings, data & help", navLabel: "Settings", group: "settings",
-    summary: "Access keys, data connectors and specialist data tools, plus the specifications this desk is built from.",
+    summary: "Your account, step-by-step connector setup, access keys, data connectors and specialist data tools, plus the specifications this desk is built from.",
     tabs: [
+      { id: "setup", label: "Setup", summary: "Step-by-step setup: add your free data, broker (paper only) and alert keys, then test each one. Keys are stored encrypted and only your account can use them." },
+      { id: "profile", label: "Account", summary: "Your profile, password, signed-in devices and a log of every change to your account and keys." },
+      { id: "billing", label: "Plan", summary: "Your plan and what it includes. Test mode with placeholder prices; ATLAS takes no commission on trades." },
       { id: "keys", label: "API keys", aliases: ["/keys"],
         summary: "Create read or research keys for agents, see each once, revoke any time. No key can trade live or move money." },
       { id: "connectors", label: "Connectors", workspaceRoute: "/data/pipelines", aliases: ["/data/pipelines", "/connectors", "/integrations", "/sync"],

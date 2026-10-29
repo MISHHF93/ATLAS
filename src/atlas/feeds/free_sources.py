@@ -54,7 +54,8 @@ def _flag(env: Mapping[str, str], k: str) -> bool:
 
 def allowed(name: str, env: Mapping[str, str] | None = None) -> bool:
     """The free-only gate. Unknown providers are refused (fail closed)."""
-    env = os.environ if env is None else env
+    from atlas.accounts.credentials import effective_environ
+    env = effective_environ() if env is None else env
     t = SOURCES.get(name)
     if t is None:
         return False

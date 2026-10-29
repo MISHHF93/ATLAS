@@ -92,6 +92,8 @@ from atlas.api.chart_overlays import router as chart_overlays_router  # noqa: E4
 
 app.include_router(chart_overlays_router)
 app.add_middleware(AINodeMiddleware)
+from atlas.api.account_api import install as _install_accounts  # noqa: E402
+_install_accounts(app)
 from atlas.api.ext_api import router as ext_router  # noqa: E402
 app.include_router(ext_router, prefix="/api/ext")
 from atlas.api.integrations_api import router as integrations_router  # noqa: E402

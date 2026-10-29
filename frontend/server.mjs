@@ -93,7 +93,7 @@ const server = http.createServer(async (req, res) => {
     }
   });
   try {
-    send({ id, type: "http", url: req.url, method: req.method, headers: req.headers, body: Buffer.concat(chunks).toString("base64") });
+    send({ id, type: "http", url: req.url, method: req.method, headers: { ...req.headers, "x-atlas-client-ip": req.socket.remoteAddress ?? "" }, body: Buffer.concat(chunks).toString("base64") });
   } catch {
     clearTimeout(timeout); channels.delete(id); res.writeHead(503).end("Backend unavailable");
   }
@@ -119,7 +119,7 @@ server.on("upgrade", (req, socket, head) => {
       channels.delete(id);
       try { send({ id, type: "websocket.disconnect", code: 1000 }); } catch {}
     });
-    send({ id, type: "websocket", url: req.url, headers: req.headers });
+    send({ id, type: "websocket", url: req.url, headers: { ...req.headers, "x-atlas-client-ip": req.socket.remoteAddress ?? "" } });
   });
 });
 server.on("error", (error) => { console.error(error); child.kill(); process.exitCode = 1; });

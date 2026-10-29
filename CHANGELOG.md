@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-29: evo-11, multi-user accounts, encrypted connectors, setup wizard, billing schema
+- **Accounts (`src/atlas/accounts/`, `/api/account/*`)**: email + password (argon2id), HttpOnly sessions, CSRF, throttled login, roles owner/admin/user, profile page, per-user isolation, hash-chained audit log, OAuth hook (501).
+- **Encrypted credentials**: AES-256-GCM envelope encryption keyed by `ATLAS_MASTER_KEY` (fails closed), write-only secrets (last 4), rotate/delete, rewrap CLI (`python -m atlas.accounts.cli`).
+- **Connector library + wizard (`/settings?tab=setup`)**: 18 connectors from the integration-loop research, status lights, per-connector tests, paper/practice only. Feeds and integrations resolve credentials per user with the owner `.env` as fallback. API lives under `/api/account/connectors` (the legacy `/api/connectors` stays as is).
+- **Billing schema, no commissions**: plans, plan_entitlements, subscriptions, usage_events, invoices, partner_referrals; Stripe test mode checkout and verified webhook; entitlement gate. See `docs/atlas/monetization.md` and `docs/atlas/security-review.md`.
+- **UI fixes**: three nested-scroller tabs now scroll as one page; an empty chart no longer shows the old volume profile.
+
 ## 2026-10-26: ATLAS Internet Research, Protocol Manifest, Extended Institutional Strategies & 14-Stage Unified Intelligence Loop
 - **Version-Pinned Protocol & Adapter Manifest (`src/atlas/integrations/protocol_manifest.py`, `GET /api/ai/protocol-manifest`)**:
   - Codifies verified upstream protocol specifications, binary account discriminators, rate limits, licensing, and security invariants across `Databento GLBX.MDP3`, `Massive.com (formerly Polygon.io)`, `Alpaca Markets Paper & Crypto`, `Coinbase Exchange`, `Bank of Canada Valet & ECB SDMX 2.1`, `TradingView UDF / Pine v5`, `Solana JSON-RPC 2.0 & WebSocket`, `Pump.fun Bonding Curve (@pump-fun/pump-sdk@^4.1.0)`, `PumpSwap AMM (@pump-fun/pump-swap-sdk@^2.1.0)`, and the `ATLAS Point-in-Time ML & Analytics Stack`.

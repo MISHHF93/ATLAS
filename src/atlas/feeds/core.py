@@ -189,7 +189,8 @@ class ProviderAdapter:
                  clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep,
                  limiter: RateLimiter | None = None):
         self.transport = transport or urllib_transport
-        self.env = os.environ if env is None else env
+        from atlas.accounts.credentials import effective_environ   # per-request user connectors, owner .env fallback
+        self.env = effective_environ() if env is None else env
         self.clock, self.sleep = clock, sleep
         self.limiter = limiter or RateLimiter(5, 1.0, sleep=sleep)
         self._health = Health(self.caps.name, enabled=False)

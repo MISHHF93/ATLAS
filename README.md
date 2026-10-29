@@ -153,5 +153,6 @@ Start at **[docs/README.md](docs/README.md)**, which indexes every document. The
 - [docs/reshape-decisions.md](docs/reshape-decisions.md): IA decisions and the owner's max-holding decision.
 - [docs/ux-audit.md](docs/ux-audit.md) and [docs/broken-code-audit.md](docs/broken-code-audit.md).
 - [docs/lola-port-plan.md](docs/lola-port-plan.md): the founder capital track.
+- [docs/atlas/monetization.md](docs/atlas/monetization.md) and [docs/atlas/security-review.md](docs/atlas/security-review.md): billing schema (no commissions, placeholder plans) and the accounts security review.
 
 Ownership: the founder keeps 100% of the source code, strategy logic, model artifacts and signing keys. Infrastructure operators have no discretion over orders.

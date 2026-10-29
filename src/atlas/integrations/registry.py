@@ -99,8 +99,9 @@ ALL_VARS: tuple[str, ...] = tuple(dict.fromkeys(v for s in SERVICES for v in (*s
 
 def load_env(env_file: str | Path = ".env", environ: dict[str, str] | None = None) -> dict[str, str]:
     from atlas.control.policy.loader import parse_env_file
-    environ = os.environ if environ is None else environ
-    file = parse_env_file(Path(env_file))
+    from atlas.accounts import credentials
+    environ = credentials.effective_environ() if environ is None else environ
+    file = parse_env_file(Path(env_file)) if credentials.owner_scope() else {}   # the host's .env is the OWNER's fallback only
     return {k: environ.get(k) or file.get(k, "") for k in ALL_VARS}
 
 

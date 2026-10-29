@@ -68,7 +68,7 @@ export function FeedHealthPanel() {
         </div>
         <input className="input input-sm" placeholder="Filter symbol or status" value={filter} onChange={(e) => setFilter(e.target.value)} />
       </div>
-      <div style={{ maxHeight: 420, overflow: "auto" }}>
+      <div className="atlas-feed-scroll">
         <table className="clean-table">
           <thead>
             <tr><th>Symbol</th><th>Status</th><th>Provider</th><th>Last</th><th>Quote time (Toronto)</th><th>Lag</th><th>Last bar</th><th>Flags</th></tr>
