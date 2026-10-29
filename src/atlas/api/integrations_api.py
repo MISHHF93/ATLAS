@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, Query
 
 router = APIRouter()
 
@@ -13,6 +13,27 @@ router = APIRouter()
 def integrations_status(probe: bool = Query(False)) -> dict[str, Any]:
     from atlas.integrations.registry import status
     return status(probe=probe)
+
+
+@router.post("/verify")
+def integrations_verify(body: dict = Body(...)) -> dict[str, Any]:
+    """Press Verify: ONE read-only call with the key currently entered for this service (owner .env, or the signed-in user's saved
+    connector). Records needs_verification -> verified/failed. Never returns or stores a secret; no order, alert or message is sent."""
+    from atlas.accounts.credentials import effective_environ
+    from atlas.integrations import verify as v
+    from atlas.integrations.registry import ALL_VARS, load_env
+    sid = str(body.get("service") or "")[:40]
+    env = load_env(environ=dict(effective_environ()))
+    return v.verify(sid, env)
+
+
+@router.get("/verification")
+def integrations_verification() -> dict[str, Any]:
+    from atlas.accounts.credentials import effective_environ
+    from atlas.integrations import verify as v
+    from atlas.integrations.registry import load_env
+    states = v.all_states(load_env(environ=dict(effective_environ())))
+    return {"states": states, "secrets_echoed": False, "execution_permission": "none"}
 
 
 # ---- chart sources: Alpaca IEX bars become selectable once ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY are set ----

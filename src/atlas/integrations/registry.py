@@ -45,8 +45,8 @@ SERVICES: tuple[Service, ...] = (
     Service("fred", "FRED / ALFRED (St. Louis Fed macro, vintages)", "macro", ("FRED_API_KEY",), (), "free",
             "https://fredaccount.stlouisfed.org/apikeys", "src/atlas/feeds/providers/fred.py, src/atlas/autopilot/feeds.py", "fred"),
     Service("polygon", "Massive (formerly Polygon.io)", "market_data", ("POLYGON_API_KEY",), ("POLYGON_BASE_URL", "MASSIVE_API_KEY", "MASSIVE_BASE_URL"), "free_tier",
-            "https://massive.com/dashboard/keys", "src/atlas/feeds/providers/polygon.py, src/atlas/marketdata/pit/providers/polygon.py",
-            notes="Free tier: 5 calls/min, end-of-day. Accepts either POLYGON_API_KEY or MASSIVE_API_KEY; primary host api.massive.com."),
+            "https://massive.com/dashboard/signup", "src/atlas/feeds/providers/polygon.py, src/atlas/marketdata/pit/providers/polygon.py",
+            notes="Recommended free stock/ETF source for Canadian users (email signup, no brokerage account): Stocks Basic = end-of-day, 2 years, 5 calls/min. Accepts either POLYGON_API_KEY or MASSIVE_API_KEY; primary host api.massive.com."),
     Service("finnhub", "Finnhub (quotes, news, fundamentals)", "market_data", ("FINNHUB_API_KEY",), (), "free_tier",
             "https://finnhub.io/dashboard", "src/atlas/feeds/providers/finnhub.py, src/atlas/marketdata/pit/providers/finnhub.py"),
     Service("tiingo", "Tiingo (EOD + IEX intraday)", "market_data", ("TIINGO_API_KEY",), (), "free_tier",
@@ -54,7 +54,7 @@ SERVICES: tuple[Service, ...] = (
     Service("twelvedata", "Twelve Data", "market_data", ("TWELVEDATA_API_KEY",), (), "free_tier",
             "https://twelvedata.com/account/api-keys", "src/atlas/feeds/providers/twelvedata.py"),
     Service("alphavantage", "Alpha Vantage", "market_data", ("ALPHAVANTAGE_API_KEY",), (), "free_tier",
-            "https://www.alphavantage.com/support/#api-key", "src/atlas/feeds/providers/alphavantage.py, external MCP"),
+            "https://www.alphavantage.co/support/#api-key", "src/atlas/feeds/providers/alphavantage.py, external MCP"),
     Service("fmp", "Financial Modeling Prep", "market_data", ("FMP_API_KEY",), (), "free_tier",
             "https://site.financialmodelingprep.com/developer/docs/dashboard", "src/atlas/autopilot/feeds.py"),
     Service("eodhd", "EODHD (TSX/TSXV end-of-day)", "market_data", ("EODHD_API_KEY",), (), "paid",
@@ -78,6 +78,9 @@ SERVICES: tuple[Service, ...] = (
             notes="Disabled on active product roadmap (default_on=False); ATLAS focuses on authentic verified financial instruments.", default_on=False),
     Service("yahoo", "Yahoo Finance (unofficial, keyless)", "market_data", (), (), "free", "", "src/atlas/feeds/providers/yahoo.py",
             notes="Unofficial; may break or rate-limit."),
+    Service("stripe", "Stripe (billing, TEST mode only)", "billing", ("STRIPE_SECRET_KEY",), ("STRIPE_WEBHOOK_SECRET", "ATLAS_STRIPE_TAX", "ATLAS_STRIPE_TAX_CODE"), "free_tier",
+            "https://dashboard.stripe.com/test/apikeys", "src/atlas/accounts/stripe_client.py",
+            notes="sk_test_ keys only: live keys are refused and never contacted. Webhooks need STRIPE_WEBHOOK_SECRET (whsec_...).", default_on=False),
     Service("alerts_telegram", "Telegram alerts", "alerts", ("ATLAS_ALERTS_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"), (), "free",
             "https://core.telegram.org/bots#how-do-i-create-a-bot", "src/atlas/ext/alerts.py", default_on=False),
     Service("alerts_discord", "Discord alerts", "alerts", ("ATLAS_ALERTS_ENABLED", "DISCORD_WEBHOOK_URL"), (), "free",
@@ -208,6 +211,8 @@ def status(env: dict[str, str] | None = None, probe: bool = False, probes: dict[
     env = load_env() if env is None else env
     probes = PROBES if probes is None else probes
     rows = []
+    from atlas.integrations import verify as _verify
+    vdoc, vscope = _verify._load(), _verify._scope()
     for s in SERVICES:
         req = {k: _is_set(env, k) for k in s.required}
         opt = {k: _is_set(env, k) for k in s.optional}
@@ -227,12 +232,14 @@ def status(env: dict[str, str] | None = None, probe: bool = False, probes: dict[
         rows.append({"id": s.id, "title": s.title, "category": s.category, "cost": s.cost, "configured": configured,
                      "required_vars": req, "optional_vars": opt, "mode": mode, "reachable": reach["reachable"],
                      "detail": reach["detail"], "probe_available": s.probe is not None, "default_on": s.default_on,
-                     "signup": s.signup, "notes": s.notes})
+                     "signup": s.signup, "notes": s.notes, "verification": _verify.state_for(s, env, vscope, vdoc)})
     return {"services": rows, "probed": probe, "paper_only": True, "secrets_echoed": False,
-            "data_providers": data_providers(env),
+            "data_providers": data_providers(env), "stock_provider": __import__("atlas.feeds.stock_providers", fromlist=["summary"]).summary(env),
             "execution_permission": EXECUTION_PERMISSION,
             "summary": {"total": len(rows), "configured": sum(r["configured"] for r in rows),
-                        "live_refused": [r["id"] for r in rows if r["mode"] == "live_refused"]}}
+                        "live_refused": [r["id"] for r in rows if r["mode"] == "live_refused"],
+                        "needs_verification": [r["id"] for r in rows if r["verification"]["state"] == "needs_verification"],
+                        "verified": [r["id"] for r in rows if r["verification"]["state"] == "verified"]}}
 
 
 PROVIDER_AUTH = {"alpaca": ("ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY"), "polygon": ("POLYGON_API_KEY",), "tiingo": ("TIINGO_API_KEY",),
