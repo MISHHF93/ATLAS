@@ -175,7 +175,7 @@ def economic_calendar(now: float | None = None, days: int = 14, env: Mapping[str
     sources, events = [], []
     for fn in (lambda: _bls(now, fetch, fresh), lambda: _treasury(now, fetch, fresh), lambda: _fred(now, fetch, env, fresh)):
         try:
-            s = fn()
+            s = dict(fn())   # a copy: the cached source dict must keep its events for the next call
         except Exception as ex:  # noqa: BLE001 - one source failing never hides the others
             s = _src("?", "source", "", "error", f"{type(ex).__name__}: {str(ex)[:120]}")
         evs = s.pop("events", [])

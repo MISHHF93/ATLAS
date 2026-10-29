@@ -83,10 +83,11 @@ def test_fred_used_only_when_key_present():
 
 def test_calendar_cache_avoids_refetch():
     f = fake({"bls.ics": ICS.encode(), "upcoming_auctions": b'{"data":[]}'})
-    kc.economic_calendar(NOW, 14, env={}, fetch=f)
+    first = kc.economic_calendar(NOW, 14, env={}, fetch=f)
     n = len(f.calls)
-    kc.economic_calendar(NOW + 60, 14, env={}, fetch=f)
+    second = kc.economic_calendar(NOW + 60, 14, env={}, fetch=f)
     assert len(f.calls) == n
+    assert first["events"] and len(second["events"]) == len(first["events"])   # regression: the cached source must keep its events
 
 
 def test_edgar_needs_user_agent_and_never_fetches_without_it():
