@@ -107,6 +107,11 @@ def main(argv=None) -> None:
     from atlas.mcp.trading.service import build_service
     from atlas.risk.watchdog_proc import watchdog_alive, write_core_heartbeat
     var = Path(a.var); var.mkdir(parents=True, exist_ok=True)
+    from atlas.envfile import load_env_file
+    if "PYTEST_CURRENT_TEST" not in os.environ:     # tests must never inherit the developer's real .env
+        load_env_file(".env")                       # same local .env the API reads (SENTRY_DSN, HEALTHCHECKS_PING_URL, ...)
+    from atlas.ops import sentry_init
+    sentry_init.init_from_env()
     svc = build_service(a.config, str(var / "audit.sqlite"), str(var / "state.sqlite"), tax_db_path=str(var / "tax.sqlite"))
     if os.environ.get("ATLAS_REQUIRE_EXTERNAL_WATCHDOG", "false").lower() == "true":
         win = svc.watchdog.window_s
@@ -122,6 +127,8 @@ def main(argv=None) -> None:
             now = datetime.now(timezone.utc)
             safety_step(svc, now, write_core_heartbeat, ap)
             work_step(svc, jobs, now, ap=ap)
+            from atlas.ops import healthchecks
+            healthchecks.beat()
         return
     run_forever(svc, jobs, stop, write_core_heartbeat, ap)
 
@@ -184,10 +191,14 @@ def run_forever(svc, jobs, stop, write_hb, ap=None) -> None:
             try:
                 safety_step(svc, datetime.now(timezone.utc), write_hb, ap)
                 last_ok = _t.monotonic()
+                from atlas.ops import healthchecks
+                healthchecks.beat()                 # dead-man ping (no-op unless HEALTHCHECKS_PING_URL is set; never blocks)
             finally:
                 lock.release()
         elif _t.monotonic() - last_ok < window:
             write_hb(svc.store)                     # briefly blocked by the pipeline; still within the window
         else:
             svc.audit.append("core.safety_step_blocked", {"seconds": round(_t.monotonic() - last_ok, 1)})
+            from atlas.ops import healthchecks
+            healthchecks.fail()
         stop.wait(interval)

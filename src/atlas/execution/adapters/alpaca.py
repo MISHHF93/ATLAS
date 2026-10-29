@@ -131,8 +131,10 @@ class _Adapt:
 def _env(env_file: str | Path) -> dict[str, str]:
     from atlas.control.policy.loader import parse_env_file
     keys = ("ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY", "ALPACA_BASE_URL")
+    from atlas import envalias
     file = parse_env_file(Path(env_file))
-    return {k: os.environ.get(k) or file.get(k, "") for k in keys}
+    proc = envalias.normalized(dict(os.environ))
+    return {k: proc.get(k) or file.get(k, "") for k in keys}
 
 
 class AlpacaPaperBroker:

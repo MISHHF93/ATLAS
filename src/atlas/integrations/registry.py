@@ -82,6 +82,15 @@ SERVICES: tuple[Service, ...] = (
             "https://core.telegram.org/bots#how-do-i-create-a-bot", "src/atlas/ext/alerts.py", default_on=False),
     Service("alerts_discord", "Discord alerts", "alerts", ("ATLAS_ALERTS_ENABLED", "DISCORD_WEBHOOK_URL"), (), "free",
             "https://support.discord.com/hc/en-us/articles/228383668", "src/atlas/ext/alerts.py", default_on=False),
+    Service("alerts_ntfy", "ntfy push alerts", "alerts", ("ATLAS_ALERTS_ENABLED", "NTFY_TOPIC"), ("NTFY_URL", "NTFY_TOKEN"), "free",
+            "https://docs.ntfy.sh/", "src/atlas/ext/alerts.py", default_on=False,
+            notes="Topic is the secret on the public ntfy.sh: use a long random one, or self-host and set NTFY_URL (+ NTFY_TOKEN)."),
+    Service("healthchecks", "Healthchecks.io dead-man ping", "alerts", ("HEALTHCHECKS_PING_URL",), ("HEALTHCHECKS_INTERVAL_S",), "free",
+            "https://healthchecks.io/", "src/atlas/ops/healthchecks.py", default_on=False,
+            notes="No-op unless the ping URL is set. The core loop pings it each safety step; you are told when pings stop."),
+    Service("sentry", "Sentry error reporting (Python)", "alerts", ("SENTRY_DSN",), ("SENTRY_TRACES_SAMPLE_RATE",), "free_tier",
+            "https://sentry.io/", "src/atlas/ops/sentry_init.py", default_on=False,
+            notes="No-op unless the DSN is set and sentry-sdk is installed. No PII, cookies or request bodies are sent."),
     Service("alerts_slack", "Slack alerts", "alerts", ("ATLAS_ALERTS_ENABLED", "SLACK_WEBHOOK_URL"), (), "free",
             "https://api.slack.com/messaging/webhooks", "src/atlas/ext/alerts.py", default_on=False),
     Service("external_mcp", "External data MCP servers (EODHD, Finnhub, Massive, TradingView, Alpha Vantage, QuantConnect)", "external_mcp",
@@ -102,6 +111,8 @@ def load_env(env_file: str | Path = ".env", environ: dict[str, str] | None = Non
     from atlas.accounts import credentials
     environ = credentials.effective_environ() if environ is None else environ
     file = parse_env_file(Path(env_file)) if credentials.owner_scope() else {}   # the host's .env is the OWNER's fallback only
+    from atlas import envalias
+    environ = envalias.normalized(dict(environ))
     return {k: environ.get(k) or file.get(k, "") for k in ALL_VARS}
 
 

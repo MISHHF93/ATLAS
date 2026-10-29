@@ -50,7 +50,8 @@ def parse_env_file(path: Path) -> dict[str, str]:
         k, v = line.split("=", 1)
         v = re.split(r"\s+#", v, maxsplit=1)[0].strip().strip('"')
         out[k.strip()] = v
-    return out
+    from atlas import envalias
+    return dict(envalias.apply(out))
 
 
 def _apply_profile(p):

@@ -27,4 +27,6 @@ def load_env_file(path: str | Path, environ: dict[str, str] | None = None) -> li
         if k and v and not v.startswith("<") and not environ.get(k):
             environ[k] = v
             applied.append(k)
+    from atlas import envalias
+    envalias.apply(environ)  # ALPACA_API_KEY etc. -> the canonical ALPACA_API_KEY_ID names
     return applied

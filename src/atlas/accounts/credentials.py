@@ -56,7 +56,7 @@ def _is_credential_name(name: str) -> bool:
             return True
     except Exception:  # noqa: BLE001
         pass
-    return name.startswith(("ALPACA_", "OANDA_", "IBKR_", "STRIPE_", "ATLAS_MASTER"))
+    return name.startswith(("ALPACA_", "APCA_", "OANDA_", "IBKR_", "STRIPE_", "ATLAS_MASTER"))
 
 
 def connector_env(user_id: str, env: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -91,9 +91,11 @@ def connector_env(user_id: str, env: Mapping[str, str] | None = None) -> dict[st
 def effective_environ() -> Mapping[str, str]:
     i = _CTX.get()
     if i is None:
-        return os.environ
+        from atlas import envalias
+        return envalias.apply(os.environ)  # accept ALPACA_API_KEY / APCA_* spellings; canonical is ALPACA_API_KEY_ID
     if i._env is None:
         base = dict(os.environ) if i.role == "owner" else {k: v for k, v in os.environ.items() if not _is_credential_name(k)}
+        from atlas import envalias
         base.update(connector_env(i.user_id))
-        i._env = base
+        i._env = envalias.apply(base)
     return i._env

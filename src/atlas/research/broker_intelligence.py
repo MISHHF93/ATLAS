@@ -23,7 +23,7 @@ OFFICIAL_BROKER_MCP_REGISTRY: dict[str, dict[str, Any]] = {
         "package_or_endpoint": "uvx alpaca-mcp-server (alpacahq/alpaca-mcp-server)",
         "official_docs_url": "https://docs.alpaca.markets/us/docs/alpaca-mcp-server",
         "supported_asset_classes": ["US Equities", "ETFs", "Crypto (Spot)", "Options"],
-        "auth_method": "Environment variables ALPACA_API_KEY / ALPACA_SECRET_KEY (never passed in AI prompts)",
+        "auth_method": "Environment variables ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY; the older ALPACA_API_KEY / ALPACA_SECRET_KEY spellings are accepted (never passed in AI prompts)",
         "read_only_operations": [
             "get_account",
             "get_positions",
