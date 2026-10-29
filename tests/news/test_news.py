@@ -407,3 +407,10 @@ def test_marker_details_carry_the_reviewer_verdict_and_feed_outcomes():
 def test_module_level_permissions_are_none():
     import atlas.news as N
     assert N.EXECUTION_PERMISSION == "none"
+
+
+def test_status_sources_use_the_state_field_the_news_view_reads():
+    # NewsViews.tsx renders `s.state`; a `status` key here once crashed the Research -> News tab.
+    from atlas.ext import keyless_context as K
+    srcs = K.sources_status({})
+    assert srcs and all(isinstance(s.get("state"), str) and s.get("title") and "status" not in s for s in srcs)

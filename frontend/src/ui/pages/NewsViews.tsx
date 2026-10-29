@@ -10,7 +10,7 @@ import { api } from "./acct";
 type R = Record<string, unknown>;
 type Llm = { enabled: boolean; reason: string; model?: string | null; gemini_state?: string; gemini_tier?: string | null };
 type Elig = { eligible: boolean; reasons: string[]; min_n: number; effect?: { groups?: Record<string, { n: number; mean_r?: number | null }>; restricted_minus_allowed?: { mean: number; ci95: [number, number] } | null } };
-type Status = { scope: string; llm: Llm; reviewer: { mode: string; eligibility: Elig }; sources: { id: string; title: string; status: string; reason: string; url?: string }[];
+type Status = { scope: string; llm: Llm; reviewer: { mode: string; eligibility: Elig }; sources: { id: string; title: string; state: string; needs?: string | null; provides?: string; url?: string }[];
   counts: Record<string, number>; watchlist: string[]; execution_permission: string };
 type Flag = { type: string; why?: string; quote?: string };
 type Item = { id: string; ticker: string; source: string; tier: number; tier_label: string; kind: string; published_at: number; url: string; title: string; form?: string | null;
@@ -23,7 +23,7 @@ type Feed = { status: string; reason?: string; watchlist: string[]; items: Item[
 const toronto = (s: number) => new Date(s * 1000).toLocaleString("en-CA", { timeZone: "America/Toronto", dateStyle: "medium", timeStyle: "short" });
 const VT: Record<string, Tone> = { veto: "bad", reduce_confidence: "warn", approve_to_forward: "good", allow: "good", no_opinion: "neutral" };
 const VL: Record<string, string> = { veto: "veto", reduce_confidence: "reduce confidence", approve_to_forward: "forward (no objection)", allow: "forward (no objection)", no_opinion: "no opinion" };
-const SRC_TONE: Record<string, Tone> = { ok: "good", needs_key: "warn", needs_config: "warn", rate_limited: "warn", error: "bad" };
+const SRC_TONE: Record<string, Tone> = { keyless: "good", verified: "good", needs_verification: "warn", needs_key: "warn", needs_config: "warn", rate_limited: "warn", error: "bad" };
 
 function LlmCard({ st }: { st: Status }) {
   const e = st.reviewer.eligibility, g = e.effect?.groups ?? {};
@@ -35,7 +35,7 @@ function LlmCard({ st }: { st: Status }) {
         <StatTile label="Shadow outcomes (restricted / allowed)" value={`${g.restricted?.n ?? 0} / ${g.allow?.n ?? 0}`} hint={`gate needs ≥ ${e.min_n} each and a 95% CI showing restricted trades did worse`} />
         <StatTile label="Eligible to gate?" value={e.eligible ? "yes (a human still sets the mode)" : "no"} hint={e.reasons.slice(0, 2).join(" · ")} />
       </div>
-      <p className="ux-small">Sources: {st.sources.map((s) => <span key={s.id}><Badge tone={SRC_TONE[s.status] ?? "neutral"} title={s.reason}>{s.title}: {s.status.replace(/_/g, " ")}</Badge>{" "}</span>)}</p>
+      <p className="ux-small">Sources: {st.sources.map((s) => <span key={s.id}><Badge tone={SRC_TONE[s.state] ?? "neutral"} title={s.needs ? `Needs ${s.needs}` : s.provides}>{s.title}: {(s.state ?? "unknown").replace(/_/g, " ")}</Badge>{" "}</span>)}</p>
     </Card>
   );
 }
