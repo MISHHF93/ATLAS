@@ -611,3 +611,11 @@ def test_migration_6_verifies_existing_users(tmp_path):
     assert db.migrate(c) == [6]
     r = c.execute("SELECT email_verified, email_verified_at FROM users").fetchone()
     assert (r[0], r[1]) == (1, 5)  # accounts that predate verification are grandfathered
+
+
+def test_me_and_config_are_reachable_signed_out_when_auth_is_required(pub, monkeypatch):
+    """The sign-in screen needs /me to learn that sign-in is required; it must answer 200 {authenticated:false}, not 401."""
+    r = pub.get("/api/account/me")
+    assert r.status_code == 200 and r.json()["authenticated"] is False and r.json()["require_auth"] is True
+    assert pub.get("/api/account/config").status_code == 200
+    assert pub.get("/api/connectors").status_code == 401

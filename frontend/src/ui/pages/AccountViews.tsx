@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Badge, Card, DataTable, EmptyState, LoadingSkeleton, type Tone } from "../primitives";
 import { api, setCsrf, why, type Me, type User } from "./acct";
+import { AuthPortal } from "./AuthPortal";
+import { InvitesCard, TeamCard } from "./InviteTeam";
 
 type R = Record<string, unknown>;
 
@@ -17,39 +19,9 @@ export function AccountGate({ children }: { children: (me: { user: User; reload:
   }, []);
   useEffect(() => { void load(); }, [load]);
   if (!me) return <LoadingSkeleton label="Checking your session" />;
-  if (!me.authenticated || !me.user) return <AuthCard registration={me.registration} onDone={load} />;
+  if (!me.authenticated || !me.user) return <AuthPortal registration={me.registration} onDone={load} />;
   const signOut = async () => { await api("/api/account/logout", {}); setCsrf(""); void load(); };
   return <>{children({ user: me.user, reload: load, signOut })}</>;
-}
-
-function AuthCard({ onDone, registration }: { onDone: () => void; registration?: string }) {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
-  const submit = async (e: FormEvent) => {
-    e.preventDefault(); setBusy(true); setErr("");
-    const ref = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ref") ?? undefined : undefined;
-    const r = await api(mode === "login" ? "/api/account/login" : "/api/account/register", mode === "login" ? { email, password } : { email, password, display_name: name, ref });
-    setBusy(false); setPassword("");
-    if (r.ok) onDone(); else setErr(why(r));
-  };
-  return (
-    <Card title={mode === "login" ? "Sign in" : "Create your account"} subtitle="Your connector keys are stored encrypted and only your account can use them. ATLAS never places live trades." span="full">
-      <form onSubmit={submit} className="ux-form-row" aria-label={mode === "login" ? "Sign in" : "Create account"}>
-        {mode === "register" ? <label className="ux-field">Name (optional)<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} /></label> : null}
-        <label className="ux-field">Email<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></label>
-        <label className="ux-field">Password{mode === "register" ? " (12+ characters)" : ""}<input type="password" required minLength={mode === "register" ? 12 : 1} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} /></label>
-        <button type="submit" className="ux-btn" data-variant="primary" disabled={busy}>{busy ? "Please wait" : mode === "login" ? "Sign in" : "Create account"}</button>
-      </form>
-      {err ? <p className="ux-action-msg" data-tone="bad" role="alert">{err}</p> : null}
-      {mode === "login" && registration === "closed" ? <p className="ux-small">Registration is closed on this server.</p> : (
-        <p className="ux-small">
-          {mode === "login" ? "New here? " : "Already have an account? "}
-          <button type="button" className="ux-link ux-linkbtn" onClick={() => { setMode(mode === "login" ? "register" : "login"); setErr(""); }}>{mode === "login" ? "Create an account" : "Sign in"}</button>
-        </p>
-      )}
-    </Card>
-  );
 }
 
 /* ------------------------------------------------------------- setup wizard */
@@ -265,7 +237,8 @@ function ProfileInner({ user, reload, signOut }: { user: User; reload: () => voi
           { key: "action", label: "Action" }, { key: "target_id", label: "Target" }, { key: "outcome", label: "Result" },
         ]} empty="No activity yet" />
       </Card>
-      {user.role !== "user" ? <AdminCard /> : null}
+      <TeamCard reload={reload} />
+      {user.role !== "user" ? <><InvitesCard /><AdminCard /></> : null}
       <Card title="Delete account" subtitle="Removes your profile, sessions and every saved connector secret. This cannot be undone." span="full">
         <form className="ux-form-row" onSubmit={(e) => { e.preventDefault(); if (window.confirm("Delete your account and all saved secrets?")) void done(api("/api/account/delete", { password: delpw }), "Account deleted.").then(() => reload()); }}>
           <label className="ux-field">Confirm with your password<input type="password" required value={delpw} onChange={(e) => setDelpw(e.target.value)} autoComplete="current-password" /></label>

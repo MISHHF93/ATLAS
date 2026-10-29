@@ -695,7 +695,7 @@ function MarkerCard({ m, onClose, pinned }: { m: OppMarker; onClose: () => void;
 
 /** Compact model status: which model, whether every validation gate passed, and when it last read a bar (Toronto). */
 function ModelChip({ mp, loading, noBars }: { mp: ModelPrediction | undefined; loading: boolean; noBars?: boolean }) {
-  if (!mp && noBars && !loading) return <span className="atlas-chart-badge atlas-model-chip is-none" data-gate="no_bars" title="The ATLAS feed holds no stored bars for this symbol and timeframe, so there is nothing to build features from. No prediction is drawn.">model: no stored bars for this scope</span>;
+  if (!mp && noBars && !loading) return <span className="atlas-chart-badge atlas-model-chip is-none" data-gate="no_bars" title="The ATLAS feed holds no stored bars for this symbol and timeframe, so there is nothing to build features from. No prediction is drawn. Stocks, ETFs and gold need a free data key (Settings, Connectors shows the exact reason per asset).">model: no stored bars for this scope</span>;
   if (!mp) return <span className="atlas-chart-badge atlas-model-chip is-none" data-gate="loading">{loading ? "model: loading…" : "model: no read"}</span>;
   const m = mp.model;
   const arrow = mp.direction === "up" ? "▲" : mp.direction === "down" ? "▼" : "◆";

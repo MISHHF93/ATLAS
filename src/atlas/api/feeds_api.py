@@ -133,6 +133,33 @@ def api_feed_health(symbols: str | None = Query(default=None), fresh: bool = Que
     return out
 
 
+COVERAGE_TTL_SECONDS = 30.0
+_coverage_cache: dict[str | None, tuple[float, dict]] = {}
+
+
+@router.get("/api/feeds/catalog-health")
+def api_catalog_health(symbols: str | None = Query(default=None), fresh: bool = Query(default=False)) -> dict[str, Any]:
+    """Per-asset source chain, why a series is empty (missing key / policy / awaiting backfill), last bar (Toronto time) and status.
+    Metadata only: no vendor is called and no key is needed. Cached 30 s."""
+    from atlas.feeds.coverage import catalog_coverage
+    from atlas.feeds.universe import resolve
+    hit = _coverage_cache.get(symbols)
+    if not fresh and hit and time.monotonic() - hit[0] < COVERAGE_TTL_SECONDS and "PYTEST_CURRENT_TEST" not in os.environ:
+        return hit[1]
+    feed = _feed()
+    if feed is None:
+        from atlas.feeds.feed import AtlasFeed
+        from atlas.feeds.store import FeedStore
+        feed = AtlasFeed(FeedStore(":memory:"))   # no store yet: the chains are still reported; every asset is awaiting_data / needs_key
+    ids = None
+    if symbols:
+        ids = [resolve(x.strip()) or x.strip().upper() for x in symbols.split(",") if x.strip()]
+    out = catalog_coverage(feed, ids)
+    out["store_present"] = _feed() is not None
+    _coverage_cache[symbols] = (time.monotonic(), out)
+    return out
+
+
 @router.get("/api/feeds/stream")
 async def api_feed_stream(symbols: str | None = Query(default=None), max_seconds: float = Query(default=50, le=55),
                           interval: float = Query(default=1.0, ge=0.25)):

@@ -26,7 +26,7 @@ COOKIE = "atlas_session"
 SAFE = ("GET", "HEAD", "OPTIONS")
 PRE_AUTH = ("/api/account/register", "/api/account/login", "/api/account/verify-email", "/api/account/resend-verification",
             "/api/account/forgot-password", "/api/account/reset-password")  # callable with no session
-PUBLIC = ("/api/account/config", "/api/billing/webhook", "/api/health", *PRE_AUTH)
+PUBLIC = ("/api/account/config", "/api/account/me", "/api/billing/webhook", "/api/health", *PRE_AUTH)
 CSRF_EXEMPT = ("/api/billing/webhook", *PRE_AUTH)  # no session yet / signature-authenticated
 NO_STORE = ("/api/account", "/api/billing", "/api/admin", "/api/team")
 # route prefix -> entitlement flag required (users on a plan without it get 402; owner/admin bypass). Authenticated users only.

@@ -94,3 +94,7 @@ Fixed bounty per qualified account only; no revenue share, no volume-based pay, 
 - [ ] Counsel sign-off per broker partner before any `legal_status='approved'`; implement automatic Stripe fee reconciliation (balance transactions); port the ledger triggers to Postgres if the DB moves.
 - [ ] Enforce `seats` / team workspace once those features exist.
 - [ ] Email verification and receipts.
+
+
+## evo-12: seats
+Team seats are enforced: the limit is `max(subscription.seats, 5)` and pending team invitations hold a seat. Inviting beyond the limit returns `seat_limit_reached`; buy extra seats through checkout (test mode only) to raise it.

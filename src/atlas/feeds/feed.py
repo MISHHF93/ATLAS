@@ -73,6 +73,8 @@ class AtlasFeed:
         out = []
         for name in inst.provider_priority:
             a = self.registry.get(name)
+            if a is not None:
+                a.refresh_env()
             if a and a.enabled and free_allowed(name) and interval in a.caps.intervals and a.health().consecutive_errors < 5:
                 out.append(a)
         return out
@@ -87,6 +89,8 @@ class AtlasFeed:
         cands = [self.registry.get(p) for p in providers if free_allowed(p)] if providers else self.candidates(instrument, interval)
         errors = {}
         for a in cands:
+            if a is not None:
+                a.refresh_env()
             if a is None or not a.enabled:
                 continue
             try:

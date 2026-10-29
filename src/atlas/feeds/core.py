@@ -193,14 +193,28 @@ class ProviderAdapter:
         self.env = effective_environ() if env is None else env
         self.clock, self.sleep = clock, sleep
         self.limiter = limiter or RateLimiter(5, 1.0, sleep=sleep)
+        self._env_explicit = env is not None   # tests pass an explicit env; those adapters never re-read the process environment
         self._health = Health(self.caps.name, enabled=False)
+        self._apply_env()
+
+    def _apply_env(self) -> None:
         missing = [k for k in self.caps.auth_env if not self.env.get(k)]
+        self._health.enabled, self._health.reason = False, None
         if self.caps.status == "documented_stub":
             self._health.reason = "documented_stub"
         elif missing:
             self._health.reason = "missing_env:" + ",".join(missing)
         else:
             self._health.enabled = True
+
+    def refresh_env(self) -> None:
+        """Re-read the keys (owner .env or the signed-in user's saved connectors) so a key saved in Settings enables the
+        provider without a server restart. A no-op for adapters built with an explicit env (tests)."""
+        if self._env_explicit:
+            return
+        from atlas.accounts.credentials import effective_environ
+        self.env = effective_environ()
+        self._apply_env()
 
     # ---- interface ----
     @property

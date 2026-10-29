@@ -134,3 +134,57 @@ export function PaperAccountView() {
     </div>
   );
 }
+
+
+/* ---------- Data coverage: every catalog asset, which source serves it, last bar (Toronto time) and why it is empty ---------- */
+type CovProv = { provider: string; usable: boolean; why: string; env: string[]; register: string; cost: string };
+type CovAsset = { instrument: string; asset_class: string; status: string; served_by: string | null; intervals: string[]; daily_only: boolean; delayed: boolean;
+  chain: CovProv[]; last_bar_interval: string | null; last_bar_provider: string | null; last_bar_toronto: string | null; fix: string; label: string };
+type CovClass = { asset_class: string; label: string; count: number; by_status: Record<string, number>; served_by: Record<string, number>; needs: string[] };
+type CovProxy = { symbol: string; proxy: string; label: string; proxy_status: string };
+type Coverage = { as_of_toronto: string; status_counts: Record<string, number>; classes: CovClass[]; assets: CovAsset[]; proxies: CovProxy[] };
+
+const COV_TONE: Record<string, Tone> = { ok: "good", daily_only: "warn", awaiting_data: "neutral", needs_key: "warn", policy_blocked: "bad", no_provider: "bad" };
+const COV_TEXT: Record<string, string> = { ok: "serving", daily_only: "daily only", awaiting_data: "ready, no bars yet", needs_key: "needs a free key",
+  policy_blocked: "paid / unofficial only", no_provider: "no provider" };
+
+export function CoverageCard() {
+  const [all, setAll] = useState(false);
+  const cov = useApi<Coverage>("/api/feeds/catalog-health", 60000);
+  return (
+    <Card title="Data coverage" span="full"
+      subtitle="Every asset on the desk: which free source serves it, how fresh the last stored bar is (Toronto time) and, if a chart is empty, exactly why. Only free, official sources are used; paid or unofficial endpoints stay off.">
+      <Async state={cov} label="Checking sources">{(c) => {
+        const rows = (all ? c.assets : c.assets.filter((a) => a.status !== "ok" || ["AAPL", "SPY", "QQQ", "GLD", "EUR_USD", "USD_CAD", "BTCUSDT", "GC"].includes(a.instrument)));
+        return (
+          <>
+            <p>Checked {c.as_of_toronto}. {Object.entries(c.status_counts).map(([k, v]) => `${v} ${COV_TEXT[k] ?? k}`).join(" · ")}</p>
+            <DataTable rows={c.classes as unknown as R[]} columns={[
+              { key: "label", label: "Asset class" },
+              { key: "count", label: "Assets" },
+              { key: "served_by", label: "Served by", render: (r) => Object.keys((r as unknown as CovClass).served_by).join(", ") || "nothing yet" },
+              { key: "by_status", label: "Status", render: (r) => Object.entries((r as unknown as CovClass).by_status).map(([k, v]) => <Badge key={k} tone={COV_TONE[k] ?? "neutral"}>{v} {COV_TEXT[k] ?? k}</Badge>) },
+              { key: "needs", label: "Free key that unlocks it", render: (r) => (r as unknown as CovClass).needs.join(" | ") || "none needed" },
+            ]} />
+            <h4>{all ? "All assets" : "Key assets and everything that needs attention"}</h4>
+            <button type="button" className="ux-btn" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${c.assets.length}`}</button>
+            <DataTable rows={rows as unknown as R[]} columns={[
+              { key: "instrument", label: "Asset" },
+              { key: "asset_class", label: "Class" },
+              { key: "status", label: "Status", render: (r) => { const a = r as unknown as CovAsset; return <Badge tone={COV_TONE[a.status] ?? "neutral"}>{COV_TEXT[a.status] ?? a.status}</Badge>; } },
+              { key: "served_by", label: "Source", render: (r) => { const a = r as unknown as CovAsset; return a.served_by ? `${a.served_by}${a.daily_only ? " (daily only)" : a.delayed ? " (delayed)" : ""}` : "none"; } },
+              { key: "intervals", label: "Timeframes", render: (r) => (r as unknown as CovAsset).intervals.join(" ") || "none" },
+              { key: "last_bar_toronto", label: "Last bar (Toronto)", render: (r) => { const a = r as unknown as CovAsset; return a.last_bar_toronto ? `${a.last_bar_toronto} · ${a.last_bar_interval}` : "no stored bars"; } },
+              { key: "fix", label: "What to do", render: (r) => { const a = r as unknown as CovAsset; return a.fix || a.label || "nothing"; } },
+            ]} />
+            <h4>Labelled stand-ins</h4>
+            <DataTable rows={c.proxies as unknown as R[]} columns={[
+              { key: "symbol", label: "Name" }, { key: "proxy", label: "Free stand-in" }, { key: "label", label: "Why" },
+              { key: "proxy_status", label: "Stand-in status", render: (r) => { const a = r as unknown as CovProxy; return <Badge tone={COV_TONE[a.proxy_status] ?? "neutral"}>{COV_TEXT[a.proxy_status] ?? a.proxy_status}</Badge>; } },
+            ]} />
+          </>
+        );
+      }}</Async>
+    </Card>
+  );
+}

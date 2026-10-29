@@ -4,6 +4,9 @@ import "./globals.css";
 import "../src/ui/tokens.css";
 import { AppShell } from "../src/ui/AppShell";
 
+// Pages are rendered per request so Next can stamp the per-request CSP nonce (set in server.mjs) on its inline scripts.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "ATLAS",
   description: "ATLAS: Canadian quant trading intelligence. Paper trading only; orders stay with the control plane.",

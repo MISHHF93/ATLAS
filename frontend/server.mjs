@@ -60,11 +60,49 @@ if (production) {
     if (r.status !== 0) { console.error("ATLAS: next build failed"); process.exit(1); }
   }
 }
+// ---- Security headers for every response served from Node (pages and static assets). The API bridge's responses carry their own
+// (src/atlas/accounts/security_headers.py). Pages get a per-request nonce CSP: Next reads the nonce from the REQUEST's CSP header and
+// stamps it on its inline scripts, so no 'unsafe-inline' for scripts. Pages are rendered dynamically for that reason (app/layout.tsx).
+const { randomBytes } = await import("node:crypto");
+const publicUrl = (process.env.ATLAS_PUBLIC_URL ?? "").trim();
+const trustedProxies = (process.env.ATLAS_TRUSTED_PROXIES ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+const peerOf = (req) => (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
+function isHttps(req) {
+  if (publicUrl.toLowerCase().startsWith("https://")) return true;
+  // X-Forwarded-Proto is believed only from a configured proxy (exact IP match; CIDRs are handled on the Python side).
+  return trustedProxies.includes(peerOf(req)) && String(req.headers["x-forwarded-proto"] ?? "").split(",").pop().trim().toLowerCase() === "https";
+}
+function pageCsp(nonce) {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'${production ? "" : " 'unsafe-eval'"}`,
+    "style-src 'self' 'unsafe-inline'",           // React inline style attributes (charts, layout); script injection stays blocked
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' ws: wss:",
+    "worker-src 'self' blob:",
+    "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
+  ].join("; ");
+}
+function applySecurityHeaders(req, res, csp) {
+  res.setHeader("Content-Security-Policy", csp);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");   // verify / reset / invite tokens ride in URLs
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  if (isHttps(req)) res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
+}
 const app = next({ dev: !production, dir: directory });
 await app.prepare();
 const handle = app.getRequestHandler();
 const server = http.createServer(async (req, res) => {
-  if (!req.url?.startsWith("/api/")) return handle(req, res);
+  if (!req.url?.startsWith("/api/")) {
+    const csp = pageCsp(randomBytes(16).toString("base64"));
+    req.headers["content-security-policy"] = csp;       // Next extracts the nonce from this request header
+    applySecurityHeaders(req, res, csp);
+    return handle(req, res);
+  }
   if (!available) { res.writeHead(503).end("Backend unavailable"); return; }
   const id = String(++sequence);
   const chunks = [];

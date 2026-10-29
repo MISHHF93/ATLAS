@@ -9,6 +9,8 @@ import { pageIcon } from "./icons";
 import { HEADER_LINKS, curtainSections, activeTab, breadcrumbs, findPage, pageCommands, pageTitle, type Command } from "./nav";
 import { useApi } from "./primitives";
 import { DataFreshnessChip } from "./FreshBadge";
+import { api, setCsrf, type Me } from "./pages/acct";
+import { AuthPortal } from "./pages/AuthPortal";
 
 
 /* ------------------------------------------------------------ Safe stop */
@@ -51,7 +53,36 @@ function useTheme(): [Theme, () => void] {
 
 /* ----------------------------------------------------------- the shell */
 
+/* ------------------------------------------------------- sign-in gate */
+
+type Acct = { me: Me | null; signOut: () => void };
+const AcctContext = createContext<Acct>({ me: null, signOut: () => {} });
+
+/** When the server requires sign-in (non-localhost, or ATLAS_REQUIRE_AUTH) nothing but the sign-in card renders until a session exists.
+ *  The server enforces this too (HTTP 401 on /api/*); this gate is the matching screen, not the security boundary. */
 export function AppShell({ children }: { children: ReactNode }) {
+  const [me, setMe] = useState<Me | null>(null);
+  const load = useCallback(async () => {
+    const r = await api<Me>("/api/account/me");
+    setCsrf(r.data.csrf_token);
+    setMe(r.ok ? r.data : { authenticated: false, require_auth: (r.data as { error?: string } | undefined)?.error === "auth_required" });
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const signOut = useCallback(async () => { await api("/api/account/logout", {}); setCsrf(""); window.location.assign("/"); }, []);
+  const ctx = useMemo(() => ({ me, signOut }), [me, signOut]);
+  if (me === null) return <div className="ux-auth" aria-busy="true"><p className="ux-muted" role="status">Loading ATLAS…</p></div>;
+  if (me.require_auth && !me.authenticated) {
+    return (
+      <main id="ux-main" className="ux-auth-page" tabIndex={-1}>
+        <div className="ux-auth-brand"><AtlasLogo /></div>
+        <AuthPortal registration={me.registration} onDone={load} standalone />
+      </main>
+    );
+  }
+  return <AcctContext.Provider value={ctx}><Shell>{children}</Shell></AcctContext.Provider>;
+}
+
+function Shell({ children }: { children: ReactNode }) {
   const path = usePathname() || "/";
   const [tab, setTab] = useState<string | null>(null);
   const page = findPage(path);
@@ -258,6 +289,7 @@ function SafeStopPill() {
 }
 
 function AccountMenu({ onTheme, theme }: { onTheme: () => void; theme: Theme }) {
+  const { me, signOut } = useContext(AcctContext);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -274,10 +306,11 @@ function AccountMenu({ onTheme, theme }: { onTheme: () => void; theme: Theme }) 
       </button>
       {open ? (
         <div className="ux-menu__list" role="menu">
-          <div className="ux-menu__head">Owner · paper account<br /><span className="ux-muted">Writes need atlas-owner + step-up</span></div>
+          <div className="ux-menu__head">{me?.authenticated && me.user ? <>{me.user.email}<br /><span className="ux-muted">{me.user.role} · paper account</span><br /></> : <>Owner · paper account<br /></>}<span className="ux-muted">Writes need atlas-owner + step-up</span></div>
           <a role="menuitem" href="/control?tab=limits">Limits &amp; rules</a>
           <a role="menuitem" href="/settings"><KeyRound size={14} aria-hidden /> Settings &amp; API keys</a>
           <a role="menuitem" href="/settings?tab=docs"><BookOpen size={14} aria-hidden /> Help &amp; docs</a>
+          {me?.authenticated ? <button role="menuitem" type="button" onClick={() => void signOut()}>Sign out</button> : null}
           <button role="menuitem" type="button" onClick={() => { onTheme(); setOpen(false); }}>
             {theme === "dark" ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />} {theme === "dark" ? "Light theme" : "Dark theme"}
           </button>

@@ -231,22 +231,22 @@ export function PortfolioRiskView() {
       <Card title="Book risk" span={2} fresh={fr(s)} subtitle="Historical-simulation VaR/CVaR from daily feed closes. Positions without a price series are listed, not guessed.">
         <Async state={s} label="Loading book">
           {(d) => <><p>Gross ${f(d.exposure.gross_usd, 0)} · net ${f(d.exposure.net_usd, 0)} · status <Badge tone={d.book.status === "ok" ? "good" : "warn"}>{d.book.status}</Badge></p>
-            {d.book.unpriced_positions.length ? <p>Unpriced: {d.book.unpriced_positions.join(", ")}. VaR for the book is not computed.</p> : null}
+            {(d.book.unpriced_positions ?? []).length ? <p>Unpriced: {(d.book.unpriced_positions ?? []).join(", ")}. VaR for the book is not computed.</p> : null}
             <p>VaR95 ${f(d.book.var95_usd, 0)} · CVaR95 ${f(d.book.cvar95_usd, 0)} · VaR99 ${f(d.book.var99_usd, 0)}</p>
             <p className="ux-muted">{d.positions_source}</p>
-            <DataTable rows={d.positions} columns={[{ key: "position_id", label: "Position" }, { key: "track", label: "Track" }, { key: "instrument_id", label: "Instrument" },
+            <DataTable rows={d.positions ?? []} columns={[{ key: "position_id", label: "Position" }, { key: "track", label: "Track" }, { key: "instrument_id", label: "Instrument" },
               { key: "side", label: "Side" }, { key: "notional_usd", label: "Notional", align: "right" }]} /></>}
         </Async>
       </Card>
       <Card title="Stress" fresh={fr(s)} subtitle="Historical worst days and labelled hypothetical shocks.">
         <Async state={s} label="Loading stress">
-          {(d) => <DataTable rows={d.book.stress as unknown as R[]} columns={[{ key: "scenario", label: "Scenario" }, { key: "kind", label: "Kind" },
+          {(d) => <DataTable rows={(d.book.stress ?? []) as unknown as R[]} columns={[{ key: "scenario", label: "Scenario" }, { key: "kind", label: "Kind" },
             { key: "pnl_usd", label: "P&L $", align: "right", render: (r) => f(r.pnl_usd, 0) }]} />}
         </Async>
       </Card>
       <Card title="Per-instrument tail risk (per $10k long)" span="full" fresh={fr(s)}>
         <Async state={s} label="Loading instruments">
-          {(d) => <DataTable rows={d.per_instrument} columns={[{ key: "symbol", label: "Symbol" }, { key: "asset_class", label: "Class" }, { key: "n_days", label: "Days", align: "right" },
+          {(d) => <DataTable rows={d.per_instrument ?? []} columns={[{ key: "symbol", label: "Symbol" }, { key: "asset_class", label: "Class" }, { key: "n_days", label: "Days", align: "right" },
             { key: "var95_per_10k", label: "VaR95", align: "right", render: (r) => f(r.var95_per_10k, 0) }, { key: "cvar95_per_10k", label: "CVaR95", align: "right", render: (r) => f(r.cvar95_per_10k, 0) },
             { key: "var99_per_10k", label: "VaR99", align: "right", render: (r) => f(r.var99_per_10k, 0) }, { key: "worst_day_pct", label: "Worst day %", align: "right", render: (r) => f(r.worst_day_pct, 2) }]} />}
         </Async>

@@ -44,3 +44,15 @@ Scope: `src/atlas/accounts/`, `src/atlas/api/account_api.py`, the settings UI, `
 - **Retention vs erasure**: accounts with tax or referral records are anonymised, not deleted; secrets and sessions are always destroyed.
 - **Broker referrals** are inert until an admin approves and activates a partner; disclosure is mandatory; same 404 for unknown and unapproved partners.
 - **Stripe fee ledger entries** need balance-transaction reconciliation (not implemented). Tax record parsing is best-effort and unverified against a live Stripe Tax invoice.
+
+
+## evo-12: public-launch hardening
+- **Auth default**: `ATLAS_REQUIRE_AUTH` is on whenever the deployment is not bare localhost (`public_deployment()` is derived from env: a non-loopback `ATLAS_PUBLIC_URL`, https, or trusted proxies). Evaluated per request. `/api/account/me` and `/api/account/config` stay reachable signed out so the gate can render.
+- **Registration**: `ATLAS_REGISTRATION=open|invite|closed`, default invite. Invite codes are stored as sha256, single-use (or N-use), optionally bound to an email (a bound invite also verifies that address). Replay of a bound invite is refused.
+- **Email verification and reset**: tokens are random, stored hashed, single-use, expire; verify and reset are POST only (a link opens a confirm page, so mail scanners that prefetch GET cannot consume them). Reset revokes every session.
+- **Enumeration**: register, forgot-password and resend-verification return the same generic body whether or not the address exists; unverified login returns `email_not_verified` only after a correct password.
+- **Client IP**: `ATLAS_TRUSTED_PROXIES` (IPs/CIDRs). `X-Forwarded-For` is walked from the right and only through trusted hops; otherwise the socket peer is used. The Node edge applies the same rule for HSTS/https detection (exact IPs; CIDR proxies are honoured on the Python side only).
+- **Headers**: CSP with a per-request nonce (`script-src 'self' 'nonce-...'`, no unsafe-eval), `frame-ancestors 'none'`, `object-src 'none'`, nosniff, X-Frame-Options DENY, Referrer-Policy, Permissions-Policy, COOP, HSTS when https. `style-src` keeps `'unsafe-inline'` because Next and the charts inject style attributes. The CSP is set in `frontend/server.mjs`, not `next.config.ts` (a static header there would override the nonce).
+- **Team seats**: `max(subscription.seats, 5)` for Team, pending invites count; joining or inviting past the limit is refused.
+- **Postgres**: `dialect.migrations_for("postgresql")` produces the schema and plpgsql immutability triggers for the audit and payouts ledgers; verified against a real Postgres 18 in tests. The runtime store is still SQLite: moving it is a separate project.
+- **Known gaps (launch blockers)**: the console mailer delivers nothing (set `ATLAS_MAIL_BACKEND=smtp` and SMTP creds); the shared market-data store is process wide, so bars fetched with one user's free key are visible to every user (fine for a single owner, a licensing question for a multi-user launch); Sentry is Python only; the ingest daemon uses the owner's credentials.

@@ -69,7 +69,8 @@ def report(feed, positions: list[dict[str, Any]], universe: list[str]) -> dict[s
                     "var99_per_10k": None if not v99 else round(v99["var"] * UNIT_NOTIONAL, 2),
                     "worst_day_pct": round(min(r) * 100, 2) if r else None,
                     "data": "ok" if r else "no_feed_daily_series"})
-    book: dict[str, Any] = {"status": "no_open_positions"}
+    book: dict[str, Any] = {"status": "no_open_positions", "unpriced_positions": [], "n_days": 0, "var95_usd": None, "cvar95_usd": None,
+                            "var99_usd": None, "stress": []}   # same shape as a priced book, so the UI never sees missing keys
     if signed:
         days = sorted(set().union(*[set(rets[s]) for s in signed]))
         pnl = [sum(signed[s] * (np.expm1(rets[s][d]) if d in rets[s] else 0.0) for s in signed) for d in days]

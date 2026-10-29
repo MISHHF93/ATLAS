@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-29: evo-12, public-launch hardening, ops integrations, data coverage
+- **Launch hardening (`src/atlas/accounts/`)**: `ATLAS_REQUIRE_AUTH` defaults on for any non-localhost deployment; registration modes `open|invite|closed` (default invite, hashed single-use invite codes, optionally bound to an email); email verification and password reset with an SMTP-agnostic mailer (`ATLAS_MAIL_BACKEND=console|smtp|file|memory`, console by default, nothing is sent); generic register/reset/resend responses (no account enumeration); `ATLAS_TRUSTED_PROXIES`-aware client IP for the rate limiter; Team seats enforced (plan seats, pending invites hold a seat); dialect-aware migrations with a Postgres version of the ledger immutability triggers (tested on a real Postgres when one is available).
+- **Security headers**: per-request nonce CSP, `frame-ancestors 'none'`, nosniff, Referrer-Policy, Permissions-Policy and HSTS on https, on both the Next server and FastAPI.
+- **UI**: sign-in gate, register, forgot / reset, verify-email pages; admin invitations; Team card in Settings, Account.
+- **Ops integrations (all no-ops unless their env vars are set)**: Healthchecks.io dead-man ping, Sentry (Python, PII scrubbed), ntfy alert backend. Alerts stay off (`ATLAS_ALERTS_ENABLED`).
+- **Env drift**: `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY` are canonical; `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `APCA_*` are accepted.
+- **Data coverage**: `GET /api/feeds/catalog-health` and Settings, Connectors, "Data coverage" show, for every catalog asset, the provider chain, the env var each needs, why it is empty, the last bar in Toronto time, and the labelled free stand-ins for gold spot and indices. Providers re-read their keys on every use, so a key saved in Settings works without a restart. A test asserts every catalog asset resolves to a provider chain. The free-data policy gate is unchanged: Yahoo (unofficial) and Databento (paid) stay off.
+- **Fixes**: `/control?tab=portfolio` crashed on an empty book (full-shape empty book plus null-safe view); `/api/account/me` and `/api/account/config` are reachable signed out so the gate can render.
+
 ## 2026-10-29: evo-11, multi-user accounts, encrypted connectors, setup wizard, billing schema
 - **Accounts (`src/atlas/accounts/`, `/api/account/*`)**: email + password (argon2id), HttpOnly sessions, CSRF, throttled login, roles owner/admin/user, profile page, per-user isolation, hash-chained audit log, OAuth hook (501).
 - **Encrypted credentials**: AES-256-GCM envelope encryption keyed by `ATLAS_MASTER_KEY` (fails closed), write-only secrets (last 4), rotate/delete, rewrap CLI (`python -m atlas.accounts.cli`).

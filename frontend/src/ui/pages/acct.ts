@@ -1,7 +1,7 @@
 /** Same-origin client for /api/account, /api/connectors and /api/billing. The session lives in an HttpOnly cookie the page cannot read;
  *  the per-session CSRF token is returned by /api/account/me and sent as X-CSRF-Token on every POST. Secret values are only ever sent, never received. */
 export type User = { id: string; email: string; role: "owner" | "admin" | "user"; display_name: string; timezone: string; created_at: number; last_login_at: number | null; referral_code: string | null };
-export type Me = { authenticated: boolean; user?: User; csrf_token?: string; require_auth: boolean; registration?: string };
+export type Me = { authenticated: boolean; user?: User; csrf_token?: string; require_auth: boolean; registration?: string; email_verification_required?: boolean };
 export type ApiResult<T> = { ok: boolean; status: number; data: T; error: string; message: string };
 
 let csrf = "";
@@ -31,6 +31,10 @@ const FRIENDLY: Record<string, string> = {
   csrf_failed: "Your session changed. Reload the page and try again.", refused_live_trading: "Refused: ATLAS only connects paper and practice accounts.",
   master_key_unavailable: "The server has no encryption key set (ATLAS_MASTER_KEY), so secrets cannot be stored yet.",
   quota_exceeded: "Your plan limit is reached.", feature_not_in_plan: "That feature is not in your plan.", registration_closed: "Registration is closed on this server.",
+  email_not_verified: "Confirm your email address first: open the link we sent, or ask for a new one below.",
+  invalid_token: "This link is invalid or has expired. Ask for a new one.", invite_required: "Registration is by invitation. Enter the code you were given.",
+  invite_invalid: "That invitation is not valid for this email address, or it has expired or been used.", invalid_invite: "That invitation is not valid, or it has expired or been used.",
+  already_in_team: "This account already holds a team seat.", member_cannot_manage: "Only the team owner can manage seats.",
   stripe_not_configured: "Stripe test keys are not set on the server yet.", forbidden: "You do not have access to that.",
 };
 export function why(r: { error: string; message: string; status: number }): string {

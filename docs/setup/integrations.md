@@ -49,3 +49,13 @@ reported as *live refused*.
 ## Minimum to link Alpaca end to end
 
 `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`, `ATLAS_SEC_USER_AGENT`, `FRED_API_KEY`, then restart and run the check script.
+
+
+## evo-12: monitoring and alerts (all optional, off by default)
+| Service | Env | Effect |
+|---|---|---|
+| Healthchecks.io dead-man ping | `HEALTHCHECKS_PING_URL`, optional `HEALTHCHECKS_INTERVAL_S` | The API pings on a timer and the ingest daemon pings after each cycle; no URL, no calls. Free tier is enough. |
+| Sentry | `SENTRY_DSN`, optional `SENTRY_TRACES_SAMPLE_RATE` | Python errors only, with PII, cookies and secrets scrubbed. No DSN, no SDK init. |
+| ntfy | `NTFY_TOPIC` (+ optional `NTFY_URL`, `NTFY_TOKEN`) | Alert backend; only used when `ATLAS_ALERTS_ENABLED=true`. |
+| Mail | `ATLAS_MAIL_BACKEND=console\|smtp\|file\|memory`, `ATLAS_SMTP_HOST/PORT/USER/PASSWORD/FROM/SECURITY` | Verification, reset, invite mail. Default console: logs the message, sends nothing. |
+| Alpaca | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | Canonical names. `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `APCA_API_KEY_ID`, `APCA_API_SECRET_KEY` are accepted. |

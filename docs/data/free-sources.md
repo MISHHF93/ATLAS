@@ -31,3 +31,18 @@ Required: `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY` (paper), `ATLAS_SEC_USER
 Optional: `FINNHUB_API_KEY`, `TIINGO_API_KEY`, `TWELVEDATA_API_KEY`, `ALPHAVANTAGE_API_KEY`, `FMP_API_KEY`,
 `POLYGON_API_KEY`/`MASSIVE_API_KEY`, `OANDA_API_TOKEN` + `OANDA_ACCOUNT_ID` (practice), `TRADIER_ACCESS_TOKEN` (sandbox).
 Registration links are next to each key in `.env.example`.
+
+
+## evo-12: what serves each asset class today
+Check it live at Settings, Connectors, "Data coverage" (`GET /api/feeds/catalog-health`).
+
+| Class | Keyless today | Free key that unlocks it |
+|---|---|---|
+| Crypto | Alpaca crypto history, Binance, OKX and others (official public endpoints) | none |
+| FX daily | ECB reference rates (EUR crosses), Bank of Canada Valet (USD/CAD): daily only, labelled | Oanda practice, Twelve Data, Finnhub for intraday |
+| Stocks and ETFs (incl. GLD, SLV, SPY, QQQ) | none (official sources all require a free key) | Alpaca paper (IEX free feed, primary), else Tiingo, Finnhub, Twelve Data, Polygon, Tradier, Alpha Vantage |
+| Gold / silver spot, index levels | none | GLD, SLV, SPY, QQQ, DIA, IWM are the labelled free stand-ins once a stock key exists |
+| Futures (GC, SI, ES, ...) | none | Databento is paid and stays off |
+
+Yahoo's chart endpoint is unofficial and is blocked by the data policy (`ATLAS_ALLOW_UNOFFICIAL_DATA`); bars stored from it earlier are ignored on read. Enabling it is an owner decision about Yahoo's terms, not a default.
+Keys are re-read on every provider use, so saving a key in Settings, Setup is enough; open a chart or run `scripts/backfill_feeds.py` to fill bars.
