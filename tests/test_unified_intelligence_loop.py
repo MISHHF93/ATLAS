@@ -57,18 +57,26 @@ def test_massive_polygon_dual_key_and_solana_rpc_registry():
     calls = []
 
     def fake_transport(url, headers):
-        calls.append(url)
-        return 200, {}, b'{"results":[{"t":1700000000000,"o":100.0,"h":102.0,"l":99.0,"c":101.0,"v":5000}]}'
+        calls.append((url, dict(headers)))
+        return 200, {}, b'{"results":[{"t":1761696000000,"o":100.0,"h":102.0,"l":99.0,"c":101.0,"v":5000}]}'
 
+    import datetime as _dt
+    from zoneinfo import ZoneInfo
+    from atlas.feeds.core import RateLimiter
+    now = int(_dt.datetime(2026, 10, 29, 17, 0, tzinfo=ZoneInfo("America/New_York")).timestamp())
     adapter = PolygonAdapter(
         transport=fake_transport,
         env={"MASSIVE_API_KEY": "massive_test_key_123", "MASSIVE_BASE_URL": "https://api.massive.com"},
+        clock=lambda: now, sleep=lambda s: None, limiter=RateLimiter(1000, sleep=lambda s: None),
     )
     assert adapter.health().enabled is True
-    bars = adapter.history("SPY", "5m", 1_700_000_000, 1_700_003_600)
+    bars = adapter.history("SPY", "1d", now - 5 * 86400, now)
     assert len(bars) == 1
-    assert "https://api.massive.com/v2/aggs/ticker/SPY" in calls[0]
-    assert "apiKey=massive_test_key_123" in calls[0]
+    url, headers = calls[0]
+    assert "https://api.massive.com/v2/aggs/ticker/SPY" in url
+    # The key travels as a Bearer header, never in the URL (so it cannot leak into logs).
+    assert headers["Authorization"] == "Bearer massive_test_key_123"
+    assert "massive_test_key_123" not in url and "apiKey" not in url
 
     # Verify integrations.registry.status recognizes MASSIVE_API_KEY for polygon and includes solana_rpc
     rep = integrations_status(env={"MASSIVE_API_KEY": "massive_test_key_123"}, probe=False)
