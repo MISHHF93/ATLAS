@@ -23,18 +23,23 @@ def real_bar_close(feed) -> Callable[[str, str, int], float | None]:
     return f
 
 
-def tick(feed, now: float | None = None, symbols: list[str] | None = None, log_path: str | None = None, budget_s: float = 50.0,
+def tick(feed, now: float | None = None, symbols: list[str] | None = None, log_path: str | None = None, budget_s: float = 40.0,
          intervals: tuple[str, ...] = NC.INTERVALS) -> dict[str, Any]:
     """One clock tick: nowcast + issue, then score what is due. Never raises; reports per-status counts."""
     t0 = time.monotonic()
     now = float(time.time() if now is None else now)
     lmap = S.last_real_map(feed, now, fresh=True)
     ids = symbols or sorted({s for (s, _iv) in lmap})
-    issued, counts, errors = [], {}, 0
+    issued, counts, errors, sample = [], {}, 0, None
     scale_cache: dict[tuple[str, str], float] = {}
-    for sym in ids:
+    # a tick that runs out of budget resumes from where it stopped, so no asset is starved by its position in the list
+    cur = int(_state.get("cursor", 0)) % max(1, len(ids)) if not symbols else 0
+    order = ids[cur:] + ids[:cur]
+    _state["cursor"] = 0
+    for pos, sym in enumerate(order):
         if time.monotonic() - t0 > budget_s:
-            counts["budget_exhausted"] = counts.get("budget_exhausted", 0) + 1
+            counts["budget_exhausted"] = len(order) - pos
+            _state["cursor"] = (cur + pos) % len(ids)
             break
         for iv in intervals:
             info = lmap.get((sym, iv))
@@ -54,11 +59,12 @@ def tick(feed, now: float | None = None, symbols: list[str] | None = None, log_p
                 issued.append({"symbol": sym, "interval": iv, "target_start": tgt["t"], "target_end": tgt["t_end"], "anchor_t": nc["anchor"]["t"],
                                "anchor_px": nc["anchor"]["price"], "mid": tgt["mid"], "lo": tgt["lo"], "hi": tgt["hi"], "k": tgt["k"], "pool": pool,
                                "mode": nc["mode"], "scale": sc})
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
                 errors += 1
+                sample = sample or f"{sym} {iv}: {type(exc).__name__}: {str(exc)[:120]}"
     n_issued = NL.issue(issued, now, log_path)
     sc_res = NL.score_due(real_bar_close(feed), now, log_path)
-    out = {"at": int(now), "assets": len(ids), "issued": n_issued, "statuses": counts, "errors": errors, **sc_res,
+    out = {"at": int(now), "assets": len(ids), "issued": n_issued, "statuses": counts, "errors": errors, "error_sample": sample, **sc_res,
            "elapsed_s": round(time.monotonic() - t0, 2)}
     _state.update(last_tick_at=now, last=out, ticks=_state["ticks"] + 1)
     return out
