@@ -95,7 +95,7 @@ def cross_features(own_end: np.ndarray, own_close: np.ndarray, refs: Mapping[str
 
 def build_features(bars: Sequence[Bar], interval: str, asset_class: str | None, instrument: str | None, is_24x7: bool,
                    refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None = None, horizon: int | None = None, cost_bps: float = 4.0,
-                   corr_refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None = None, events: Sequence[float] | None = None, news: Mapping | None = None) -> pd.DataFrame:
+                   corr_refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None = None, events: Sequence[float] | None = None, news: Mapping | None = None, extra: Mapping | None = None) -> pd.DataFrame:
     """corr_refs: symbol -> (end, close) for the cross-asset layer (DXY/UUP, GLD, BTC, SPY where stored). events: scheduled release times (epoch s)."""
     f = own_features(bars, interval, asset_class, instrument, is_24x7)
     refs = {k: v for k, v in (refs or {}).items() if k != instrument}
@@ -104,7 +104,7 @@ def build_features(bars: Sequence[Bar], interval: str, asset_class: str | None, 
         x.index = f.index
         f = pd.concat([f, x], axis=1)
     H = horizon or max(4, day_bars(interval, is_24x7))
-    lay = layer_features(bars, interval, asset_class, instrument, H, cost_bps, corr_refs, events, news)
+    lay = layer_features(bars, interval, asset_class, instrument, H, cost_bps, corr_refs, events, news, extra)
     lay.index = f.index
     return pd.concat([f, lay], axis=1)
 

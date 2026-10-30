@@ -41,8 +41,10 @@ def main(argv=None):
     try:   # official release schedules (BLS / Treasury; FRED only if its key is set): scheduled in advance, so point-in-time safe
         from atlas.ext.keyless_context import economic_calendar
         cal = economic_calendar(days=60, lookback_days=800, fresh=True)
-        events = [e["ts"] for e in cal["events"]]
-        note = f"{len(events)} scheduled releases from {', '.join(s['id'] for s in cal['sources'] if s.get('status') == 'ok') or 'no source'}"
+        from atlas.ai.ml.directional.context27 import training_events   # keyed FRED data never enters training (Decision #29: FRED terms prohibit AI training)
+        events = training_events(cal)
+        note = (f"{len(events)} scheduled releases from {', '.join(sorted({e['source'] for e in cal['events'] if e.get('source') != 'fred'})) or 'no source'}; "
+                f"{len(cal['events']) - len(events)} keyed-FRED release dates excluded from training (display only)")
     except Exception as exc:  # noqa: BLE001
         note = f"event calendar unavailable ({type(exc).__name__}); ev_* features are NaN"
     print(note)
@@ -53,7 +55,15 @@ def main(argv=None):
     except Exception as exc:  # noqa: BLE001
         print(f"news store unavailable ({type(exc).__name__}); nw_* features are NaN")
     print(f"news features: {len(news_in)} instruments have collected sources; the rest are NaN (honest coverage)")
-    res = P.run(feed, uni, registry_root=None if a.no_persist else a.root, events=events, events_note=note, news=news_in)
+    extra = None
+    try:   # market-wide context: breadth of the stored stock universe + Cboe VIX (keyless). Same builder the chart and the live model use.
+        from atlas.ai.ml.dataset import load_series
+        from atlas.ai.ml.directional import context27 as C27
+        extra = C27.build_context({s: load_series(feed, s, "1d").bars for s in C27.stored_daily_symbols(feed)}, C27.fetch_vix_csv())
+        print("market context: " + ", ".join(f"{k}={'none' if v is None else str(len(v)) + ' rows'}" for k, v in extra.items()))
+    except Exception as exc:  # noqa: BLE001
+        print(f"market context unavailable ({type(exc).__name__}); breadth/implied-vol features fall back to this run's own daily bars")
+    res = P.run(feed, uni, registry_root=None if a.no_persist else a.root, events=events, events_note=note, news=news_in, extra=extra)
     Path(a.root, "report.json").write_text(json.dumps(res, indent=2, default=float))
     for k, g in sorted(res["groups"].items()):
         pr = (g.get("prob") or {}).get("hgb") or {}

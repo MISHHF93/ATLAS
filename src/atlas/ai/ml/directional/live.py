@@ -58,7 +58,7 @@ def _news(symbol: str):
 
 
 def directional_prediction(symbol: str, interval: str, bars: Sequence, ref_loader: Callable[[str, str], Sequence] | None = None, root=None,
-                           events: Sequence[float] | None = None, news: dict | None = None) -> dict[str, Any]:
+                           events: Sequence[float] | None = None, news: dict | None = None, extra: dict | None = None) -> dict[str, Any]:
     group = P.group_of(symbol)
     key = f"{group}-{interval}"
     man, b = _load(key, root)
@@ -84,14 +84,19 @@ def directional_prediction(symbol: str, interval: str, bars: Sequence, ref_loade
     corr = {}
     for cands in CORR_ROLES.values():
         for r in cands:
-            if r != symbol and ref_loader is not None:
+            if r != symbol and r != "USD_PROXY" and ref_loader is not None:
                 try:
                     rb = list(ref_loader(r, interval))
                     if len(rb) >= 300:
                         corr[r] = (np.array([x.end for x in rb]), np.array([x.close for x in rb]))
                 except Exception:
                     pass
-    f = build_features(bars, interval, group, symbol, group == "crypto", refs, P.horizon_for(interval, group), P.cost_bps(group), corr, events, news if news is not None else _news(symbol)).reindex(columns=b["features"])
+    if ref_loader is not None:
+        from atlas.ai.ml.directional import context27 as C27
+        px = C27.usd_proxy_series(lambda s: ref_loader(s, interval))
+        if px is not None:
+            corr[C27.USD_PROXY] = px
+    f = build_features(bars, interval, group, symbol, group == "crypto", refs, P.horizon_for(interval, group), P.cost_bps(group), corr, events, news if news is not None else _news(symbol), extra).reindex(columns=b["features"])
     x = f.iloc[[-1]].to_numpy(float)
     for i in b.get("dead_cols") or []:
         x[:, i] = 0.0

@@ -57,7 +57,7 @@ def cost_bps(group: str) -> float:
 
 
 def series_rows(bars: Sequence, instrument: str, interval: str, group: str, refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None,
-                cfg: Mapping[str, Any] = CONFIG, corr_refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None = None, events: Sequence[float] | None = None, news: Mapping | None = None) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+                cfg: Mapping[str, Any] = CONFIG, corr_refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None = None, events: Sequence[float] | None = None, news: Mapping | None = None, extra: Mapping | None = None) -> tuple[pd.DataFrame, pd.DataFrame] | None:
     """(events+labels, aligned features) for one series, or None when it is too short."""
     if len(bars) < cfg["min_bars"]:
         return None
@@ -67,7 +67,7 @@ def series_rows(bars: Sequence, instrument: str, interval: str, group: str, refs
     lab = L.triple_barrier(df, ev, sigma, horizon_for(interval, group), cfg["barrier_k"])
     if len(lab) == 0:
         return None
-    f = build_features(list(bars), interval, group, instrument, group == "crypto", refs, horizon_for(interval, group), cost_bps(group), corr_refs, events, news)
+    f = build_features(list(bars), interval, group, instrument, group == "crypto", refs, horizon_for(interval, group), cost_bps(group), corr_refs, events, news, extra)
     lab["instrument"] = instrument
     lab["cost_r"] = cost_bps(group) / 1e4 / lab["width"]
     return lab, f.iloc[lab["i"].to_numpy()].reset_index(drop=True)
@@ -236,6 +236,8 @@ def corr_avail(bars_cache: Mapping, iv: str, load: Callable | None = None) -> di
     out = {}
     for cands in CORR_ROLES.values():
         for s in cands:
+            if s == "USD_PROXY":
+                continue   # synthetic: built below from its two legs
             b = bars_cache.get((s, iv))
             if b is None and load is not None:
                 try:
@@ -244,12 +246,17 @@ def corr_avail(bars_cache: Mapping, iv: str, load: Callable | None = None) -> di
                     b = None
             if b is not None and len(b) >= 300:
                 out[s] = (np.array([x.end for x in b]), np.array([x.close for x in b]))
+    from atlas.ai.ml.directional import context27 as C27
+    px = C27.usd_proxy_series(lambda s: bars_cache.get((s, iv)) or (load(s, iv) if load is not None else []))
+    if px is not None:
+        out[C27.USD_PROXY] = px
     return out
 
 
 def run(feed, universe: Sequence[tuple[str, str]], cfg: Mapping[str, Any] = CONFIG, load: Callable | None = None,
         registry_root: str | Path | None = None, fit_final: bool = True, events: Sequence[float] | None = None,
-        events_note: str | None = None, news: Mapping[str, Mapping] | None = None) -> dict[str, Any]:
+        events_note: str | None = None, news: Mapping[str, Mapping] | None = None,
+        extra: Mapping[str, Any] | None = None, vix_text: str | None = None) -> dict[str, Any]:
     """news: instrument -> point-in-time news input (``atlas.news.features.news_input``); instruments without one get NaN news features.
     Train every (instrument, interval) in ``universe`` that has stored bars, pooled by (group, interval)."""
     from atlas.ai.ml.dataset import load_series
@@ -273,9 +280,15 @@ def run(feed, universe: Sequence[tuple[str, str]], cfg: Mapping[str, Any] = CONF
     res: dict[str, Any] = {"config": {k: (list(v) if isinstance(v, tuple) else v) for k, v in cfg.items()}, "gates_inherited": META_GATES,
                            "gate_set": GATE_SET, "skipped": skipped, "groups": {}, "created_at": int(time.time()),
                            "execution_permission": "none", "note": "research only; out-of-sample, net of assumed costs; no profitability claim"}
+    if extra is None:   # market-wide context (breadth, VIX) from the daily bars of this run when the caller did not supply a wider one
+        from atlas.ai.ml.directional import context27 as C27
+        extra = C27.build_context({i: b for (i, iv), b in bars_cache.items() if iv == "1d"}, vix_text)
+    res["market_context"] = {k: (None if v is None else {"rows": int(len(v)), "first_avail": int(v["avail"].iloc[0]), "last_avail": int(v["avail"].iloc[-1])}) for k, v in extra.items()}
     prepared: dict[tuple[str, str], tuple[pd.DataFrame, pd.DataFrame]] = {}
     cov_: dict[str, Any] = {}
     res["layer_feature_coverage"] = cov_
+    allcov_: dict[str, Any] = {}
+    res["feature_coverage"] = allcov_                    # every model column (base + layers), finite fraction per group-interval training set
     res["events_note"] = events_note or ("no event schedule supplied: ev_* features are NaN" if not events else f"{len(events)} scheduled events")
     res["n_features"] = len(feature_names(()))
     for (g, iv), insts in sorted(by_group.items()):
@@ -284,7 +297,7 @@ def run(feed, universe: Sequence[tuple[str, str]], cfg: Mapping[str, Any] = CONF
         rs, fs = [], []
         ca = corr_avail(bars_cache, iv, load)
         for inst in sorted(insts):
-            got = series_rows(bars_cache[(inst, iv)], inst, iv, g, refs, cfg, ca, events, (news or {}).get(inst))
+            got = series_rows(bars_cache[(inst, iv)], inst, iv, g, refs, cfg, ca, events, (news or {}).get(inst), extra)
             if got is None:
                 skipped.append({"instrument": inst, "interval": iv, "reason": "no resolved events"})
                 continue
@@ -298,6 +311,7 @@ def run(feed, universe: Sequence[tuple[str, str]], cfg: Mapping[str, Any] = CONF
             continue
         prepared[(g, iv)] = (rows, F)
         cov_[f"{g}-{iv}"] = {**LC.coverage(F), "_proxies_used": sorted(ca)}
+        allcov_[f"{g}-{iv}"] = {"n_rows": int(len(F)), "finite_frac": {c: round(float(np.isfinite(F[c].to_numpy(float)).mean()), 4) for c in F.columns}}
     evals = {k: evaluate_and_gate(evaluate_group(r, F, cfg), cfg) for k, (r, F) in prepared.items()}
     trials = [d for ev in evals.values() for d in ev.get("_daily", {}).values()]
     res["n_trials"] = len(trials)

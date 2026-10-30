@@ -322,7 +322,7 @@ def test_news_input_excludes_retroactive_llm_scores_and_unknown_tickers():
 def test_exact_news_feature_count_and_group():
     from atlas.ai.ml.directional import layers25 as L
     assert len(NF.NEWS_FEATURES) == 9 and L.LAYER_FEATURES["news"] == NF.NEWS_FEATURES
-    assert sum(len(v) for v in L.LAYER_FEATURES.values()) == 52
+    assert sum(len(v) for v in L.LAYER_FEATURES.values()) == 74
 
 
 # ---------------------------------------------------------------- service / API

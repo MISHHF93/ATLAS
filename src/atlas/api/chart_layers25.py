@@ -35,30 +35,35 @@ def _last(f: pd.DataFrame, cols) -> dict[str, float | None]:
 
 class Ctx:
     """Everything the ten layers share, computed once per request."""
-    def __init__(self, sym, interval, bars, now, feed, tz, group, cost_bps, horizon, corr_avail, events, mp, dp):
+    def __init__(self, sym, interval, bars, now, feed, tz, group, cost_bps, horizon, corr_avail, events, mp, dp, extra=None):
         self.sym, self.interval, self.now, self.tz = sym, interval, now, tz
         self.bars = [b for b in bars if b.start + b.duration <= now]
         self.group, self.cost_bps, self.H, self.mp, self.dp, self.events = group, cost_bps, horizon, mp, dp, events
-        self.corr_avail = corr_avail
-        self.f = L.layer_features(self.bars, interval, group, sym, horizon, cost_bps, corr_avail, events) if len(self.bars) >= 30 else None
+        self.corr_avail, self.extra = corr_avail, extra or {}
+        self.f = L.layer_features(self.bars, interval, group, sym, horizon, cost_bps, corr_avail, events, None, self.extra) if len(self.bars) >= 30 else None
 
 
-def build_ctx(sym, interval, bars, now, feed, tz="America/Toronto", mp=None, dp=None, events=None, events_ok=False) -> Ctx:
+def build_ctx(sym, interval, bars, now, feed, tz="America/Toronto", mp=None, dp=None, events=None, events_ok=False, ref_loader=None, extra=None) -> Ctx:
     from atlas.ai.ml.dataset import load_series
+    ref_loader = ref_loader or (lambda f, s, iv: load_series(f, s, iv).bars)
     from atlas.ai.ml.directional import pipeline as P
     group = P.group_of(sym)
     avail = {}
     for cands in L.CORR_ROLES.values():
         for s in cands:
-            if s == sym:
+            if s == sym or s == "USD_PROXY":
                 continue
             try:
-                rb = load_series(feed, s, interval).bars
+                rb = ref_loader(feed, s, interval)
             except Exception:
                 rb = []
             if len(rb) >= 300:
                 avail[s] = (np.array([x.end for x in rb]), np.array([x.close for x in rb]))
-    ctx = Ctx(sym, interval, bars, now, feed, tz, group, P.cost_bps(group), P.horizon_for(interval, group), avail, events if events_ok else None, mp, dp)
+    from atlas.ai.ml.directional import context27 as C27
+    px = C27.usd_proxy_series(lambda s: ref_loader(feed, s, interval))
+    if px is not None:
+        avail[C27.USD_PROXY] = px
+    ctx = Ctx(sym, interval, bars, now, feed, tz, group, P.cost_bps(group), P.horizon_for(interval, group), avail, events if events_ok else None, mp, dp, extra)
     return ctx
 
 

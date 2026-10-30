@@ -34,10 +34,25 @@ const LAYERS = [
   { id: "account_size", label: "Account-aware size" }, { id: "drift_alert", label: "Drift alert" },
   // Layer 26: official filings and unverified headlines for this ticker, each linked to its source. Context only; OFF by default.
   { id: "news", label: "News & filings" },
+  // evo-15 layers 27-33. 27-32 are model training features too (same code path); 33 (FRED yield curve and credit spreads) is DISPLAY ONLY, never a feature.
+  { id: "breadth", label: "Market breadth" }, { id: "overnight_intraday", label: "Overnight vs intraday" }, { id: "gap_stats", label: "Gap statistics" },
+  { id: "seasonality", label: "Seasonality" }, { id: "implied_vol", label: "Implied volatility (VIX)" }, { id: "usd_proxy", label: "US-dollar proxy" },
+  { id: "macro_risk", label: "Yield curve & credit (FRED)" },
 ] as const;
-const NEW_LAYER_IDS = ["conformal_bands", "mtf_confluence", "events", "market_clock", "cross_corr", "vol_cone", "liquidity", "model_disagreement", "account_size", "drift_alert", "news"] as const;
+/** Every layer is ON by default (26 -> 33). The Layers popover groups them by what they describe. */
+const LAYER_GROUPS: { title: string; ids: readonly LayerIdName[] }[] = [
+  { title: "Model", ids: ["ml_markers", "ml_probability", "predictions", "prediction_zone", "outcomes", "trade_lines", "marker_details", "conviction", "model_disagreement"] },
+  { title: "Price structure", ids: ["setups", "zones", "vwap", "anchored_vwap", "sessions", "volume_profile", "regimes"] },
+  { title: "Risk & volatility", ids: ["conformal_bands", "vol_cone", "drift_alert", "liquidity", "account_size"] },
+  { title: "Trend & context", ids: ["mtf_confluence", "cross_corr", "breadth", "usd_proxy", "implied_vol", "macro_risk"] },
+  { title: "Calendar & flow", ids: ["events", "market_clock", "seasonality", "overnight_intraday", "gap_stats"] },
+  { title: "News", ids: ["news"] },
+];
+const NEW_LAYER_IDS = ["conformal_bands", "mtf_confluence", "events", "market_clock", "cross_corr", "vol_cone", "liquidity", "model_disagreement", "account_size", "drift_alert", "news",
+  "breadth", "overnight_intraday", "gap_stats", "seasonality", "implied_vol", "usd_proxy", "macro_risk"] as const;
 type NewLayerId = (typeof NEW_LAYER_IDS)[number];
 type LayerId = (typeof LAYERS)[number]["id"];
+type LayerIdName = LayerId;
 const DUR: Record<string, number> = { "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400 };
 const ZONE_COLORS: Record<string, string> = { sr: "#56B4E9", fourbox: "#CC79A7", orb: "#E69F00", prior_day: "#98A3B3" };
 const REGIME_COLORS: Record<string, string> = { up: "rgba(46,184,138,0.10)", down: "rgba(240,128,60,0.10)", range: "rgba(152,163,179,0.06)" };
@@ -83,6 +98,8 @@ export type Overlays = {
     conformal_bands?: ConformalBands;
     mtf_confluence?: NewLayer; events?: NewLayer; market_clock?: NewLayer; cross_corr?: NewLayer; vol_cone?: NewLayer;
     liquidity?: NewLayer; model_disagreement?: NewLayer; account_size?: NewLayer; drift_alert?: NewLayer; news?: NewsLayer;
+    breadth?: NewLayer; overnight_intraday?: NewLayer; gap_stats?: NewLayer; seasonality?: NewLayer; implied_vol?: NewLayer; usd_proxy?: NewLayer; macro_risk?: NewLayer;
+    anchored_vwap?: Status; sessions?: Status;
     volume_profile?: Status & { bins: { low: number; high: number; volume: number }[]; poc: number; window_bars: number };
     regimes?: Status & { spans: { from: number; to: number; trend: string; label: string }[]; current: string | null };
     conviction?: Status & { score?: number; label?: string; components?: { rule: string; points: number; why: string }[]; personas?: string };
@@ -275,7 +292,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const live = interval === "live";
   const [barType, setBarType] = useState("time");
   const [on, setOn] = useState<Record<LayerId, boolean>>(() => Object.fromEntries(LAYERS.map((l) => [l.id,
-    allLayers || ["ml_markers", "ml_probability", "setups", "zones", "vwap", "anchored_vwap", "sessions", "volume_profile", "regimes", "conviction", "predictions", "marker_details", "trade_lines", "prediction_zone", "outcomes"].includes(l.id)])) as Record<LayerId, boolean>);
+    true])) as Record<LayerId, boolean>);   // all layers on by default; allLayers is kept for callers that pass it
   const { data, barsRev, error, loading, refresh } = useOverlays(sym, live ? "1m" : interval, live ? "time" : barType, live);
   const quote = useFeedQuotes([symbol])[symbol];
   const tape = useLiveTape(symbol, live, onLiveSnapshot);
@@ -564,7 +581,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const p = data?.provider;
   const ms = data?.market_session;
   const badge = p?.realtime === true ? "real-time" : p?.realtime === false ? p.delay_label : "delay not tagged";
-  const unavailable = data ? LAYERS.filter((l) => on[l.id] && data.layers[l.id as keyof Overlays["layers"]] && data.layers[l.id as keyof Overlays["layers"]]!.status !== "ok") : [];
+  const unavailable = data ? LAYERS.filter((l) => on[l.id] && isOff(data, l.id)) : [];
   const rc = preds?.running_calibration;
   const mp = data?.layers.model_prediction;
   const tapeOk = live && tape.snap && ["public_last_trade", "public_market_candles"].includes(tape.snap.chart_source ?? "");
@@ -616,14 +633,30 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         )}
       </header>
       {(!fill || layersOpen) && <div className={`atlas-chart-layers${fill ? " is-pop" : ""}`} role="group" aria-label="Layers">
-        {LAYERS.map((l) => {
-          const st = data?.layers[l.id as keyof Overlays["layers"]]?.status;
-          return (
-            <label key={l.id} className={`atlas-chart-chip${on[l.id] ? " is-on" : ""}${st && st !== "ok" ? " is-off" : ""}`}>
-              <input type="checkbox" checked={on[l.id]} onChange={(e) => setOn({ ...on, [l.id]: e.target.checked })} />{l.label}
-            </label>
-          );
-        })}
+        <div className="atlas-chart-layers-head">
+          <strong>Layers {Object.values(on).filter(Boolean).length}/{LAYERS.length}</strong>
+          <button type="button" onClick={() => setOn(Object.fromEntries(LAYERS.map((l) => [l.id, true])) as Record<LayerId, boolean>)}>all</button>
+          <button type="button" onClick={() => setOn(Object.fromEntries(LAYERS.map((l) => [l.id, false])) as Record<LayerId, boolean>)}>none</button>
+          {data && <span className="atlas-chart-layers-n">{LAYERS.filter((l) => isOff(data, l.id)).length} unavailable here: hover a struck-through chip for the reason</span>}
+        </div>
+        <div className="atlas-chart-layers-grid">
+          {LAYER_GROUPS.map((g) => (
+            <div key={g.title} className="atlas-chart-layers-group" data-layer-group={g.title}>
+              <h6>{g.title}</h6>
+              <div className="atlas-chart-layers-chips">
+                {g.ids.map((id) => {
+                  const l = LAYERS.find((x) => x.id === id)!;
+                  const off = isOff(data, l.id);
+                  return (
+                    <label key={l.id} className={`atlas-chart-chip${on[l.id] ? " is-on" : ""}${off ? " is-off" : ""}`} data-layer-chip={l.id} title={off ? `${l.label}: ${layerReason(data, l.id)}` : l.label}>
+                      <input type="checkbox" checked={on[l.id]} onChange={(e) => setOn({ ...on, [l.id]: e.target.checked })} />{l.label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>}
       <div ref={stageRef} className="atlas-chart-stage" style={fill ? { flex: "1 1 0", minHeight: 120 } : { height }}>
         <div ref={box} className="atlas-chart-canvas" />
@@ -664,7 +697,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         {p?.delay_note && <span data-testid="chart-delay-note">Stock data freshness: {p.delay_note}</span>}
         {!live && data?.display && data.display.status !== "ok" && <span>{data.display.kind}: {data.display.reason}</span>}
         {!live && data?.display?.note && data.display.status === "ok" && <span>{data.display.note}.</span>}
-        {unavailable.map((l) => <span key={l.id}>{l.label}: {data!.layers[l.id as keyof Overlays["layers"]]!.reason ?? data!.layers[l.id as keyof Overlays["layers"]]!.note ?? "no data for this symbol/interval"}</span>)}
+        {!fill && unavailable.map((l) => <span key={l.id}>{l.label}: {layerReason(data, l.id)}</span>)}
         {on.regimes && data?.layers.regimes?.current && <span>Regime now: {data.layers.regimes.current.replace(/_/g, " ")}</span>}
         {on.conviction && data?.layers.conviction?.status === "ok" && <span>Conviction {data.layers.conviction.score} · {data.layers.conviction.label}</span>}
         <span>Data: ATLAS feed ({p?.built ?? "—"}), free sources only. Rendering: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts™</a>. Times America/Toronto. Paper only.</span>
@@ -762,6 +795,23 @@ function ModelChip({ mp, loading, noBars }: { mp: ModelPrediction | undefined; l
   );
 }
 
+/** Where a layer's own status lives in the payload. Layers that are drawn from another layer inherit that layer's status. */
+function layerStatus(d: Overlays | null, id: string): Status | undefined {
+  if (!d) return undefined;
+  const L = d.layers as Record<string, any>;
+  switch (id) {
+    case "anchored_vwap": return L.anchored_vwap ?? L.vwap?.anchored ?? L.vwap;
+    case "sessions": return L.sessions ?? L.vwap?.sessions ?? L.vwap;
+    case "prediction_zone": return L.forward;
+    case "trade_lines": case "outcomes": return L.ml_markers;
+    default: return L[id];
+  }
+}
+function isOff(d: Overlays | null, id: string): boolean { const st = layerStatus(d, id); return !!st && st.status !== "ok"; }
+function layerReason(d: Overlays | null, id: string): string {
+  const st = layerStatus(d, id);
+  return st?.reason ?? st?.note ?? "no data for this symbol/interval";
+}
 function pct(v: unknown, d = 0): string { return typeof v === "number" && Number.isFinite(v) ? `${(v * 100).toFixed(d)}%` : "n/a"; }
 function num(v: unknown, d = 2): string { return typeof v === "number" && Number.isFinite(v) ? v.toFixed(d) : "n/a"; }
 function layerLine(id: NewLayerId, L: NewLayer): string {
@@ -782,19 +832,34 @@ function layerLine(id: NewLayerId, L: NewLayer): string {
       return `${it.length} items (${off} official filings/releases, ${it.length - off} unverified headlines)${hype ? ` · ${hype} with hype/scam flags` : ""} · AI scoring ${a.llm?.enabled ? "on" : "off"} · reviewer ${a.reviewer_mode ?? "shadow"}`;
     }
     case "drift_alert": return `${a.level}${a.triggers?.length ? `: ${a.triggers.join("; ")}` : ""}`;
+    case "breadth": { const f = a.features ?? {}; return `${pct(f.br_pct_above_50)} of stored stocks above 50d, ${pct(f.br_pct_above_200)} above 200d, ${pct(f.br_adv_share_10)} advancing (10d) · ${a.tone}`; }
+    case "overnight_intraday": { const f = a.features ?? {}; return `20-session overnight ${num(f.oi_on_20, 2)} vs intraday ${num(f.oi_id_20, 2)} (daily-vol units) · today's gap z ${num(f.oi_gap_z, 1)}`; }
+    case "gap_stats": { const f = a.features ?? {}; return `gap ${num(f.gp_size_atr, 2)} ATR · ${f.gp_filled === 1 ? "filled" : "not filled yet"} · ${pct(f.gp_fill_rate_20)} of the last 20 filled same day`; }
+    case "seasonality": { const f = a.features ?? {}; return `business day ${pct(f.sea_bdom_frac)} through the month · ${f.sea_turn_of_month === 1 ? "turn-of-month window" : "outside turn-of-month"}${f.sea_qtr_end === 1 ? " · quarter-end week" : ""}`; }
+    case "implied_vol": { const f = a.features ?? {}; return `VIX ${num(a.vix, 1)} (z ${num(f.iv_vix_z_252, 1)} vs 1y) · 5-day change ${pct(f.iv_vix_chg_5, 0)} · variance gap ${num(f.iv_vrp, 1)} vol pts`; }
+    case "usd_proxy": { const f = a.features ?? {}; return `EUR+CAD dollar proxy ${pct(f.usd_ret_64, 2)} over 64 bars (z ${num(f.usd_z_64, 1)}); not the DXY`; }
+    case "macro_risk": return `${(a.series ?? []).map((q: any) => `${q.series} ${num(q.value, 2)}`).join(" · ")}${a.curve_inverted ? " · curve inverted" : ""} · display only, never a model input`;
   }
 }
 function LayersCard({ data, on }: { data: Overlays; on: Record<string, boolean> }) {
+  const [open, setOpen] = useState(false);
+  const ids = NEW_LAYER_IDS.filter((k) => on[k]);
+  const rows = ids.map((k) => ({ k, L: data.layers[k] as NewLayer | undefined, meta: LAYERS.find((l) => l.id === k)! }));
+  const ok = rows.filter((r) => r.L?.status === "ok"), off = rows.filter((r) => r.L?.status !== "ok");
   return (
-    <aside className="atlas-lcard" aria-label="Layer readouts" tabIndex={0} data-layer-readouts>
-      {NEW_LAYER_IDS.filter((k) => on[k]).map((k) => {
-        const L = data.layers[k] as NewLayer | undefined;
-        const meta = LAYERS.find((l) => l.id === k)!;
-        if (!L) return <p key={k} className="is-off"><strong>{meta.label}</strong> not returned by the server</p>;
-        return L.status === "ok"
-          ? <p key={k} data-layer={k} title={`${L.reason ?? ""} ${L.meaning ?? ""}`}><strong>{meta.label}</strong> · {layerLine(k, L)}</p>
-          : <p key={k} data-layer={k} className="is-off"><strong>{meta.label}</strong> unavailable: {L.reason}</p>;
-      })}
+    <aside className={`atlas-lcard${open ? " is-open" : ""}`} aria-label="Layer readouts" data-layer-readouts>
+      <button type="button" className="atlas-lcard-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        Readouts: {ok.length} ok{off.length ? ` · ${off.length} unavailable` : ""} {open ? "▾" : "▸"}
+      </button>
+      <div className={open ? "atlas-lcard-grid" : "atlas-lcard-peek"}>
+        {(open ? ok : ok.slice(0, 2)).map(({ k, L, meta }) => <p key={k} data-layer={k} title={`${L!.reason ?? ""} ${L!.meaning ?? ""}`}><strong>{meta.label}</strong> · {layerLine(k, L!)}</p>)}
+      </div>
+      {open && off.length > 0 && (
+        <div className="atlas-lcard-off" data-layer-unavailable>
+          <h6>Unavailable here, and why</h6>
+          {off.map(({ k, L, meta }) => <p key={k} data-layer={k} className="is-off"><strong>{meta.label}</strong> {L ? L.reason ?? "no reason reported" : "not returned by the server"}</p>)}
+        </div>
+      )}
     </aside>
   );
 }

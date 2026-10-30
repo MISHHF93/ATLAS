@@ -1,4 +1,4 @@
-"""The ten new chart layers and their training features: leak-free, honest NaN, counts, status/reason contract, 25 UI layers off by default."""
+"""The ten new chart layers and their training features: leak-free, honest NaN, counts, status/reason contract, 33 UI layers, all on by default."""
 from __future__ import annotations
 
 import re
@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from atlas.ai.ml.directional import layers25 as L
 from atlas.ai.ml.directional.features import feature_names, v2_feature_names
 from atlas.api import chart_layers25 as C
+from atlas.api import chart_layers27 as L27
 from atlas.api import chart_overlays as co
 from atlas.api.app import app
 from atlas.features.price_action.bars import Bar
@@ -38,10 +39,10 @@ def _refs(bars, seed=9):
 
 
 def test_counts_and_names_are_exact_and_unique():
-    assert len(L.LAYER_FEATURE_NAMES) == 52 == sum(len(v) for v in L.LAYER_FEATURES.values())
-    assert len(set(L.LAYER_FEATURE_NAMES)) == 52
+    assert len(L.LAYER_FEATURE_NAMES) == 74 == sum(len(v) for v in L.LAYER_FEATURES.values())
+    assert len(set(L.LAYER_FEATURE_NAMES)) == 74
     assert set(L.LAYER_FEATURE_NAMES).isdisjoint(v2_feature_names(("SPY",)))
-    assert len(v2_feature_names(("SPY",))) == 51 and len(feature_names(("SPY",))) == 103
+    assert len(v2_feature_names(("SPY",))) == 51 and len(feature_names(("SPY",))) == 125
     assert len(L.NEW_LAYER_IDS) == 10 and set(L.NEW_LAYER_IDS) == set(C.IDS)
 
 
@@ -150,14 +151,20 @@ def test_events_layer_ok_with_injected_calendar(monkeypatch):
     assert out["status"] == "ok" and out["next"]["title"] == "CPI" and out["earnings"]["status"] == "unavailable"
 
 
-def test_frontend_has_26_layers_and_the_eleven_new_are_off_by_default():
+def test_frontend_has_33_layers_all_on_by_default_and_grouped():
     src = Path(__file__).resolve().parents[2].joinpath("frontend/src/components/market/AtlasChart.tsx").read_text(encoding="utf-8")
     block = re.search(r"const LAYERS = \[(.*?)\] as const;", src, re.S).group(1)
     ids = re.findall(r'id: "([a-z_0-9]+)"', block)
-    assert len(ids) == 26 and len(set(ids)) == 26      # 15 existing + 10 evo-14 + layer 26 'news'
-    assert set(L.NEW_LAYER_IDS) <= set(ids) and "news" in ids
-    on = re.search(r"\[\"ml_markers\", .*?\]\.includes\(l\.id\)", src, re.S).group(0)
-    assert not any(f'"{k}"' in on for k in (*L.NEW_LAYER_IDS, "news"))
+    assert len(ids) == 33 and len(set(ids)) == 33      # 15 existing + 10 evo-14 + news + 7 evo-15 (27-33)
+    assert set(L.NEW_LAYER_IDS) <= set(ids) and "news" in ids and set(L27.IDS) <= set(ids)
+    grp = re.search(r"const LAYER_GROUPS[^=]*= \[(.*?)\n\];", src, re.S).group(1)
+    grouped = re.findall(r'"([a-z_0-9]+)"', re.sub(r'title: "[^"]*"', "", grp))
+    assert sorted(grouped) == sorted(ids)               # every layer sits in exactly one category
+    assert re.search(r"\[l\.id,\s*true\]", src) and "includes(l.id)" not in src.split("const [on, setOn]")[1][:400]   # all ON by default
+    css = Path(__file__).resolve().parents[2].joinpath("frontend/src/ui/tokens.css").read_text(encoding="utf-8")
+    pop = re.search(r"\.atlas-chart-layers\.is-pop \{[^}]*\}", css).group(0)
+    card = re.search(r"\.atlas-lcard \{[^}]*\}", css, re.S).group(0)
+    assert "overflow" not in pop and "max-height" not in pop and "overflow" not in card and "max-height" not in card   # no nested scroll
 
 
 def test_feature_inventory_script_matches_code():
@@ -166,5 +173,5 @@ def test_feature_inventory_script_matches_code():
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
     inv = m.inventory()
-    assert inv["meta_stack"]["total"] == 45 and inv["directional_before"]["total"] == 51 and inv["directional_after"]["total"] == 103
+    assert inv["meta_stack"]["total"] == 45 and inv["directional_before"]["total"] == 51 and inv["directional_after"]["total"] == 125
     assert inv["research_vertical_slice"]["total"] == 21 and inv["representation_genome_per_bar_type"] == 6 and inv["unique_and_disjoint"] == {"v3_unique": True, "layer_names_disjoint_from_v2": True}

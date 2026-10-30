@@ -446,12 +446,41 @@ def _account_snapshot():
     return get_snapshot("paper_sim", load_env(environ=dict(effective_environ())))
 
 
-def _directional_prediction(sym, interval, bars, now, feed, events=None):
+_REF_TTL, _REF_MAX = 120.0, 48
+_REF_CACHE: dict[tuple[int, str, str], tuple[float, list, Any]] = {}
+_REF_LOCK = __import__("threading").Lock()
+
+
+def cached_ref_bars(feed, sym: str, interval: str) -> list:
+    """Closed reference-series bars (DXY/GLD/BTC/SPY ...) memoised for 120 s. The overlay builds the correlation
+    context and the directional read in one request and both need the same ~8 series; loading each from the store
+    twice made AAPL 15m take ~60 s under ingest load. Reference bars only change when a bar closes, so 120 s is safe."""
+    key, now = (id(feed), sym, interval), time.monotonic()
+    with _REF_LOCK:
+        hit = _REF_CACHE.get(key)
+        if hit is not None and hit[2] is feed and now - hit[0] < _REF_TTL:
+            return hit[1]
+    from atlas.ai.ml.dataset import load_series
+    bars = load_series(feed, sym, interval).bars
+    with _REF_LOCK:
+        if len(_REF_CACHE) >= _REF_MAX:
+            _REF_CACHE.pop(min(_REF_CACHE, key=lambda k: _REF_CACHE[k][0]), None)
+        _REF_CACHE[key] = (now, bars, feed)
+    return bars
+
+
+def _market_extra(feed):
+    """Breadth + VIX context shared by the chart layers and the live model (one hourly build, see context27.shared_context)."""
+    from atlas.ai.ml.dataset import load_series
+    from atlas.ai.ml.directional import context27 as C27
+    return C27.shared_context(lambda s: load_series(feed, s, "1d").bars, C27.stored_daily_symbols(feed))
+
+
+def _directional_prediction(sym, interval, bars, now, feed, events=None, extra=None):
     """evo-14 directional research model read on the latest closed bar (labelled research / below gate unless every offline gate passed)."""
     from atlas.ai.ml.directional.live import directional_prediction
-    from atlas.ai.ml.dataset import load_series
     closed = [b for b in bars if b.start + b.duration <= now]
-    return directional_prediction(sym, interval, closed, ref_loader=lambda r, iv: load_series(feed, r, iv).bars, events=events)
+    return directional_prediction(sym, interval, closed, ref_loader=lambda r, iv: cached_ref_bars(feed, r, iv), events=events, extra=extra)
 
 
 def _enrich_and_forward(markers, bars):
@@ -581,20 +610,24 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
     panel = _layer(_ml_panel, sym, interval, markers, evo)
     em = ((panel.get("evolution") or {}).get("symbol_live_metrics") or (panel.get("evolution") or {}).get("metrics")) if isinstance(panel, dict) and panel.get("evolution") else None
     from atlas.api import chart_layers25 as C25
+    from atlas.api import chart_layers27 as C27
     cal = _layer(_economic_events, now)
     cal_ok = isinstance(cal, dict) and bool(cal.get("events"))
     ev_ts = [e["ts"] for e in cal["events"]] if cal_ok else None
     mp_layer = _layer(_model_prediction, sym, interval, bars, now)
-    dp_layer = _layer(_directional_prediction, sym, interval, bars, now, feed, ev_ts)
+    extra = _layer(_market_extra, feed)
+    extra_ok = extra if isinstance(extra, dict) and "status" not in extra else {}
+    dp_layer = _layer(_directional_prediction, sym, interval, bars, now, feed, ev_ts, extra_ok)
     snap = _layer(_account_snapshot)
-    ctx = _layer(C25.build_ctx, sym, interval, bars, now, feed, tz, mp_layer, dp_layer, ev_ts, cal_ok)
+    ctx = _layer(C25.build_ctx, sym, interval, bars, now, feed, tz, mp_layer, dp_layer, ev_ts, cal_ok, cached_ref_bars, extra_ok)
     if isinstance(ctx, dict):   # building the shared context failed: every new layer says so, none is hidden
-        l25 = {k: dict(ctx) for k in C25.IDS}
+        l25 = {k: dict(ctx) for k in (*C25.IDS, *C27.IDS)}
     else:
         l25 = {"conformal_bands": _layer(C25.conformal_bands, ctx), "mtf_confluence": _layer(C25.mtf_confluence, ctx), "events": _layer(C25.events, ctx, cal),
                "market_clock": _layer(C25.market_clock, ctx), "cross_corr": _layer(C25.cross_corr, ctx), "vol_cone": _layer(C25.vol_cone, ctx),
                "liquidity": _layer(C25.liquidity, ctx), "model_disagreement": _layer(C25.model_disagreement, ctx),
-               "account_size": _layer(C25.account_size, ctx, snap if isinstance(snap, dict) and "snapshot" in snap else None), "drift_alert": _layer(C25.drift_alert, ctx)}
+               "account_size": _layer(C25.account_size, ctx, snap if isinstance(snap, dict) and "snapshot" in snap else None), "drift_alert": _layer(C25.drift_alert, ctx),
+               **{k: _layer(getattr(C27, k), ctx) for k in C27.IDS}}
     l25["news"] = _layer(C25.news_layer, sym, now, t0)
     layers = {
         "ml_markers": {**mstat, "items": ml, "evolution": evo, **({} if ml else {"note": "no OOS predictions for this symbol/interval in the latest evolution run"})},
@@ -603,6 +636,8 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
                    "categories": {"taken": "ml_suggested", "skipped_by_ml": "ml_skip", "rejected_by_risk": "risk_rejected", "rule_only": "rule_only"}},
         "zones": _layer(_zones, sym, interval, bars, feed),
         "vwap": vw, "volume_profile": vp,
+        "anchored_vwap": (vw.get("anchored") if isinstance(vw, dict) and vw.get("anchored") else {"status": "unavailable", "reason": (vw.get("reason") if isinstance(vw, dict) and vw.get("status") != "ok" else None) or "no anchor was found in the visible window"}),
+        "sessions": (vw.get("sessions") if isinstance(vw, dict) and vw.get("sessions") else {"status": "unavailable", "reason": (vw.get("reason") if isinstance(vw, dict) and vw.get("status") != "ok" else None) or "no session spans for this instrument at this interval"}),
         "regimes": _layer(_regimes, bars),
         "conviction": _layer(_conviction, sym, interval, feed),
         "predictions": {"status": "ok" if preds else "unavailable", "items": preds[-200:],
