@@ -140,6 +140,7 @@ export const PAGES: AtlasPage[] = [
         summary: "Run the standard walk-forward test. Passing a test does not promote a model." },
       { id: "training", label: "Training", workspaceRoute: "/research/registry", aliases: ["/models", "/research/registry"], tabAliases: ["/research/evidence?tab=training"],
         summary: "Train the isolated research policy on desk candles. It cannot send an order." },
+      { id: "predictions", label: "Prediction health", summary: "Every catalog asset: last real data, last prediction, model version and the reason when there is no prediction. Research display only; predictions are never market data." },
       { id: "experiments", label: "Experiments", summary: "Recorded variant experiments with deflated Sharpe, PBO, bootstrap intervals and cost sensitivity." },
       { id: "regimes", label: "Regimes", summary: "A causal trend/volatility regime label and how each strategy did in each regime." },
       { id: "memory", label: "Memory & governance", summary: "Where replay results came from, the closest past setups, and the model registry's promotion state." },

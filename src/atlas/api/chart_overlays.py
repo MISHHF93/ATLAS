@@ -480,7 +480,14 @@ def _directional_prediction(sym, interval, bars, now, feed, events=None, extra=N
     """evo-14 directional research model read on the latest closed bar (labelled research / below gate unless every offline gate passed)."""
     from atlas.ai.ml.directional.live import directional_prediction
     closed = [b for b in bars if b.start + b.duration <= now]
-    return directional_prediction(sym, interval, closed, ref_loader=lambda r, iv: cached_ref_bars(feed, r, iv), events=events, extra=extra)
+    res = directional_prediction(sym, interval, closed, ref_loader=lambda r, iv: cached_ref_bars(feed, r, iv), events=events, extra=extra)
+    try:   # the prediction ledger (never the bar store): health page, live scoring
+        from atlas.ai.prediction import log as PL
+        from atlas.ai.prediction.service import model_version
+        PL.record(res, model_version(sym, interval))
+    except Exception:
+        pass
+    return res
 
 
 def _enrich_and_forward(markers, bars):

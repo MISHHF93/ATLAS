@@ -91,6 +91,8 @@ app.include_router(ai_router)
 from atlas.api.chart_overlays import router as chart_overlays_router  # noqa: E402
 
 app.include_router(chart_overlays_router)
+from atlas.api.prediction_api import router as prediction_router  # noqa: E402
+app.include_router(prediction_router)
 app.add_middleware(AINodeMiddleware)
 from atlas.api.account_api import install as _install_accounts  # noqa: E402
 _install_accounts(app)
