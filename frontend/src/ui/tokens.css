@@ -474,6 +474,14 @@ body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01
 .ux-btn[data-variant="primary"] { font-weight: 650; }
 .ux-state { border-style: solid; border-color: var(--c-border); background: var(--c-surface); padding: var(--s-8) var(--s-4); }
 
+@media (max-width: 1440px) {
+  /* 7 sections + wordmark + PAPER + status must fit one row at 1280: icon-only search and menu, tighter tabs */
+  .ux-header { gap: var(--s-2); }
+  .ux-search { width: 36px; padding: 0; justify-content: center; }
+  .ux-search__text, .ux-search .ux-kbd { display: none; }
+  .ux-menu-btn__text { display: none; }
+  .ux-tab { padding: 0 var(--s-2); }
+}
 @media (max-width: 1100px) {
   .ux-header { grid-template-columns: auto 1fr auto; }
   .ux-search { width: 36px; padding: 0; justify-content: center; }

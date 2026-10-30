@@ -185,7 +185,7 @@ export const NAV_PAGES = [
     tabs: [
       { id: "setup", label: "Setup",
         summary: "Step-by-step setup: add your free data, broker (paper only) and alert keys, then test each one. Keys are stored encrypted and only your account can use them." },
-      { id: "profile", label: "Account",
+      { id: "profile", label: "Profile",
         summary: "Your profile, password, signed-in devices and a log of every change to your account and keys." },
       { id: "billing", label: "Plan",
         summary: "Your plan and what it includes. Test mode with placeholder prices; ATLAS takes no commission on trades." },

@@ -14,7 +14,7 @@ async function registryUrls() {
 }
 (async () => {
   const PAGES = [...new Set(['/', ...(await registryUrls())])];
-  const b = await chromium.launch();
+  const b = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
   let bad = 0;
   for (const p of PAGES) {
     const pg = await b.newPage();
