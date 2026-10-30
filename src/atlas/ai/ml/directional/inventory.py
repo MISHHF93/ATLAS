@@ -19,7 +19,7 @@ def inventory(feed) -> dict[str, Any]:
     usable = {k: v for k, v in best.items() if (v["bars"] or 0) >= P.CONFIG["min_bars"] and v["interval"] in INTERVALS}
     return {"n_series_rows": len(series), "n_instruments": len({r["instrument"] for r in series}), "n_usable": len(usable),
             "by_interval": {iv: sum(1 for (_, i) in usable if i == iv) for iv in INTERVALS},
-            "by_group": {g: sorted({i for (i, _) in usable if P.group_of(i) == g}) for g in ("crypto", "equity", "gold")},
+            "by_group": {g: sorted({i for (i, _) in usable if P.group_of(i) == g}) for g in ("crypto", "equity", "fx", "metal", "index", "other")},
             "usable": [{"instrument": i, "interval": iv, "group": P.group_of(i), "bars": v["bars"], "first": v["first"], "last": v["last"]} for (i, iv), v in sorted(usable.items())],
             "too_short": [{"instrument": i, "interval": iv, "bars": v["bars"]} for (i, iv), v in sorted(best.items()) if (i, iv) not in usable]}
 

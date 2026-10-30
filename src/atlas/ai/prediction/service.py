@@ -36,24 +36,22 @@ def last_real_map(feed, now: float | None = None, fresh: bool = False) -> dict[t
 
 
 def model_version(symbol: str, interval: str, root=None) -> str | None:
-    """``<group>-<interval>@<data digest>`` of the pooled model that would score this series, or None."""
-    from atlas.ai.ml.directional import live as LV, pipeline as P
-    key = f"{P.group_of(symbol)}-{interval}"
-    man = LV._load(key, root)[0]
-    return f"{key}@{str(man.get('data_digest') or '')[:8] or 'unversioned'}" if man else None
+    """``<group>-<interval>@<data digest>`` of the pooled model that would score this series (``+transfer`` when borrowed), or None."""
+    from atlas.ai.ml.directional import live as LV
+    man, _b, key, transfer = LV.resolve_model(symbol, interval, root)
+    if man is None:
+        return None
+    return f"{key}@{str(man.get('data_digest') or '')[:8] or 'unversioned'}" + ("+transfer" if transfer else "")
 
 
 def diagnose(symbol: str, interval: str, n_bars: int, root=None) -> tuple[str, str]:
     """Static preconditions of ``directional_prediction`` without computing anything: (status, reason). ``ready`` means it can run."""
-    from atlas.ai.ml.directional import live as LV, pipeline as P
-    key = f"{P.group_of(symbol)}-{interval}"
-    man, bundle = LV._load(key, root)
+    from atlas.ai.ml.directional import live as LV
+    man, bundle, key, transfer = LV.resolve_model(symbol, interval, root)
     if man is None or bundle is None:
-        return "no_model", f"No pooled research model for {key} yet."
-    if symbol not in (man.get("instruments") or []):
-        return "not_in_pool", f"{symbol} is not in the training pool of {key} ({len(man.get('instruments') or [])} assets); no cross-asset transfer is wired yet."
+        return "no_model", f"No pooled research model for {key} yet, and no donor pool has one."
     if n_bars < MIN_BARS:
-        return "insufficient_history", f"{n_bars} stored bars; at least {MIN_BARS} are needed."
+        return "insufficient_history", f"{n_bars} stored bars; at least {MIN_BARS} are needed to build the features."
     return "ready", ""
 
 

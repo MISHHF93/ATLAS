@@ -43,6 +43,31 @@ def _load(group: str, root) -> tuple[dict | None, Any]:
     return man, bundle
 
 
+def resolve_model(symbol: str, interval: str, root=None) -> tuple[dict | None, Any, str, dict | None]:
+    """(manifest, bundle, model key, transfer) for the model that scores ``symbol``.
+
+    ``transfer`` is None when the symbol was in the model's training pool. Otherwise it says how the model was borrowed:
+    ``pool_member_not_trained`` (the symbol's own pool model exists but this asset was not in its training set) or
+    ``cross_pool`` (its pool has no model; the nearest donor pool's model is applied). Features are asset-agnostic
+    (returns, z-scores, ratios), so transfer is mechanically valid; it is not validated on this asset and is labelled so."""
+    from atlas.ai.prediction.pools import TRANSFER_DONORS
+    pool = P.group_of(symbol)
+    key = f"{pool}-{interval}"
+    man, b = _load(key, root)
+    if man is not None and b is not None:
+        if symbol in (man.get("instruments") or []):
+            return man, b, key, None
+        return man, b, key, {"kind": "pool_member_not_trained", "from": key,
+                             "note": f"{symbol} was not in the training set of {key}; the pool model is applied to it unvalidated"}
+    for donor in TRANSFER_DONORS.get(pool, ()):
+        dk = f"{donor}-{interval}"
+        man, b = _load(dk, root)
+        if man is not None and b is not None:
+            return man, b, dk, {"kind": "cross_pool", "from": dk,
+                                "note": f"no {key} model; {symbol} is scored by the {dk} model (cross-asset transfer, unvalidated on this asset)"}
+    return None, None, key, None
+
+
 def _base(symbol: str, interval: str, status: str, reason: str, label: str, **kw) -> dict[str, Any]:
     return {"status": status, "reason": reason, "label": label, "symbol": symbol, "interval": interval, "execution_permission": "none",
             "orders": "none (read-only)", "computed_at": int(time.time()), "kind": "directional_research_v1", **kw}
@@ -60,19 +85,18 @@ def _news(symbol: str):
 def directional_prediction(symbol: str, interval: str, bars: Sequence, ref_loader: Callable[[str, str], Sequence] | None = None, root=None,
                            events: Sequence[float] | None = None, news: dict | None = None, extra: dict | None = None) -> dict[str, Any]:
     group = P.group_of(symbol)
-    key = f"{group}-{interval}"
-    man, b = _load(key, root)
+    fam = P.family_of(group)
+    man, b, key, transfer = resolve_model(symbol, interval, root)
     if man is None or b is None:
         return _base(symbol, interval, "no_model", f"No directional research model for {key}. Run scripts/ml_directional.py --run.", "no directional model for this scope")
-    if symbol not in (man.get("instruments") or []):
-        return _base(symbol, interval, "no_model", f"{symbol} was not in the training pool for {key} (pool: {', '.join(man.get('instruments') or [])}).",
-                     "no directional model for this scope")
     label = man.get("label") or P.LABEL_BELOW
+    if transfer:
+        label = f"{label} · transfer from {transfer['from']}"
     if len(bars) < 300:
         return _base(symbol, interval, "insufficient_history", f"{len(bars)} closed bars; at least 300 needed.", label)
     bars = list(bars)[-1500:]
     refs = {}
-    for r in P.REFS.get(group, ()):
+    for r in P.REFS.get(key.rpartition("-")[0], ()):
         if r != symbol and ref_loader is not None:
             try:
                 rb = list(ref_loader(r, interval))
@@ -96,7 +120,7 @@ def directional_prediction(symbol: str, interval: str, bars: Sequence, ref_loade
         px = C27.usd_proxy_series(lambda s: ref_loader(s, interval))
         if px is not None:
             corr[C27.USD_PROXY] = px
-    f = build_features(bars, interval, group, symbol, group == "crypto", refs, P.horizon_for(interval, group), P.cost_bps(group), corr, events, news if news is not None else _news(symbol), extra).reindex(columns=b["features"])
+    f = build_features(bars, interval, fam, symbol, group == "crypto", refs, P.horizon_for(interval, group), P.cost_bps(group), corr, events, news if news is not None else _news(symbol), extra).reindex(columns=b["features"])
     x = f.iloc[[-1]].to_numpy(float)
     for i in b.get("dead_cols") or []:
         x[:, i] = 0.0
@@ -127,6 +151,6 @@ def directional_prediction(symbol: str, interval: str, bars: Sequence, ref_loade
         gates=[{"gate": g["gate"], "passed": g["passed"]} for g in (man.get("gates") or [])],
         metrics={"n_oos": (man.get("prob") or {}).get("hgb", {}).get("n_oos"), "brier": (man.get("prob") or {}).get("hgb", {}).get("brier"),
                  "brier_baseline": (man.get("prob") or {}).get("hgb", {}).get("brier_baseline"), "auc": (man.get("prob") or {}).get("hgb", {}).get("auc")},
-        trained_at=man.get("created_at"), pool=man.get("instruments"),
+        trained_at=man.get("created_at"), pool=man.get("instruments"), model_group=key, transfer=transfer,
         meaning="P(price reaches the upper volatility barrier before the lower one within the horizon); not a price target and not a profit claim",
     )

@@ -37,23 +37,29 @@ CONFIG = {"cusum_h_mult": 2.0, "barrier_k": 1.0, "sigma_span": 100, "n_folds": 5
           "variants": ("hgb_ev", "hgb_aci", "logit_ev", "logit_aci")}
 # Existing gates are inherited unchanged (never looser); two new ones are added.
 GATE_SET = {**META_GATES, "min_aci_coverage": 0.75, "min_pinball_skill": 0.0}
-REFS = {"crypto": ("BTCUSDT",), "equity": ("SPY",), "gold": ("GLD",)}
+REFS = {"crypto": ("BTCUSDT",), "equity": ("SPY",), "metal": ("GLD",), "index": ("SPY",), "fx": (), "other": (), "gold": ("GLD",)}
 P_FLOOR = 0.02   # isotonic is a step function and emits 0/1 on small blocks; probabilities are clipped to [P_FLOOR, 1-P_FLOOR]
 LABEL_BELOW = "research / below gate"
 LABEL_SHADOW = "offline gates passed; shadow pending"
 
 
 def group_of(symbol: str) -> str:
-    from atlas.ai.ml.chart_prediction import asset_group
-    return asset_group(symbol)
+    """Pool (model group) of a symbol: equity / fx / metal / index / crypto / other (evo-16 per-class pools)."""
+    from atlas.ai.prediction.pools import pool_for_symbol
+    return pool_for_symbol(symbol)
+
+
+def family_of(group: str) -> str:
+    from atlas.ai.prediction.pools import family_of as _f
+    return _f(group)
 
 
 def horizon_for(interval: str, group: str) -> int:
-    return max_hold_bars(interval, "crypto" if group == "crypto" else "equity")
+    return max_hold_bars(interval, "crypto" if group == "crypto" else "equity")  # fx / metal / index follow the equity session horizons
 
 
 def cost_bps(group: str) -> float:
-    return float(VENUE_COSTS[venue_for(group)]["cost_bps"])
+    return float(VENUE_COSTS[venue_for(family_of(group))]["cost_bps"])
 
 
 def series_rows(bars: Sequence, instrument: str, interval: str, group: str, refs: Mapping[str, tuple[np.ndarray, np.ndarray]] | None,
@@ -67,7 +73,7 @@ def series_rows(bars: Sequence, instrument: str, interval: str, group: str, refs
     lab = L.triple_barrier(df, ev, sigma, horizon_for(interval, group), cfg["barrier_k"])
     if len(lab) == 0:
         return None
-    f = build_features(list(bars), interval, group, instrument, group == "crypto", refs, horizon_for(interval, group), cost_bps(group), corr_refs, events, news, extra)
+    f = build_features(list(bars), interval, family_of(group), instrument, group == "crypto", refs, horizon_for(interval, group), cost_bps(group), corr_refs, events, news, extra)
     lab["instrument"] = instrument
     lab["cost_r"] = cost_bps(group) / 1e4 / lab["width"]
     return lab, f.iloc[lab["i"].to_numpy()].reset_index(drop=True)

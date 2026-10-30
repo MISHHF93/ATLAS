@@ -57,8 +57,9 @@ def test_every_catalog_asset_has_prediction_or_reason(world):
     by = {r["instrument"]: r for r in rep["assets"]}
     assert by["SPY"]["status"] == "not_yet_run" and by["SPY"]["model_version"] == "equity-1d@abcdef01"
     assert "no prediction has been computed" in by["SPY"]["reason"] and by["SPY"]["last_prediction_at"] is None
-    assert by["AAPL"]["status"] == "not_in_pool" and "AAPL" in by["AAPL"]["reason"]
-    assert by["EUR_USD"]["status"] == "no_model" and by["EUR_USD"]["pool"] == "fx"
+    assert by["AAPL"]["status"] == "insufficient_history" and "120" in by["AAPL"]["reason"]
+    # FX has no model of its own: scored by the equity pool's model and flagged as transfer
+    assert by["EUR_USD"]["status"] == "not_yet_run" and by["EUR_USD"]["pool"] == "fx" and by["EUR_USD"]["model_version"] == "equity-1d@abcdef01+transfer"
     assert by["MSFT"]["status"] == "no_data" and "No stored bars" in by["MSFT"]["reason"]
     assert by["SPY"]["eod_only"] is True and by["BTCUSDT"]["eod_only"] is False
     assert by["BTCUSDT"]["last_real_age"] == "30s" and by["BTCUSDT"]["intervals"]["15m"]["stale"] is False and by["SPY"]["intervals"]["1d"]["last_real_age"] == "60m"
@@ -75,12 +76,12 @@ def test_sweep_logs_predictions_and_health_shows_them(world):
         return res
 
     out = S.sweep(feed, now=NOW, root=root, log_path=lp, predictor=stub)
-    assert sorted(calls) == [("BTCUSDT", "15m"), ("SPY", "1d")]      # AAPL (not in pool) and EUR_USD (no model) are skipped, not guessed
-    assert out["ok"] == 2 and out["skipped"] >= 2
+    assert sorted(calls) == [("BTCUSDT", "15m"), ("EUR_USD", "1d"), ("SPY", "1d")]   # AAPL (120 bars) is skipped, not guessed
+    assert out["ok"] == 3 and out["skipped"] >= 1
     rep = S.coverage(feed, now=NOW + 60, root=root, log_path=lp)
     spy = {r["instrument"]: r for r in rep["assets"]}["SPY"]
     assert spy["status"] == "predicted" and spy["last_prediction_at"] == NOW and spy["reason"] == "" and spy["label"] == "research / below gate"
-    assert rep["status_counts"]["predicted"] == 2
+    assert rep["status_counts"]["predicted"] == 3
 
 
 def test_predict_asset_never_raises_and_logs_error(world):
@@ -114,3 +115,25 @@ def test_coverage_endpoint_and_sweep_endpoint(world, monkeypatch):
     assert c.get("/api/ai/predictions/coverage?symbols=SPY").json()["n_assets"] == 1
     assert c.post("/api/ai/predictions/sweep?intervals=5m").status_code == 400
     assert c.get("/api/ai/predictions/sweep").json()["running"] in (True, False)
+
+
+def test_resolve_model_transfer_kinds(world):
+    feed, root, lp = world
+    man, b, key, tr = LV.resolve_model("SPY", "1d", root)
+    assert key == "equity-1d" and tr is None
+    man, b, key, tr = LV.resolve_model("AAPL", "1d", root)            # own pool has a model; asset was not in its training set
+    assert key == "equity-1d" and tr["kind"] == "pool_member_not_trained"
+    man, b, key, tr = LV.resolve_model("EUR_USD", "1d", root)         # fx pool has none: equity donor
+    assert key == "equity-1d" and tr["kind"] == "cross_pool" and "unvalidated" in tr["note"]
+    man, b, key, tr = LV.resolve_model("ETHUSDT", "1d", root)         # crypto has no donor and no 1d model
+    assert man is None and key == "crypto-1d"
+    man, b, key, tr = LV.resolve_model("BTCUSDT", "15m", root)
+    assert key == "crypto-15m" and tr is None
+
+
+def test_pools_drive_model_groups_and_families():
+    from atlas.ai.ml.directional import pipeline as P
+    assert [P.group_of(s) for s in ("BTCUSDT", "SPY", "AAPL", "EUR_USD", "GLD", "GC", "ES", "CL")] == ["crypto", "equity", "equity", "fx", "metal", "metal", "index", "other"]
+    assert P.family_of("metal") == "gold" and P.family_of("index") == "equity" and P.family_of("crypto") == "crypto"
+    assert P.cost_bps("metal") == P.cost_bps("gold")
+    assert set(P.REFS) >= {"crypto", "equity", "metal", "index", "fx", "other"}
