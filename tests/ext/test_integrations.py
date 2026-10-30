@@ -44,7 +44,7 @@ def _no_net(monkeypatch):
 def test_inventory_covers_known_services():
     ids = {s.id for s in registry.SERVICES}
     assert {"alpaca", "sec_edgar", "fred", "polygon", "finnhub", "tiingo", "twelvedata", "alphavantage", "databento", "oanda",
-            "tradier", "questrade", "ibkr", "alerts_telegram", "alerts_discord", "alerts_slack", "external_mcp"} <= ids
+            "questrade", "ibkr", "alerts_telegram", "alerts_discord", "alerts_slack", "external_mcp"} <= ids
     for v in ("ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY", "ATLAS_SEC_USER_AGENT", "FRED_API_KEY", "ATLAS_ALERTS_ENABLED"):
         assert v in registry.ALL_VARS
 

@@ -16,11 +16,10 @@ from .questrade import QuestradeAdapter
 from .rates import BankOfCanadaRatesAdapter, EIAAdapter, UsTreasuryYieldAdapter
 from .stubs import CMEStub, DatabentoAdapter, IBKRAdapter, TMXStub
 from .tiingo import TiingoAdapter
-from .tradier import TradierAdapter
 from .twelvedata import TwelveDataAdapter
 from .yahoo import YahooAdapter
 
 ALL_ADAPTERS = (BinanceAdapter, CoinbaseAdapter, KrakenAdapter, OKXAdapter, BybitAdapter, YahooAdapter, FREDAdapter,
                 AlpacaAdapter, AlpacaCryptoAdapter, TiingoAdapter, PolygonAdapter, FinnhubAdapter, TwelveDataAdapter, AlphaVantageAdapter,
-                DatabentoAdapter, IBKRAdapter, OandaAdapter, QuestradeAdapter, TradierAdapter, CMEStub, TMXStub, BankOfCanadaFXAdapter,
+                DatabentoAdapter, IBKRAdapter, OandaAdapter, QuestradeAdapter, CMEStub, TMXStub, BankOfCanadaFXAdapter,
                 ECBFXAdapter, UsTreasuryYieldAdapter, BankOfCanadaRatesAdapter, EIAAdapter)

@@ -30,7 +30,7 @@ NO_DATA = "no_data"
 STATUSES = (LIVE, DELAYED, MARKET_CLOSED, STALE, NO_DATA)
 
 # Providers whose prints are exchange real-time (websocket/trade feeds). Everything else is labelled delayed when open.
-REALTIME_PROVIDERS = {"binance", "coinbase", "kraken", "okx", "bybit", "alpaca", "polygon", "databento", "ibkr", "tradier", "questrade"}
+REALTIME_PROVIDERS = {"binance", "coinbase", "kraken", "okx", "bybit", "alpaca", "polygon", "databento", "ibkr", "questrade"}
 # Live-tolerance per session: a print older than this while the market is open is no longer "live".
 LIVE_MAX_AGE = {"24x7": 120, "us_equity_rth": 120, "cme_globex": 180, "fx_24x5": 180}
 # A delayed source (Yahoo ~ up to 15-20 min for some venues) becomes stale past this while open.

@@ -15,7 +15,7 @@ from atlas.feeds.core import ProviderError, RateLimiter, backoff_delays
 from atlas.feeds.providers import (ALL_ADAPTERS, AlpacaAdapter, AlphaVantageAdapter, BinanceAdapter, BybitAdapter,
                                    CoinbaseAdapter, DatabentoAdapter, FinnhubAdapter, FREDAdapter, IBKRAdapter,
                                    KrakenAdapter, OandaAdapter, OKXAdapter, PolygonAdapter, QuestradeAdapter,
-                                   TiingoAdapter, TradierAdapter, TwelveDataAdapter, YahooAdapter)
+                                   TiingoAdapter, TwelveDataAdapter, YahooAdapter)
 from atlas.feeds.providers.binance import parse_kline_ws
 from atlas.feeds.providers.kraken import parse_ohlc_ws
 from atlas.feeds.providers.stubs import parse_databento_json
@@ -62,7 +62,7 @@ def test_every_adapter_has_complete_manifest():
         assert all(d.startswith("https://") for d in c.official_docs)
         assert all(e.isupper() for e in c.auth_env)
     assert {"binance", "coinbase", "kraken", "okx", "bybit", "yahoo", "fred", "alpaca", "tiingo", "polygon", "finnhub",
-            "twelvedata", "alphavantage", "databento", "ibkr", "oanda", "questrade", "tradier", "cme", "tmx",
+            "twelvedata", "alphavantage", "databento", "ibkr", "oanda", "questrade", "cme", "tmx",
             "boc_valet", "ecb_fx"} <= names
 
 
@@ -188,7 +188,6 @@ def test_alpaca_rest_pagination_headers_and_stream_parse():
     (TwelveDataAdapter, {"TWELVEDATA_API_KEY": "k"}, "twelvedata", {"values": [{"datetime": "2026-09-21 13:30:00", "open": "1", "high": "2", "low": "0.5", "close": "1.5", "volume": "9"}], "status": "ok"}, "15m"),
     (AlphaVantageAdapter, {"ALPHAVANTAGE_API_KEY": "k"}, "alphavantage", {"Meta Data": {"6. Time Zone": "US/Eastern"}, "Time Series (15min)": {"2026-09-21 09:45:00": {"1. open": "1", "2. high": "2", "3. low": "0.5", "4. close": "1.5", "5. volume": "9"}}}, "15m"),
     (OandaAdapter, {"OANDA_API_TOKEN": "k"}, "oanda", {"candles": [{"time": "1790000000.000000000", "complete": True, "volume": 9, "mid": {"o": "1", "h": "2", "l": "0.5", "c": "1.5"}}]}, "15m"),
-    (TradierAdapter, {"TRADIER_ACCESS_TOKEN": "k"}, "tradier", {"series": {"data": {"timestamp": T0, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 9}}}, "15m"),
     (IBKRAdapter, {"IBKR_CP_GATEWAY_URL": "https://localhost:5000"}, "localhost", {"data": [{"t": T0 * 1000, "o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 9}]}, "15m"),
 ])
 def test_keyed_adapter_parses_fixture(cls, env, route, payload, interval):
@@ -338,14 +337,14 @@ def test_research_loader_reads_from_feed_store(tmp_path):
     assert len(bars) == 100 and meta["asset_class"] == "crypto" and meta["source"].startswith("binance")
 
 
-def test_tradier_quota_violation_400_is_retried_as_rate_limit():
-    # SYNTHETIC fixture: Tradier documents over-quota as HTTP 400 "Quota Violation" (not 429).
-    from atlas.feeds.providers import TradierAdapter
-    http = FakeHTTP({"tradier": [(400, {}, b"Quota Violation"), (500, {}, b"x"), (400, {}, b"Quota Violation")]})
-    a = TradierAdapter(transport=http, env={"TRADIER_ACCESS_TOKEN": "x"}, clock=lambda: NOW, sleep=lambda s: None,
+def test_quota_violation_400_is_retried_as_rate_limit_generic_400_is_retried_as_rate_limit():
+    # SYNTHETIC fixture: some providers document over-quota as HTTP 400 "Quota Violation" (not 429).
+    from atlas.feeds.providers import FinnhubAdapter
+    http = FakeHTTP({"finnhub": [(400, {}, b"Quota Violation"), (500, {}, b"x"), (400, {}, b"Quota Violation")]})
+    a = FinnhubAdapter(transport=http, env={"FINNHUB_API_KEY": "x"}, clock=lambda: NOW, sleep=lambda s: None,
                        limiter=RateLimiter(1000, sleep=lambda s: None))
     with pytest.raises(ProviderError) as ei:
-        a.get_json("https://sandbox.tradier.com/v1/markets/timesales", {})
+        a.get_json("https://finnhub.io/api/v1/quote", {})
     assert ei.value.retryable and a.health().rate_limited >= 2 and len(http.calls) > 1
 
 

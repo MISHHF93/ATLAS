@@ -49,9 +49,6 @@ STOCK_PROVIDERS: dict[str, StockProvider] = {p.id: p for p in (
     StockProvider("questrade", "Questrade API", "account", "https://www.questrade.com/api", INTRADAY,
                   "20 req/s; real time is a paid package, otherwise snap/delayed quotes", "Personal use under the API agreement",
                   "https://www.questrade.com/api/home", needs_account=True, env_keys=("QUESTRADE_REFRESH_TOKEN",)),
-    StockProvider("tradier", "Tradier sandbox", "unverified", "https://developer.tradier.com/user/sign_up", INTRADAY,
-                  "60 req/min, 15-min delayed", "Sandbox data for development", "https://tradier.com/legal/", needs_account=True,
-                  env_keys=("TRADIER_ACCESS_TOKEN",)),
     StockProvider("alpaca", "Alpaca (optional; not offered to Canadian residents)", "unverified", "https://app.alpaca.markets/paper/dashboard/overview", INTRADAY,
                   "200 req/min, IEX only", "IEX feed, personal use", "https://alpaca.markets/disclosures", needs_account=True,
                   env_keys=("ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY")),
@@ -68,7 +65,7 @@ STOCK_PROVIDERS: dict[str, StockProvider] = {p.id: p for p in (
 
 DEFAULT_PRIMARY = "polygon"
 # Automatic failover order after the primary. Free-plan terms must allow ATLAS's stored, charted use.
-DEFAULT_CHAIN = ("polygon", "alphavantage", "questrade", "tradier", "alpaca")
+DEFAULT_CHAIN = ("polygon", "alphavantage", "questrade", "alpaca")
 # Sanity-only (never merged into the series); Yahoo stays policy-blocked unless ATLAS_ALLOW_UNOFFICIAL_DATA.
 TAIL = ("yahoo",)
 

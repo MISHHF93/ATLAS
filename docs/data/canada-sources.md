@@ -30,7 +30,6 @@ Anything I could not confirm from an official page is marked **VERIFY**. A few U
 | Tiingo Starter | Open signup | 50/hr, 1,000/day, 500 symbols/mo | US, ETFs, FX, crypto | **Persistent storage and chart display forbidden on the free plan** (see above) | https://app.tiingo.com/tos/ |
 | Twelve Data Basic | Open signup | 8 credits/min, 800/day | US, forex, crypto (no TSX) | **Internal non-display only** | https://twelvedata.com/pricing |
 | Finnhub free | Open signup | 60 calls/min | US quotes only | **No candles on the free plan** | https://finnhub.io/pricing |
-| Tradier sandbox | US brokerage account | 60 req/min delayed | US | US-resident oriented (**VERIFY**) | https://developer.tradier.com |
 
 ## Keyless official sources (no signup, Canada-friendly)
 | Source | What | URL |
@@ -45,7 +44,7 @@ Anything I could not confirm from an official page is marked **VERIFY**. A few U
 ## What this means per asset class (Canadian owner, free only)
 | Class | Primary | Fallbacks | Honest label |
 |---|---|---|---|
-| US stocks and ETFs | Massive Basic (EOD) | Alpha Vantage (100 daily bars, 25/day), Questrade, Alpaca (if the owner has keys), Tradier | Daily only, previous close; intraday needs Questrade, IBKR delayed or Alpaca |
+| US stocks and ETFs | Massive Basic (EOD) | Alpha Vantage (100 daily bars, 25/day), Questrade, Alpaca (if the owner has keys) | Daily only, previous close; intraday needs Questrade, IBKR delayed or Alpaca |
 | Gold, silver, indices | GLD / SLV / SPY / QQQ / DIA / IWM through the same chain | OANDA practice XAU_USD if offered | Labelled ETF proxy, not spot or index level |
 | TSX / TSXV | Alpha Vantage `.TRT` (daily) | Questrade | No free keyless source; the only fully free route is Alpha Vantage at 25/day |
 | FX | ECB (EUR_USD) / Bank of Canada (USD_CAD), daily, keyless | OANDA practice for intraday | Daily reference rates, not tradable quotes |

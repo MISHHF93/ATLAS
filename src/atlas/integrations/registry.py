@@ -63,8 +63,6 @@ SERVICES: tuple[Service, ...] = (
             "https://databento.com/portal/keys", "src/atlas/feeds/providers/stubs.py", notes="Usage is billed; the dataset variable is an explicit opt-in."),
     Service("oanda", "OANDA (FX practice data)", "market_data", ("OANDA_API_TOKEN",), ("OANDA_ACCOUNT_ID", "OANDA_ENV"), "free_with_account",
             "https://www.oanda.com/demo-account/tpa/personal_token", "src/atlas/feeds/providers/oanda.py", notes="Use OANDA_ENV=practice."),
-    Service("tradier", "Tradier (sandbox data)", "market_data", ("TRADIER_ACCESS_TOKEN",), ("TRADIER_ENV",), "free_with_account",
-            "https://developer.tradier.com/user/sign_up", "src/atlas/feeds/providers/tradier.py", notes="Use TRADIER_ENV=sandbox."),
     Service("questrade", "Questrade (Canadian quotes)", "market_data", ("QUESTRADE_REFRESH_TOKEN",), (), "free_with_account",
             "https://login.questrade.com/APIAccess/UserApps.aspx", "src/atlas/feeds/providers/questrade.py",
             notes="Refresh tokens are single-use and expire after 7 days."),
@@ -141,8 +139,6 @@ def mode_for(s: Service, env: dict[str, str]) -> str:
             return "live_refused"
     if s.id == "oanda":
         return "live_refused" if env.get("OANDA_ENV", "").lower() == "live" else "practice"
-    if s.id == "tradier":
-        return "live_refused" if env.get("TRADIER_ENV", "").lower() == "production" else "sandbox"
     if s.category == "alerts":
         return "send_enabled" if _is_set(env, "ATLAS_ALERTS_ENABLED") else "off"
     return "data_only"
@@ -243,7 +239,7 @@ def status(env: dict[str, str] | None = None, probe: bool = False, probes: dict[
 
 
 PROVIDER_AUTH = {"alpaca": ("ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY"), "polygon": ("POLYGON_API_KEY",), "tiingo": ("TIINGO_API_KEY",),
-                 "twelvedata": ("TWELVEDATA_API_KEY",), "finnhub": ("FINNHUB_API_KEY",), "tradier": ("TRADIER_ACCESS_TOKEN",),
+                 "twelvedata": ("TWELVEDATA_API_KEY",), "finnhub": ("FINNHUB_API_KEY",),
                  "alphavantage": ("ALPHAVANTAGE_API_KEY",), "oanda": ("OANDA_API_TOKEN",), "databento": ("DATABENTO_API_KEY",)}
 
 

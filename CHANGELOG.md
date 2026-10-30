@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-10-30: Tradier removed
+- Tradier requires non-Canadian residency, so it is removed entirely: adapter (`feeds/providers/tradier.py`), default stock chain (now polygon, alphavantage, questrade, alpaca), integrations registry, verify, setup/checklist UI entry, source terms, provider catalog and docs, and `TRADIER_ACCESS_TOKEN` / `TRADIER_ENV` in `.env.example`. No other provider and no safety gate changed. The generic HTTP 400 "Quota Violation" retry in `feeds/core.py` stays (now tested with another adapter).
+
 ## 2026-10-29: evo-14, model spec and directional research pipeline
 - **`ATLAS_MODEL_SPEC.md`**: full equations for targets (CUSUM, triple barrier, forward return), features (HAR-RV, multi-timeframe, regime, cross-asset, session/VWAP, read-only account context), models, meta-labelling, calibration and adaptive conformal, ensemble and MAP-Elites, purged/embargoed walk-forward, DSR and PBO, costs, and the sizing hand-off. States what exists, what evo-14 adds, and what is deferred.
 - **`src/atlas/ai/ml/directional/`**: detector-free direction research pipeline pooled per asset group and interval over every stored series. HGB primary, logit challenger, quantile GBM interval, ACI coverage. The existing `GATES` are inherited unchanged and two are added (ACI coverage, quantile skill). A model that fails any gate is labelled **research / below gate**; none is ever eligible here (the shadow gate cannot pass at training time). `scripts/ml_directional.py --inventory|--run`.

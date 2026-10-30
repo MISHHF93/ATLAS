@@ -1,7 +1,7 @@
 # Setting up ATLAS integrations
 
 ATLAS is **paper trading only**. Alpaca is now optional: it does not serve Canadian residents, so the default stock/ETF source is Massive (free, email signup;
-see `docs/data/canada-sources.md`). Pick the primary with `ATLAS_STOCK_PROVIDER` (`polygon` default, `alphavantage`, `questrade`, `tradier`, `alpaca`). The Alpaca adapter talks only to `https://paper-api.alpaca.markets`, refuses the live
+see `docs/data/canada-sources.md`). Pick the primary with `ATLAS_STOCK_PROVIDER` (`polygon` default, `alphavantage`, `questrade`, `alpaca`). The Alpaca adapter talks only to `https://paper-api.alpaca.markets`, refuses the live
 endpoint, and refuses any account whose number does not start with `PA`. Every order goes through the control plane
 first (`ActionableControlPlaneEngine.submit_order`), and research/ML output keeps `execution_permission: none`.
 
@@ -34,7 +34,6 @@ first (`ActionableControlPlaneEngine.submit_order`), and research/ML output keep
 | EODHD | `EODHD_API_KEY` | Paid (free = 20 calls/day) | eodhd.com → Settings | autopilot feeds / MCP |
 | Databento | `DATABENTO_API_KEY`, `ATLAS_DATABENTO_DATASET` | **Paid, billed per use** | databento.com/portal/keys | feed health |
 | OANDA | `OANDA_API_TOKEN`, `OANDA_ACCOUNT_ID`, `OANDA_ENV=practice` | Free practice account | oanda.com demo → Manage API access | feed health |
-| Tradier | `TRADIER_ACCESS_TOKEN`, `TRADIER_ENV=sandbox` | Free sandbox | developer.tradier.com | feed health |
 | Questrade | `QUESTRADE_REFRESH_TOKEN` | Free with account | Questrade → App Hub → API access (token single-use, 7 days) | feed health |
 | IBKR Client Portal | `IBKR_CP_GATEWAY_URL` | Free with account | Run the local gateway, log in with a paper (DU…) user | feed health |
 | Binance/Bybit/Coinbase/Kraken/OKX, Yahoo | none | Free, keyless | — | feed health |
@@ -44,7 +43,7 @@ first (`ActionableControlPlaneEngine.submit_order`), and research/ML output keep
 | External data MCP servers | `ATLAS_EXTERNAL_MCP=on`, plus each server's key (`TRADINGVIEW_TOKEN`, `QUANTCONNECT_API_TOKEN`, …) | Mixed | each vendor | off by default; read-only allowlists |
 | Gemini / OpenAI / Anthropic / xAI (assistant) | `GEMINI_API_KEY` (`ATLAS_GEMINI_TIER=paid`), `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY` | Paid | each vendor console | assistant page |
 
-Alerts stay off until `ATLAS_ALERTS_ENABLED=true` **and** a channel is set. OANDA `live` and Tradier `production` are
+Alerts stay off until `ATLAS_ALERTS_ENABLED=true` **and** a channel is set. OANDA `live` is
 reported as *live refused*.
 
 ## Minimum to link end to end

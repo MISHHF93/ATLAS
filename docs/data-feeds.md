@@ -82,7 +82,6 @@ Crypto cross-check over 7 days of 1h bars (median bps): okx ~0.5, kraken ~1–2.
 | [ibkr](data-providers/ibkr.md) | interface_fixture_tested | equity, etf, future, option, fx, index | `IBKR_CP_GATEWAY_URL` |
 | [oanda](data-providers/oanda.md) | interface_fixture_tested | fx, cfd | `OANDA_API_TOKEN` |
 | [questrade](data-providers/questrade.md) | interface_fixture_tested | equity, etf, option | `QUESTRADE_REFRESH_TOKEN` |
-| [tradier](data-providers/tradier.md) | interface_fixture_tested | equity, etf, option | `TRADIER_ACCESS_TOKEN` |
 | [cme](data-providers/cme.md) | documented_stub | future, option | none (keyless) |
 | [tmx](data-providers/tmx.md) | documented_stub | equity, etf, future, option | none (keyless) |
 | [boc_valet](data-providers/boc_valet.md) | working | fx | none (keyless) |

@@ -45,7 +45,7 @@ _EQUITY_PRIORITY = _equity_priority({})
 def _etf(sym, desc):
     return Instrument(sym, "etf", "ARCX" if sym == "SPY" else ("XNAS" if sym == "QQQ" else "ARCX"), "USD", "America/New_York",
                       "us_equity_rth", 0.01, 1, provider_symbols={p: sym for p in ("alpaca", "tiingo", "polygon", "finnhub", "twelvedata",
-                                                                                     "alphavantage", "tradier", "questrade", "yahoo")},
+                                                                                     "alphavantage", "questrade", "yahoo")},
                       provider_priority=_EQUITY_PRIORITY,
                       sanity_providers=("yahoo", "alpaca"), description=desc)
 

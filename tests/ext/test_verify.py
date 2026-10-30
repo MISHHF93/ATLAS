@@ -24,7 +24,7 @@ def test_every_keyed_service_starts_as_needs_verification_with_no_key_set():
     st = status(env={})
     keyed = [r for r in st["services"] if V._required(_svc(r["id"])) and r["id"] not in V.KEYLESS]
     assert keyed and all(r["verification"]["state"] == "needs_verification" and not r["verification"]["key_present"] for r in keyed)
-    for must in ("alpaca", "polygon", "alphavantage", "questrade", "tradier", "fred", "oanda", "stripe", "sentry", "healthchecks", "alerts_ntfy", "finnhub", "tiingo"):
+    for must in ("alpaca", "polygon", "alphavantage", "questrade", "fred", "oanda", "stripe", "sentry", "healthchecks", "alerts_ntfy", "finnhub", "tiingo"):
         assert must in st["summary"]["needs_verification"], must
     assert st["stock_provider"]["primary"] == "polygon"
 

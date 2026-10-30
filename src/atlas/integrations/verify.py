@@ -48,13 +48,6 @@ def _t_stripe(v, ctx):
     return TestResult(True, "test-mode key accepted (read-only balance call)")
 
 
-def _t_tradier(v, ctx):
-    base = "https://api.tradier.com" if (v.get("TRADIER_ENV") or "").lower() == "production" else "https://sandbox.tradier.com"
-    if "api.tradier.com" in base:
-        return TestResult(False, "Tradier: production host refused; use the sandbox")
-    r = ctx.http("GET", base + "/v1/markets/clock", headers={"Authorization": "Bearer " + v["TRADIER_ACCESS_TOKEN"], "Accept": "application/json"})
-    return _http_status(r, what="Tradier sandbox clock") or TestResult(True, "sandbox token accepted (read-only market clock)")
-
 
 def _t_questrade(v, ctx):
     from atlas.feeds.providers.questrade import QuestradeAdapter
@@ -81,7 +74,6 @@ def _t_slack(v, ctx):
 
 EXTRA: dict[str, tuple[tuple[str, ...], Callable]] = {
     "stripe": (("STRIPE_SECRET_KEY",), _guard(_t_stripe)),
-    "tradier": (("TRADIER_ACCESS_TOKEN", "TRADIER_ENV"), _guard(_t_tradier)),
     "questrade": (("QUESTRADE_REFRESH_TOKEN",), _guard(_t_questrade)),
     "gemini": (("GEMINI_API_KEY",), _guard(_t_gemini)),
     "eodhd": (("EODHD_API_KEY",), _guard(_t_eodhd)),
@@ -111,7 +103,7 @@ def _salt() -> str:
 
 
 def fingerprint(service, env) -> str:
-    vals = [f"{k}={_val(env, k)}" for k in (*_required(service), *[o for o in service.optional if o in ("TRADIER_ENV", "ALPACA_BASE_URL")])]
+    vals = [f"{k}={_val(env, k)}" for k in (*_required(service), *[o for o in service.optional if o in ("ALPACA_BASE_URL",)])]
     return hashlib.sha256((_salt() + "|".join(vals)).encode()).hexdigest()[:16]
 
 

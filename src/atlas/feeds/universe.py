@@ -13,7 +13,7 @@ from .stock_providers import equity_priority as _equity_priority
 
 # Default chain (Canada-eligible primary first). InstrumentMaster.get() re-resolves it per call from ATLAS_STOCK_PROVIDER.
 EQUITY_PRIORITY = _equity_priority({})
-EQUITY_PROVIDERS = ("alpaca", "tiingo", "polygon", "finnhub", "twelvedata", "alphavantage", "tradier", "questrade", "yahoo")
+EQUITY_PROVIDERS = ("alpaca", "tiingo", "polygon", "finnhub", "twelvedata", "alphavantage", "questrade", "yahoo")
 
 # US equities and ETFs (catalog flagships + named directory + /api/listings).
 ETFS = {

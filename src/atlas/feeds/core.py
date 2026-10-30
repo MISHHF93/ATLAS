@@ -277,7 +277,7 @@ class ProviderAdapter:
                 self._health.last_ok, self._health.consecutive_errors = now, 0
                 return json.loads(body)
             geo = status in (451,) or (status == 403 and b"country" in (body or b"").lower())
-            quota = b"quota violation" in (body or b"").lower()   # Tradier signals rate limit as HTTP 400
+            quota = b"quota violation" in (body or b"").lower()   # some providers signal rate limit as HTTP 400
             retry = quota or status is None or status == 429 or status == 418 or (status is not None and status >= 500)
             if status in (429, 418) or quota:
                 self._health.rate_limited += 1

@@ -40,7 +40,6 @@ SOURCES: dict[str, SourceTerms] = {
     "boc_rates": SourceTerms("free", "daily_reference", "No published cap (ATLAS 1 req/s). Benchmark GoC yields; context only", True),
     "eia": SourceTerms("free_key", "release", "Free key (needs verification: none set). Daily benchmark SPOT prices, not futures; context only", True, "https://www.eia.gov/opendata/register.php"),
     "oanda": SourceTerms("free_account", "realtime", "Practice account: 120 req/s; FX + CFDs incl. XAU", True, "https://www.oanda.com (demo account)"),
-    "tradier": SourceTerms("free_account", "delayed_15m", "Sandbox: 60 req/min, delayed", True, "https://developer.tradier.com"),
     "questrade": SourceTerms("free_account", "delayed_15m", "Needs a Questrade account; real-time is a paid data package", True),
     "yahoo": SourceTerms("free", "delayed_15m", "Unofficial endpoint; no public API terms", False),
     "databento": SourceTerms("paid", "realtime", "Usage-billed", True),
