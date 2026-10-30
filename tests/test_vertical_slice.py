@@ -852,3 +852,54 @@ def test_vertical_slice_status_exposes_scheduler_contract() -> None:
             retired.json()["detail"]["audited_path"]
             == "/api/research/vertical-slice"
         )
+
+
+def test_scheduler_reports_blocked_data_use_instead_of_silent_skips(tmp_path: Path, monkeypatch) -> None:
+    """Every symbol refused by the data-use gate must surface as health=blocked_data_use, not as quiet skips with errors=0."""
+    monkeypatch.delenv("ATLAS_DATA_USE_POLICY", raising=False)
+    from atlas.marketdata import public_quotes
+    from atlas.marketdata.data_rights import require_data_use
+
+    def refused(symbol, bucket_seconds, limit=400, intended_use="training"):
+        require_data_use("yahoo_chart_public", symbol, bucket_seconds, intended_use)
+        raise AssertionError("unreachable: no grant is configured")
+
+    monkeypatch.setattr(public_quotes, "fetch_public_candles", refused)
+    ledger = ForecastLedger(tmp_path / "scheduler_blocked.sqlite3")
+    service = VerticalSliceService(ledger=ledger, config=SliceConfig(epochs=40, min_train_rows=20))
+    scheduler = VerticalSliceScheduler(service, symbols=("SPY", "AAPL"), bucket_seconds=86_400,
+                                       poll_seconds=1, initial_delay_seconds=0)
+    out = scheduler.tick(now=START + timedelta(days=10))
+    assert out["errors"] == 0 and out["runs"] == 0 and out["skips"] == 2
+    assert out["health"] == "blocked_data_use"
+    assert out["blocked_symbols"] == ["SPY", "AAPL"]
+    assert out["last_tick"] == {"blocked": 2}
+    assert "ATLAS_DATA_USE_POLICY" in out["health_reason"]
+    assert out["execution_permission"] == "none"
+    # persisted: a restarted scheduler still shows why it is stalled
+    resumed = VerticalSliceScheduler(service, symbols=("SPY", "AAPL"), bucket_seconds=86_400,
+                                     poll_seconds=1, initial_delay_seconds=0)
+    assert resumed.status()["health"] == "blocked_data_use"
+    ledger.close()
+
+
+def test_scheduler_health_ok_then_stale() -> None:
+    from atlas.research.vertical_slice_scheduler import classify_health
+
+    now = START + timedelta(days=30)
+    fresh = (now - timedelta(days=1)).isoformat()
+    old = (now - timedelta(days=6)).isoformat()
+    assert classify_health({"ran": 1}, 1, fresh, 86_400, now)[0] == "ok"
+    assert classify_health({"already_processed": 2}, 2, old, 86_400, now)[0] == "stale"
+    assert classify_health({"no_candles": 1, "blocked": 1}, 2, fresh, 86_400, now)[0] == "no_data"
+    assert classify_health({"blocked": 1, "ran": 1}, 2, fresh, 86_400, now)[0] == "ok"
+
+
+def test_scheduler_tick_with_candles_is_healthy(tmp_path: Path) -> None:
+    ledger = ForecastLedger(tmp_path / "scheduler_ok.sqlite3")
+    service = VerticalSliceService(ledger=ledger, config=SliceConfig(epochs=40, min_train_rows=20))
+    scheduler = VerticalSliceScheduler(service, symbols=("BTC-USD",), bucket_seconds=86_400,
+                                       poll_seconds=1, initial_delay_seconds=0)
+    out = scheduler.tick(candles_by_symbol={"BTC-USD": synthetic_rows(240)}, now=START + timedelta(days=240))
+    assert out["health"] == "ok" and out["last_tick"] == {"ran": 1} and out["blocked_symbols"] == []
+    ledger.close()

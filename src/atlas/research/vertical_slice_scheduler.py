@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import threading
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Sequence
 
@@ -56,6 +57,41 @@ def _scheduler_settings() -> tuple[tuple[str, ...], int, int, int]:
     )
 
 
+STALE_BUCKETS = 3  # newest admitted bar older than this many buckets -> "stale"
+
+
+def classify_health(
+    outcomes: dict[str, int],
+    n_symbols: int,
+    last_bar_at: str | None,
+    bucket_seconds: int,
+    now: datetime,
+) -> tuple[str, str]:
+    """Explain a tick in one word so a silently skipping loop is visible.
+
+    Skips are normal when a bar was already processed. They are NOT normal when
+    every symbol is refused by the data-use gate or no symbol has candles: the
+    paper loop is then stalled while ``errors`` stays 0. This only reports; it
+    never grants data rights or changes what the loop is allowed to do.
+    """
+    blocked = int(outcomes.get("blocked", 0))
+    usable = int(outcomes.get("ran", 0)) + int(outcomes.get("already_processed", 0))
+    if n_symbols and blocked >= n_symbols:
+        return ("blocked_data_use",
+                "every symbol was refused by the data-use gate (no in-scope operator grant in ATLAS_DATA_USE_POLICY); "
+                "no forecasts or paper trades can run until an operator records one")
+    if n_symbols and usable == 0:
+        return ("no_data", "no symbol returned usable candles this tick (blocked, empty or fetch errors)")
+    if last_bar_at:
+        try:
+            age = (now - _utc(datetime.fromisoformat(str(last_bar_at)))).total_seconds()
+        except (TypeError, ValueError):
+            age = None
+        if age is not None and age > STALE_BUCKETS * bucket_seconds:
+            return ("stale", f"newest admitted bar is {age / 86400:.1f} days old (> {STALE_BUCKETS} buckets)")
+    return ("ok", "")
+
+
 class VerticalSliceScheduler:
     """Check completed public bars and run/resolve the slice at most once per bar."""
 
@@ -96,6 +132,10 @@ class VerticalSliceScheduler:
             "skips": int(saved.get("skips") or 0),
             "errors": int(saved.get("errors") or 0),
             "last_error": saved.get("last_error"),
+            "health": saved.get("health") or "unknown",
+            "health_reason": saved.get("health_reason") or "",
+            "last_tick": saved.get("last_tick") or {},
+            "blocked_symbols": list(saved.get("blocked_symbols") or []),
             "execution_permission": "none",
         }
 
@@ -285,8 +325,32 @@ class VerticalSliceScheduler:
                     errors += 1
                     last_error = f"{symbol}:{type(exc).__name__}"
                     details.append({"symbol": symbol, "status": "resolve_error", "error": type(exc).__name__})
+            outcomes: dict[str, int] = {}
+            blocked_symbols: list[str] = []
+            seen: set[str] = set()
+            for item in details:
+                status = str(item.get("status"))
+                sym = str(item.get("symbol"))
+                if status in ("blocked", "no_candles", "no_usable_candles", "fetch_error"):
+                    if status == "blocked":
+                        blocked_symbols.append(sym)
+                elif status in ("ran", "already_processed"):
+                    if sym in seen:
+                        continue  # one outcome per symbol, not per horizon
+                    seen.add(sym)
+                else:
+                    continue
+                outcomes[status] = outcomes.get(status, 0) + 1
+            new_last_bar = last_bar.isoformat() if last_bar else self._state.get("last_bar_at")
+            health, health_reason = classify_health(
+                outcomes, len(self.symbols), new_last_bar, self.bucket_seconds, _utc(moment)
+            )
             self._state.update(
                 {
+                    "health": health,
+                    "health_reason": health_reason,
+                    "last_tick": outcomes,
+                    "blocked_symbols": blocked_symbols,
                     "symbols": list(self.symbols),
                     "bucket_seconds": self.bucket_seconds,
                     "horizons": list(self.horizons),

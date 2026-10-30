@@ -1432,6 +1432,11 @@ type SliceScheduler = {
   skips: number;
   errors: number;
   last_error?: string | null;
+  /** ok | stale | no_data | blocked_data_use | unknown (explains a loop that only skips) */
+  health?: string;
+  health_reason?: string;
+  last_tick?: Record<string, number>;
+  blocked_symbols?: string[];
   execution_permission: string;
 };
 
@@ -2091,6 +2096,13 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
             {scheduler?.running ? "running" : "stopped"}
           </span>
         </div>
+        {scheduler?.health && scheduler.health !== "ok" && scheduler.health !== "unknown" ? (
+          <p className="clean-card-subtitle" role="status" data-testid="slice-scheduler-health">
+            <span className={`badge ${scheduler.health === "stale" ? "badge-amber" : "badge-danger"}`}>{scheduler.health.replace(/_/g, " ")}</span>{" "}
+            {scheduler.health_reason}
+            {scheduler.blocked_symbols?.length ? ` (${scheduler.blocked_symbols.join(", ")})` : ""}
+          </p>
+        ) : null}
         <div className="clean-kpi-row">
           <div className="clean-kpi-card">
             <span className="clean-kpi-label">Last check</span>
@@ -2105,7 +2117,7 @@ export function PredictionLedgerPage({ symbol }: { symbol: string }) {
           <div className="clean-kpi-card">
             <span className="clean-kpi-label">Runs / resolutions</span>
             <span className="clean-kpi-value">{scheduler?.runs ?? 0} / {scheduler?.resolutions ?? 0}</span>
-            <span className="clean-kpi-sub">{scheduler?.skips ?? 0} already-processed skips</span>
+            <span className="clean-kpi-sub">{scheduler?.skips ?? 0} skips (already processed or blocked)</span>
           </div>
           <div className="clean-kpi-card">
             <span className="clean-kpi-label">Errors</span>
