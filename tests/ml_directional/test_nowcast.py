@@ -163,3 +163,13 @@ def test_wild_quote_is_not_an_anchor(feed):
     feed.store.upsert_quotes([{"instrument": "SPY", "provider": "oanda", "price": px * 3, "event_time": int(NOW - 30), "receipt_time": int(NOW - 29),
                                "prev_close": None, "kind": "live", "provider_symbol": "SPY"}])
     assert NC.nowcast(feed, "SPY", "1d", now=NOW, horizon=1)["anchor"]["source"] == "bar"
+
+
+def test_null_z_rows_do_not_break_calibration_or_live_scale(tmp_path):
+    lp = str(tmp_path / "n.sqlite")
+    c = NL._conn(lp)
+    rows = [("X", "1m", i, float(i), 1, 1, 1, 1, 1, 0, 0, None if i % 2 else 1.2, 1, 1, "crypto", "live", 0) for i in range(80)]
+    c.executemany("INSERT INTO scored VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+    c.commit()
+    assert NL.calibration(lp)["n_scored"] == 80
+    assert 0.8 <= NL.live_scale("crypto", "1m", lp) <= 1.6

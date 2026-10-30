@@ -94,7 +94,7 @@ def score_due(real_bar, now: float, path: str | None = None, limit: int = 4000) 
         half = math.log(hi / lo) / 2
         err = math.log(actual / mid)
         naive = math.log(actual / apx)
-        z = err / (half / (sc or 1.0)) if half > 0 else float("nan")   # relative to the UNSCALED band, so live scaling never compounds
+        z = err / (half / (sc or 1.0)) if half > 0 else None   # relative to the UNSCALED band, so live scaling never compounds
         out.append((sym, iv, ts, now, actual, mid, lo, hi, apx, err, naive, z, int(lo <= actual <= hi), k, pool, mode, made))
         scored += 1
     if out:
@@ -127,7 +127,7 @@ def calibration(path: str | None = None, pool: str | None = None, interval: str 
         cov = sum(r[2] for r in rs) / n
         mae = sum(abs(r[3]) for r in rs) / n
         nmae = sum(abs(r[4]) for r in rs) / n
-        zs = sorted(abs(r[5]) for r in rs if r[5] == r[5])
+        zs = sorted(abs(r[5]) for r in rs if r[5] is not None and r[5] == r[5])
         cells.append({"pool": pl, "interval": iv, "n": n, "coverage_80": round(cov, 4), "target": 0.8, "mae_bps": round(mae * 1e4, 3),
                       "naive_mae_bps": round(nmae * 1e4, 3), "mean_k": round(sum(r[6] for r in rs) / n, 2),
                       "abs_z_p80": round(zs[min(len(zs) - 1, int(0.8 * len(zs)))], 3) if zs else None})
@@ -143,7 +143,7 @@ def live_scale(pool: str, interval: str, path: str | None = None, min_n: int = 6
     c = _conn(path)
     with _LOCK:
         zs = [abs(r[0]) for r in c.execute("SELECT z FROM scored WHERE pool=? AND interval=? ORDER BY scored_at DESC LIMIT 800", (pool, interval)).fetchall()
-              if r[0] == r[0]]
+              if r[0] is not None and r[0] == r[0]]   # a NaN z is stored as NULL
     if len(zs) < min_n:
         return 1.0
     zs.sort()
