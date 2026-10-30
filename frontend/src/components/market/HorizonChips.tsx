@@ -5,6 +5,7 @@ import type { HzLive, HzRow, Nowcast } from "./nowcast";
 
 const pct = (v: number | null | undefined) => (v == null ? "n/a" : `${Math.round(v * 100)}%`);
 export function horizonChipText(r: HzRow): string {
+  if (r.status === "anchored") return `${r.h}: anchored to ${r.anchor?.interval ?? "last"} bar · unscored (no ${r.interval} source)`;
   if (r.status !== "ok") return `${r.h}: no model forecast`;
   const a: HzLive | undefined = r.live?.asset;
   const n = a?.n ?? 0;
@@ -26,7 +27,7 @@ export function HorizonChips({ nc }: { nc: Nowcast | null }) {
           : r.reason ?? "no forecast";
         return (
           <span key={r.h} className="atlas-chart-badge" title={tip} data-testid={`hz-chip-${r.h}`}
-            style={{ borderStyle: "dashed", borderColor: "#B8A1FF", opacity: r.status === "ok" ? 1 : 0.6 }}>
+            style={{ borderStyle: "dashed", borderColor: "#B8A1FF", opacity: r.status === "ok" ? 1 : r.status === "anchored" ? 0.85 : 0.6 }}>
             {horizonChipText(r)}{r.status === "ok" ? (r.applied ? " · applied" : " · gated") : ""}{r.transfer ? " · transfer" : ""}
           </span>
         );

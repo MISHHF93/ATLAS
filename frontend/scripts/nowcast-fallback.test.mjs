@@ -28,3 +28,12 @@ test("health page lists ensemble weights, per-model live scores and the transfer
   assert.ok(/horizons\/status/.test(health) && /weights_basis/.test(health) && /Moves dashed line/.test(health));
   assert.ok(/prophet/.test(health) && /transfer/.test(health) && /execution_permission none/.test(health));
 });
+
+// evo-20: every asset gets a drawable or a labelled state. No bars + no forecast says WHY (cause), never an HTTP-error dead end or a blank panel.
+test("empty chart states the cause from the API instead of a bare error", () => {
+  assert.ok(/data\?\.reason/.test(chart) && /chart-no-data-cause/.test(chart) && /atlas-chart-empty/.test(chart));
+  assert.ok(/A price is never invented/.test(chart));
+});
+test("1m/5m chips for assets with no intraday source say anchored + unscored", () => {
+  assert.ok(/status === "anchored"/.test(chips) && /unscored \(no \$\{r\.interval\} source\)/.test(chips));
+});

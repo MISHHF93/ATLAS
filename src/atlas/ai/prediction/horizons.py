@@ -173,6 +173,12 @@ def _metrics(y: np.ndarray, q: np.ndarray, qhat: float) -> dict[str, Any]:
             "width_bps": round(float(np.mean(q[:, 2] - q[:, 0] + 2 * qhat)) * 1e4, 3), "n": int(len(y))}
 
 
+def split_slices(n: int) -> dict[str, slice]:
+    """Chronological fit / cal / test blocks with a 2-row embargo before each held-out block (the label is one bar ahead)."""
+    a, b = int(n * 0.6), int(n * 0.8)
+    return {"fit": slice(0, a), "cal": slice(a + 2, b), "test": slice(b + 2, n)}
+
+
 def train_pool(rows: pd.DataFrame, pool: str, horizon: str, root=None, instruments: Sequence[str] | None = None) -> dict[str, Any]:
     """Train + conformal-calibrate every available member on a pooled frame from ``make_xy`` (chronological 60/20/20 fit/cal/test).
     OOS metrics are on the last 20% only. Always labelled research; the live ledger decides weights, not these numbers."""
@@ -186,7 +192,7 @@ def train_pool(rows: pd.DataFrame, pool: str, horizon: str, root=None, instrumen
     X = rows[feats].to_numpy(float)
     sig, y = rows["__sigma"].to_numpy(float), rows["__y"].to_numpy(float)
     ys = y / sig
-    sl = {"fit": slice(0, a), "cal": slice(a + 2, b), "test": slice(b + 2, n)}   # 2-row embargo; the label is one bar, so this is conservative
+    sl = split_slices(n)   # 2-row embargo; the label is one bar, so this is conservative
     avail = available_models()
     bundle: dict[str, Any] = {"features": feats, "models": {}, "qhat": {}, "sigma_span": 100}
     metrics: dict[str, Any] = {}
@@ -213,6 +219,7 @@ def train_pool(rows: pd.DataFrame, pool: str, horizon: str, root=None, instrumen
     lay_cov = {k: round(float(nz.reindex(list(v)).fillna(0).mean()), 3) for k, v in LAYER_FEATURES.items()}
     man = {"pool": pool, "horizon": horizon, "interval": interval, "created_at": int(time.time()), "n_rows": int(n),
            "n_fit": a, "n_cal": b - a - 2, "n_test": n - b - 2, "instruments": sorted(set(instruments or rows["__inst"].unique())),
+           "data_start": int(rows["__t"].iloc[0]), "data_end": int(rows["__t"].iloc[-1]), "test_start": int(rows["__t"].iloc[b + 2]) if b + 2 < n else None,
            "n_features": len(feats), "layers_with_any_data": sum(1 for v in lay_cov.values() if v > 0), "layers_total": len(lay_cov), "layer_coverage": lay_cov,
            "metrics_oos": metrics, "label": LABEL, "execution_permission": EXEC, "target": "log(close[i+1]/close[i]) on this interval",
            "note": "research; chronological hold-out; no profitability claim; live ledger weights decide the ensemble"}
@@ -289,6 +296,8 @@ CREATE TABLE IF NOT EXISTS hz_scored(symbol TEXT, h TEXT, base_end INTEGER, scor
   hit INTEGER, covered INTEGER, pin REAL, PRIMARY KEY(symbol, h, base_end));
 CREATE TABLE IF NOT EXISTS hz_member(pool TEXT, h TEXT, model TEXT, symbol TEXT, base_end INTEGER, scored_at REAL, pin REAL, covered INTEGER, hit INTEGER,
   PRIMARY KEY(model, symbol, h, base_end));
+CREATE TABLE IF NOT EXISTS hz_anchor(symbol TEXT, h TEXT, made_at REAL, anchor_t INTEGER, anchor_px REAL, anchor_iv TEXT, anchor_provider TEXT, anchor_source TEXT,
+  mode TEXT, target_end INTEGER, mid REAL, lo REAL, hi REAL, scale REAL, PRIMARY KEY(symbol, h));
 CREATE INDEX IF NOT EXISTS ix_hzm ON hz_member(pool, h, model, scored_at);
 CREATE INDEX IF NOT EXISTS ix_hzs ON hz_scored(pool, h, scored_at);
 """
@@ -465,6 +474,10 @@ def latest(symbol: str, now: float | None = None, path: str | None = None, pool:
         with _LOCK:
             r = c.execute("SELECT base_end,target_end,base_px,transfer,members,weights,e10,e50,e90,elo,ehi,sigma,applied FROM hz_issued WHERE symbol=? AND h=? "
                           "ORDER BY base_end DESC LIMIT 1", (symbol, h)).fetchone()
+        anc = anchored_row(symbol, h, now, path, pool) if h in ANCHOR_H else None
+        if anc is not None and (not r or now - r[1] > 10 * dur):
+            out.append(anc)
+            continue
         if not r:
             out.append({"h": h, "interval": iv, "status": "no_bars_at_interval", "reason": f"needs {iv} bars for {symbol}; none are stored, so no model forecast is made (nothing is invented)",
                         "execution_permission": EXEC, "label": LABEL})
@@ -554,6 +567,67 @@ def _real_close_with_derived(feed):
     return f
 
 
+ANCHOR_H = ("1m", "5m")
+
+
+def anchored_tick(feed, now: float, pairs: Sequence[tuple[str, str]], path: str | None = None, lmap: dict | None = None, budget_s: float = 8.0) -> dict[str, Any]:
+    """Every minute, for each (asset, 1m|5m) with no live intraday series of its own, record the next-bar forecast anchored to the latest REAL bar from any
+    source (daily, 15m, 1h, or a permitted quote). It is a zero-drift conformal-band forecast, kept as ONE latest row per (asset, horizon) - not a growing
+    ledger - and it is never scored: with no real intraday print there is nothing honest to grade it against (the chip says so).
+    Nothing is written to the bar store."""
+    from atlas.ai.prediction import nowcast as NC, nowcast_log as NL
+    from atlas.ai.prediction.pools import pool_for_symbol
+    t0 = time.monotonic()
+    c = _conn(path)
+    done = skipped = errors = 0
+    rows = []
+    scale_cache: dict[tuple[str, str], float] = {}
+    for sym, h in pairs:
+        if time.monotonic() - t0 > budget_s:
+            skipped += 1
+            continue
+        iv = HORIZONS[h][0]
+        try:
+            pool = pool_for_symbol(sym)
+            sc = scale_cache.setdefault((pool, iv), NL.live_scale(pool, iv))
+            nc = NC.nowcast(feed, sym, iv, now=now, horizon=1, lmap=lmap, live_scale=sc)
+            if nc.get("status") != "ok" or not nc.get("path") or not nc.get("anchor"):
+                continue
+            tgt = next((p for p in nc["path"] if p["t_end"] > now), None)
+            if tgt is None:
+                continue
+            a = nc["anchor"]
+            rows.append((sym, h, now, a["t"], a["price"], nc.get("base_interval"), a.get("provider"), a.get("source"), nc.get("mode"), tgt["t_end"],
+                         tgt["mid"], tgt["lo"], tgt["hi"], sc))
+            done += 1
+        except Exception:  # noqa: BLE001
+            errors += 1
+    if rows:
+        with _LOCK:
+            c.executemany("INSERT OR REPLACE INTO hz_anchor VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+            c.commit()
+    return {"anchored": done, "skipped_budget": skipped, "errors": errors}
+
+
+def anchored_row(symbol: str, h: str, now: float, path: str | None = None, pool: str | None = None) -> dict[str, Any] | None:
+    c = _conn(path)
+    with _LOCK:
+        r = c.execute("SELECT made_at,anchor_t,anchor_px,anchor_iv,anchor_provider,anchor_source,mode,target_end,mid,lo,hi,scale FROM hz_anchor WHERE symbol=? AND h=?", (symbol, h)).fetchone()
+    if not r or now - r[0] > 600:           # a row the clock stopped refreshing is not shown as current
+        return None
+    made, at, apx, aiv, aprov, asrc, mode, te, mid, lo, hi, scale = r
+    iv = HORIZONS[h][0]
+    age_h = max(0.0, now - at) / 3600
+    where = f"the latest real {aiv} {'quote' if asrc == 'quote' else 'bar'} ({aprov or 'unknown provider'}, {age_h:.1f} h old)"
+    return {"h": h, "interval": iv, "status": "anchored", "made_at": int(made), "base_end": int(at), "target_end": int(te), "base_px": apx,
+            "median": mid, "lo": lo, "hi": hi, "ret_bps": round(math.log(mid / apx) * 1e4, 3), "band_bps": [round(math.log(lo / apx) * 1e4, 3), round(math.log(hi / apx) * 1e4, 3)],
+            "anchor": {"interval": aiv, "provider": aprov, "source": asrc, "mode": mode}, "applied": False, "transfer": None, "weights": None, "gate": None,
+            "live": {"asset": _agg([]), "pool": _agg([])}, "pool": pool,
+            "reason": (f"Anchored to {where}. No {iv} bars are stored for {symbol}, so this forecast cannot be graded against a real {iv} print "
+                       f"(unscored: no intraday source). It is a zero-drift conformal band, refreshed every minute."),
+            "execution_permission": EXEC, "label": "research / unscored · anchored"}
+
+
 def tick(feed, now: float | None = None, symbols: list[str] | None = None, path: str | None = None, root=None, budget_s: float = 25.0,
          horizons: Sequence[str] = tuple(HORIZONS), ref_loader=None, events=None, extra=None) -> dict[str, Any]:
     """Issue the next-bar forecast for each (symbol, horizon) whose newest closed bar is fresh and not yet forecast, then score what is due.
@@ -570,6 +644,7 @@ def tick(feed, now: float | None = None, symbols: list[str] | None = None, path:
     _STATE["cursor"] = 0
     counts: dict[str, int] = {}
     errors, sample = 0, None
+    need_anchor: list[tuple[str, str]] = []
     c = _conn(path)
     for pos, sym in enumerate(order):
         if time.monotonic() - t0 > budget_s:
@@ -584,10 +659,14 @@ def tick(feed, now: float | None = None, symbols: list[str] | None = None, path:
                 l1 = lmap[(sym, "1m")]["last"] + 60
                 info = {"last": (l1 // 300) * 300 - 300}        # newest COMPLETE 5m bucket derived from real 1m bars
             if not info:
+                if h in ANCHOR_H:
+                    need_anchor.append((sym, h))        # no own intraday series: anchor to the latest real bar from any source
                 continue
             base_end = info["last"] + NC.DUR[iv]
             fresh_for = dur * 1.5 if iv != "1d" else 4 * 86400
             if now < base_end or now - base_end > fresh_for:
+                if h in ANCHOR_H and now - base_end > fresh_for:
+                    need_anchor.append((sym, h))        # the intraday series stopped arriving: same fallback, labelled
                 continue
             with _LOCK:
                 if c.execute("SELECT 1 FROM hz_issued WHERE symbol=? AND h=? AND base_end=?", (sym, h, base_end)).fetchone():
@@ -600,6 +679,7 @@ def tick(feed, now: float | None = None, symbols: list[str] | None = None, path:
                 errors += 1
                 sample = sample or f"{sym} {h}: {type(exc).__name__}: {str(exc)[:120]}"
     res = score_due(_real_close_with_derived(feed), now, path)
-    out = {"at": int(now), "statuses": counts, "errors": errors, "error_sample": sample, **res, "elapsed_s": round(time.monotonic() - t0, 2)}
+    anc = anchored_tick(feed, now, need_anchor, path, lmap=lmap, budget_s=max(3.0, budget_s - (time.monotonic() - t0)))
+    out = {"at": int(now), "statuses": counts, "errors": errors, "error_sample": sample, **res, "anchored": anc, "elapsed_s": round(time.monotonic() - t0, 2)}
     _STATE["last"] = out
     return out

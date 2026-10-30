@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 export type NcPoint = { t: number; t_end: number; mid: number; lo: number; hi: number; k: number; forming?: boolean };
 export type HzLive = { n: number; pinball_bps: number | null; crps_q3_bps: number | null; coverage_80: number | null; hit_rate: number | null; hit_n: number };
-export type HzRow = { h: string; interval: string; status: string; reason?: string; applied?: boolean; label?: string; transfer?: { kind: string; note: string } | null;
+export type HzRow = { h: string; interval: string; status: string; reason?: string; anchor?: { interval: string; provider?: string | null; source?: string; mode?: string }; applied?: boolean; label?: string; transfer?: { kind: string; note: string } | null;
   median?: number; lo?: number; hi?: number; base_px?: number; target_end?: number; weights?: { weights: Record<string, number>; basis: string };
   live?: { asset: HzLive; pool: HzLive }; gate?: { applied: boolean; rule: string; n: number; needs_n: number }; members?: Record<string, unknown> };
 export type Horizons = { status?: string; reason?: string; horizons?: HzRow[]; label?: string; execution_permission?: string; note?: string;

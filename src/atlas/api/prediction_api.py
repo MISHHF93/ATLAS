@@ -129,6 +129,13 @@ def api_horizons_status() -> dict[str, Any]:
     return HZ.status()
 
 
+@router.get("/horizons/roll")
+def api_horizons_roll() -> dict[str, Any]:
+    """Rolling walk-forward retraining of the 1m / 5m bundles: last decision per pool x horizon (promote / keep / skip) and the rule. Research only."""
+    from atlas.ai.prediction import roll as RL
+    return RL.roll_status()
+
+
 @router.get("/asset")
 def api_asset(symbol: str = Query(...)) -> dict[str, Any]:
     """One compact summary of everything the prediction service says about an asset: the coverage row, the nowcast now/next point and the live
