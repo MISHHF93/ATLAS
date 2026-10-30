@@ -52,8 +52,8 @@ def _t_stripe(v, ctx):
 def _t_questrade(v, ctx):
     from atlas.feeds.providers.questrade import QuestradeAdapter
     a = QuestradeAdapter(env=v)
-    cur = a._session(time.time())   # consumes the single-use token once; the rotated one stays in memory only
-    return TestResult(True, "refresh token accepted; the rotated token is held in memory only (a restart needs a new token from Questrade)") if cur else TestResult(False, "Questrade: no token")
+    cur = a._session(time.time())   # consumes the single-use token once; the rotated one is saved to var/questrade_token.json
+    return TestResult(True, "refresh token accepted; the rotated token is saved to var/questrade_token.json (gitignored) and used after a restart. Tokens expire after 3 days.") if cur else TestResult(False, "Questrade: no token")
 
 
 def _t_gemini(v, ctx):

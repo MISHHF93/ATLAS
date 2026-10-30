@@ -65,7 +65,7 @@ SERVICES: tuple[Service, ...] = (
             "https://www.oanda.com/demo-account/tpa/personal_token", "src/atlas/feeds/providers/oanda.py", notes="Use OANDA_ENV=practice."),
     Service("questrade", "Questrade (Canadian quotes)", "market_data", ("QUESTRADE_REFRESH_TOKEN",), (), "free_with_account",
             "https://login.questrade.com/APIAccess/UserApps.aspx", "src/atlas/feeds/providers/questrade.py",
-            notes="Refresh tokens are single-use and expire after 3 days."),
+            notes="Refresh tokens are single-use and expire after 3 days. The rotated token is saved to var/questrade_token.json (gitignored). Optional QUESTRADE_ENV=practice uses the practice login; default is live login for read-only data."),
     Service("ibkr", "Interactive Brokers Client Portal gateway (data)", "market_data", ("IBKR_CP_GATEWAY_URL",), (), "free_with_account",
             "https://www.interactivebrokers.com/en/trading/ib-api.php", "src/atlas/feeds/providers/stubs.py",
             notes="Local gateway URL, not a key. Use a paper (DU...) login."),

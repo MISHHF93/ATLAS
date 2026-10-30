@@ -187,8 +187,8 @@ def test_alphavantage_intraday_timestamps_are_bar_end_converted_to_start():
     assert dt.datetime.fromtimestamp(b.event_time, dt.timezone.utc).strftime("%H:%M") == "13:30"
 
 
-def test_questrade_refresh_flow_and_databento_parse():
-    env = {"QUESTRADE_REFRESH_TOKEN": "r"}
+def test_questrade_refresh_flow_and_databento_parse(tmp_path):
+    env = {"QUESTRADE_REFRESH_TOKEN": "r", "QUESTRADE_TOKEN_FILE": str(tmp_path / "qt.json")}
     a, http = mk(QuestradeAdapter, {"oauth2/token": [(200, {}, {"access_token": "acc", "api_server": "https://api01.iq.questrade.com/"})],
                                     "symbols/search": [(200, {}, {"symbols": [{"symbolId": 8049}]})],
                                     "candles/8049": [(200, {}, {"candles": [{"start": "2026-09-21T09:30:00-04:00", "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 9}]})]}, env)
