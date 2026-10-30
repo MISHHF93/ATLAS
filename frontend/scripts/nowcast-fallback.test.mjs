@@ -16,3 +16,15 @@ test("forecast-only chart never draws candles", () => {
   assert.ok(/LineStyle\.Dashed/.test(only) && /LineStyle\.Dotted/.test(only) && /Predicted/.test(only));
   assert.ok(/not market data/.test(only) && /last real/.test(only));
 });
+
+// evo-17: the research ensemble's live record sits next to the dashed line and on the health page; it is labelled research / gated.
+const chips = readFileSync(new URL("../src/components/market/HorizonChips.tsx", import.meta.url), "utf8");
+const health = readFileSync(new URL("../src/ui/pages/PredictionHealth.tsx", import.meta.url), "utf8");
+test("horizon chips show live hit rate, coverage and n, and say research / gated", () => {
+  assert.ok(/HorizonChips/.test(chart) && /hit \$\{pct/.test(chips) && /cover \$\{pct/.test(chips) && /n=/.test(chips));
+  assert.ok(/gated/.test(chips) && /exec none/.test(chips) && /execution_permission: none/.test(chips));
+});
+test("health page lists ensemble weights, per-model live scores and the transfer tag", () => {
+  assert.ok(/horizons\/status/.test(health) && /weights_basis/.test(health) && /Moves dashed line/.test(health));
+  assert.ok(/prophet/.test(health) && /transfer/.test(health) && /execution_permission none/.test(health));
+});

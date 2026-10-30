@@ -24,7 +24,7 @@ def real_bar_close(feed) -> Callable[[str, str, int], float | None]:
 
 
 def tick(feed, now: float | None = None, symbols: list[str] | None = None, log_path: str | None = None, budget_s: float = 40.0,
-         intervals: tuple[str, ...] = NC.INTERVALS) -> dict[str, Any]:
+         intervals: tuple[str, ...] = NC.INTERVALS, hz: bool = True) -> dict[str, Any]:
     """One clock tick: nowcast + issue, then score what is due. Never raises; reports per-status counts."""
     t0 = time.monotonic()
     now = float(time.time() if now is None else now)
@@ -64,10 +64,33 @@ def tick(feed, now: float | None = None, symbols: list[str] | None = None, log_p
                 sample = sample or f"{sym} {iv}: {type(exc).__name__}: {str(exc)[:120]}"
     n_issued = NL.issue(issued, now, log_path)
     sc_res = NL.score_due(real_bar_close(feed), now, log_path)
-    out = {"at": int(now), "assets": len(ids), "issued": n_issued, "statuses": counts, "errors": errors, "error_sample": sample, **sc_res,
+    hz_res = _hz_tick(feed, now, symbols) if hz else None
+    out = {"at": int(now), "horizons": hz_res, "assets": len(ids), "issued": n_issued, "statuses": counts, "errors": errors, "error_sample": sample, **sc_res,
            "elapsed_s": round(time.monotonic() - t0, 2)}
     _state.update(last_tick_at=now, last=out, ticks=_state["ticks"] + 1)
     return out
+
+
+_HZ_CTX: dict[str, Any] = {"at": 0.0}
+
+
+def _hz_tick(feed, now: float, symbols) -> dict[str, Any]:
+    """evo-17 research ensemble: issue next-bar forecasts for fresh bars and score due ones. Own try/except: it must never break the nowcast clock."""
+    try:
+        from atlas.ai.prediction import horizons as HZ
+        if now - _HZ_CTX["at"] > 600 and "PYTEST_CURRENT_TEST" not in __import__("os").environ:   # calendar + market extras change slowly
+            try:
+                from atlas.api import chart_overlays as CO
+                cal = CO._economic_events(now)
+                ex = CO._market_extra(feed)
+                _HZ_CTX.update(at=now, events=[e["ts"] for e in cal["events"]] if isinstance(cal, dict) and cal.get("events") else None,
+                               extra=ex if isinstance(ex, dict) and "status" not in ex else {},
+                               loader=lambda r, iv: CO.cached_ref_bars(feed, r, iv))
+            except Exception:
+                _HZ_CTX.update(at=now, events=None, extra={}, loader=None)
+        return HZ.tick(feed, now, symbols, budget_s=20.0, ref_loader=_HZ_CTX.get("loader"), events=_HZ_CTX.get("events"), extra=_HZ_CTX.get("extra"))
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"{type(exc).__name__}: {str(exc)[:120]}"}
 
 
 def status() -> dict[str, Any]:

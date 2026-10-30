@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNowcast, ageText, NOWCAST_LABEL } from "./nowcast";
 import { NowcastOnly, nowcastBannerText } from "./NowcastOnly";
+import { HorizonChips } from "./HorizonChips";
 import { createChart, type CandlestickData, type IChartApi, type ISeriesApi, type UTCTimestamp, type WhitespaceData, LineStyle } from "lightweight-charts";
 import type { LiveSnapshot } from "./liveTypes";
 import { deskTimeOptions } from "./lwTime";
@@ -642,6 +643,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
           style={{ borderColor: "#B8A1FF", color: showNc ? "#B8A1FF" : undefined, borderStyle: "dashed" }}>
           {showNc ? "▪ " : "▫ "}{NOWCAST_LABEL}{showNc && nowcast?.status === "ok" && nowcast.anchor ? ` · last real ${nowcast.anchor.source === "quote" ? "quote" : "print"} ${ageText(nowcast.anchor.age_s)} ago${nowcast.mode === "end_of_day" ? " · end-of-day data" : ""}` : showNc && nowcast && nowcast.status !== "ok" ? ` · ${nowcast.status.replace(/_/g, " ")}` : ""}
         </button>
+        {showNc && <HorizonChips nc={nowcast} />}
         {p?.built?.startsWith("resampled") && !fill ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
         <ModelChip mp={mp} loading={loading} noBars={data?.status === "no_data"} />
         <span className="atlas-chart-badge is-safe" title="ML output is advisory research. It can never place an order.">{fill ? "exec: " : "execution_permission: "}{data?.execution_permission ?? "none"}</span>

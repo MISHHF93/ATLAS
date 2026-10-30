@@ -101,8 +101,32 @@ def _nowcast(symbol: str, interval: str, horizon: int | None) -> dict[str, Any]:
 
 @router.get("/nowcast")
 def api_nowcast(symbol: str = Query(...), interval: str = Query(default="15m"), horizon: int | None = Query(default=None, ge=1, le=300)) -> dict[str, Any]:
-    """Predicted path + conformal band for one asset on one timeframe. A forecast, labelled 'Predicted (not market data)'; read-only."""
-    return _nowcast(symbol, interval, horizon)
+    """Predicted path + conformal band for one asset on one timeframe. A forecast, labelled 'Predicted (not market data)'; read-only.
+    ``horizons`` carries the evo-17 research ensemble (1m/5m/15m/60m/1d) with live scores; its drift moves the dashed line only once its live gate passes."""
+    import copy
+    from atlas.ai.prediction import horizons as HZ
+    out = copy.deepcopy(_nowcast(symbol, interval, horizon))
+    try:
+        hz = HZ.latest(symbol)
+        out["horizons"] = hz
+        HZ.apply_to_path(out, hz)
+    except Exception as exc:  # noqa: BLE001  - the nowcast itself must never fail because the research ensemble did
+        out["horizons"] = {"status": "error", "reason": f"{type(exc).__name__}: {str(exc)[:120]}", "execution_permission": "none"}
+    return out
+
+
+@router.get("/horizons")
+def api_horizons(symbol: str = Query(...)) -> dict[str, Any]:
+    """Latest frozen multi-horizon ensemble forecast per horizon for one asset, with weights and live hit rate / coverage. Research only."""
+    from atlas.ai.prediction import horizons as HZ
+    return HZ.latest(symbol)
+
+
+@router.get("/horizons/status")
+def api_horizons_status() -> dict[str, Any]:
+    """Per pool x horizon: member weights, per-member live scores (pinball, CRPS approx, coverage, hit rate), the apply-gate and the last training metrics."""
+    from atlas.ai.prediction import horizons as HZ
+    return HZ.status()
 
 
 @router.get("/asset")
