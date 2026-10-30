@@ -1,0 +1,98 @@
+"""The 1-minute nowcast clock (evo-16 M3): issue a nowcast for every asset/interval that has real bars, then grade the ones whose bar closed.
+
+Nothing here writes to the bar store. Issued forecasts live in ``nowcast.sqlite`` and are never used as labels."""
+from __future__ import annotations
+
+import threading
+import time
+from typing import Any, Callable
+
+from atlas.ai.prediction import nowcast as NC, nowcast_log as NL, service as S
+
+STALE_DAYS = 20
+_state: dict[str, Any] = {"running": False, "last_tick_at": None, "last": None, "ticks": 0, "error": None}
+_thread: threading.Thread | None = None
+_stop = threading.Event()
+
+
+def real_bar_close(feed) -> Callable[[str, str, int], float | None]:
+    def f(symbol: str, interval: str, start: int):
+        r = feed.store._fetchone("SELECT close FROM bar_revisions WHERE instrument=? AND interval=? AND event_time=? AND confirmed=1 "
+                                 "ORDER BY receipt_time DESC LIMIT 1", (symbol, interval, int(start)))
+        return float(r[0]) if r else None
+    return f
+
+
+def tick(feed, now: float | None = None, symbols: list[str] | None = None, log_path: str | None = None, budget_s: float = 50.0,
+         intervals: tuple[str, ...] = NC.INTERVALS) -> dict[str, Any]:
+    """One clock tick: nowcast + issue, then score what is due. Never raises; reports per-status counts."""
+    t0 = time.monotonic()
+    now = float(time.time() if now is None else now)
+    lmap = S.last_real_map(feed, now, fresh=True)
+    ids = symbols or sorted({s for (s, _iv) in lmap})
+    issued, counts, errors = [], {}, 0
+    scale_cache: dict[tuple[str, str], float] = {}
+    for sym in ids:
+        if time.monotonic() - t0 > budget_s:
+            counts["budget_exhausted"] = counts.get("budget_exhausted", 0) + 1
+            break
+        for iv in intervals:
+            info = lmap.get((sym, iv))
+            if not info or info["n"] < NC.MIN_BASE_BARS or now - (info["last"] + NC.DUR[iv]) > STALE_DAYS * 86400:
+                continue
+            try:
+                from atlas.ai.prediction.pools import pool_for_symbol
+                pool = pool_for_symbol(sym)
+                sc = scale_cache.setdefault((pool, iv), NL.live_scale(pool, iv, log_path))
+                nc = NC.nowcast(feed, sym, iv, now=now, horizon=1, lmap=lmap, live_scale=sc)
+                counts[nc["status"]] = counts.get(nc["status"], 0) + 1
+                if nc["status"] != "ok":
+                    continue
+                tgt = next((p for p in nc["path"] if p["t_end"] > now), None)
+                if tgt is None:
+                    continue
+                issued.append({"symbol": sym, "interval": iv, "target_start": tgt["t"], "target_end": tgt["t_end"], "anchor_t": nc["anchor"]["t"],
+                               "anchor_px": nc["anchor"]["price"], "mid": tgt["mid"], "lo": tgt["lo"], "hi": tgt["hi"], "k": tgt["k"], "pool": pool,
+                               "mode": nc["mode"], "scale": sc})
+            except Exception:
+                errors += 1
+    n_issued = NL.issue(issued, now, log_path)
+    sc_res = NL.score_due(real_bar_close(feed), now, log_path)
+    out = {"at": int(now), "assets": len(ids), "issued": n_issued, "statuses": counts, "errors": errors, **sc_res,
+           "elapsed_s": round(time.monotonic() - t0, 2)}
+    _state.update(last_tick_at=now, last=out, ticks=_state["ticks"] + 1)
+    return out
+
+
+def status() -> dict[str, Any]:
+    return dict(_state)
+
+
+def start(feed_getter: Callable[[], Any], period_s: float = 60.0) -> bool:
+    """Start the background clock once (daemon thread). Returns False when it is already running."""
+    global _thread
+    if _thread is not None and _thread.is_alive():
+        return False
+    _stop.clear()
+
+    def loop():
+        _state["running"] = True
+        while not _stop.is_set():
+            t = time.monotonic()
+            try:
+                feed = feed_getter()
+                if feed is not None:
+                    tick(feed)
+                    _state["error"] = None
+            except Exception as exc:  # noqa: BLE001
+                _state["error"] = f"{type(exc).__name__}: {exc}"
+            _stop.wait(max(5.0, period_s - (time.monotonic() - t)))
+        _state["running"] = False
+
+    _thread = threading.Thread(target=loop, name="nowcast-clock", daemon=True)
+    _thread.start()
+    return True
+
+
+def stop() -> None:
+    _stop.set()

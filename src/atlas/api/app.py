@@ -93,6 +93,15 @@ from atlas.api.chart_overlays import router as chart_overlays_router  # noqa: E4
 app.include_router(chart_overlays_router)
 from atlas.api.prediction_api import router as prediction_router  # noqa: E402
 app.include_router(prediction_router)
+
+
+@app.on_event("startup")
+def _start_nowcast_clock() -> None:
+    """evo-16 M3: issue + live-score nowcasts every minute (read-only on the bar store; predictions never become market data)."""
+    from atlas.api.prediction_api import start_clock
+    start_clock()
+
+
 app.add_middleware(AINodeMiddleware)
 from atlas.api.account_api import install as _install_accounts  # noqa: E402
 _install_accounts(app)

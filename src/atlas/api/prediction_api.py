@@ -74,3 +74,59 @@ def api_sweep(symbols: str | None = Query(default=None), intervals: str | None =
 @router.get("/sweep")
 def api_sweep_status() -> dict[str, Any]:
     return dict(_sweep)
+
+
+# ----------------------------------------------------------------------------- nowcast (M3)
+_NC: dict[tuple, tuple[float, dict]] = {}
+_NC_TTL = 10.0
+
+
+@router.get("/nowcast")
+def api_nowcast(symbol: str = Query(...), interval: str = Query(default="15m"), horizon: int | None = Query(default=None, ge=1, le=300)) -> dict[str, Any]:
+    """Predicted path + conformal band for one asset on one timeframe. A forecast, labelled 'Predicted (not market data)'; read-only."""
+    import os
+    from atlas.ai.prediction import nowcast as NC, nowcast_log as NL
+    from atlas.ai.prediction.pools import pool_for_symbol
+    feed = _feed()
+    if feed is None:
+        raise HTTPException(409, "no_feed_store")
+    key = (symbol, interval, horizon)
+    hit = _NC.get(key)
+    if hit and time.monotonic() - hit[0] < _NC_TTL and "PYTEST_CURRENT_TEST" not in os.environ:
+        return hit[1]
+    out = NC.nowcast(feed, symbol, interval, horizon=horizon, live_scale=NL.live_scale(pool_for_symbol(symbol), interval))
+    if len(_NC) > 400:
+        _NC.clear()
+    _NC[key] = (time.monotonic(), out)
+    return out
+
+
+@router.get("/nowcast/calibration")
+def api_nowcast_calibration(pool: str | None = Query(default=None), interval: str | None = Query(default=None)) -> dict[str, Any]:
+    from atlas.ai.prediction import nowcast_log as NL
+    return NL.calibration(pool=pool, interval=interval)
+
+
+@router.get("/nowcast/status")
+def api_nowcast_status() -> dict[str, Any]:
+    from atlas.ai.prediction import clock as CK
+    return CK.status()
+
+
+@router.post("/nowcast/tick")
+def api_nowcast_tick(symbols: str | None = Query(default=None)) -> dict[str, Any]:
+    """Run one clock tick now (the background clock does this every minute)."""
+    from atlas.ai.prediction import clock as CK
+    feed = _feed()
+    if feed is None:
+        raise HTTPException(409, "no_feed_store")
+    return CK.tick(feed, symbols=[x.strip() for x in symbols.split(",") if x.strip()] if symbols else None)
+
+
+def start_clock() -> bool:
+    """Start the 1-minute nowcast clock (not under pytest; disable with ATLAS_NOWCAST_CLOCK=0)."""
+    import os
+    if "PYTEST_CURRENT_TEST" in os.environ or os.environ.get("ATLAS_NOWCAST_CLOCK") == "0":
+        return False
+    from atlas.ai.prediction import clock as CK
+    return CK.start(_feed)
