@@ -1,42 +1,38 @@
 import type { ReactNode } from "react";
-import { PAGE_GROUPS, PAGES, tabHref } from "../components/shell/pagesMap";
-import { activeTab } from "./nav";
+import { notFound } from "next/navigation";
+import { PAGES, activeTab, type PageId, type RouteId } from "../nav/nav.config";
+import { NavLink } from "../nav/NavLink";
+import { PANELS } from "../nav/panels";
 
 /**
- * Standard page frame for every destination: eyebrow (section), plain-language title, one-line explanation,
- * optional primary actions, then the hub's tabs and a one-line description of the open tab.
- * Server component: only the selected tab's panel is rendered, so other tabs make no backend calls.
+ * Standard page frame for every destination, one row: the page title and its tabs (plus optional actions) in a single
+ * strip, then the open tab's panel. The tab summary is kept as the tab's tooltip and as a screen-reader description.
+ * Server component: only the open tab's panel is loaded, so other tabs make no backend calls.
  */
-export function Hub({ id, tab, panels, actions, compact, children }: { id: string; tab?: string; panels?: Record<string, ReactNode>; actions?: ReactNode; compact?: boolean; children?: ReactNode }) {
-  const page = PAGES.find((p) => p.id === id);
-  if (!page) throw new Error(`Unknown hub ${id}`);
+export async function HubPage({ page: pageId, tab, actions }: { page: PageId; tab?: string; actions?: ReactNode }) {
+  const page = PAGES.find((p) => p.id === pageId);
+  if (!page) notFound();
   const current = activeTab(page, tab);
-  const group = page.advanced ? "Advanced" : PAGE_GROUPS.find((g) => g.id === page.group)?.label;
+  const route = `${page.id}.${current.id}` as RouteId;
+  const panel = await PANELS[route]();
+  const descId = `hubdesc-${page.id}`;
   return (
-    <div className="ux-page ux-hub" data-hub={page.id} data-tab={current?.id} data-compact={compact ? "true" : undefined}>
-      <header className="ux-page-header">
-        <div className="ux-page-header__text">
-          <div className="ux-eyebrow">{group}</div>
-          <h1 className="ux-h1">{page.label}</h1>
-          <p className="ux-lede">{page.summary}</p>
-        </div>
-        {actions ? <div className="ux-page-header__actions">{actions}</div> : null}
+    <div className="ux-page ux-hub" data-hub={page.id} data-tab={current.id}>
+      <header className="ux-hubbar">
+        <h1 className="ux-hubbar__title">{page.label}</h1>
+        <nav className="ux-hubtabs" aria-label={`${page.label} views`}>
+          <ul>
+            {page.tabs.map((t) => (
+              <li key={t.id}>
+                <NavLink to={`${page.id}.${t.id}` as RouteId} className="ux-hubtab" title={t.summary} aria-current={t.id === current.id ? "page" : undefined}>{t.label}</NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        {actions ? <div className="ux-hubbar__actions">{actions}</div> : null}
       </header>
-      {page.tabs && current ? (
-        <>
-          <nav className="ux-hubtabs" aria-label={`${page.label} views`}>
-            <ul>
-              {page.tabs.map((t) => (
-                <li key={t.id}>
-                  <a href={tabHref(page, t.id)} className="ux-hubtab" aria-current={t.id === current.id ? "page" : undefined}>{t.label}</a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-          <p className="ux-hubtab-desc">{current.summary}</p>
-          <div className="ux-hub__panel" role="region" aria-label={current.label}>{panels?.[current.id]}</div>
-        </>
-      ) : children}
+      <p id={descId} className="ux-sr-only">{current.summary}</p>
+      <div key={current.id} className="ux-hub__panel" role="region" aria-label={current.label} aria-describedby={descId}>{panel}</div>
     </div>
   );
 }

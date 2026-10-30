@@ -1,86 +1,53 @@
 /**
- * Single route config consumer. `pagesMap.ts` is the one registry; the header, curtain menu, breadcrumbs, command
- * palette, hub headers and the 404 page are all derived from it here, so adding a page or tab there is the only step.
+ * Navigation derived from the one config (`src/nav/nav.config.ts`): header items, menu sections, page titles, the command
+ * palette and the 404 page. To add a page or tab, edit the config (and `src/nav/panels.tsx`) and nothing else.
  */
-import { PAGE_GROUPS, PAGES, pageForPath, redirectTarget, tabHref, type AtlasPage, type HubTab, type PageGroupId } from "../components/shell/pagesMap";
+import {
+  NAV_SECTIONS, PAGES, activeTab, href, pageForPath, redirectTarget, tabHref,
+  type AtlasPage, type HubTab, type PageId, type SectionId,
+} from "../nav/nav.config";
 
-export type NavSection = { id: PageGroupId; label: string; href: string; pages: AtlasPage[] };
+export { activeTab };
 
-/** Main destinations by group (Advanced tools excluded). */
-export const SECTIONS: NavSection[] = PAGE_GROUPS.map((group) => {
-  const pages = PAGES.filter((p) => p.group === group.id && !p.advanced);
-  return { id: group.id, label: group.label, href: pages[0]?.href ?? "/", pages };
+export type NavSection = { id: SectionId; label: string; href: string; pages: AtlasPage[] };
+
+/** Menu / 404 sections: every page (the logo's Home page included) grouped by the config's sections. */
+export const SECTIONS: NavSection[] = NAV_SECTIONS.map((s) => {
+  const pages = PAGES.filter((p) => p.section === s.id);
+  return { id: s.id, label: s.label, href: pages[0]?.href ?? href("home"), pages };
 }).filter((s) => s.pages.length);
 
-/** Curtain menu: the five page groups shown as four sections (Advanced folds into "Settings, data & help"). */
-export type CurtainSection = { id: string; label: string; pages: AtlasPage[] };
-const CURTAIN_MERGE: Array<{ id: string; label: string; groups: PageGroupId[]; advanced?: boolean }> = [
-  { id: "trade", label: "Home & trading", groups: ["home", "trade"] },
-  { id: "research", label: "Research & models", groups: ["research"] },
-  { id: "money", label: "Money & compliance", groups: ["money"] },
-  { id: "settings", label: "Settings, data & help", groups: ["settings"], advanced: true },
-];
-export function curtainSections(): CurtainSection[] {
-  return CURTAIN_MERGE.map((m) => ({
-    id: m.id, label: m.label,
-    pages: [...PAGES.filter((p) => m.groups.includes(p.group) && !p.advanced), ...(m.advanced ? PAGES.filter((p) => p.advanced) : [])],
-  })).filter((s) => s.pages.length);
+export function curtainSections(): NavSection[] {
+  return SECTIONS;
 }
 
-/** Specialist tools, shown together in the curtain's "Advanced" group. */
-export const ADVANCED: AtlasPage[] = PAGES.filter((p) => p.advanced);
+export type HeaderLink = { label: string; href: string; pageId: PageId };
+/** The destinations always visible in the header bar (the config's `placement: "header"` pages). Home is the logo. */
+export const HEADER_LINKS: HeaderLink[] = PAGES.filter((p) => p.placement === "header").map((p) => ({ label: p.navLabel, href: p.href, pageId: p.id }));
 
-/** The few destinations always visible in the header bar. Everything else is one click away in Menu or Cmd-K. */
-export const HEADER_LINKS: Array<{ label: string; href: string; pageIds: string[] }> = [
-  { label: "Trade", href: "/trade", pageIds: ["desk"] },
-  { label: "Risk", href: "/control", pageIds: ["risk"] },
-  { label: "Research", href: "/research", pageIds: ["research", "lab"] },
-  { label: "Money", href: "/money", pageIds: ["money"] },
-];
-
-/** Exact page for a path (legacy addresses resolve to their hub), or null (the 404 case). */
+/** Exact page for a path (retired addresses resolve to the page that absorbed them), or null (the 404 case). */
 export function findPage(path: string): AtlasPage | null {
   const clean = (path.split(/[?#]/)[0] || "/").replace(/\/+$/, "") || "/";
-  if (redirectTarget(clean)) return pageForPath(clean);
-  return PAGES.find((p) => p.href === clean) ?? null;
-}
-
-export function activeTab(page: AtlasPage, tab?: string | null): HubTab | null {
-  if (!page.tabs) return null;
-  return page.tabs.find((t) => t.id === tab) ?? page.tabs[0];
-}
-
-export function sectionFor(page: AtlasPage | null): NavSection | null {
-  return page ? SECTIONS.find((s) => s.id === page.group) ?? null : null;
-}
-
-export type Crumb = { label: string; href?: string };
-export function breadcrumbs(path: string, tab?: string | null): Crumb[] {
-  const page = findPage(path);
-  if (!page) return [{ label: "Home", href: "/" }, { label: "Not found" }];
-  if (page.href === "/") return [{ label: "Home" }];
-  const t = activeTab(page, tab);
-  const crumbs: Crumb[] = [{ label: "Home", href: "/" }];
-  if (t && t !== page.tabs![0]) crumbs.push({ label: page.label, href: page.href }, { label: t.label });
-  else crumbs.push({ label: page.label });
-  return crumbs;
+  const own = PAGES.find((p) => p.href === clean);
+  if (own) return own;
+  return redirectTarget(clean) ? pageForPath(clean) : null;
 }
 
 export function pageTitle(page: AtlasPage, tab?: HubTab | null): string {
-  return tab && page.tabs && tab !== page.tabs[0] ? `${tab.label} · ${page.label}` : page.label;
+  return tab && tab !== page.tabs[0] ? `${tab.label} · ${page.label}` : page.label;
 }
 
 export type Command = { id: string; label: string; hint: string; group: string; href?: string; run?: () => void; keywords: string };
 export function pageCommands(): Command[] {
   return PAGES.flatMap((p) => {
-    const group = p.advanced ? "Advanced" : PAGE_GROUPS.find((g) => g.id === p.group)!.label;
+    const group = SECTIONS.find((s) => s.id === p.section)?.label ?? "Pages";
     const hub: Command = {
       id: `page:${p.id}`, label: p.label, hint: p.summary, group, href: p.href,
-      keywords: [p.label, p.navLabel, group, p.href, ...(p.aliases ?? [])].filter(Boolean).join(" ").toLowerCase(),
+      keywords: [p.label, p.navLabel, group, p.href].join(" ").toLowerCase(),
     };
-    const tabs: Command[] = (p.tabs ?? []).slice(1).map((t) => ({
+    const tabs: Command[] = p.tabs.slice(1).map((t) => ({
       id: `tab:${p.id}:${t.id}`, label: `${p.label} › ${t.label}`, hint: t.summary, group, href: tabHref(p, t.id),
-      keywords: [t.label, p.label, group, ...(t.aliases ?? [])].join(" ").toLowerCase(),
+      keywords: [t.label, p.label, group, ...(t.legacy ?? [])].join(" ").toLowerCase(),
     }));
     return [hub, ...tabs];
   });

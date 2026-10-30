@@ -14,7 +14,7 @@ import {
   TEN_CATEGORIES_META,
   type ProctoringScenarioPreset,
 } from "./hundredFeaturesData";
-import { WORKSPACE_VIEWS, hrefForWorkspace } from "./pagesMap";
+import { WORKSPACE_VIEWS, hrefForWorkspace } from "../../nav/nav.config";
 import { AssetMarkLegend, GuideIcon, markColor, markForAsset, markLabel } from "./guideIcons";
 import {
   AccountRiskPage,
@@ -34,7 +34,6 @@ import {
   TrainingStatusPage,
   WalkForwardPage,
 } from "./deskPages";
-import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 
 const API = "";
 
@@ -268,10 +267,6 @@ export interface InstitutionalShellProps {
   onSelectSymbol?: (symbol: string) => void;
   onSymbolChange?: (symbol: string) => void;
   onSelectCatalogAsset?: (asset: CatalogAsset) => void;
-  onToggleConfigDrawer?: () => void;
-  onOpenQuickConfig?: () => void;
-  onToggleKillSwitch: () => void | Promise<void>;
-  onFlattenAll: () => void | Promise<void>;
   onExecuteOrder?: () => void | Promise<void>;
   onSubmitOrder?: (order: {
     symbol: string;
@@ -337,19 +332,13 @@ export function InstitutionalWorkspacesView({
   onSelectSymbol,
   onSelectCatalogAsset,
   onSymbolChange,
-  onToggleConfigDrawer,
-  onOpenQuickConfig,
-  onToggleKillSwitch,
-  onFlattenAll,
   onExecuteOrder,
   onSubmitOrder,
 }: InstitutionalShellProps) {
   const handleTrackSwitch = onSwitchTrack ?? onTrackChange ?? (() => {});
   const handleSymbolSelect = onSelectSymbol ?? onSymbolChange ?? (() => {});
-  const handleExternalConfig = onToggleConfigDrawer ?? onOpenQuickConfig ?? (() => {});
 
   const [currentRoute, setCurrentRoute] = useState<SubPageRouteId>(initialRoute);
-  const [cleanMode, setCleanMode] = useState<boolean>(true);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [persona, setPersona] = useState<PersonaRole>("founder_admin");
   const [activeIcp, setActiveIcp] = useState<"ICP-01" | "ICP-02" | "ICP-03" | "ICP-04">("ICP-01");
@@ -1269,9 +1258,6 @@ export function InstitutionalWorkspacesView({
   );
 
   const activeWorkspace = workspaceForRoute(currentRoute);
-  const currentSubpageMeta =
-    WORKSPACE_MAP[activeWorkspace].subpages.find((s) => s.route === currentRoute) ??
-    WORKSPACE_MAP[activeWorkspace].subpages[0];
 
   // Remaining-room pre-check from the live control-plane account, not a painted fixture.
   const remainingRoomCalc = useMemo(() => {
@@ -1500,110 +1486,80 @@ export function InstitutionalWorkspacesView({
   }
 
   return (
-    <div className={`${cleanMode ? "atlas-clean-shell-active" : ""} clean-shell-root`}>
-      {/* ====================================================================
-          ROW 1: GLOBAL COMMAND HEADER (BRAND, TRACK, RISK BARS, CONTROLS)
-         ==================================================================== */}
-      <header className="clean-global-header">
-        <div className="clean-brand-cluster">
-          <div className="clean-track-toggle" role="group" aria-label="Track Switcher">
-            <button
-              type="button"
-              className={`clean-track-btn ${activeTrack === "open_market" ? "active" : ""}`}
-              onClick={() => handleTrackSwitch("open_market")}
-            >
-              Equities
-            </button>
-            <button
-              type="button"
-              className={`clean-track-btn ${activeTrack === "competition" ? "active" : ""}`}
-              onClick={() => handleTrackSwitch("competition")}
-            >
-              Competition
-            </button>
-          </div>
-
-          <span className="clean-session-pill">
-            ● {activeTrack === "open_market" ? equitySessionLabel().label : "Competition · public candles"}
-          </span>
-        </div>
-
-        {currentRoute === "/trade/cockpit" ? (
-        <div className="clean-risk-strip">
-          <div className="clean-mini-gauge">
-            <div className="clean-mini-gauge-top">
-              <span>Daily Loss Cap ({remainingRoomCalc.dailyLimitPct.toFixed(0)}%)</span>
-              <strong>{remainingRoomCalc.controlReady ? `${formatDeskUsd(remainingRoomCalc.dailyRoomUsd)} left` : "—"}</strong>
-            </div>
-            <div className="clean-mini-bar">
-              <div className="clean-mini-fill" style={{ width: `${remainingRoomCalc.controlReady ? remainingRoomCalc.dailyUtilPct : 0}%` }} />
-            </div>
-          </div>
-
-          <div className="clean-mini-gauge">
-            <div className="clean-mini-gauge-top">
-              <span>Trailing Drawdown ({remainingRoomCalc.trailingLimitPct.toFixed(0)}%)</span>
-              <strong>{remainingRoomCalc.controlReady ? `${formatDeskUsd(remainingRoomCalc.trailingRoomUsd)} left` : "—"}</strong>
-            </div>
-            <div className="clean-mini-bar">
-              <div className="clean-mini-fill cyan" style={{ width: `${remainingRoomCalc.controlReady ? remainingRoomCalc.trailingUtilPct : 0}%` }} />
-            </div>
-          </div>
-        </div>
-        ) : null}
-
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-          {currentRoute === "/trade/cockpit" ? (
-          <>
-          <select
-            aria-label="Operator Persona"
-            className="field-select"
-            style={{ width: "auto", padding: "6px 10px", fontSize: "12px", borderRadius: "8px" }}
-            value={persona}
-            onChange={(e) => setPersona(e.target.value as PersonaRole)}
-          >
-            <option value="founder_admin">Role: Founder / Admin</option>
-            <option value="researcher">Role: Quant Researcher</option>
-            <option value="funded_trader">Role: Funded Trader</option>
-            <option value="auditor">Role: Compliance Auditor</option>
-          </select>
-
-          <button
-            type="button"
-            className={`btn btn-sm ${autoPilotActive ? "btn-primary" : "btn-outline"}`}
-            style={{ borderRadius: "8px", padding: "6px 12px", fontWeight: 700 }}
-            onClick={() => setAutoPilotActive((prev) => !prev)}
-            title="Sizes the ticket from the forecast. The control plane still has to accept it."
-          >
-            {autoPilotActive ? "Ticket auto-sizing on" : "Ticket auto-sizing off"}
-          </button>
-          </>
-          ) : null}
-
-          {killSwitchEngaged ? (
-            <SafeStopReleaseCli compact />
-          ) : (
-            <button
-              type="button"
-              className="btn btn-sm btn-outline"
-              style={{ borderRadius: "8px", padding: "6px 14px", fontWeight: 700 }}
-              aria-pressed={killSwitchEngaged}
-              title={killSwitchEngaged ? "Turn the paper desk back on." : "Turn the paper desk off. New orders stop."}
-              onClick={() => void onToggleKillSwitch()}
-            >
-              Engage Safe stop
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* One direct navigation rail; the top-level workspace and subpage navs are consolidated here. */}
+    <div className="clean-shell-root">
+      {/* One slim tool row. The page title, tabs and the Safe stop live in the app header, not here. */}
       <div className="clean-body-layout">
         <div className="clean-main-scroll">
-          <div className="clean-page-context">
-            <span className="clean-page-context-title">{currentSubpageMeta.title}</span>
-            <span className="clean-page-context-summary">{currentSubpageMeta.summary}</span>
-            <div style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
+          <div className="clean-toolrow" role="toolbar" aria-label="Desk tools">
+            <div className="clean-track-toggle" role="group" aria-label="Track Switcher">
+              <button
+                type="button"
+                className={`clean-track-btn ${activeTrack === "open_market" ? "active" : ""}`}
+                onClick={() => handleTrackSwitch("open_market")}
+              >
+                Equities
+              </button>
+              <button
+                type="button"
+                className={`clean-track-btn ${activeTrack === "competition" ? "active" : ""}`}
+                onClick={() => handleTrackSwitch("competition")}
+              >
+                Competition
+              </button>
+            </div>
+
+            <span className="clean-session-pill">
+              ● {activeTrack === "open_market" ? equitySessionLabel().label : "Competition · public candles"}
+            </span>
+
+            {currentRoute === "/trade/cockpit" ? (
+              <div className="clean-risk-strip">
+                <div className="clean-mini-gauge">
+                  <div className="clean-mini-gauge-top">
+                    <span>Daily Loss Cap ({remainingRoomCalc.dailyLimitPct.toFixed(0)}%)</span>
+                    <strong>{remainingRoomCalc.controlReady ? `${formatDeskUsd(remainingRoomCalc.dailyRoomUsd)} left` : "—"}</strong>
+                  </div>
+                  <div className="clean-mini-bar">
+                    <div className="clean-mini-fill" style={{ width: `${remainingRoomCalc.controlReady ? remainingRoomCalc.dailyUtilPct : 0}%` }} />
+                  </div>
+                </div>
+
+                <div className="clean-mini-gauge">
+                  <div className="clean-mini-gauge-top">
+                    <span>Trailing Drawdown ({remainingRoomCalc.trailingLimitPct.toFixed(0)}%)</span>
+                    <strong>{remainingRoomCalc.controlReady ? `${formatDeskUsd(remainingRoomCalc.trailingRoomUsd)} left` : "—"}</strong>
+                  </div>
+                  <div className="clean-mini-bar">
+                    <div className="clean-mini-fill cyan" style={{ width: `${remainingRoomCalc.controlReady ? remainingRoomCalc.trailingUtilPct : 0}%` }} />
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="clean-toolrow__end">
+              {currentRoute === "/trade/cockpit" ? (
+                <>
+                  <select
+                    aria-label="Operator Persona"
+                    className="field-select clean-toolrow__select"
+                    value={persona}
+                    onChange={(e) => setPersona(e.target.value as PersonaRole)}
+                  >
+                    <option value="founder_admin">Role: Founder / Admin</option>
+                    <option value="researcher">Role: Quant Researcher</option>
+                    <option value="funded_trader">Role: Funded Trader</option>
+                    <option value="auditor">Role: Compliance Auditor</option>
+                  </select>
+                  <button
+                    type="button"
+                    className={`clean-tf-btn ${autoPilotActive ? "active" : ""}`}
+                    onClick={() => setAutoPilotActive((prev) => !prev)}
+                    title="Sizes the ticket from the forecast. The control plane still has to accept it."
+                  >
+                    {autoPilotActive ? "Ticket auto-sizing on" : "Ticket auto-sizing off"}
+                  </button>
+                </>
+              ) : null}
               <button type="button" className="clean-tf-btn" onClick={() => setDeskNotesOpen((open) => !open)}>
                 {deskNotesOpen ? "Hide notes" : "Notes"}
               </button>

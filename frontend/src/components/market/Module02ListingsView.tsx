@@ -7,15 +7,14 @@ import {
   useRoleContext,
   type ClientRoleId,
 } from "../../context/RoleContext";
-import { AtlasLogo } from "../shell/AtlasLogo";
 import { AssetMarkLegend, GuideIcon, markColor } from "../shell/guideIcons";
 import { type LiveCandlePoint } from "./liveTypes";
 import { tradingViewUrl } from "./AtlasChart";
 import { DeskChart } from "./DeskChart";
-import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 import { useFeedQuotes } from "../../lib/feedQuotes";
 import { AssetCard, AssetTable } from "./AssetCard";
 import { AiDailyInvestmentBriefPanel } from "./AiDailyInvestmentBriefPanel";
+import { NavLink } from "../../nav/NavLink";
 
 export type AuthenticAssetCategory =
   | "metals"
@@ -1033,67 +1032,10 @@ function Module02InnerWorkbench() {
 
   return (
     <div className="institutional-shell">
-      {/* Persistent Top Command Header */}
-      <header className="clean-top-bar">
-        <div className="clean-brand">
-          <AtlasLogo size={30} />
-          <div>
-            <div className="clean-brand-title">ATLAS Authentic Assets Catalog</div>
-            <div className="clean-brand-sub">
-              Precious Metals (Au, Ag, Pt, Pd), Verified ETFs, Sovereign &amp; Corporate Bonds, Cash Equivalents (T-Bills), SEC/TSX Equities, CME Futures &amp; Spot FX · execution_permission none
-            </div>
-          </div>
-        </div>
-
-        {/* Role-Gated Kill Switch */}
-        <div className="clean-top-actions">
-          <span className="badge badge-emerald">Ring Buffer: {ringBufferSize.toLocaleString()} / 10,000</span>
-          {killSwitchEngaged ? (
-            <SafeStopReleaseCli compact />
-          ) : (
-            <button
-              type="button"
-              className="btn btn-sm btn-outline"
-              disabled={!profile.canTriggerKillSwitch}
-              aria-pressed={killSwitchEngaged}
-              title={killSwitchEngaged ? "Turn the paper desk back on." : "Turn the paper desk off. New orders stop."}
-              onClick={() => {
-                if (!profile.canTriggerKillSwitch) {
-                  setRbacBanner("Only the admin role can turn the desk off.");
-                  return;
-                }
-                const next = !killSwitchEngaged;
-                void fetch("/api/control/kill-switch", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "X-Atlas-Role": role },
-                  body: JSON.stringify({
-                    engaged: next,
-                    reason: next ? "listings_emergency_kill_switch" : "listings_operator_reset",
-                  }),
-                })
-                  .then(async (response) => {
-                    if (!response.ok) {
-                      setRbacBanner("The desk did not change. The control plane state is unchanged.");
-                      return;
-                    }
-                    const state = await response.json();
-                    setKillSwitchEngaged(Boolean(state.kill_switch_engaged));
-                    setRbacBanner(
-                      state.kill_switch_engaged
-                        ? "The desk is off. Open paper positions were closed."
-                        : "The desk is on. Paper orders can be submitted again."
-                    );
-                  })
-                  .catch(() => {
-                    setRbacBanner("The desk did not change. State is unconfirmed.");
-                  });
-              }}
-            >
-              Engage Safe stop
-            </button>
-          )}
-        </div>
-      </header>
+      {/* The page title and tabs live in the app frame; keep only this tab's live status. */}
+      <div className="clean-toolrow" role="toolbar" aria-label="Catalog status">
+        <span className="badge badge-emerald">Ring Buffer: {ringBufferSize.toLocaleString()} / 10,000</span>
+      </div>
 
       <div className="clean-main-scroll" style={{ padding: "18px 24px" }}>
         {/* Precious Metals Spot & Unit Normalization Strip (Feature 2 & Feature 8) */}
@@ -1736,7 +1678,7 @@ function Module02InnerWorkbench() {
         </details>
 
         <p className="ux-collapse-hint" style={{ margin: "4px 0" }}>
-          Watchlist scan (pivots, Fibonacci, zones, VWAP, volume profile): <a href="/research?tab=scan">Scan &amp; Pine</a>.{" "}
+          Watchlist scan (pivots, Fibonacci, zones, VWAP, volume profile): <NavLink to="markets.scan">Scan &amp; Pine</NavLink>.{" "}
           <a href={tradingViewUrl(activeListing.symbol)} target="_blank" rel="noopener noreferrer">
             Open {activeListing.symbol} in TradingView ↗
           </a>

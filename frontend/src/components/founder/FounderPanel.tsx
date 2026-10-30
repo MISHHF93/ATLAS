@@ -2,16 +2,17 @@
 
 import type { ReactNode } from "react";
 import { Database } from "lucide-react";
-import { EmptyState, ErrorState, LoadingSkeleton, PageHeader, useApi, type ApiState } from "../../ui/primitives";
+import { EmptyState, ErrorState, LoadingSkeleton, useApi, type ApiState } from "../../ui/primitives";
 
 /** Founder pages: read-only views of /api/founder/*. Paper only, execution_permission none. */
 export type FounderPayload = Record<string, unknown> & { execution_permission?: string; trading?: string };
 type Status = { available?: boolean; demo?: boolean; hint?: string };
 
-export function FounderShell({ title, summary, eyebrow, children }: { title: string; summary: string; eyebrow?: string; children: ReactNode }) {
+/** title/summary/eyebrow are kept for the existing call sites; the page frame (Hub) already shows the page and tab, so nothing repeats them here. */
+export function FounderShell({ children }: { title?: string; summary?: string; eyebrow?: string; children: ReactNode }) {
   return (
     <div className="ux-page">
-      <PageHeader eyebrow={eyebrow} title={title} summary={<>{summary} Read-only: nothing on this page can send an order or move money.</>} />
+      <p className="ux-muted">Read-only: nothing on this page can send an order or move money.</p>
       {children}
     </div>
   );

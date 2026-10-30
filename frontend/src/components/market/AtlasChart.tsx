@@ -13,6 +13,7 @@ import { deskTimeOptions } from "./lwTime";
 import { MARKER_CLASSES, altToCandles, type OppMarker } from "./opportunityMarkers";
 import { orderedChartPoints } from "./chartSeries";
 import { useFeedQuotes } from "../../lib/feedQuotes";
+import { NavLink } from "../../nav/NavLink";
 
 export const CHART_INTERVALS = ["live", "1m", "5m", "15m", "1h", "4h", "1d"] as const;
 export type ChartInterval = (typeof CHART_INTERVALS)[number];
@@ -660,7 +661,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         ) : (
           <span className="atlas-chart-links">
             <a href={tradingViewUrl(sym)} target="_blank" rel="noopener noreferrer">Open in TradingView ↗</a>
-            <a href="/research?tab=scan">Pine v5 export</a>
+            <NavLink to="markets.scan">Pine v5 export</NavLink>
           </span>
         )}
       </header>
@@ -760,7 +761,7 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         <div className="atlas-drawer" role="dialog" aria-label="Chart details">
           {ms && <div className="atlas-drawer-row"><span className={`atlas-chart-badge${ms.is_open ? " is-live" : ""}`} title={`${ms.venue_name} · ${ms.schedule_summary} · ${ms.reason}`}>{ms.is_open ? "● " : "○ "}{ms.venue_name}: {ms.status_label} · {ms.countdown}</span>
             {p?.built?.startsWith("resampled") ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
-            <span className="atlas-chart-links"><a href={tradingViewUrl(sym)} target="_blank" rel="noopener noreferrer">Open in TradingView ↗</a><a href="/research?tab=scan">Pine v5 export</a></span></div>}
+            <span className="atlas-chart-links"><a href={tradingViewUrl(sym)} target="_blank" rel="noopener noreferrer">Open in TradingView ↗</a><NavLink to="markets.scan">Pine v5 export</NavLink></span></div>}
           <div className="atlas-chart-foot">
         {live && <span>Live: forming minute from {tapeOk ? `${tape.snap!.feed_origin ?? "public"} ticks` : "no genuine public tape yet"}{tape.err ? ` (${tape.err})` : ""}. Markers and predictions update on 1m bar close only.</span>}
         {p?.delay_note && <span data-testid="chart-delay-note">Stock data freshness: {p.delay_note}</span>}

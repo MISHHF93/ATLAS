@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SECTIONS } from "../src/ui/nav";
 
 export default function NotFound() {
@@ -12,10 +13,10 @@ export default function NotFound() {
       </header>
       <div className="ux-tiles">
         {SECTIONS.map((s) => (
-          <a key={s.id} className="ux-tile-link" href={s.href}>
+          <Link key={s.id} className="ux-tile-link" href={s.href}>
             <strong>{s.label}</strong>
             <span>{s.pages.map((p) => p.navLabel ?? p.label).join(" · ")}</span>
-          </a>
+          </Link>
         ))}
       </div>
     </div>

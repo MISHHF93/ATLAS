@@ -11,7 +11,6 @@ import { fetchLibraryQuotes, libraryQuoteSymbols } from "../../lib/libraryQuotes
 import type { FeedQuote } from "../../lib/feedQuotes";
 import { QuoteMeta } from "../market/QuoteBadge";
 import { loadMarketBars, mergeTickIntoBars } from "../../lib/marketBars";
-import { SafeStopReleaseCli } from "../safety/SafeStopReleaseCli";
 
 const TIMEFRAME_SECONDS = { "1s": 1, "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1D": 86400 } as const;
 
@@ -1415,53 +1414,6 @@ export function StreamlinedTradingStudio() {
     trailingDdFloorPct,
   ]);
 
-  // Trading Halt / Resume Handler (paper desk circuit breaker)
-  const handleToggleKillSwitch = async () => {
-    if (!profile.canTriggerKillSwitch) {
-      setOrderFeedback({
-        status: "rejected",
-        message: "Only the admin role can turn the desk off.",
-      });
-      return;
-    }
-    const nextState = !killSwitchEngaged;
-
-    try {
-      const apiBase =
-        typeof window !== "undefined" && window.location.port === "3000" ? "" : "";
-      const response = await fetch(`${apiBase}/api/control/kill-switch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Atlas-Role": role },
-        body: JSON.stringify({
-          engaged: nextState,
-          reason: nextState ? "studio_emergency_kill_switch" : "studio_operator_reset",
-        }),
-      });
-      if (!response.ok) throw new Error(response.status === 403 ? "This role cannot turn the desk off." : "The desk did not change. State is unconfirmed.");
-      applyControlState(await response.json());
-    } catch (error) {
-      setOrderFeedback({
-        status: "rejected",
-        message: error instanceof Error ? error.message : "The desk did not change. State is unconfirmed.",
-      });
-      return;
-    }
-    setKillSwitchEngaged(nextState);
-    if (nextState) {
-      setOrderFeedback({
-        status: "rejected",
-        message: "The desk is off. Open paper positions were closed. New orders stay stopped.",
-      });
-    } else {
-      setOrderFeedback({
-        status: "nominal",
-        message: accountEquityUsd <= 0 || !depositsLoaded
-          ? "The desk is on. No deposited capital is loaded. The model can show a stance and cannot buy or sell."
-          : "The desk is on. Paper orders can be submitted again.",
-      });
-    }
-  };
-
   const handlePaperCapital = async (path: "deposit" | "withdraw") => {
     const amount = Number(capitalAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -1981,43 +1933,6 @@ export function StreamlinedTradingStudio() {
             >
               Close all paper positions
             </button>
-            {killSwitchEngaged ? (
-              <SafeStopReleaseCli compact />
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleToggleKillSwitch()}
-                disabled={!profile.canTriggerKillSwitch}
-                aria-pressed={killSwitchEngaged}
-                title={
-                  !profile.canTriggerKillSwitch
-                    ? "Only the admin role can turn the desk off."
-                    : killSwitchEngaged
-                      ? "Safe stop is active on the paper desk. Click to release it."
-                      : "Engage Safe stop: new paper orders are rejected."
-                }
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: "6px",
-                  border: !profile.canTriggerKillSwitch
-                    ? "1px solid var(--c-border)"
-                    : killSwitchEngaged
-                      ? "1px solid rgba(213, 94, 0, 0.9)"
-                      : "1px solid rgba(213, 94, 0, 0.55)",
-                  background: !profile.canTriggerKillSwitch
-                    ? "transparent"
-                    : killSwitchEngaged
-                      ? "rgba(213, 94, 0, 0.38)"
-                      : "rgba(213, 94, 0, 0.16)",
-                  color: !profile.canTriggerKillSwitch ? "var(--c-muted)" : killSwitchEngaged ? "var(--c-bad)" : "var(--c-bad)",
-                  fontWeight: 700,
-                  fontSize: "11.5px",
-                  cursor: profile.canTriggerKillSwitch ? "pointer" : "not-allowed",
-                }}
-              >
-                Engage Safe stop
-              </button>
-            )}
           </div>
         </div>
       </header>

@@ -1,12 +1,14 @@
 "use client";
 
-import { BookOpen, ChevronRight, CircleUser, Inbox, KeyRound, Menu, Moon, Search, Sun, X } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { BookOpen, CircleUser, Inbox, KeyRound, Menu, Moon, Search, Sun, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AtlasLogo } from "../components/shell/AtlasLogo";
-import type { AtlasPage } from "../components/shell/pagesMap";
+import { href, type AtlasPage } from "../nav/nav.config";
+import { NavLink } from "../nav/NavLink";
 import { pageIcon } from "./icons";
-import { HEADER_LINKS, curtainSections, activeTab, breadcrumbs, findPage, pageCommands, pageTitle, type Command } from "./nav";
+import { HEADER_LINKS, curtainSections, activeTab, findPage, pageCommands, pageTitle, type Command } from "./nav";
 import { useApi } from "./primitives";
 import { DataFreshnessChip } from "./FreshBadge";
 import { api, setCsrf, type Me } from "./pages/acct";
@@ -68,7 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     setMe(r.ok ? r.data : { authenticated: false, require_auth: (r.data as { error?: string } | undefined)?.error === "auth_required" });
   }, []);
   useEffect(() => { void load(); }, [load]);
-  const signOut = useCallback(async () => { await api("/api/account/logout", {}); setCsrf(""); window.location.assign("/"); }, []);
+  const signOut = useCallback(async () => { await api("/api/account/logout", {}); setCsrf(""); window.location.assign(href("home")); }, []);
   const ctx = useMemo(() => ({ me, signOut }), [me, signOut]);
   if (me === null) return <div className="ux-auth" aria-busy="true"><p className="ux-muted" role="status">Loading ATLAS…</p></div>;
   if (me.require_auth && !me.authenticated) {
@@ -84,9 +86,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function Shell({ children }: { children: ReactNode }) {
   const path = usePathname() || "/";
-  const [tab, setTab] = useState<string | null>(null);
+  const tab = useSearchParams().get("tab");
   const page = findPage(path);
-  const crumbs = breadcrumbs(path, tab);
   const [theme, toggleTheme] = useTheme();
   const [curtain, setCurtain] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -102,7 +103,7 @@ function Shell({ children }: { children: ReactNode }) {
     if (restoreFocus) menuBtn.current?.focus();
   }, []);
 
-  useEffect(() => { close(); setTab(new URLSearchParams(window.location.search).get("tab")); }, [path, close]);
+  useEffect(() => { close(); }, [path, tab, close]);
   useEffect(() => {
     const on = () => setOnline(navigator.onLine);
     on();
@@ -144,19 +145,19 @@ function Shell({ children }: { children: ReactNode }) {
               {curtain ? <X size={18} aria-hidden /> : <Menu size={18} aria-hidden />}
               <span className="ux-menu-btn__text">Menu</span>
             </button>
-            <a href="/" className="ux-brand" aria-label="ATLAS overview">
+            <NavLink to="home" className="ux-brand" aria-label="ATLAS home" aria-current={page?.id === "home" ? "page" : undefined}>
               <AtlasLogo size={22} wordmark />
-            </a>
+            </NavLink>
             <span className="ux-paper" title="Paper trading only. No order on this platform reaches a live venue.">PAPER</span>
             <DataFreshnessChip compact />
           </div>
           <nav className="ux-tabs" aria-label="Main sections">
             <ul>
               {HEADER_LINKS.map((l) => {
-                const active = Boolean(page && l.pageIds.includes(page.id));
+                const active = page?.id === l.pageId;
                 return (
                   <li key={l.href}>
-                    <a href={l.href} className="ux-tab" data-active={active ? "true" : "false"} aria-current={active ? "page" : undefined}>{l.label}</a>
+                    <NavLink to={l.pageId} className="ux-tab" data-active={active ? "true" : "false"} aria-current={active ? "page" : undefined}>{l.label}</NavLink>
                   </li>
                 );
               })}
@@ -168,9 +169,9 @@ function Shell({ children }: { children: ReactNode }) {
               <span className="ux-search__text">Search</span>
               <kbd className="ux-kbd">⌘K</kbd>
             </button>
-            <a href="/?tab=inbox" className="ux-icon-btn" aria-label="Action needed (inbox)" title="Action needed">
+            <NavLink to="home.inbox" className="ux-icon-btn" aria-label="Action needed (inbox)" title="Action needed">
               <Inbox size={17} aria-hidden />
-            </a>
+            </NavLink>
             <SafeStopPill />
             <AccountMenu onTheme={toggleTheme} theme={theme} />
           </div>
@@ -191,18 +192,6 @@ function Shell({ children }: { children: ReactNode }) {
               <strong>Safe stop active.</strong> New paper orders are rejected{safeStop.reason ? ` (${safeStop.reason.replaceAll("_", " ")})` : ""}. Release is owner CLI only:
               <code className="ux-code">atlas-owner reset-kill-switch</code>
             </div>
-          ) : null}
-          {crumbs.length > 2 ? (
-            <nav className="ux-crumbs" aria-label="Breadcrumb">
-              <ol>
-                {crumbs.map((c, i) => (
-                  <li key={i}>
-                    {c.href ? <a href={c.href}>{c.label}</a> : <span aria-current="page">{c.label}</span>}
-                    {i < crumbs.length - 1 ? <ChevronRight size={12} aria-hidden /> : null}
-                  </li>
-                ))}
-              </ol>
-            </nav>
           ) : null}
           <main id="ux-main" className="ux-main" tabIndex={-1}>{children}</main>
           <AtlasFooter />
@@ -260,14 +249,14 @@ function Tiles({ pages, activeHref }: { pages: AtlasPage[]; activeHref: string |
         const Icon = pageIcon(p.id);
         return (
           <li key={p.href}>
-            <a href={p.href} className="ux-ctile" aria-current={p.href === activeHref ? "page" : undefined}>
+            <Link href={p.href} className="ux-ctile" aria-current={p.href === activeHref ? "page" : undefined}>
               <span className="ux-ctile__icon" aria-hidden><Icon size={16} /></span>
               <span className="ux-ctile__text">
                 <span className="ux-ctile__label">{p.label}</span>
                 <span className="ux-ctile__desc" title={p.summary}>{p.summary}</span>
                 {p.tabs ? <span className="ux-ctile__tabs">{p.tabs.map((t) => t.label).join(" · ")}</span> : null}
               </span>
-            </a>
+            </Link>
           </li>
         );
       })}
@@ -280,11 +269,11 @@ function SafeStopPill() {
   const tone = s.engaged === null ? "neutral" : s.engaged ? "bad" : "good";
   const label = s.engaged === null ? "Safe stop: unknown" : s.engaged ? "Safe stop active" : "Safe stop armed";
   return (
-    <a href="/control" className="ux-pill" data-tone={tone}
+    <NavLink to="account.autopilot" className="ux-pill" data-tone={tone}
       title={s.engaged === null ? "Safe stop status unavailable" : s.engaged ? "New paper orders are rejected" : "2% daily-loss Safe stop is armed and not triggered"}>
       <span className="ux-dot" aria-hidden />
       <span className="ux-pill__text">{label}</span>
-    </a>
+    </NavLink>
   );
 }
 
@@ -307,9 +296,9 @@ function AccountMenu({ onTheme, theme }: { onTheme: () => void; theme: Theme }) 
       {open ? (
         <div className="ux-menu__list" role="menu">
           <div className="ux-menu__head">{me?.authenticated && me.user ? <>{me.user.email}<br /><span className="ux-muted">{me.user.role} · paper account</span><br /></> : <>Owner · paper account<br /></>}<span className="ux-muted">Writes need atlas-owner + step-up</span></div>
-          <a role="menuitem" href="/control?tab=limits">Limits &amp; rules</a>
-          <a role="menuitem" href="/settings"><KeyRound size={14} aria-hidden /> Settings &amp; API keys</a>
-          <a role="menuitem" href="/settings?tab=docs"><BookOpen size={14} aria-hidden /> Help &amp; docs</a>
+          <NavLink role="menuitem" to="account.limits">Limits &amp; rules</NavLink>
+          <NavLink role="menuitem" to="settings"><KeyRound size={14} aria-hidden /> Settings &amp; API keys</NavLink>
+          <NavLink role="menuitem" to="settings.docs"><BookOpen size={14} aria-hidden /> Help &amp; docs</NavLink>
           {me?.authenticated ? <button role="menuitem" type="button" onClick={() => void signOut()}>Sign out</button> : null}
           <button role="menuitem" type="button" onClick={() => { onTheme(); setOpen(false); }}>
             {theme === "dark" ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />} {theme === "dark" ? "Light theme" : "Dark theme"}
@@ -328,7 +317,7 @@ function CommandPalette({ onClose, onTheme }: { onClose: () => void; onTheme: ()
   const all = useMemo<Command[]>(() => [
     ...pageCommands(),
     { id: "act:theme", label: "Toggle light / dark theme", hint: "Appearance", group: "Actions", run: onTheme, keywords: "theme dark light appearance" },
-    { id: "act:safestop", label: "Safe stop status", hint: "Open Risk & positions", group: "Actions", href: "/control", keywords: "safe stop halt risk kill" },
+    { id: "act:safestop", label: "Safe stop status", hint: "Open Autopilot & Safe stop", group: "Actions", href: href("account.autopilot"), keywords: "safe stop halt risk kill" },
   ], [onTheme]);
   const results = useMemo(() => {
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -388,7 +377,7 @@ function AtlasFooter() {
             30-day DSAR access SLAs, 24-month RROSH breach register, and <strong>PCMLTFA s.8</strong> statutory withholdings.
           </p>
           <div className="ux-footer__links">
-            <a href="/money?tab=regulatory">Compliance &amp; Privacy Hub</a>
+            <NavLink to="money.regulatory">Compliance &amp; Privacy Hub</NavLink>
             <a href="https://www.priv.gc.ca/en/privacy-topics/privacy-laws-in-canada/the-personal-information-protection-and-electronic-documents-act-pipeda/" target="_blank" rel="noopener noreferrer">PIPEDA (OPC) ↗</a>
             <a href="https://www.cai.gouv.qc.ca/" target="_blank" rel="noopener noreferrer">Quebec Law 25 (CAI) ↗</a>
             <a href="https://www.ciro.ca/" target="_blank" rel="noopener noreferrer">CIRO ↗</a>
