@@ -13,8 +13,8 @@ type Body = { as_of_toronto: string; n_assets: number; status_counts: Record<str
   pools: { pool: string; label: string; assets: number; predicted: number; with_data: number }[]; assets: Row[];
   sweep: { running: boolean; result: { done: number; ok: number; skipped: number; failed: number } | null; error: string | null } };
 
-const TONE: Record<string, Tone> = { predicted: "good", not_yet_run: "info", no_model: "warn", not_in_pool: "warn", insufficient_history: "warn", no_data: "bad", error: "bad" };
-const WORDS: Record<string, string> = { predicted: "predicted", not_yet_run: "ready, not run", no_model: "no model", not_in_pool: "not in model pool",
+const TONE: Record<string, Tone> = { predicted: "good", not_yet_run: "info", no_model: "warn", no_licensed_data: "warn", not_in_pool: "warn", insufficient_history: "warn", no_data: "bad", error: "bad" };
+const WORDS: Record<string, string> = { predicted: "predicted", not_yet_run: "ready, not run", no_model: "no model", no_licensed_data: "no licensed data", not_in_pool: "not in model pool",
   insufficient_history: "short history", no_data: "no data", error: "error" };
 
 export function PredictionHealthView() {

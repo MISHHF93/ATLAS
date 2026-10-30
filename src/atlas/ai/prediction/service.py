@@ -84,6 +84,20 @@ def _cell(symbol: str, iv: str, last: dict | None, plog: dict, now: float, root)
             "label": (lg or {}).get("label")}
 
 
+def _unlicensed_reason(feed, instrument_id: str) -> str:
+    """Bars exist but every stored provider is outside the free/terms-allowed set (e.g. Yahoo futures): the model cannot use them, and the
+    reason must say that rather than blame the model or the bar count."""
+    from atlas.feeds.free_sources import allowed
+    try:
+        provs = [r[0] for r in feed.store._fetchall("SELECT DISTINCT provider FROM bar_revisions WHERE instrument=?", (instrument_id,))]
+    except Exception:
+        return ""
+    if provs and not any(allowed(p) for p in provs):
+        return (f"Stored bars for {instrument_id} come only from {', '.join(sorted(provs))}, an unofficial source excluded from the trade series "
+                f"(terms), so no model can use them. A permitted provider that carries this instrument is needed.")
+    return ""
+
+
 def coverage(feed, now: float | None = None, root=None, log_path=None, ids: Iterable[str] | None = None, fresh: bool = False) -> dict[str, Any]:
     """One row per catalog asset (the full instrument master, or ``ids``)."""
     from atlas.feeds.status import toronto
@@ -111,6 +125,10 @@ def coverage(feed, now: float | None = None, root=None, log_path=None, ids: Iter
             fix = _no_data_fix(feed, inst.id)
             reason = f"No stored bars at any interval for {inst.id}." + (f" {fix}" if fix else "")
         status = "predicted" if predicted else ("no_data" if not have else prim["status"])
+        if status not in ("predicted", "no_data"):
+            lic = _unlicensed_reason(feed, inst.id)
+            if lic:
+                status, reason = "no_licensed_data", lic
         rows.append({"instrument": inst.id, "asset_class": inst.asset_class, "pool": pool_of(inst.id, inst.asset_class),
                      "description": inst.description, "status": status, "primary_interval": prim["interval"],
                      "last_real_at": last_real, "last_real_toronto": toronto(last_real) if last_real else None,

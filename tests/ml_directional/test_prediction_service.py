@@ -20,7 +20,7 @@ NOW = 1_800_000_000.0   # fixed "now" so ages are deterministic
 
 def _bars(inst, iv, n, last_end):
     d = S.DUR[iv]
-    return [FeedBar(inst, iv, int(last_end - (n - k) * d), 100.0, 101.0, 99.0, 100.5, 10.0, "massive", NOW, True) for k in range(n)]
+    return [FeedBar(inst, iv, int(last_end - (n - k) * d), 100.0, 101.0, 99.0, 100.5, 10.0, "polygon", NOW, True) for k in range(n)]
 
 
 @pytest.fixture()
@@ -137,3 +137,13 @@ def test_pools_drive_model_groups_and_families():
     assert P.family_of("metal") == "gold" and P.family_of("index") == "equity" and P.family_of("crypto") == "crypto"
     assert P.cost_bps("metal") == P.cost_bps("gold")
     assert set(P.REFS) >= {"crypto", "equity", "metal", "index", "fx", "other"}
+
+
+def test_yahoo_only_futures_say_so_instead_of_blaming_the_model(world):
+    feed, root, lp = world
+    d = S.DUR["1d"]
+    feed.store.ingest([FeedBar("ES", "1d", int(NOW - 3600 - (400 - k) * d), 100.0, 101.0, 99.0, 100.5, 10.0, "yahoo", NOW, True) for k in range(400)])
+    S._LAST_CACHE.clear()
+    by = {r["instrument"]: r for r in S.coverage(feed, now=NOW, root=root, log_path=lp, fresh=True)["assets"]}
+    assert by["ES"]["status"] == "no_licensed_data" and "yahoo" in by["ES"]["reason"] and "unofficial" in by["ES"]["reason"]
+    assert by["SPY"]["status"] != "no_licensed_data"
