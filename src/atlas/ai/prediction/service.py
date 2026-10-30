@@ -6,6 +6,7 @@ when there is no prediction, the exact reason. It reads the store with ONE narro
 Predictions are research display only (execution_permission none) and are never written into the bar store."""
 from __future__ import annotations
 
+import re
 import time
 from typing import Any, Callable, Iterable
 
@@ -149,6 +150,38 @@ def coverage(feed, now: float | None = None, root=None, log_path=None, ids: Iter
     return {"as_of": now, "as_of_toronto": toronto(now), "timezone": "America/Toronto", "n_assets": len(rows), "status_counts": counts,
             "pools": sorted(pools.values(), key=lambda p: p["pool"]), "assets": rows, "execution_permission": "none",
             "note": "Predictions are research display only. They are never written into the bar store or used as training labels."}
+
+
+_PLACEHOLDER = re.compile(r"^(EQ\d{3,}|PERP\d{3,}(-USD|USDT)?)$")
+
+
+def is_placeholder(symbol: str) -> bool:
+    """``EQ####`` / ``PERP###`` ids fill the catalog count. They name no listed security and have no price anywhere."""
+    return bool(_PLACEHOLDER.match(str(symbol or "").upper()))
+
+
+def no_data_cause(feed, symbol: str) -> dict[str, str]:
+    """Why an asset has nothing to chart or forecast, in one machine-readable ``cause`` and one plain sentence. Never raises."""
+    if is_placeholder(symbol):
+        return {"cause": "placeholder", "reason": f"{symbol} is a directory placeholder id, not a listed security: no exchange, no quote and no bars exist for it, "
+                                                  "so there is no real price to chart or to anchor a forecast on."}
+    try:
+        from atlas.feeds.coverage import asset_coverage
+        c = asset_coverage(feed, symbol)
+    except KeyError:
+        return {"cause": "not_in_master", "reason": f"{symbol} is not in the instrument master, so no provider is mapped to it."}
+    except Exception:
+        return {"cause": "unknown", "reason": ""}
+    unl = _unlicensed_reason(feed, symbol)
+    st = c.get("status") or "unknown"
+    if unl:
+        return {"cause": "unofficial_only", "reason": unl}
+    fix = (c.get("fix") or "").strip()
+    text = {"policy_blocked": "Every provider mapped to this instrument is outside the free/terms-allowed set, so no bars are stored. ",
+            "needs_key": "A permitted provider is mapped but its key is not set, so no bars are stored. ",
+            "awaiting_data": "A permitted provider is mapped; its first bars have not arrived yet. ",
+            "no_provider": "No provider is mapped to this instrument. "}.get(st, "")
+    return {"cause": st, "reason": (text + fix).strip()}
 
 
 def _no_data_fix(feed, instrument_id: str) -> str:

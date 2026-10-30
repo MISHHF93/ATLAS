@@ -302,7 +302,11 @@ def nowcast(feed, symbol: str, interval: str = "15m", now: float | None = None, 
         return {**base, "status": "unsupported_interval", "reason": f"interval {interval} is not supported"}
     pick = _pick_base(feed, symbol, now, kind, lmap)
     if pick is None:
-        return {**base, "status": "no_data", "reason": f"No real bars (at least {MIN_BASE_BARS}) are stored for {symbol}; nothing to anchor a forecast on."}
+        from atlas.ai.prediction import service as _S
+        why = _S.no_data_cause(feed, symbol)
+        return {**base, "status": "placeholder" if why["cause"] == "placeholder" else "no_data", "cause": why["cause"],
+                "reason": (f"No real bars (at least {MIN_BASE_BARS}) are stored for {symbol}; nothing to anchor a forecast on. " + why["reason"]).strip()
+                if why["cause"] != "placeholder" else why["reason"]}
     base_iv, bars = pick
     last = bars[-1]
     anchor_t, anchor_px, source, provider = float(last.event_time + DUR[base_iv]), float(last.close), "bar", getattr(last, "provider", None)

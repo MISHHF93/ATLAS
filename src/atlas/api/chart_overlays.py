@@ -7,6 +7,7 @@ Advisory only: no orders, execution_permission none (also enforced by the AI-nod
 from __future__ import annotations
 
 import math
+import threading
 import time
 from numbers import Real
 from typing import Any
@@ -130,17 +131,48 @@ def _resample(bars, dur: int, need: int | None = None):
     return out
 
 
+_ENSURE_WAIT_S = 2.5
+_ENSURE_BUSY: dict[tuple[str, str], threading.Thread] = {}
+_ENSURE_LOCK = threading.Lock()
+
+
+def ensure_bounded(feed, sym: str, interval: str, wait: float | None = None) -> bool:
+    """Refresh a stale series from the provider chain, but never hold the request longer than ``wait`` seconds.
+
+    A free plan (Massive: 5 calls/min) makes ``feed.ensure_recent`` sleep in its rate limiter; run inline it held the chart request past the
+    gateway's 60 s limit and the chart showed HTTP 504. The fetch now runs once per (symbol, interval) in a background thread and the request
+    returns the stored bars; the next 20 s poll sees what the fetch wrote. Returns True when the refresh finished inside the wait."""
+    ensure = getattr(feed, "ensure_recent", None)
+    if ensure is None or interval not in INTERVALS:
+        return False
+    key = (sym, interval)
+    with _ENSURE_LOCK:
+        th = _ENSURE_BUSY.get(key)
+        if th is not None and th.is_alive():
+            return False        # a refresh is already running; do not queue a second one or wait on it
+        def run():
+            try:
+                ensure(sym, interval)
+            except Exception:
+                pass
+        th = threading.Thread(target=run, name=f"ensure-{sym}-{interval}", daemon=True)
+        _ENSURE_BUSY[key] = th
+        th.start()
+    th.join(_ENSURE_WAIT_S if wait is None else wait)
+    done = not th.is_alive()
+    if done:
+        with _ENSURE_LOCK:
+            if _ENSURE_BUSY.get(key) is th:
+                _ENSURE_BUSY.pop(key, None)
+    return done
+
+
 def load(sym: str, interval: str):
     """Bars + provider info. 4h is built from completed 1h (else 15m) feed bars; 1h uses stored 1h bars, else is
     resampled from complete 15m hours (4 of 4 bars). A stale intraday series is refreshed from the provider chain,
     then extended with any newer lower-timeframe bars already in the store. Resampled series are labelled as such."""
     feed = _feed()
-    ensure = getattr(feed, "ensure_recent", None)
-    if ensure is not None and interval in INTERVALS:
-        try:
-            ensure(sym, interval)
-        except Exception:
-            pass
+    ensure_bounded(feed, sym, interval)
     if interval == "1h":
         rows = _raw(feed, sym, "1h")
         if rows:
@@ -578,7 +610,13 @@ def chart_overlays(symbol: str = Query("BTCUSDT", min_length=1), interval: str =
     base: dict[str, Any] = {"symbol": sym, "interval": interval, "bar_type": bar_type, "provider": provider_info(rows, built),
                             "market_session": sess_info, "execution_permission": EXECUTION_PERMISSION, "orders": "none (read-only)", "computed_at": now}
     if not bars:
-        return enforce_advisory({**base, "status": "no_data", "bars": [], "layers": {}, "ml_panel": None}, source="/api/ai/chart/overlays")[0]
+        try:
+            from atlas.ai.prediction import service as _S
+            why = _S.no_data_cause(_feed(), sym)
+        except Exception:
+            why = {"cause": "unknown", "reason": ""}
+        return enforce_advisory({**base, "status": "no_data", "cause": why["cause"], "reason": why["reason"], "bars": [], "layers": {}, "ml_panel": None},
+                                source="/api/ai/chart/overlays")[0]
     feed = _feed()
     view = bars[-limit:]
     t0 = view[0].start

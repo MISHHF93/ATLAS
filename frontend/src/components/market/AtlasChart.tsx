@@ -81,7 +81,7 @@ export type RunningCal = { status: string; n: number; mean_p?: number | null; hi
 type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number };
 type Status = { status: string; reason?: string; note?: string };
 export type Overlays = {
-  status: string; symbol: string; interval: string; bar_type: string; execution_permission: string;
+  status: string; reason?: string; cause?: string; symbol: string; interval: string; bar_type: string; execution_permission: string;
   provider: { provider: string | null; providers: string[]; realtime: boolean | null; delay_s?: number | null; delay_label: string; delay_note?: string | null; built: string };
   market_session?: {
     symbol: string; venue_id: string; venue_name: string; status: string; status_label: string;
@@ -730,7 +730,8 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         ) : (
           <div className="atlas-chart-empty" role="status" data-testid="chart-no-bars-info">
             {error ? `Chart data unavailable (${error}).` : `No ${data?.interval} bars are stored for ${sym} yet.`}{" "}
-            {nowcast && nowcast.status !== "ok" ? `No forecast either: ${nowcast.reason ?? nowcast.status.replace(/_/g, " ")}. ` : ""}Nothing is drawn rather than guessed.
+            {data?.reason ? `${data.reason} ` : nowcast && nowcast.status !== "ok" ? `No forecast either: ${nowcast.reason ?? nowcast.status.replace(/_/g, " ")} ` : ""}
+            {data?.cause ? <span data-testid="chart-no-data-cause" data-cause={data.cause} /> : null}A price is never invented: a forecast needs one real print to start from.
           </div>
         ))}
       </div>
