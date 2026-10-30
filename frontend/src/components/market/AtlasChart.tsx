@@ -5,6 +5,7 @@
  *  Paper only. ML execution_permission is "none": markers and probabilities are research, never orders. */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNowcast, ageText, NOWCAST_LABEL } from "./nowcast";
+import { NowcastOnly, nowcastBannerText } from "./NowcastOnly";
 import { createChart, type CandlestickData, type IChartApi, type ISeriesApi, type UTCTimestamp, type WhitespaceData, LineStyle } from "lightweight-charts";
 import type { LiveSnapshot } from "./liveTypes";
 import { deskTimeOptions } from "./lwTime";
@@ -716,9 +717,20 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
         {on.prediction_zone && data?.status === "ok" && <PredictionCard fwd={fwd} rc={rc} mp={mp} dp={data?.layers.directional_prediction} />}
         {NEW_LAYER_IDS.some((k) => on[k]) && data?.status === "ok" && <LayersCard data={data} on={on} />}
         {on.marker_details && shown && <MarkerCard m={shown} onClose={() => { setSel(null); setHover(null); }} pinned={shown.id === sel} />}
-        {(error || (data && data.status !== "ok")) && !data?.bars.length && (
-          <div className="atlas-chart-empty">{error ? `Chart data unavailable (${error}).` : `No ${data?.interval} feed bars for ${sym} yet. Nothing is drawn rather than guessed.`}</div>
-        )}
+        {(error || (data && data.status !== "ok")) && !data?.bars.length && (showNc && nowcast?.status === "ok" && nowcast.path?.length && nowcast.anchor ? (
+          <>
+            <NowcastOnly nc={nowcast} height={fill ? "100%" : height} sym={sym} interval={live ? "1m" : interval} />
+            <div className="atlas-chart-info" role="status" data-testid="nowcast-info-banner">
+              {nowcastBannerText(nowcast, live ? "1m" : interval, sym)}
+              {nowcast.proxy_candidate && <> {nowcast.proxy_candidate.label}: {nowcast.proxy_candidate.status === "active" ? "active (proxy, not the asset)" : "needs verification, inactive"}.</>}
+            </div>
+          </>
+        ) : (
+          <div className="atlas-chart-empty" role="status" data-testid="chart-no-bars-info">
+            {error ? `Chart data unavailable (${error}).` : `No ${data?.interval} bars are stored for ${sym} yet.`}{" "}
+            {nowcast && nowcast.status !== "ok" ? `No forecast either: ${nowcast.reason ?? nowcast.status.replace(/_/g, " ")}. ` : ""}Nothing is drawn rather than guessed.
+          </div>
+        ))}
       </div>
       {!fill && (
       <footer className="atlas-chart-foot">

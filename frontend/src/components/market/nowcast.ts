@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 export type NcPoint = { t: number; t_end: number; mid: number; lo: number; hi: number; k: number; forming?: boolean };
 export type Nowcast = {
   status: string; label: string; reason?: string; mode?: "live" | "end_of_day"; interval: string; symbol: string; computed_at?: number; level?: number;
-  anchor?: { t: number; price: number; source: string; provider?: string | null; age_s: number };
+  anchor?: { t: number; price: number; source: string; provider?: string | null; age_s: number; age_toronto?: string };
+  base_interval?: string;
+  proxy_candidate?: { instrument: string; status: string; label: string; note: string } | null;
   path?: NcPoint[]; now?: NcPoint | null; inputs?: { input: string; detail?: string }[]; execution_permission?: string;
 };
 

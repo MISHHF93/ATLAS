@@ -7,7 +7,7 @@
     "start": "node server.mjs --production",
     "typecheck": "tsc --noEmit",
     "test:routes": "node --test scripts/pages.test.mjs scripts/one-chart.test.mjs",
-    "test:charts": "node --test scripts/chart-series.test.mjs",
+    "test:charts": "node --test scripts/chart-series.test.mjs scripts/nowcast-fallback.test.mjs",
     "lint": "tsc --noEmit",
     "check:vertical-text": "node scripts/vertical-text.check.mjs",
     "check:one-chart": "node scripts/one-chart.check.mjs"

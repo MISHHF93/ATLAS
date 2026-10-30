@@ -25,7 +25,7 @@ import numpy as np
 
 NY = ZoneInfo("America/New_York")
 TORONTO = ZoneInfo("America/Toronto")
-DUR = {"1m": 60, "15m": 900, "1h": 3600, "1d": 86400}
+DUR = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}   # every chart timeframe; only INTERVALS are stored base series
 INTERVALS = ("1m", "15m", "1h", "1d")
 ALPHA = 0.2                      # 80% interval
 KGRID = (1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233)
@@ -39,6 +39,11 @@ FUT_ID = {"GC", "SI", "MGC", "XAUUSD", "XAGUSD", "XAU_USD", "XAG_USD"}
 PROXIES = {"SPY": ("ES", "MES", "SPX"), "QQQ": ("NQ", "MNQ", "NDX"), "DIA": ("YM", "MYM"), "IWM": ("RTY", "M2K"),
            "GLD": ("GC", "MGC", "XAUUSD", "XAU_USD"), "SLV": ("SI", "XAGUSD", "XAG_USD"),
            "ES": ("SPY",), "NQ": ("QQQ",), "GC": ("GLD", "XAUUSD", "XAU_USD"), "SI": ("SLV",), "EUR_USD": ("6E",), "6E": ("EUR_USD",)}
+# OANDA practice CFD proxies (labelled as proxy, never the asset): they join the candidates, and only count once their bars are really stored
+from atlas.feeds.oanda_proxies import OANDA_PROXY  # noqa: E402
+_OANDA_IDS = frozenset(OANDA_PROXY.values())
+for _a, _o in OANDA_PROXY.items():
+    PROXIES[_a] = tuple(dict.fromkeys((*PROXIES.get(_a, ()), _o)))
 
 
 # ----------------------------------------------------------------------------- sessions
@@ -139,6 +144,13 @@ def _tail(feed, symbol: str, iv: str, now: float, kind: str) -> list:
     span = WINDOW_BARS * DUR[iv] * (1.0 if kind == "24x7" else 1.7 if iv != "1d" else 1.5)
     try:
         return list(feed.bars(symbol, iv, start=int(now - span), as_of=int(now)))
+    except KeyError:
+        if symbol not in _OANDA_IDS:
+            return []
+        try:   # an OANDA CFD proxy series is not a catalog asset: read what the practice feed stored, read-only
+            return list(feed.store.bars(symbol, iv, int(now - span), None, provider="oanda", as_of=int(now), confirmed_only=True))
+        except Exception:
+            return []
     except Exception:
         return []
 
@@ -164,7 +176,10 @@ def tail_bars(feed, symbol: str, iv: str, now: float, kind: str, last_event: int
     return bars
 
 
-def _quote(feed, symbol: str) -> dict | None:
+def _quote(feed, symbol: str, bar_provider: str | None = None, eod_only: bool = False) -> dict | None:
+    """Freshest permitted quote. A quote from a different venue than the bars is a different price (Coinbase BTC-USD sat ~25 bps under the
+    Binance/OKX USDT bars, which made every short-horizon band miss), so unless the asset has only end-of-day bars the quote must come from
+    the same provider as the last real bar."""
     try:
         qs = feed.store.last_quotes(symbol)
     except Exception:
@@ -172,6 +187,8 @@ def _quote(feed, symbol: str) -> dict | None:
     from atlas.feeds.free_sources import allowed as free_allowed
     # unofficial providers (Yahoo) stay out of the trade series, so they never anchor a forecast either
     qs = [q for q in qs if q.get("price") and q.get("event_time") and free_allowed(q.get("provider"))]
+    if bar_provider and not eod_only:
+        qs = [q for q in qs if q.get("provider") == bar_provider]
     return max(qs, key=lambda q: q["event_time"]) if qs else None
 
 
@@ -289,7 +306,7 @@ def nowcast(feed, symbol: str, interval: str = "15m", now: float | None = None, 
     base_iv, bars = pick
     last = bars[-1]
     anchor_t, anchor_px, source, provider = float(last.event_time + DUR[base_iv]), float(last.close), "bar", getattr(last, "provider", None)
-    q = _quote(feed, symbol)
+    q = _quote(feed, symbol, provider, base_iv == "1d")
     if q and float(q["event_time"]) > anchor_t and float(q["event_time"]) <= now + 5 and abs(math.log(float(q["price"]) / anchor_px)) < 0.25:
         anchor_t, anchor_px, source, provider = float(q["event_time"]), float(q["price"]), "quote", q.get("provider")
     close = np.array([b.close for b in bars], float)
@@ -301,7 +318,10 @@ def nowcast(feed, symbol: str, interval: str = "15m", now: float | None = None, 
     prox = _proxy_info(feed, symbol, base_iv, bars, anchor_t, now, kind)
     age = max(0.0, now - anchor_t)
     mode = "end_of_day" if base_iv == "1d" else "live"
-    H = horizon if horizon is not None else max(P.horizon_for(interval, P.group_of(symbol)), 1)
+    try:
+        H = horizon if horizon is not None else max(P.horizon_for(interval, P.group_of(symbol)), 1)
+    except Exception:   # the training horizon table has no 5m / 4h equity row; the chart still gets a path
+        H = horizon if horizon is not None else {"5m": 36, "4h": 6}.get(interval, 24)
     # target grid: continue from the last real bar of THIS interval when there is one, else from the anchor
     own = tail_bars(feed, symbol, interval, now, kind) if interval != base_iv else bars
     seed = float(own[-1].event_time) if own else float(int(anchor_t // DUR[interval]) * DUR[interval] - DUR[interval])
@@ -343,13 +363,15 @@ def nowcast(feed, symbol: str, interval: str = "15m", now: float | None = None, 
     if source == "quote":
         inputs.append({"input": "live quote", "provider": provider, "at": int(anchor_t), "note": "a print newer than the last stored bar anchors the path"})
     if prox:
-        inputs.append({"input": "proxy", "symbol": prox["proxy"], "beta": round(prox["beta"], 3), "corr": round(prox["rho"], 3),
+        inputs.append({"input": "proxy", "kind": "proxy", "label": "proxy, not " + symbol, "symbol": prox["proxy"], "beta": round(prox["beta"], 3), "corr": round(prox["rho"], 3),
                        "print_at": int(prox["t_proxy"]), "move_log": round(prox["delta"], 5)})
     reason = None
     if mode == "end_of_day":
         reason = ("Only end-of-day bars are stored for this asset, so this is a forecast path from the last close; the band widens with every "
                   "trading period since that close. Real intraday prints (OANDA practice, once configured) tighten it automatically.")
-    return {**base, "mode": mode, "reason": reason, "base_interval": base_iv, "inputs": inputs,
+    from atlas.feeds.oanda_proxies import proxy_candidate
+    pc = proxy_candidate(feed, symbol, lambda i: len(tail_bars(feed, i, "1m", now, "24x5")) >= MIN_BASE_BARS or len(tail_bars(feed, i, "15m", now, "24x5")) >= MIN_BASE_BARS)
+    return {**base, "mode": mode, "reason": reason, "base_interval": base_iv, "proxy_candidate": pc, "inputs": inputs,
             "anchor": {"t": int(anchor_t), "price": anchor_px, "source": source, "provider": provider, "age_s": int(age),
                        "age_toronto": datetime.fromtimestamp(anchor_t, TORONTO).strftime("%Y-%m-%d %H:%M %Z")},
             "sigma_per_bar": sig_bar, "conformal_k": {str(k): round(v, 3) for k, v in scale.items()}, "live_scale": live_scale,

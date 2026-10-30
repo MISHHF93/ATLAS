@@ -74,7 +74,7 @@ def test_eod_asset_degrades_to_forecast_from_last_close_with_widening_band(feed)
 
 def test_no_data_and_unsupported(feed):
     assert NC.nowcast(feed, "MSFT", "1d", now=NOW)["status"] == "no_data"
-    assert NC.nowcast(feed, "SPY", "5m", now=NOW)["status"] == "unsupported_interval"
+    assert NC.nowcast(feed, "SPY", "3m", now=NOW)["status"] == "unsupported_interval"
 
 
 def test_quote_newer_than_bar_anchors_the_path(feed):
@@ -173,3 +173,38 @@ def test_null_z_rows_do_not_break_calibration_or_live_scale(tmp_path):
     c.commit()
     assert NL.calibration(lp)["n_scored"] == 80
     assert 0.8 <= NL.live_scale("crypto", "1m", lp) <= 1.6
+
+
+@pytest.mark.parametrize("iv", ["1m", "5m", "15m", "1h", "4h", "1d"])
+def test_eod_only_asset_gets_a_forecast_on_every_timeframe(feed, iv):
+    """SPY has only daily bars: every timeframe still gets a labelled forecast anchored on the last daily bar, with its age, never fake candles."""
+    r = NC.nowcast(feed, "SPY", iv, now=NOW)
+    assert r["status"] == "ok" and r["label"] == "Predicted (not market data)" and r["mode"] == "end_of_day" and r["base_interval"] == "1d"
+    assert r["anchor"]["source"] == "bar" and r["anchor"]["age_s"] >= 0 and r["anchor"]["age_toronto"]
+    assert r["path"] and all(p["lo"] < p["mid"] < p["hi"] for p in r["path"]) and r["execution_permission"] == "none"
+    before = feed.store._fetchone("SELECT COUNT(*) FROM bar_revisions")[0]
+    NC.nowcast(feed, "SPY", iv, now=NOW)
+    assert feed.store._fetchone("SELECT COUNT(*) FROM bar_revisions")[0] == before     # a forecast is never stored as a bar
+
+
+def test_oanda_proxy_map_is_labelled_and_inactive_until_bars_exist(feed):
+    from atlas.feeds.oanda_proxies import OANDA_PROXY
+    assert OANDA_PROXY["SPY"] == "SPX500_USD" and OANDA_PROXY["GLD"] == "XAU_USD" and OANDA_PROXY["ES"] == "SPX500_USD" and OANDA_PROXY["6J"] == "USD_JPY"
+    pc = NC.nowcast(feed, "SPY", "15m", now=NOW)["proxy_candidate"]
+    assert pc["instrument"] == "SPX500_USD" and pc["kind"] == "proxy" and pc["status"] == "needs_verification" and "not SPY" in pc["label"]
+    assert "OANDA_API_TOKEN" in pc["note"] and NC.nowcast(feed, "BTCUSDT", "15m", now=NOW)["proxy_candidate"] is None
+    feed.store.ingest(_walk("SPX500_USD", "1m", 500, NOW - 60, vol=0.0005, px=5000.0, prov="oanda"))
+    NC._BARS.clear()
+    assert NC.nowcast(feed, "SPY", "15m", now=NOW)["proxy_candidate"]["status"] == "active"
+
+
+def test_intraday_quote_must_come_from_the_same_venue_as_the_bars(feed):
+    """Coinbase BTC-USD printed ~25 bps under the Binance USDT bars and made every short band miss; a quote from another venue never anchors intraday."""
+    base = NC.nowcast(feed, "BTCUSDT", "1m", now=NOW + 20, horizon=2)["anchor"]["price"]
+    q = lambda prov, px: {"instrument": "BTCUSDT", "provider": prov, "price": px, "event_time": int(NOW + 10), "receipt_time": int(NOW + 10), "prev_close": None,
+                          "kind": "live", "provider_symbol": "BTCUSDT"}
+    feed.store.upsert_quotes([q("coinbase", base * 1.003)])
+    assert NC.nowcast(feed, "BTCUSDT", "1m", now=NOW + 20, horizon=2)["anchor"]["source"] == "bar"
+    feed.store.upsert_quotes([q("binance", base * 1.0004)])
+    r = NC.nowcast(feed, "BTCUSDT", "1m", now=NOW + 20, horizon=2)
+    assert r["anchor"]["source"] == "quote" and r["anchor"]["provider"] == "binance"
