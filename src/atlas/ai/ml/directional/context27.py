@@ -188,7 +188,7 @@ _SHARED_LOCK = threading.Lock()
 SHARED_TTL_S = 3600.0
 
 
-def shared_context(load_daily: Callable[[str], Sequence], symbols: Sequence[str], now: float | None = None, fetch_vix: Callable[[], str | None] = fetch_vix_csv,
+def shared_context(load_daily: Callable[[str], Sequence], symbols: "Sequence[str] | Callable[[], Sequence[str]]", now: float | None = None, fetch_vix: Callable[[], str | None] = fetch_vix_csv,
                    ttl: float = SHARED_TTL_S) -> dict[str, pd.DataFrame | None]:
     """Process-wide memo (``ttl`` s) of build_context over the stored stock-like symbols: chart and live model share one build."""
     now = time.time() if now is None else now
@@ -196,7 +196,7 @@ def shared_context(load_daily: Callable[[str], Sequence], symbols: Sequence[str]
         if _SHARED["ctx"] is not None and now - _SHARED["t"] < ttl:
             return _SHARED["ctx"]
         day = {}
-        for s in symbols:
+        for s in (symbols() if callable(symbols) else symbols):      # lazy: the symbol scan only runs on a cache miss
             if is_stock_like(s):
                 try:
                     day[s] = list(load_daily(s))
@@ -213,12 +213,10 @@ def training_events(cal: Mapping) -> list[float]:
 
 
 def stored_daily_symbols(feed) -> list[str]:
-    """Stock-like instruments with at least BREADTH_MIN_BARS stored daily bars (the breadth universe)."""
-    out = set()
-    for r in feed.store.summary():
-        if r.get("interval") == "1d" and (r.get("bars") or 0) >= BREADTH_MIN_BARS and is_stock_like(str(r.get("instrument"))):
-            out.add(str(r["instrument"]))
-    return sorted(out)
+    """Stock-like instruments with at least BREADTH_MIN_BARS stored daily bars (the breadth universe).
+    One narrow GROUP BY on the 1d rows; store.summary() scans every interval and took ~35 s on the 1M-row store."""
+    rows = feed.store._fetchall("SELECT instrument, COUNT(DISTINCT event_time) FROM bar_revisions WHERE interval='1d' GROUP BY instrument")
+    return sorted({str(i) for i, n in rows if (n or 0) >= BREADTH_MIN_BARS and is_stock_like(str(i))})
 
 
 def reset_shared() -> None:

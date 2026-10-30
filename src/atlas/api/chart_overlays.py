@@ -473,7 +473,7 @@ def _market_extra(feed):
     """Breadth + VIX context shared by the chart layers and the live model (one hourly build, see context27.shared_context)."""
     from atlas.ai.ml.dataset import load_series
     from atlas.ai.ml.directional import context27 as C27
-    return C27.shared_context(lambda s: load_series(feed, s, "1d").bars, C27.stored_daily_symbols(feed))
+    return C27.shared_context(lambda s: load_series(feed, s, "1d").bars, lambda: C27.stored_daily_symbols(feed))
 
 
 def _directional_prediction(sym, interval, bars, now, feed, events=None, extra=None):

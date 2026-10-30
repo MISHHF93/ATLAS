@@ -261,3 +261,28 @@ def test_cached_ref_bars_loads_each_reference_once_per_request(monkeypatch):
     co.cached_ref_bars(other, "SPY", "15m")                                 # a different feed never shares a cache entry
     assert len(calls) == 2
     co._REF_CACHE.clear()
+
+
+def test_stored_daily_symbols_is_a_narrow_query_and_shared_context_is_lazy(tmp_path):
+    """Regression: the overlay called store.summary() (a full-table scan, ~35 s on the real store) on EVERY request."""
+    from atlas.feeds.core import FeedBar
+    from atlas.feeds.store import FeedStore
+
+    st = FeedStore(tmp_path / "f.sqlite")
+    def bars(inst, iv, n):
+        return [FeedBar(inst, iv, 86400 * i, 1, 2, 0.5, 1, 10, "t", 86400 * i + 1, True) for i in range(n)]
+    st.ingest(bars("AAPL", "1d", C.BREADTH_MIN_BARS) + bars("MSFT", "1d", C.BREADTH_MIN_BARS - 1) + bars("NVDA", "15m", 900) + bars("EUR_USD", "1d", C.BREADTH_MIN_BARS))
+
+    class Feed:
+        store = st
+    assert C.stored_daily_symbols(Feed) == ["AAPL"]          # 400+ daily bars, stock-like only (not short, not 15m, not FX)
+
+    C.reset_shared()
+    calls = []
+    def syms():
+        calls.append(1)
+        return []
+    C.shared_context(lambda s: [], syms, now=1000.0, fetch_vix=lambda: None)
+    C.shared_context(lambda s: [], syms, now=1500.0, fetch_vix=lambda: None)   # within the TTL: the symbol scan must not run again
+    assert len(calls) == 1
+    C.reset_shared()
