@@ -137,6 +137,15 @@ COVERAGE_TTL_SECONDS = 30.0
 _coverage_cache: dict[str | None, tuple[float, dict]] = {}
 
 
+@router.get("/api/feeds/reference-series")
+def api_reference_series() -> dict[str, Any]:
+    """Rates / energy reference series from official free sources (metadata only, no vendor call, no key shown)."""
+    from atlas.feeds.reference_series import catalog_status
+    from atlas.accounts.credentials import effective_environ
+    rows = catalog_status(effective_environ())
+    return {"series": rows, "n": len(rows), "execution_permission": "none", "note": "Reference data for display and risk context. Not tradable series."}
+
+
 @router.get("/api/feeds/catalog-health")
 def api_catalog_health(symbols: str | None = Query(default=None), fresh: bool = Query(default=False)) -> dict[str, Any]:
     """Per-asset source chain, why a series is empty (missing key / policy / awaiting backfill), last bar (Toronto time) and status.
