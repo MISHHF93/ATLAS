@@ -78,10 +78,11 @@ def test_no_data_and_unsupported(feed):
 
 
 def test_quote_newer_than_bar_anchors_the_path(feed):
-    feed.store.upsert_quotes([{"instrument": "SPY", "provider": "oanda", "price": 520.0, "event_time": int(NOW - 30), "receipt_time": int(NOW - 29),
+    px = round(NC.nowcast(feed, "SPY", "1d", now=NOW, horizon=1)["anchor"]["price"] * 1.01, 4)
+    feed.store.upsert_quotes([{"instrument": "SPY", "provider": "oanda", "price": px, "event_time": int(NOW - 30), "receipt_time": int(NOW - 29),
                                "prev_close": 500.0, "kind": "live", "provider_symbol": "SPY"}])
     r = NC.nowcast(feed, "SPY", "1d", now=NOW, horizon=3)
-    assert r["anchor"]["source"] == "quote" and r["anchor"]["price"] == 520.0 and r["anchor"]["age_s"] <= 31
+    assert r["anchor"]["source"] == "quote" and r["anchor"]["price"] == px and r["anchor"]["age_s"] <= 31
     assert any(i["input"] == "live quote" for i in r["inputs"])
 
 
@@ -155,3 +156,10 @@ def test_unofficial_quote_never_anchors(feed):
     feed.store.upsert_quotes([{"instrument": "SPY", "provider": "yahoo", "price": 1.0, "event_time": 4_000_000_000, "receipt_time": 4_000_000_000,
                                "prev_close": None, "kind": "quote", "provider_symbol": "SPY"}])
     assert N._quote(feed, "SPY") is None
+
+
+def test_wild_quote_is_not_an_anchor(feed):
+    px = NC.nowcast(feed, "SPY", "1d", now=NOW, horizon=1)["anchor"]["price"]
+    feed.store.upsert_quotes([{"instrument": "SPY", "provider": "oanda", "price": px * 3, "event_time": int(NOW - 30), "receipt_time": int(NOW - 29),
+                               "prev_close": None, "kind": "live", "provider_symbol": "SPY"}])
+    assert NC.nowcast(feed, "SPY", "1d", now=NOW, horizon=1)["anchor"]["source"] == "bar"
