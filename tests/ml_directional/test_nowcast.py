@@ -18,7 +18,7 @@ from atlas.feeds.store import FeedStore
 NOW = 1_772_551_800.0 + 0.0
 
 
-def _walk(inst, iv, n, last_end, vol=0.002, seed=3, px=100.0, prov="binance"):
+def _walk(inst, iv, n, last_end, vol=0.002, seed=3, px=100.0, prov="coinbase"):
     rng = np.random.default_rng(seed)
     d = NC.DUR[iv]
     c, out = px, []
@@ -104,7 +104,7 @@ def test_tick_issues_scores_and_never_touches_the_store(feed, tmp_path):
     assert feed.store._fetchone("SELECT COUNT(*) FROM bar_revisions")[0] == before
     # the next BTC 1m bar arrives; the forecast frozen before it closed is graded against it
     nxt = int(NOW)
-    feed.store.ingest([FeedBar("BTCUSDT", "1m", nxt, 100, 101, 99, 100.2, 5.0, "binance", NOW + 61, True)])
+    feed.store.ingest([FeedBar("BTCUSDT", "1m", nxt, 100, 101, 99, 100.2, 5.0, "coinbase", NOW + 61, True)])
     out2 = CK.tick(feed, now=NOW + 62, log_path=lp)
     assert out2["scored"] >= 1
     cal = NL.calibration(lp)
@@ -199,15 +199,15 @@ def test_oanda_proxy_map_is_labelled_and_inactive_until_bars_exist(feed):
 
 
 def test_intraday_quote_must_come_from_the_same_venue_as_the_bars(feed):
-    """Coinbase BTC-USD printed ~25 bps under the Binance USDT bars and made every short band miss; a quote from another venue never anchors intraday."""
+    """A venue can print a few bps away from another and make short bands miss; a quote from a different venue than the bars never anchors intraday."""
     base = NC.nowcast(feed, "BTCUSDT", "1m", now=NOW + 20, horizon=2)["anchor"]["price"]
     q = lambda prov, px: {"instrument": "BTCUSDT", "provider": prov, "price": px, "event_time": int(NOW + 10), "receipt_time": int(NOW + 10), "prev_close": None,
                           "kind": "live", "provider_symbol": "BTCUSDT"}
-    feed.store.upsert_quotes([q("coinbase", base * 1.003)])
+    feed.store.upsert_quotes([q("kraken", base * 1.0004)])   # the bars are Coinbase: a Kraken print is a different venue
     assert NC.nowcast(feed, "BTCUSDT", "1m", now=NOW + 20, horizon=2)["anchor"]["source"] == "bar"
-    feed.store.upsert_quotes([q("binance", base * 1.0004)])
+    feed.store.upsert_quotes([q("coinbase", base * 1.0004)])
     r = NC.nowcast(feed, "BTCUSDT", "1m", now=NOW + 20, horizon=2)
-    assert r["anchor"]["source"] == "quote" and r["anchor"]["provider"] == "binance"
+    assert r["anchor"]["source"] == "quote" and r["anchor"]["provider"] == "coinbase"
 
 
 def test_first_issue_wins_and_legacy_rows_do_not_drive_the_scale(tmp_path):

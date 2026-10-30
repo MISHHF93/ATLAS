@@ -10,7 +10,7 @@ from atlas.api import chart_overlays as co
 from atlas.api.app import app
 
 
-def _rows(n=900, step=3600, provider="binance", **extra):
+def _rows(n=900, step=3600, provider="coinbase", **extra):
     t0 = 1_700_000_000 - 1_700_000_000 % 86400
     out = []
     for i in range(n):
@@ -49,7 +49,7 @@ def test_layers_from_real_shaped_feed(monkeypatch, tmp_path):
     c = TestClient(app)
     d = c.get("/api/ai/chart/overlays?symbol=BTCUSDT&interval=1h&bar_type=heikin_ashi&limit=300").json()
     assert d["status"] == "ok" and len(d["bars"]) == 300
-    assert d["provider"]["provider"] == "binance" and d["provider"]["delay_label"] == "not tagged"
+    assert d["provider"]["provider"] == "coinbase" and d["provider"]["delay_label"] == "not tagged"
     assert d["display"]["kind"] == "heikin_ashi" and d["display"]["bars"]
     L = d["layers"]
     assert set(co.LAYERS) <= set(L)
@@ -115,7 +115,7 @@ class MinuteTail:
             if start is not None and t < start:
                 continue
             c = 50 + i
-            mins.append(SimpleNamespace(event_time=t, open=c, high=c + 1, low=c - 1, close=c + 0.4, volume=4, provider="binance", confirmed=True, receipt_time=t + 60))
+            mins.append(SimpleNamespace(event_time=t, open=c, high=c + 1, low=c - 1, close=c + 0.4, volume=4, provider="coinbase", confirmed=True, receipt_time=t + 60))
         return mins
 
 

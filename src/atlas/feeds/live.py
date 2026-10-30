@@ -1,11 +1,11 @@
-"""ATLAS live ingest service.
+"""ATLAS live ingest service (Coinbase and Kraken only: the crypto venues open to Canadian residents).
 
-* Binance combined websocket ``<pair>@kline_1m`` for every crypto instrument: every update upserts ``last_quotes``
-  (kind=kline); a closed kline (``k.x``) is ingested as a confirmed 1m bar into ``bar_revisions`` (idempotent).
-* Coinbase ``ticker`` channel (<BASE>-USD) and Kraken v2 ``ticker`` (<BASE>/USD): live cross-check quotes in
-  ``last_quotes`` (provider coinbase / kraken). They never write bars into the USDT series.
-* OKX public ``candle1m`` for every crypto instrument that has an OKX symbol. A confirmed candle is a 1m bar.
-  Bybit stays a REST failover. It is not subscribed here.
+* Kraken v2 ``ohlc`` (interval 1) for every crypto instrument with a Kraken symbol: every update upserts ``last_quotes``
+  (kind=ohlc); a candle that a newer minute has replaced is ingested as a confirmed 1m bar (provider ``kraken``, idempotent).
+* Kraken v2 ``ticker`` and Coinbase ``ticker`` (<BASE>-USD): live quotes in ``last_quotes`` (provider kraken / coinbase).
+  Coinbase 1m/15m/1h bars come from the REST candle endpoint through the provider chain (``_refresh_bars``).
+* Symbols come from ``feeds.crypto_venues`` (USD pairs, the ``kraken_ca`` blocklist respected). An asset with no listing is
+  not subscribed and has an empty provider chain, so the UI shows an empty state, never a made-up price.
 * Official daily history for the trend book (BTC, ETH, SOL, USD_CAD, EUR_USD) from Alpaca crypto, the Bank of
   Canada, and the ECB. No unofficial chart source writes bars.
 * Yahoo spark polling for US equities/ETFs and CME futures is quotes only, labelled ``yahoo`` and ``delayed``.
@@ -23,36 +23,18 @@ import time
 from typing import Iterable
 
 from .core import FeedBar
+from .crypto_venues import ws_symbol_from_pair
 from .instruments import InstrumentMaster
 from .status import market_open
 from .store import FeedStore
 
 log = logging.getLogger("atlas.feeds.live")
-BINANCE_WS = ("wss://data-stream.binance.vision/stream", "wss://stream.binance.com:9443/stream")
 COINBASE_WS = "wss://ws-feed.exchange.coinbase.com"
 KRAKEN_WS = "wss://ws.kraken.com/v2"
-OKX_WS = "wss://ws.okx.com:8443/ws/v5/business"
 SPARK = "https://query1.finance.yahoo.com/v7/finance/spark"
 
 
 # ---------------------------------------------------------------- pure parsers (unit-tested)
-def parse_binance(msg: dict, now: float, by_pair: dict[str, str]):
-    d = msg.get("data") or msg
-    k = d.get("k") if isinstance(d, dict) else None
-    if not k:
-        return [], []
-    iid = by_pair.get(k["s"].upper())
-    if not iid:
-        return [], []
-    q = {"instrument": iid, "provider": "binance", "price": float(k["c"]), "event_time": d.get("E", k["T"]) / 1000,
-         "receipt_time": now, "kind": "kline", "provider_symbol": k["s"]}
-    bars = []
-    if k.get("x"):
-        bars.append(FeedBar(iid, "1m", int(k["t"] // 1000), float(k["o"]), float(k["h"]), float(k["l"]), float(k["c"]),
-                            float(k["v"]), "binance", int(now), True, k["s"]))
-    return [q], bars
-
-
 def parse_coinbase(msg: dict, now: float, by_product: dict[str, str]):
     if msg.get("type") != "ticker" or msg.get("product_id") not in by_product:
         return []
@@ -77,29 +59,43 @@ def parse_kraken(msg: dict, now: float, by_symbol: dict[str, str]):
     return out
 
 
-def parse_okx(msg: dict, now: float, by_inst: dict[str, str]):
-    """OKX business candle. ``confirm == 1`` is a closed bar. A partial candle is a quote only."""
-    arg = msg.get("arg") or {}
-    if not str(arg.get("channel") or "").startswith("candle"):
-        return [], []
-    iid = by_inst.get(arg.get("instId"))
-    if not iid:
-        return [], []
-    qs, bars = [], []
-    for row in msg.get("data") or []:
-        if not isinstance(row, (list, tuple)) or len(row) < 6:
-            continue
-        try:
-            start = int(row[0]) // 1000
-            price = float(row[4])
-        except (TypeError, ValueError):
-            continue
-        qs.append({"instrument": iid, "provider": "okx", "price": price, "event_time": float(start),
-                    "receipt_time": now, "kind": "kline", "provider_symbol": arg.get("instId")})
-        if len(row) > 8 and str(row[8]) == "1":
-            bars.append(FeedBar(iid, "1m", start, float(row[1]), float(row[2]), float(row[3]), price,
-                                float(row[5]), "okx", int(now), True, str(arg.get("instId") or "")))
-    return qs, bars
+class KrakenBars:
+    """Assemble confirmed 1m bars from Kraken v2 ``ohlc`` messages.
+
+    Kraken streams the still-forming candle on every update. A candle is final only once a newer ``interval_begin`` arrives
+    for the same symbol, so the previous one is emitted then (a snapshot's older candles are closed bars and emit at once).
+    """
+
+    def __init__(self):
+        self.cur: dict[str, dict] = {}
+
+    def feed(self, msg: dict, now: float, by_symbol: dict[str, str]):
+        if msg.get("channel") != "ohlc" or msg.get("type") not in ("snapshot", "update"):
+            return [], []
+        from datetime import datetime
+        qs, bars = [], []
+        rows = []
+        for d in msg.get("data") or []:
+            try:
+                rows.append((int(datetime.fromisoformat(str(d["interval_begin"]).replace("Z", "+00:00")).timestamp()), d))
+            except (KeyError, ValueError):
+                continue
+        for begin, d in sorted(rows, key=lambda x: x[0]):
+            sym = d.get("symbol")
+            iid = by_symbol.get(sym)
+            if not iid:
+                continue
+            c = {"begin": begin, "o": float(d["open"]), "h": float(d["high"]), "l": float(d["low"]), "c": float(d["close"]),
+                 "v": float(d.get("volume") or 0.0)}
+            old = self.cur.get(sym)
+            if old is not None and begin < old["begin"]:
+                continue   # stale
+            if old is not None and begin > old["begin"]:
+                bars.append(FeedBar(iid, "1m", old["begin"], old["o"], old["h"], old["l"], old["c"], old["v"], "kraken", int(now), True, sym))
+            self.cur[sym] = c
+            qs.append({"instrument": iid, "provider": "kraken", "price": c["c"], "event_time": float(now), "receipt_time": now,
+                       "kind": "ohlc", "provider_symbol": sym})
+        return qs, bars
 
 
 def parse_spark(js: dict, now: float, by_yahoo: dict[str, str]):
@@ -123,12 +119,12 @@ class LiveIngest:
         self.open_poll, self.closed_poll = open_poll, closed_poll
         self.q_buf: list[dict] = []
         self.b_buf: list[FeedBar] = []
-        self.stats = {"binance": 0, "coinbase": 0, "kraken": 0, "okx": 0, "yahoo": 0, "bars": 0, "errors": {}}
-        crypto = [i for i in self.master.all() if i.asset_class == "crypto" and "binance" in i.provider_symbols]
-        self.binance = {i.provider_symbols["binance"].upper(): i.id for i in crypto}
+        self.stats = {"coinbase": 0, "kraken": 0, "yahoo": 0, "bars": 0, "errors": {}}
+        crypto = [i for i in self.master.all() if i.asset_class == "crypto"]
         self.coinbase = {i.provider_symbols["coinbase"]: i.id for i in crypto if "coinbase" in i.provider_symbols}
-        self.kraken = {i.provider_symbols["coinbase"].replace("-", "/"): i.id for i in crypto if "coinbase" in i.provider_symbols}
-        self.okx = {i.provider_symbols["okx"]: i.id for i in crypto if i.provider_symbols.get("okx")}
+        self.kraken = {ws_symbol_from_pair(i.provider_symbols["kraken"]): i.id for i in crypto if "kraken" in i.provider_symbols}
+        self.crypto_ids = tuple(dict.fromkeys([*self.coinbase.values(), *self.kraken.values()]))
+        self.kraken_bars = KrakenBars()
         self.yahoo = {i.provider_symbols["yahoo"]: i for i in self.master.all()
                       if i.asset_class in ("equity", "etf", "future", "fx") and "yahoo" in i.provider_symbols}
 
@@ -184,7 +180,7 @@ class LiveIngest:
         from .core import INTERVALS
         now = int(time.time())
         n = 0
-        for inst in self.binance.values():
+        for inst in self.crypto_ids:
             last1 = self.store.latest_bar(inst, ("1m",))
             if last1 is None:
                 continue
@@ -194,11 +190,12 @@ class LiveIngest:
                 start = last.event_time + step if last is not None else last1.event_time
                 if start >= last1.bar_end:
                     continue
-                mins = self.store.bars(inst, "1m", start, last1.bar_end + 1, provider="binance")
-                rolled = [b for b in aggregate(mins, tf, now, require_complete=True) if b.confirmed and b.event_time >= start]
-                if rolled:
-                    self.store.ingest(rolled, note="aggregate")
-                    n += len(rolled)
+                for prov in ("kraken", "coinbase"):
+                    mins = self.store.bars(inst, "1m", start, last1.bar_end + 1, provider=prov)
+                    rolled = [b for b in aggregate(mins, tf, now, require_complete=True) if b.confirmed and b.event_time >= start]
+                    if rolled:
+                        self.store.ingest(rolled, note="aggregate")
+                        n += len(rolled)
         return n
 
     async def _ws(self, name, urls, subscribe, handle):  # pragma: no cover - network
@@ -208,8 +205,8 @@ class LiveIngest:
             url = urls[i % len(urls)]
             try:
                 async with websockets.connect(url, ping_interval=20, ping_timeout=20, max_size=2**22) as ws:
-                    if subscribe:
-                        await ws.send(json.dumps(subscribe))
+                    for sub in ([] if not subscribe else subscribe if isinstance(subscribe, list) else [subscribe]):
+                        await ws.send(json.dumps(sub))
                     log.info("%s connected %s", name, url[:80])
                     delay = 1.0
                     async for raw in ws:
@@ -223,12 +220,6 @@ class LiveIngest:
             await asyncio.sleep(delay)
             delay = min(delay * 2, 60)
 
-    def _on_binance(self, msg, now):
-        qs, bars = parse_binance(msg, now, self.binance)
-        self.q_buf += qs
-        self.b_buf += bars
-        self.stats["binance"] += len(qs)
-
     def _on_coinbase(self, msg, now):
         qs = parse_coinbase(msg, now, self.coinbase)
         self.q_buf += qs
@@ -236,14 +227,10 @@ class LiveIngest:
 
     def _on_kraken(self, msg, now):
         qs = parse_kraken(msg, now, self.kraken)
-        self.q_buf += qs
-        self.stats["kraken"] += len(qs)
-
-    def _on_okx(self, msg, now):
-        qs, bars = parse_okx(msg, now, self.okx)
-        self.q_buf += qs
+        oq, bars = self.kraken_bars.feed(msg, now, self.kraken)
+        self.q_buf += qs + oq
         self.b_buf += bars
-        self.stats["okx"] += len(qs)
+        self.stats["kraken"] += len(qs) + len(oq)
 
     async def _yahoo_loop(self):  # pragma: no cover - network
         import httpx
@@ -294,16 +281,14 @@ class LiveIngest:
             await asyncio.sleep(ML.SNAPSHOT_EVERY_S)
 
     async def run(self, duration: float | None = None):  # pragma: no cover - network
-        streams = "/".join(f"{p.lower()}@kline_1m" for p in self.binance)
         tasks = [
             asyncio.create_task(self._flush_loop()),
-            asyncio.create_task(self._ws("binance", [f"{u}?streams={streams}" for u in BINANCE_WS], None, self._on_binance)),
             asyncio.create_task(self._ws("coinbase", [COINBASE_WS], {"type": "subscribe", "product_ids": list(self.coinbase),
-                                                                    "channels": ["ticker"]}, self._on_coinbase)),
-            asyncio.create_task(self._ws("kraken", [KRAKEN_WS], {"method": "subscribe", "params": {
-                "channel": "ticker", "symbol": list(self.kraken)}}, self._on_kraken)),
-            asyncio.create_task(self._ws("okx", [OKX_WS], {"op": "subscribe", "args": [
-                {"channel": "candle1m", "instId": sym} for sym in self.okx]}, self._on_okx)),
+                                                                    "channels": ["ticker"]}, self._on_coinbase) if self.coinbase else asyncio.sleep(0)),
+            asyncio.create_task(self._ws("kraken", [KRAKEN_WS], [
+                {"method": "subscribe", "params": {"channel": "ticker", "symbol": list(self.kraken)}},
+                {"method": "subscribe", "params": {"channel": "ohlc", "symbol": list(self.kraken), "interval": 1}}],
+                self._on_kraken) if self.kraken else asyncio.sleep(0)),
             asyncio.create_task(self._yahoo_loop()),
             asyncio.create_task(self._massive_loop()),
             asyncio.create_task(self._refresh_bars()),
@@ -329,7 +314,7 @@ class LiveIngest:
             log.warning("rollup catch-up failed: %r", e)
         feed = get_feed()
         # Equities and futures are not in this loop. Their official providers need a key, and Yahoo is quotes only.
-        targets: list[tuple[str, tuple[str, ...]]] = [(iid, ("1m", "15m", "1h")) for iid in dict.fromkeys(self.binance.values())]
+        targets: list[tuple[str, tuple[str, ...]]] = [(iid, ("1m", "15m", "1h")) for iid in self.crypto_ids]
         while True:
             fetched = 0
             for iid, intervals in targets:

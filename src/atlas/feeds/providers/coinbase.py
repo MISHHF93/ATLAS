@@ -19,7 +19,7 @@ class CoinbaseAdapter(ProviderAdapter):
                        "https://docs.cdp.coinbase.com/exchange/websocket-feed/channels",
                        "https://docs.cdp.coinbase.com/exchange/rest-api/rate-limits"),
         terms_url="https://www.coinbase.com/legal/user_agreement",
-        notes="Quote currency is USD (not USDT); ATLAS maps BTCUSDT->BTC-USD as a cross-venue proxy for sanity checks.")
+        notes="Quote currency is USD. ATLAS keeps the legacy series id BTCUSDT and maps it to BTC-USD (Coinbase is the primary crypto venue for Canadian users).")
 
     def _history(self, instrument, interval, start, end, now):
         g, sym = GRAN[interval], self.provider_symbol(instrument)

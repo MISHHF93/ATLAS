@@ -163,7 +163,7 @@ def test_5m_is_derived_from_real_1m_bars_only(tmp_path):
     from atlas.feeds.store import FeedStore
     f = AtlasFeed(FeedStore(":memory:"))
     start = (T0 // 300) * 300
-    f.store.ingest([FeedBar("BTCUSDT", "1m", start + 60 * k, 1.0 + k, 2.0 + k, 0.5 + k, 1.5 + k, 10.0, "binance", T0, True) for k in range(15)])
+    f.store.ingest([FeedBar("BTCUSDT", "1m", start + 60 * k, 1.0 + k, 2.0 + k, 0.5 + k, 1.5 + k, 10.0, "coinbase", T0, True) for k in range(15)])
     b5 = HZ.load_bars(f, "BTCUSDT", "5m")
     assert len(b5) == 3 and b5[0].open == 1.0 and b5[0].close == 5.5 and b5[0].high == 6.0 and b5[0].low == 0.5 and b5[0].duration == 300
 
@@ -182,7 +182,7 @@ def test_endpoints_never_fail_the_nowcast_and_clock_tick_reports_horizons(monkey
     rng = np.random.default_rng(2)
     for k in range(600):
         o, c = c, c * math.exp(rng.normal(0, 0.001))
-        rows.append(FeedBar("BTCUSDT", "1m", int(now - (600 - k) * 60), o, max(o, c), min(o, c), c, 5.0, "binance", now, True))
+        rows.append(FeedBar("BTCUSDT", "1m", int(now - (600 - k) * 60), o, max(o, c), min(o, c), c, 5.0, "coinbase", now, True))
     f.store.ingest(rows)
     monkeypatch.setattr(A, "_feed", lambda: f)
     app = FastAPI()

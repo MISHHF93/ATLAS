@@ -30,11 +30,8 @@ class Instrument:
 
 
 def _crypto(sym, base, tick):
-    return Instrument(sym, "crypto", "BINANCE", "USDT", "UTC", "24x7", tick, 0.00001,
-                      provider_symbols={"alpaca_crypto": f"{base}/USD", "binance": sym, "okx": f"{base}-USDT", "kraken": f"{'XBT' if base == 'BTC' else base}USDT",
-                                        "coinbase": f"{base}-USD", "bybit": sym},
-                      provider_priority=("alpaca_crypto", "binance", "okx", "bybit", "kraken"), sanity_providers=("coinbase", "kraken", "okx"),
-                      description=f"{base}/USDT spot")
+    from .crypto_venues import crypto_fields
+    return Instrument(sym, "crypto", "COINBASE", "USD", "UTC", "24x7", tick, 0.00001, **crypto_fields(base))
 
 
 from .stock_providers import equity_priority as _equity_priority  # noqa: E402

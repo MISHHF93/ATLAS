@@ -118,9 +118,9 @@ def test_coinbase_kraken_okx_bybit_yahoo_parse():
     cb, _ = mk(CoinbaseAdapter, {"coinbase": [(200, {}, [[T0 + 900, 9, 11, 10, 10.5, 2], [T0, 9, 11, 10, 10.2, 1]])]})
     assert [b.event_time for b in cb.history("BTCUSDT", "15m", T0, T0 + 1800)] == [T0, T0 + 900]
     assert cb.history("BTCUSDT", "15m", T0, T0 + 1800)[0].open == 10
-    kr, _ = mk(KrakenAdapter, {"kraken": [(200, {}, {"error": [], "result": {"XBTUSDT": [[T0, "10", "11", "9", "10.5", "10.2", "3", 7]], "last": T0}})]})
+    kr, _ = mk(KrakenAdapter, {"kraken": [(200, {}, {"error": [], "result": {"XBTUSD": [[T0, "10", "11", "9", "10.5", "10.2", "3", 7]], "last": T0}})]})
     (b,) = kr.history("BTCUSDT", "15m", T0, T0 + 900)
-    assert b.volume == 3 and b.provider_symbol == "XBTUSDT"
+    assert b.volume == 3 and b.provider_symbol == "XBTUSD"
     ok, _ = mk(OKXAdapter, {"okx": [(200, {}, {"code": "0", "data": [[str((T0 + 900) * 1000), "1", "2", "0.5", "1", "5", "", "", "1"],
                                                                         [str(T0 * 1000), "1", "2", "0.5", "1", "5", "", "", "1"]]}),
                                     (200, {}, {"code": "0", "data": []})]})
@@ -140,9 +140,9 @@ def test_coinbase_kraken_okx_bybit_yahoo_parse():
 
 def test_kraken_ws_v2_ohlc():
     a = KrakenAdapter(env={}, clock=lambda: NOW)
-    m = {"channel": "ohlc", "type": "update", "data": [{"symbol": "BTC/USDT", "open": 1, "high": 2, "low": 0.5, "close": 1.5,
+    m = {"channel": "ohlc", "type": "update", "data": [{"symbol": "BTC/USD", "open": 1, "high": 2, "low": 0.5, "close": 1.5,
          "volume": 3, "interval_begin": "2026-09-21T12:00:00.000000000Z".replace(".000000000", ""), "interval": 15}]}
-    (b,) = parse_ohlc_ws(m, NOW, {"BTC/USDT": "BTCUSDT"}, "15m", a)
+    (b,) = parse_ohlc_ws(m, NOW, {"BTC/USD": "BTCUSDT"}, "15m", a)
     assert b.instrument == "BTCUSDT" and b.close == 1.5
 
 
@@ -294,21 +294,22 @@ def test_aggregate_1m_to_15m_confirmation():
 
 def test_feed_failover_priority_backfill_gap_fill_and_health():
     store = FeedStore(":memory:")
-    rows = [[(T0 + i * 900) * 1000, "100", "101", "99", "100", "1", 0] for i in range(10) if i != 4]
-    binance, bh = mk(BinanceAdapter, {"vision": [(500, {}, b"down")]})
-    okx, oh = mk(OKXAdapter, {"okx": [(200, {}, {"code": "0", "data": [[str((T0 + i * 900) * 1000), "100", "101", "99", "100", "1", "", "", "1"] for i in reversed(range(10)) if i != 4]}),
-                                      (200, {}, {"code": "0", "data": []})]})
-    kraken, _ = mk(KrakenAdapter, {"kraken": [(200, {}, {"error": [], "result": {"XBTUSDT": [[T0 + 4 * 900, "100", "101", "99", "100", "100", "1", 1]]}})]})
-    coinbase, _ = mk(CoinbaseAdapter, {"coinbase": [(200, {}, [[T0 + i * 900, 99, 101, 100.1, 100.1, 1] for i in range(10)])]})
-    feed = AtlasFeed(store, ProviderRegistry([binance, okx, kraken, coinbase]), InstrumentMaster(), clock=lambda: NOW)
+    from atlas.feeds.providers.alpaca import AlpacaCryptoAdapter
+    import datetime as dt
+    iso = lambda x: dt.datetime.fromtimestamp(x, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    coinbase, ch = mk(CoinbaseAdapter, {"coinbase": [(500, {}, b"down")]})
+    kraken, _ = mk(KrakenAdapter, {"kraken": [(200, {}, {"error": [], "result": {"XBTUSD": [[T0 + i * 900, "100", "101", "99", "100", "100", "1", 1] for i in range(10) if i != 4]}})]})
+    alp_bars = [{"t": iso(T0 + 4 * 900), "o": 100, "h": 101, "l": 99, "c": 100, "v": 1}]
+    alp, _ = mk(AlpacaCryptoAdapter, {"crypto/us/bars": [(200, {}, {"bars": {"BTC/USD": alp_bars}, "next_page_token": None})]})
+    feed = AtlasFeed(store, ProviderRegistry([coinbase, kraken, alp]), InstrumentMaster(), clock=lambda: NOW)
     r = feed.backfill("BTCUSDT", "15m", T0, NOW)
-    assert r["provider"] == "okx" and "binance" in r["errors"]           # failover
+    assert r["provider"] == "kraken" and "coinbase" in r["errors"]       # failover: Coinbase is first in the chain and is down
     assert r["gap_fills"] and r["gap_fills"][0]["gap"][0] == T0 + 4 * 900 # automatic backfill filled the hole
     ser = feed.bars("BTCUSDT", "15m", T0, NOW)
-    assert len(ser) == 10 and {b.provider for b in ser} == {"okx", "kraken"}
+    assert len(ser) == 10 and {b.provider for b in ser} == {"kraken", "alpaca_crypto"}
     cc = feed.cross_check("BTCUSDT", "15m", T0, NOW)
-    assert cc["coinbase"]["ok"] and cc["coinbase"]["median_bps"] == 10.0
-    assert "coinbase" not in {b.provider for b in feed.bars("BTCUSDT", "15m", T0, NOW)}  # sanity-only never merged
+    assert "error" in cc["coinbase"] and "skipped" in cc["kraken"]       # a down sanity provider reports an error, the primary is skipped
+    assert "coinbase" not in {b.provider for b in feed.bars("BTCUSDT", "15m", T0, NOW)}  # a failed provider never reaches the merged series
     assert feed.quality_flags("BTCUSDT", "15m", NOW) == ()
     assert "stale" in feed.quality_flags("BTCUSDT", "15m", NOW + 86400)
     h = feed.health()
@@ -332,9 +333,9 @@ def test_research_loader_reads_from_feed_store(tmp_path):
     from atlas.research.setup_evidence import load_datasets
     p = tmp_path / "f.sqlite"
     s = FeedStore(p)
-    s.ingest([bar(T0 + i * 900) for i in range(100)])
+    s.ingest([bar(T0 + i * 900, prov="coinbase") for i in range(100)])
     (bars, meta), = list(load_datasets(p, ("15m",)))
-    assert len(bars) == 100 and meta["asset_class"] == "crypto" and meta["source"].startswith("binance")
+    assert len(bars) == 100 and meta["asset_class"] == "crypto" and meta["source"].startswith("coinbase")
 
 
 def test_quota_violation_400_is_retried_as_rate_limit_generic_400_is_retried_as_rate_limit():
@@ -395,20 +396,19 @@ def test_backfill_fills_prefix_and_suffix_from_fallback_providers():
 
     store = FeedStore(":memory:")
     iso = lambda x: dt.datetime.fromtimestamp(x, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    # alpaca_crypto only covers middle bars [T0 + 2*900 .. T0 + 6*900); binance covers prefix [T0 .. T0 + 2*900)
-    # and okx covers suffix [T0 + 6*900 .. T0 + 10*900).
-    alp_bars = [{"t": iso(T0 + i * 900), "o": 100, "h": 101, "l": 99, "c": 100, "v": 1} for i in range(2, 6)]
+    # coinbase (first in the chain) only covers middle bars [T0 + 2*900 .. T0 + 6*900); alpaca_crypto covers the prefix
+    # [T0 .. T0 + 2*900) and kraken covers the suffix [T0 + 6*900 .. T0 + 10*900).
+    alp_bars = [{"t": iso(T0 + i * 900), "o": 100, "h": 101, "l": 99, "c": 100, "v": 1} for i in range(0, 2)]
     alp, _ = mk(AlpacaCryptoAdapter, {"crypto/us/bars": [(200, {}, {"bars": {"BTC/USD": alp_bars}, "next_page_token": None})]})
-    bin_rows = [[(T0 + i * 900) * 1000, "100", "101", "99", "100", "1", 0] for i in range(0, 2)]
-    binance, _ = mk(BinanceAdapter, {"vision": [(200, {}, bin_rows), (200, {}, []), (200, {}, [])]})
-    okx_rows = [[str((T0 + i * 900) * 1000), "100", "101", "99", "100", "1", "", "", "1"] for i in reversed(range(6, 10))]
-    okx, _ = mk(OKXAdapter, {"okx": [(200, {}, {"code": "0", "data": okx_rows}), (200, {}, {"code": "0", "data": []})]})
-    feed = AtlasFeed(store, ProviderRegistry([alp, binance, okx]), InstrumentMaster(), clock=lambda: NOW)
+    cb, _ = mk(CoinbaseAdapter, {"coinbase": [(200, {}, [[T0 + i * 900, 99, 101, 100, 100, 1] for i in range(2, 6)])]})
+    kr_rows = [[T0 + i * 900, "100", "101", "99", "100", "100", "1", 1] for i in range(6, 10)]
+    kraken, _ = mk(KrakenAdapter, {"kraken": [(200, {}, {"error": [], "result": {"XBTUSD": kr_rows}})]})
+    feed = AtlasFeed(store, ProviderRegistry([cb, kraken, alp]), InstrumentMaster(), clock=lambda: NOW)
     r = feed.backfill("BTCUSDT", "15m", T0, NOW)
-    assert r["provider"] == "alpaca_crypto"
+    assert r["provider"] == "coinbase"
     ser = feed.bars("BTCUSDT", "15m", T0, NOW)
     assert len(ser) == 10
-    assert {b.provider for b in ser} == {"alpaca_crypto", "binance", "okx"}
+    assert {b.provider for b in ser} == {"coinbase", "kraken", "alpaca_crypto"}
 
     from scripts.backfill_feeds import default_days
     assert default_days(feed, feed.instruments.get("SOLUSDT"), "15m") == 730

@@ -111,7 +111,7 @@ def feed(tmp_path):
     NL.reset()
     HZ.reset(str(tmp_path / "hz.sqlite"))
     f = AtlasFeed(FeedStore(":memory:"))
-    f.store.ingest(_fb("BTCUSDT", "1m", 1500, NOW - 60, 0.0008, "binance") + _fb("SPY", "1d", 600, NOW - 18 * 3600, 0.01, "polygon", 500.0, 7))
+    f.store.ingest(_fb("BTCUSDT", "1m", 1500, NOW - 60, 0.0008, "coinbase") + _fb("SPY", "1d", 600, NOW - 18 * 3600, 0.01, "polygon", 500.0, 7))
     return f, str(tmp_path / "hz.sqlite")
 
 

@@ -177,6 +177,10 @@ def no_data_cause(feed, symbol: str) -> dict[str, str]:
     if unl:
         return {"cause": "unofficial_only", "reason": unl}
     fix = (c.get("fix") or "").strip()
+    if st == "ok" and not fix:
+        # Coverage is fine (a permitted provider is serving bars) but too few are stored to chart or forecast: say so.
+        return {"cause": "building_history", "reason": f"{symbol} has a permitted provider and its first bars have arrived, but there is not enough "
+                                                      "stored history yet to chart or forecast it. History fills in as the feed backfills."}
     text = {"policy_blocked": "Every provider mapped to this instrument is outside the free/terms-allowed set, so no bars are stored. ",
             "needs_key": "A permitted provider is mapped but its key is not set, so no bars are stored. ",
             "awaiting_data": "A permitted provider is mapped; its first bars have not arrived yet. ",

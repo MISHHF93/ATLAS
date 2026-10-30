@@ -39,11 +39,10 @@ FUTURES = {
     "ZB": ("30Y T-Bond", 0.03125, 1000), "6E": ("Euro FX", 0.00005, 125000), "6J": ("Japanese yen", 0.0000005, 12500000),
 }
 
-# Crypto bases the UI lists as "<BASE>-USD". The feed series is the Binance <BASE>USDT spot pair (labelled USDT);
-# Coinbase/Kraken/OKX are sanity + live cross-checks. Bases Binance does not list fall back to Coinbase <BASE>-USD.
+# Crypto bases the UI lists as "<BASE>-USD". The feed series id stays <BASE>USDT (legacy id, keeps stored history, models and URLs),
+# but the data is Coinbase/Kraken USD spot (feeds.crypto_venues). A base with no Coinbase/Kraken listing has an empty chain.
 CRYPTO = ("BTC ETH SOL BNB XRP DOGE ADA AVAX LINK SUI DOT NEAR LTC UNI APT ICP ARB OP INJ AAVE TIA PEPE WIF RENDER FET SEI "
           "ATOM FIL TON HBAR BCH XLM ALGO ETC").split()
-KRAKEN_BASE = {"BTC": "XBT", "DOGE": "XDG"}
 
 FX_ALIASES = {
     "EUR_USD": "EUR_USD", "EURUSD": "EUR_USD", "EUR/USD": "EUR_USD", "EUR-USD": "EUR_USD",
@@ -54,12 +53,10 @@ FX_ALIASES = {
 
 
 def crypto_instrument(base: str) -> Instrument:
+    from .crypto_venues import crypto_fields
     sym = f"{base}USDT"
-    return Instrument(sym, "crypto", "BINANCE", "USDT", "UTC", "24x7", 0.00000001, 0.00001,
-                      provider_symbols={"alpaca_crypto": f"{base}/USD", "binance": sym, "okx": f"{base}-USDT", "kraken": f"{KRAKEN_BASE.get(base, base)}USDT",
-                                        "coinbase": f"{base}-USD", "bybit": sym, "yahoo": f"{base}-USD"},
-                      provider_priority=("alpaca_crypto", "binance", "okx", "bybit", "kraken"),
-                      sanity_providers=("coinbase", "kraken", "okx"), description=f"{base}/USDT spot (UI shows {base}-USD)")
+    f = crypto_fields(base)
+    return Instrument(sym, "crypto", "COINBASE", "USD", "UTC", "24x7", 0.00000001, 0.00001, **f)
 
 
 def equity_instrument(sym: str) -> Instrument:

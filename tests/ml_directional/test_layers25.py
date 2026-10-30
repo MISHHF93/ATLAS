@@ -115,7 +115,7 @@ def _feed_with(sym="BTCUSDT"):
         t0 = 1_700_000_000 - 1_700_000_000 % 86400
         rng = np.random.default_rng(5)
         c = 100 * np.exp(np.cumsum(rng.normal(0, 0.004, n)))
-        return [SimpleNamespace(event_time=t0 + i * step, open=c[i - 1] if i else 100, high=c[i] * 1.002, low=c[i] * 0.998, close=c[i], volume=10 + i % 7, provider="binance") for i in range(n)]
+        return [SimpleNamespace(event_time=t0 + i * step, open=c[i - 1] if i else 100, high=c[i] * 1.002, low=c[i] * 0.998, close=c[i], volume=10 + i % 7, provider="coinbase") for i in range(n)]
 
     class F:
         def bars(self, s, iv):

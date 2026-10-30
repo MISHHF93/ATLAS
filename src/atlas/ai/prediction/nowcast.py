@@ -177,8 +177,8 @@ def tail_bars(feed, symbol: str, iv: str, now: float, kind: str, last_event: int
 
 
 def _quote(feed, symbol: str, bar_provider: str | None = None, eod_only: bool = False) -> dict | None:
-    """Freshest permitted quote. A quote from a different venue than the bars is a different price (Coinbase BTC-USD sat ~25 bps under the
-    Binance/OKX USDT bars, which made every short-horizon band miss), so unless the asset has only end-of-day bars the quote must come from
+    """Freshest permitted quote. A quote from a different venue than the bars is a different price (one venue can sit tens of bps from another,
+    which made every short-horizon band miss), so unless the asset has only end-of-day bars the quote must come from
     the same provider as the last real bar."""
     try:
         qs = feed.store.last_quotes(symbol)

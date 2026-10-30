@@ -135,7 +135,7 @@ def test_data_providers_free_only():
     from atlas.integrations.registry import data_providers
     rows = data_providers({})
     crypto = next(r for r in rows if r["asset_class"] == "crypto")
-    assert crypto["active"] == "alpaca_crypto"
+    assert crypto["active"] == "coinbase"
     for r in rows:
         assert "yahoo" not in r["priority"] and "databento" not in r["priority"]
 

@@ -64,7 +64,7 @@ def _bars(inst, iv, n, last_end, prov, px=100.0):
 def feed(monkeypatch):
     NC._BARS.clear()
     f = AtlasFeed(FeedStore(":memory:"))
-    f.store.ingest(_bars("BTCUSDT", "1m", 600, NOW - 60, "binance") + _bars("BTCUSDT", "1d", 400, NOW - 3600, "binance")
+    f.store.ingest(_bars("BTCUSDT", "1m", 600, NOW - 60, "coinbase") + _bars("BTCUSDT", "1d", 400, NOW - 3600, "coinbase")
                    + _bars("SPY", "1d", 600, NOW - 18 * 3600, "polygon", 500.0))
     monkeypatch.setattr(co, "_feed", lambda: f)
     monkeypatch.setattr("atlas.api.feeds_api._feed", lambda: f)

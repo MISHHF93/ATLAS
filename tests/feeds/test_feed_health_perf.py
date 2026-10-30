@@ -26,7 +26,7 @@ def test_migration_adds_index_to_existing_store_and_keeps_data(tmp_path):
       event_time INTEGER NOT NULL, receipt_time INTEGER NOT NULL, open REAL, high REAL, low REAL, close REAL, volume REAL,
       confirmed INTEGER NOT NULL, provider_symbol TEXT, PRIMARY KEY (provider, instrument, interval, event_time, receipt_time));
       CREATE INDEX ix_rev_lookup ON bar_revisions(instrument, interval, provider, event_time);
-      INSERT INTO bar_revisions VALUES ('binance','BTCUSDT','1m',60,120,1,1,1,1,1,1,'');""")
+      INSERT INTO bar_revisions VALUES ('coinbase','BTCUSDT','1m',60,120,1,1,1,1,1,1,'');""")
     db.commit(); db.close()
     store = FeedStore(path)
     assert "ix_rev_latest" in store.indexes()

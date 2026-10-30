@@ -9,7 +9,7 @@ import pytest
 
 from atlas.feeds import feed as feed_mod
 from atlas.feeds.core import FeedBar
-from atlas.feeds.live import LiveIngest, parse_binance, parse_coinbase, parse_kraken, parse_okx, parse_spark
+from atlas.feeds.live import KrakenBars, LiveIngest, parse_coinbase, parse_kraken, parse_spark
 from atlas.feeds.status import (DELAYED, LIVE, MARKET_CLOSED, NO_DATA, STALE, classify, nyse_open, toronto)
 from atlas.feeds.store import FeedStore
 from atlas.feeds.universe import resolve, ui_symbols
@@ -24,8 +24,8 @@ def et(*a) -> float:
 # ------------------------------------------------------------ status classification
 def test_crypto_live_and_stale():
     now = et(2026, 10, 23, 20, 0)
-    assert classify("24x7", "binance", now - 5, now) == LIVE
-    assert classify("24x7", "binance", now - 3600, now) == STALE
+    assert classify("24x7", "coinbase", now - 5, now) == LIVE
+    assert classify("24x7", "coinbase", now - 3600, now) == STALE
     assert classify("24x7", None, None, now) == NO_DATA
 
 
@@ -67,10 +67,6 @@ def test_toronto_label():
 # ------------------------------------------------------------ parsers
 def test_parsers():
     now = 1_800_000_000.0
-    msg = {"stream": "btcusdt@kline_1m", "data": {"E": 1_800_000_000_000, "k": {
-        "s": "BTCUSDT", "t": 1_799_999_940_000, "T": 1_799_999_999_999, "o": "1", "h": "2", "l": "0.5", "c": "1.5", "v": "10", "x": True}}}
-    qs, bars = parse_binance(msg, now, {"BTCUSDT": "BTCUSDT"})
-    assert qs[0]["price"] == 1.5 and qs[0]["provider"] == "binance" and len(bars) == 1
     cb = parse_coinbase({"type": "ticker", "product_id": "BTC-USD", "price": "100", "open_24h": "90",
                          "time": "2027-01-15T08:00:00Z"}, now, {"BTC-USD": "BTCUSDT"})
     assert cb[0]["price"] == 100 and cb[0]["prev_close"] == 90
@@ -85,7 +81,7 @@ def test_parsers():
 # ------------------------------------------------------------ ingest idempotency
 def test_upsert_quotes_idempotent_and_never_older(tmp_path):
     s = FeedStore(tmp_path / "f.sqlite")
-    row = {"instrument": "BTCUSDT", "provider": "binance", "price": 100.0, "event_time": 1000.0, "receipt_time": 1000.0, "kind": "kline"}
+    row = {"instrument": "BTCUSDT", "provider": "kraken", "price": 100.0, "event_time": 1000.0, "receipt_time": 1000.0, "kind": "ohlc"}
     s.upsert_quotes([row])
     s.upsert_quotes([row])
     s.upsert_quotes([{**row, "price": 50.0, "event_time": 900.0}])  # older print never replaces newer
@@ -100,7 +96,7 @@ def test_rollup_stores_a_complete_15m_and_skips_a_partial_hour(tmp_path):
     t0 = 1_700_000_000 - 1_700_000_000 % 900
     store = FeedStore(tmp_path / "f.sqlite")
     ing = LiveIngest(store)
-    bars = [FeedBar("BTCUSDT", "1m", t0 + i * 60, 1, 2, 0.5, 1.5, 3, "binance", t0 + (i + 1) * 60, True, "BTCUSDT") for i in range(15)]
+    bars = [FeedBar("BTCUSDT", "1m", t0 + i * 60, 1, 2, 0.5, 1.5, 3, "kraken", t0 + (i + 1) * 60, True, "BTCUSDT") for i in range(15)]
     store.ingest(bars)
     rolled = ing._rollup(bars)
     got = [b for b in rolled if b.interval == "15m"]
@@ -113,7 +109,7 @@ def test_ensure_recent_fetches_a_stale_interval_once(tmp_path, monkeypatch):
     store = FeedStore(tmp_path / "f.sqlite")
     feed = AtlasFeed(store=store, clock=lambda: 1_000_000.0)
     calls = []
-    monkeypatch.setattr(feed, "fetch", lambda *a, **k: calls.append(a) or ("binance", {}))
+    monkeypatch.setattr(feed, "fetch", lambda *a, **k: calls.append(a) or ("coinbase", {}))
     monkeypatch.setattr(store, "latest_bar", lambda *a, **k: type("B", (), {"bar_end": 1})())
     assert feed.ensure_recent("BTCUSDT", "15m") is True
     assert feed.ensure_recent("BTCUSDT", "15m") is False
@@ -143,18 +139,18 @@ def test_provider_switch_wider_than_25bp_is_left_as_a_hole(tmp_path):
     t0 = 1_700_000_000
     store.ingest([
         FeedBar("BTCUSDT", "1h", t0, 100, 101, 99, 100, 1, "alpaca_crypto", t0 + 3600, True, "BTC/USD"),
-        FeedBar("BTCUSDT", "1h", t0 + 3600, 100.1, 101, 99, 100.2, 1, "binance", t0 + 7200, True, "BTCUSDT"),
-        FeedBar("BTCUSDT", "1h", t0 + 7200, 105, 106, 104, 105, 1, "okx", t0 + 10800, True, "BTC-USDT"),
-        FeedBar("BTCUSDT", "1h", t0 + 10800, 105.2, 106, 104, 105.4, 1, "binance", t0 + 14400, True, "BTCUSDT"),
+        FeedBar("BTCUSDT", "1h", t0 + 3600, 100.1, 101, 99, 100.2, 1, "coinbase", t0 + 7200, True, "BTC-USD"),
+        FeedBar("BTCUSDT", "1h", t0 + 7200, 105, 106, 104, 105, 1, "kraken", t0 + 10800, True, "XBTUSD"),
+        FeedBar("BTCUSDT", "1h", t0 + 10800, 105.2, 106, 104, 105.4, 1, "coinbase", t0 + 14400, True, "BTC-USD"),
     ])
     out = feed.bars("BTCUSDT", "1h")
     assert [b.event_time for b in out] == [t0, t0 + 3600, t0 + 10800]
-    assert [b.provider for b in out] == ["alpaca_crypto", "binance", "binance"]
+    assert [b.provider for b in out] == ["alpaca_crypto", "coinbase", "coinbase"]
     # A new venue that stays dislocated does not take over the rest of the series.
     store.ingest([
         FeedBar("ETHUSDT", "1h", t0, 100, 101, 99, 100, 1, "alpaca_crypto", t0 + 3600, True, "ETH/USD"),
-        FeedBar("ETHUSDT", "1h", t0 + 3600, 100.5, 101, 99, 100.6, 1, "binance", t0 + 7200, True, "ETHUSDT"),
-        FeedBar("ETHUSDT", "1h", t0 + 7200, 100.7, 101, 99, 100.8, 1, "binance", t0 + 10800, True, "ETHUSDT"),
+        FeedBar("ETHUSDT", "1h", t0 + 3600, 100.5, 101, 99, 100.6, 1, "coinbase", t0 + 7200, True, "ETH-USD"),
+        FeedBar("ETHUSDT", "1h", t0 + 7200, 100.7, 101, 99, 100.8, 1, "coinbase", t0 + 10800, True, "ETH-USD"),
     ])
     eth = feed.bars("ETHUSDT", "1h")
     assert [b.event_time for b in eth] == [t0]
@@ -169,27 +165,49 @@ def test_authoritative_bars_omit_yahoo(tmp_path):
     assert feed.bars("SPY", "15m") == []
 
 
-def test_okx_confirmed_candle_is_a_bar():
-    msg = {"arg": {"channel": "candle1m", "instId": "BTC-USDT"},
-           "data": [["1700000000000", "1", "2", "0.5", "1.5", "3", "0", "0", "1"]]}
-    qs, bars = parse_okx(msg, 1_700_000_100.0, {"BTC-USDT": "BTCUSDT"})
-    assert qs[0]["provider"] == "okx" and qs[0]["instrument"] == "BTCUSDT"
-    assert len(bars) == 1 and bars[0].confirmed and bars[0].close == 1.5
-    partial = {"arg": {"channel": "candle1m", "instId": "BTC-USDT"},
-               "data": [["1700000060000", "1", "2", "0.5", "1.6", "1", "0", "0", "0"]]}
-    qs2, bars2 = parse_okx(partial, 1_700_000_100.0, {"BTC-USDT": "BTCUSDT"})
-    assert qs2 and bars2 == []
+def _ohlc(sym, begin, o, h, l, c, v, typ="update"):
+    return {"channel": "ohlc", "type": typ, "data": [{"symbol": sym, "open": o, "high": h, "low": l, "close": c, "volume": v,
+                                                       "interval_begin": begin, "interval": 1}]}
+
+
+def test_kraken_ohlc_emits_a_bar_only_once_a_newer_minute_arrives():
+    kb, by = KrakenBars(), {"BTC/USD": "BTCUSDT"}
+    qs, bars = kb.feed(_ohlc("BTC/USD", "2026-10-30T12:00:00.000000Z", 1, 2, 0.5, 1.2, 3), 1_700_000_100.0, by)
+    assert qs[0]["provider"] == "kraken" and qs[0]["instrument"] == "BTCUSDT" and bars == []
+    qs, bars = kb.feed(_ohlc("BTC/USD", "2026-10-30T12:00:00.000000Z", 1, 2, 0.5, 1.5, 4), 1_700_000_110.0, by)   # same minute, still forming
+    assert bars == []
+    qs, bars = kb.feed(_ohlc("BTC/USD", "2026-10-30T12:01:00.000000Z", 1.5, 2, 1, 1.6, 1), 1_700_000_160.0, by)
+    assert len(bars) == 1 and bars[0].confirmed and bars[0].close == 1.5 and bars[0].volume == 4 and bars[0].provider == "kraken"
+    assert bars[0].interval == "1m" and bars[0].event_time == 1_793_361_600
+    assert kb.feed(_ohlc("BTC/USD", "2026-10-30T11:59:00.000000Z", 9, 9, 9, 9, 9), 1_700_000_170.0, by)[1] == []   # stale
+    assert kb.feed(_ohlc("ETH/USD", "2026-10-30T12:00:00.000000Z", 1, 1, 1, 1, 1), 1.0, by) == ([], [])             # not subscribed
+    assert kb.feed({"channel": "ticker", "type": "update", "data": []}, 1.0, by) == ([], [])
+
+
+def test_kraken_snapshot_closed_candles_are_bars():
+    kb = KrakenBars()
+    snap = {"channel": "ohlc", "type": "snapshot", "data": [
+        {"symbol": "BTC/USD", "open": 1, "high": 2, "low": 1, "close": 2, "volume": 1, "interval_begin": "2026-10-30T12:01:00Z"},
+        {"symbol": "BTC/USD", "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1, "interval_begin": "2026-10-30T12:00:00Z"}]}
+    _, bars = kb.feed(snap, 1.0, {"BTC/USD": "BTCUSDT"})
+    assert [b.close for b in bars] == [1.0]   # the older candle is closed, the newest is still forming
+
+
+def test_live_ingest_subscribes_to_coinbase_and_kraken_usd_only(tmp_path):
+    ing = LiveIngest(FeedStore(tmp_path / "f.sqlite"))
+    assert ing.coinbase["BTC-USD"] == "BTCUSDT" and ing.kraken["BTC/USD"] == "BTCUSDT" and ing.kraken["DOGE/USD"] == "DOGEUSDT"
+    assert all(k.endswith("-USD") for k in ing.coinbase) and all(k.endswith("/USD") for k in ing.kraken)
+    assert not hasattr(ing, "binance") and not hasattr(ing, "okx")
 
 
 def test_bars_ingest_idempotent(tmp_path):
     s = FeedStore(tmp_path / "f.sqlite")
-    msg = {"data": {"E": 1_800_000_000_000, "k": {"s": "BTCUSDT", "t": 1_799_999_940_000, "T": 1_799_999_999_999,
-                                                  "o": "1", "h": "2", "l": "0.5", "c": "1.5", "v": "10", "x": True}}}
+    kb, by = KrakenBars(), {"BTC/USD": "BTCUSDT"}
+    kb.feed(_ohlc("BTC/USD", "2026-10-30T12:00:00Z", 1, 2, 0.5, 1.5, 10), 1.0, by)
+    _, bars = kb.feed(_ohlc("BTC/USD", "2026-10-30T12:01:00Z", 1, 2, 0.5, 1.5, 10), 2.0, by)
     for _ in range(3):
-        _, bars = parse_binance(msg, 1_800_000_001.0, {"BTCUSDT": "BTCUSDT"})
         s.ingest(bars)
-    n = len(s.bars("BTCUSDT", "1m"))
-    assert n == 1
+    assert len(s.bars("BTCUSDT", "1m")) == 1
 
 
 # ------------------------------------------------------------ universe coverage
@@ -206,8 +224,8 @@ def feed_store(tmp_path, monkeypatch):
     path = tmp_path / "feed.sqlite"
     store = FeedStore(path)
     now = time.time()
-    store.upsert_quotes([{"instrument": "BTCUSDT", "provider": "binance", "price": 12345.0, "event_time": now - 2,
-                          "receipt_time": now, "kind": "kline"}])
+    store.upsert_quotes([{"instrument": "BTCUSDT", "provider": "coinbase", "price": 12345.0, "event_time": now - 2,
+                          "receipt_time": now, "kind": "ticker"}])
     old = feed_mod._DEFAULT
     feed_mod._DEFAULT = feed_mod.AtlasFeed(store)
     yield store
@@ -225,7 +243,7 @@ def test_listings_prices_come_only_from_feed(feed_store):
     for r in body["listings"]:
         assert r["quote_status"] in ("live", "delayed", "market_closed", "stale", "no_data")
         if r["symbol"] in ("BTC-USD", "BTCUSDT", "BTC"):
-            assert r["price"] == "12345.00" and r["quote_source"] == "binance" and r["quote_status"] == "live"
+            assert r["price"] == "12345.00" and r["quote_source"] == "coinbase" and r["quote_status"] == "live"
         elif r["quote_source"] is None:
             assert r["price"] is None, r  # no feed print -> no number
         for k in ("change_24h", "volume_24h", "spread_bps", "model_signal"):

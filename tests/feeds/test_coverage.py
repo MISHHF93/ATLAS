@@ -45,7 +45,7 @@ def test_without_keys_fx_and_crypto_are_served_stocks_report_needs_key_futures_p
     by = {a["instrument"]: a for a in cov["assets"]}
     assert by["EUR_USD"]["served_by"] == "ecb_fx" and by["EUR_USD"]["intervals"] == ["1d"] and by["EUR_USD"]["daily_only"]
     assert by["USD_CAD"]["served_by"] in ("boc_valet", "ecb_fx") and by["USD_CAD"]["daily_only"]
-    assert by["BTCUSDT"]["served_by"] == "alpaca_crypto"
+    assert by["BTCUSDT"]["served_by"] == "coinbase"
     for sym in ("AAPL", "SPY", "GLD", "QQQ"):
         assert by[sym]["status"] == "needs_key" and by[sym]["served_by"] is None
         assert "POLYGON_API_KEY" in by[sym]["fix"] and "Verify" in by[sym]["fix"]

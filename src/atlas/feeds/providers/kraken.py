@@ -9,8 +9,8 @@ MIN = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "4h": 240, "1d": 1440}
 
 
 class KrakenAdapter(ProviderAdapter):
-    symbol_map = {"BTCUSDT": "XBTUSDT", "ETHUSDT": "ETHUSDT", "BTCUSD": "XBTUSD", "ETHUSD": "ETHUSD"}
-    ws_map = {"BTCUSDT": "BTC/USDT", "ETHUSDT": "ETH/USDT", "BTCUSD": "BTC/USD", "ETHUSD": "ETH/USD"}
+    symbol_map = {"BTCUSDT": "XBTUSD", "ETHUSDT": "ETHUSD", "BTCUSD": "XBTUSD", "ETHUSD": "ETHUSD"}
+    ws_map = {"BTCUSDT": "BTC/USD", "ETHUSDT": "ETH/USD", "BTCUSD": "BTC/USD", "ETHUSD": "ETH/USD"}
     caps = Capabilities(
         name="kraken", title="Kraken Spot public market data", status="working",
         asset_classes=("crypto",), schemas=("bars", "trades", "quotes"), intervals=tuple(MIN),
