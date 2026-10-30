@@ -28,7 +28,7 @@ ML column: whether the series may enter model training. "Context" means display 
 | FX daily reference | Bank of Canada Valet (USD/CAD etc.), ECB | Keyless | BoC terms (no overload); ECB reuse with attribution | **wired** (`boc_valet`, `ecb_fx`) |
 | Crypto spot | Coinbase, Kraken, OKX public REST/WS; Binance and Bybit public (Binance is geo-restricted in Ontario) | Free, keyless | Public market data, rate limits per `free_sources.py` | **wired** |
 | Canadian-registered crypto exchanges | Newton: web prices, no documented API. Coinsquare: API docs on request only. Bitbuy: no longer serves Canadians (now Robinhood). | n/a | No public documented market-data API | **none**; Kraken and Coinbase (registered in Canada) cover the data |
-| Metals | OANDA XAU/XAG CFD proxy; GLD/SLV via equities; EIA none | see above | LBMA/COMEX are licensed | **wired** via OANDA (key unset); spot gold daily via none |
+| Metals | OANDA XAU/XAG CFD proxy; GLD/SLV via equities; EIA none | see above | LBMA/COMEX are licensed | **wired** via OANDA (key unset: needs verification); no free official daily spot-gold source |
 | Energy benchmarks (WTI, Brent, Henry Hub spot) | EIA Open Data API v2 | Free key | US-government work, public domain; attribute EIA | **fixture** `eia`, `EIA_API_KEY` unset: needs verification. Spot, **not** futures |
 | Rates, US | US Treasury Daily Par Yield Curve XML | Keyless | Public domain (CC0 on data.gov) | **wired as adapter** `us_treasury` (fixture-tested, live endpoint reachable) |
 | Rates, Canada | Bank of Canada Valet GoC benchmark yields | Keyless | BoC terms (cache, no overload) | **wired as adapter** `boc_rates` (fixture-tested, live endpoint reachable) |
@@ -41,7 +41,7 @@ ML column: whether the series may enter model training. "Context" means display 
 | Australia (ASX) | ASX market information | Paid | Licence; 20-min delay, top of market | **none** |
 | India (NSE) | NSE market data policy | Free for internal employee use only | Licence for external use | **none** |
 
-Global equities indices and single names outside North America are available at personal level only through a broker you hold an account
+Indices and single names outside North America are reachable at personal level only through a broker you hold an account
 with (for example an IBKR account with paid subscriptions: `ibkr` is a documented stub). That is the user's decision, not a free API.
 
 ## What was implemented in evo-19
