@@ -1,7 +1,9 @@
 """Nowcast issue/score ledger (evo-16 M3): live calibration. Separate sqlite file, never the bar store, never a label source.
 
-``issue`` freezes the last nowcast made BEFORE a target bar closed (rows are not updated once the bar's end has passed);
-``score_due`` grades each against the real bar when it arrives (end-of-day bars can arrive with a lag, so unresolved rows wait)."""
+``issue`` freezes the FIRST nowcast made for a target bar (rev 2; rev 1 kept the last tick before the close, which had almost no lead time and made
+coverage look better or worse than what a user sees at the start of a bar). Rows are never updated afterwards.
+``score_due`` grades each against the real bar when it arrives (end-of-day bars can arrive with a lag, so unresolved rows wait).
+Calibration and the live scale use rev 2 only; rev 1 rows stay in the file as the 'before' record."""
 from __future__ import annotations
 
 import math
@@ -13,6 +15,8 @@ from pathlib import Path
 from typing import Any, Iterable
 
 DEFAULT = "var/ml/predictions/nowcast.sqlite"
+REV = 2
+SCALE_MIN, SCALE_MAX, SCALE_WINDOW = 0.5, 3.0, 400
 _LOCK = threading.Lock()
 _MEM: dict[str, sqlite3.Connection] = {}
 DDL = """
@@ -43,6 +47,10 @@ def _conn(path: str | None) -> sqlite3.Connection:
                 Path(p).parent.mkdir(parents=True, exist_ok=True)
             c = sqlite3.connect(p, check_same_thread=False, timeout=30)
             c.executescript(DDL)
+            for t in ("issued", "scored"):   # rev 1 = last tick before the close (legacy); rev 2 = first issue for the target bar
+                if "rev" not in [r[1] for r in c.execute(f"PRAGMA table_info({t})").fetchall()]:
+                    c.execute(f"ALTER TABLE {t} ADD COLUMN rev INTEGER DEFAULT 1")
+            c.commit()
             _MEM[p] = c
         return c
 
@@ -55,17 +63,16 @@ def reset(path: str | None = None) -> None:
 
 
 def issue(rows: Iterable[dict[str, Any]], now: float, path: str | None = None) -> int:
-    """Upsert the forecast for each target bar still open at ``now``; a target whose end has passed is never overwritten."""
+    """Freeze the forecast for each target bar still open at ``now``. The FIRST one wins (INSERT OR IGNORE); it is never overwritten with later knowledge."""
     c = _conn(path)
     n = 0
     with _LOCK:
         for r in rows:
             if r["target_end"] <= now:
                 continue
-            c.execute("INSERT OR REPLACE INTO issued VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                      (r["symbol"], r["interval"], r["target_start"], r["target_end"], now, r["anchor_t"], r["anchor_px"], r["mid"], r["lo"], r["hi"],
-                       r["k"], r.get("pool"), r.get("mode"), r.get("scale", 1.0)))
-            n += 1
+            n += c.execute("INSERT OR IGNORE INTO issued VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                           (r["symbol"], r["interval"], r["target_start"], r["target_end"], now, r["anchor_t"], r["anchor_px"], r["mid"], r["lo"], r["hi"],
+                            r["k"], r.get("pool"), r.get("mode"), r.get("scale", 1.0), REV)).rowcount
         c.commit()
     return n
 
@@ -74,7 +81,7 @@ def score_due(real_bar, now: float, path: str | None = None, limit: int = 4000) 
     """``real_bar(symbol, interval, start) -> close | None`` (closed, confirmed). Grades every issued row whose target bar has ended."""
     c = _conn(path)
     with _LOCK:
-        due = c.execute("SELECT symbol,interval,target_start,target_end,made_at,anchor_px,mid,lo,hi,k,pool,mode,scale FROM issued "
+        due = c.execute("SELECT symbol,interval,target_start,target_end,made_at,anchor_px,mid,lo,hi,k,pool,mode,scale,rev FROM issued "
                         "WHERE target_end<=? AND (symbol,interval,target_start) NOT IN (SELECT symbol,interval,target_start FROM scored) "
                         "ORDER BY target_end LIMIT ?", (now, limit)).fetchall()
     scored = waiting = 0
@@ -83,7 +90,7 @@ def score_due(real_bar, now: float, path: str | None = None, limit: int = 4000) 
         exp = c.execute("DELETE FROM issued WHERE target_end<? AND (symbol,interval,target_start) NOT IN (SELECT symbol,interval,target_start FROM scored)",
                         (now - 14 * 86400,)).rowcount
         c.commit()
-    for sym, iv, ts, te, made, apx, mid, lo, hi, k, pool, mode, sc in due:
+    for sym, iv, ts, te, made, apx, mid, lo, hi, k, pool, mode, sc, rev in due:
         try:
             actual = real_bar(sym, iv, ts)
         except Exception:
@@ -95,19 +102,22 @@ def score_due(real_bar, now: float, path: str | None = None, limit: int = 4000) 
         err = math.log(actual / mid)
         naive = math.log(actual / apx)
         z = err / (half / (sc or 1.0)) if half > 0 else None   # relative to the UNSCALED band, so live scaling never compounds
-        out.append((sym, iv, ts, now, actual, mid, lo, hi, apx, err, naive, z, int(lo <= actual <= hi), k, pool, mode, made))
+        out.append((sym, iv, ts, now, actual, mid, lo, hi, apx, err, naive, z, int(lo <= actual <= hi), k, pool, mode, made, rev or 1))
         scored += 1
     if out:
         with _LOCK:
-            c.executemany("INSERT OR IGNORE INTO scored VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", out)
+            c.executemany("INSERT OR IGNORE INTO scored VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", out)
             c.commit()
     return {"scored": scored, "waiting_for_real_bar": waiting, "expired": exp}
 
 
-def calibration(path: str | None = None, pool: str | None = None, interval: str | None = None, since: float | None = None) -> dict[str, Any]:
-    """Live calibration of the nowcast: coverage of the 80% interval, error vs the naive last-print forecast, by pool x interval."""
+def calibration(path: str | None = None, pool: str | None = None, interval: str | None = None, since: float | None = None, rev: int | None = REV) -> dict[str, Any]:
+    """Live calibration of the nowcast: coverage of the 80% interval, error vs the naive last-print forecast, by pool x interval.
+    ``rev`` picks the issue rule (2 = first issue per target bar, the current one; 1 = legacy last-tick rows; None = both)."""
     c = _conn(path)
     q, a = "SELECT pool, interval, covered, err_log, naive_err_log, z, k, mode FROM scored WHERE 1=1", []
+    if rev is not None:
+        q += " AND COALESCE(rev,1)=?"; a.append(rev)
     if pool:
         q += " AND pool=?"; a.append(pool)
     if interval:
@@ -132,20 +142,21 @@ def calibration(path: str | None = None, pool: str | None = None, interval: str 
                       "naive_mae_bps": round(nmae * 1e4, 3), "mean_k": round(sum(r[6] for r in rs) / n, 2),
                       "abs_z_p80": round(zs[min(len(zs) - 1, int(0.8 * len(zs)))], 3) if zs else None})
     n_all = len(rows)
-    return {"n_scored": n_all, "n_issued": n_issued, "n_waiting": n_wait,
+    return {"rev": rev, "n_scored": n_all, "n_issued": n_issued, "n_waiting": n_wait,
             "coverage_80": round(sum(r[2] for r in rows) / n_all, 4) if n_all else None, "target": 0.8,
             "note": "Live out-of-sample: each row is a nowcast frozen before its bar closed, graded against the real bar. Coverage should be near 0.80; "
                     "n is small until bars accumulate. No profitability claim.", "cells": cells}
 
 
 def live_scale(pool: str, interval: str, path: str | None = None, min_n: int = 60) -> float:
-    """Multiplier on the interval half-width from live coverage: |z| p80 above 1 means the band was too tight. Bounded to [0.8, 1.6]."""
+    """Multiplier on the interval half-width from live coverage: |z| p80 above 1 means the band was too tight (z is measured against the UNSCALED band,
+    so p80 is the multiplier that would have covered 80%). Rev-2 rows only, newest 400, bounded to [0.5, 3.0]."""
     c = _conn(path)
     with _LOCK:
-        zs = [abs(r[0]) for r in c.execute("SELECT z FROM scored WHERE pool=? AND interval=? ORDER BY scored_at DESC LIMIT 800", (pool, interval)).fetchall()
+        zs = [abs(r[0]) for r in c.execute("SELECT z FROM scored WHERE pool=? AND interval=? AND COALESCE(rev,1)=? ORDER BY scored_at DESC LIMIT ?", (pool, interval, REV, SCALE_WINDOW)).fetchall()
               if r[0] is not None and r[0] == r[0]]   # a NaN z is stored as NULL
     if len(zs) < min_n:
         return 1.0
     zs.sort()
     p80 = zs[min(len(zs) - 1, int(0.8 * len(zs)))]
-    return float(min(1.6, max(0.8, p80)))
+    return float(min(SCALE_MAX, max(SCALE_MIN, p80)))

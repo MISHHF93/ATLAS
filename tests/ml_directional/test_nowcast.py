@@ -118,10 +118,10 @@ def test_live_scale_bounds(tmp_path):
     lp = str(tmp_path / "s.sqlite")
     assert NL.live_scale("crypto", "1m", lp) == 1.0          # not enough scored rows: unchanged
     c = NL._conn(lp)
-    c.executemany("INSERT INTO scored VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                  [("X", "1m", i, float(i), 1, 1, 1, 1, 1, 0, 0, 3.0, 0, 1, "crypto", "live", 0) for i in range(80)])
+    c.executemany("INSERT INTO scored VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                  [("X", "1m", i, float(i), 1, 1, 1, 1, 1, 0, 0, 3.0, 0, 1, "crypto", "live", 0, 2) for i in range(80)])
     c.commit()
-    assert NL.live_scale("crypto", "1m", lp) == 1.6          # bands were far too tight: widen, bounded
+    assert NL.live_scale("crypto", "1m", lp) == 3.0          # bands were far too tight: widen, bounded at 3x
 
 
 def test_nowcast_endpoints(feed, monkeypatch):
@@ -168,11 +168,11 @@ def test_wild_quote_is_not_an_anchor(feed):
 def test_null_z_rows_do_not_break_calibration_or_live_scale(tmp_path):
     lp = str(tmp_path / "n.sqlite")
     c = NL._conn(lp)
-    rows = [("X", "1m", i, float(i), 1, 1, 1, 1, 1, 0, 0, None if i % 2 else 1.2, 1, 1, "crypto", "live", 0) for i in range(80)]
-    c.executemany("INSERT INTO scored VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+    rows = [("X", "1m", i, float(i), 1, 1, 1, 1, 1, 0, 0, None if i % 2 else 1.2, 1, 1, "crypto", "live", 0, 2) for i in range(80)]
+    c.executemany("INSERT INTO scored VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
     c.commit()
     assert NL.calibration(lp)["n_scored"] == 80
-    assert 0.8 <= NL.live_scale("crypto", "1m", lp) <= 1.6
+    assert 0.5 <= NL.live_scale("crypto", "1m", lp) <= 3.0
 
 
 @pytest.mark.parametrize("iv", ["1m", "5m", "15m", "1h", "4h", "1d"])
@@ -208,3 +208,27 @@ def test_intraday_quote_must_come_from_the_same_venue_as_the_bars(feed):
     feed.store.upsert_quotes([q("binance", base * 1.0004)])
     r = NC.nowcast(feed, "BTCUSDT", "1m", now=NOW + 20, horizon=2)
     assert r["anchor"]["source"] == "quote" and r["anchor"]["provider"] == "binance"
+
+
+def test_first_issue_wins_and_legacy_rows_do_not_drive_the_scale(tmp_path):
+    lp = str(tmp_path / "r.sqlite")
+    row = lambda mid: {"symbol": "BTCUSDT", "interval": "1m", "target_start": 1000, "target_end": 1060, "anchor_t": 940, "anchor_px": 100, "mid": mid, "lo": mid - 1, "hi": mid + 1, "k": 1}
+    assert NL.issue([row(100.0)], 1001, lp) == 1
+    assert NL.issue([row(105.0)], 1050, lp) == 0                     # a later tick never replaces the first, full-lead forecast
+    assert NL._conn(lp).execute("SELECT mid, rev FROM issued").fetchall() == [(100.0, 2)]
+    c = NL._conn(lp)
+    c.executemany("INSERT INTO scored VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                  [("X", "1m", i, float(i), 1, 1, 1, 1, 1, 0, 0, 2.5, 0, 1, "crypto", "live", 0, 1) for i in range(100)])   # legacy rev-1 rows
+    c.commit()
+    assert NL.live_scale("crypto", "1m", lp) == 1.0 and NL.calibration(lp)["n_scored"] == 0 and NL.calibration(lp, rev=1)["n_scored"] == 100
+
+
+def test_migration_adds_rev_to_an_existing_ledger(tmp_path):
+    import sqlite3
+    lp = str(tmp_path / "old.sqlite")
+    db = sqlite3.connect(lp)
+    db.executescript("CREATE TABLE issued(symbol TEXT, interval TEXT, target_start INTEGER, target_end INTEGER, made_at REAL, anchor_t REAL, anchor_px REAL, mid REAL, lo REAL, hi REAL, k REAL, pool TEXT, mode TEXT, scale REAL, PRIMARY KEY(symbol, interval, target_start));"
+                     "CREATE TABLE scored(symbol TEXT, interval TEXT, target_start INTEGER, scored_at REAL, actual REAL, mid REAL, lo REAL, hi REAL, anchor_px REAL, err_log REAL, naive_err_log REAL, z REAL, covered INTEGER, k REAL, pool TEXT, mode TEXT, made_at REAL, PRIMARY KEY(symbol, interval, target_start));"
+                     "INSERT INTO scored VALUES('X','1m',1,1,1,1,1,1,1,0,0,1.0,1,1,'crypto','live',0);")
+    db.commit(); db.close()
+    assert NL.calibration(lp, rev=1)["n_scored"] == 1 and NL.calibration(lp)["n_scored"] == 0

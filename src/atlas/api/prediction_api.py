@@ -153,9 +153,11 @@ def api_asset(symbol: str = Query(...)) -> dict[str, Any]:
 
 
 @router.get("/nowcast/calibration")
-def api_nowcast_calibration(pool: str | None = Query(default=None), interval: str | None = Query(default=None)) -> dict[str, Any]:
+def api_nowcast_calibration(pool: str | None = Query(default=None), interval: str | None = Query(default=None),
+                            rev: int | None = Query(default=2, ge=0, le=2)) -> dict[str, Any]:
+    """rev 2 = current rule (first issue per bar, widened scale clamp); rev 1 = legacy last-tick rows; rev 0 = both."""
     from atlas.ai.prediction import nowcast_log as NL
-    return NL.calibration(pool=pool, interval=interval)
+    return NL.calibration(pool=pool, interval=interval, rev=rev or None)
 
 
 @router.get("/nowcast/status")
