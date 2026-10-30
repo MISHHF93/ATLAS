@@ -105,7 +105,7 @@ def test_no_short(engine):
 
 
 # ---- venue
-@pytest.mark.parametrize("b", ["oanda", "robinhood_crypto", "wealthsimple"])
+@pytest.mark.parametrize("b", ["oanda", "robinhood_crypto", "wealthsimple", "binance"])
 def test_disabled_or_unknown_broker(engine, b):
     assert "broker" in reasons(engine.evaluate(intent(broker=b), state()))
 

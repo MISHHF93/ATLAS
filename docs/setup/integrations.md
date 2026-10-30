@@ -36,7 +36,7 @@ first (`ActionableControlPlaneEngine.submit_order`), and research/ML output keep
 | OANDA | `OANDA_API_TOKEN`, `OANDA_ACCOUNT_ID`, `OANDA_ENV=practice` | Free practice account | oanda.com demo → Manage API access | feed health |
 | Questrade | `QUESTRADE_REFRESH_TOKEN` | Free with account | Questrade → App Hub → API access (token single-use, 7 days) | feed health |
 | IBKR Client Portal | `IBKR_CP_GATEWAY_URL` | Free with account | Run the local gateway, log in with a paper (DU…) user | feed health |
-| Binance/Bybit/Coinbase/Kraken/OKX, Yahoo | none | Free, keyless | — | feed health |
+| Coinbase/Kraken, Yahoo | none | Free, keyless | — | feed health |
 | Telegram alerts | `ATLAS_ALERTS_ENABLED=true`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Free | @BotFather | `/api/ext/alerts/preview` (does not send) |
 | Discord alerts | `ATLAS_ALERTS_ENABLED=true`, `DISCORD_WEBHOOK_URL` | Free | Channel → Integrations → Webhooks | alerts preview |
 | Slack alerts | `ATLAS_ALERTS_ENABLED=true`, `SLACK_WEBHOOK_URL` | Free | api.slack.com/messaging/webhooks | alerts preview |

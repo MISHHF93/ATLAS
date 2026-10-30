@@ -545,7 +545,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
             "name": "Multi-Broker Bridge & Execution Router",
             "buyer_persona": "CTO, Head of Trading",
             "pain_point": "Fragmented API integrations across different asset classes create a maintenance nightmare and execution latency.",
-            "atlas_solution": "Unified FIX / REST abstraction across Alpaca, IBKR, cTrader, DXtrade, Bybit, Coinbase via ATLAS Execution Routing.",
+            "atlas_solution": "Unified FIX / REST abstraction across Alpaca, IBKR, cTrader, DXtrade, Coinbase, Kraken via ATLAS Execution Routing.",
             "domain_scope": "Global (All Asset Classes)",
             "pricing_model": "Monthly B2B Retainer ($2,000/mo) + $350/mo per connected FIX/REST venue gateway",
             "phase": "Planned",
@@ -728,7 +728,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
         },
         {
             "domain": "24/7 Crypto Spot & Perps",
-            "venues": "Coinbase Advanced / Binance / Hyperliquid",
+            "venues": "Coinbase Advanced / Kraken / Hyperliquid",
             "sessions": "Continuous 24/7/365 with 8h/1h funding windows",
             "granularity": "L2 10-level Depth, Funding rate & Open Interest",
             "prop_nuances": "Funding rate bleed & high-volatility liquidation cascades",
@@ -818,7 +818,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
         {"dimension": "Max Trailing DD", "open_market_spec": "10.0% Static Drawdown Floor", "prop_competition_spec": "8.0% Max Trailing Drawdown Floor", "deterministic_enforcement": "ActionableControlPlaneEngine"},
         {"dimension": "Per-Trade Risk Cap", "open_market_spec": "0.50% Equity Risk Cap", "prop_competition_spec": "0.50%-0.75% Per-Trade Risk Cap", "deterministic_enforcement": "Mandatory ATR/Structure Stop + VPIN Widening"},
         {"dimension": "Consistency Gate", "open_market_spec": "Unconstrained Open-Market Compounding", "prop_competition_spec": "<= 35% Single-Day Profit Consistency Gate", "deterministic_enforcement": ">= 5 Minimum Trading Days"},
-        {"dimension": "Data Feeds", "open_market_spec": "Public Yahoo chart bars; SEC EDGAR as-filed selector (Databento/Polygon not configured)", "prop_competition_spec": "Public Binance/Coinbase klines (Databento not configured)", "deterministic_enforcement": "acceptance_time <= as_of (PIT Gate)"},
+        {"dimension": "Data Feeds", "open_market_spec": "Public Yahoo chart bars; SEC EDGAR as-filed selector (Databento/Polygon not configured)", "prop_competition_spec": "Public Coinbase/Kraken klines (Databento not configured)", "deterministic_enforcement": "acceptance_time <= as_of (PIT Gate)"},
         {"dimension": "Broker Routing", "open_market_spec": "Alpaca / IBKR PAPER adapters (off by default)", "prop_competition_spec": "Paper broker only (no FIX/Coinbase/cTrader/Rithmic routing)", "deterministic_enforcement": "Zero operator discretion"},
         {"dimension": "Regulatory/Audit Standard", "open_market_spec": "SEC T+1 / Reg-T / XBRL Audit", "prop_competition_spec": "Prop Challenge Rulebook Verification", "deterministic_enforcement": "ISO 42001, NIST AI RMF, IOSCO & 8 Ledgers"},
     ]

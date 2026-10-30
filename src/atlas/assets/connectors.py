@@ -5,7 +5,7 @@ delayed-vs-real-time labels, licensing cost tiers, and live SQLite store health 
 - Official Central Banks (Bank of Canada Valet, European Central Bank SDMX 2.1)
 - Official Securities Regulators & Macro Authorities (SEC EDGAR XBRL, St. Louis Fed FRED)
 - Authorized Broker & Market-Data Vendors (Alpaca IEX & Crypto, Massive/Polygon, Databento CME/Nasdaq, Questrade TSX)
-- Public Spot Digital-Asset Venues (Coinbase Exchange, Binance, Kraken)
+- Public Spot Digital-Asset Venues (Coinbase Exchange, Kraken)
 - Explicitly Labelled Unofficial Delayed Fallback (Yahoo Finance — internal research only, never commercial redistribution)
 - Decommissioned Speculative Token Launchpads (Pump.fun / PumpSwap — disabled on active product roadmap).
 
@@ -174,7 +174,7 @@ AUTHORIZED_MARKET_DATA_CONNECTORS: tuple[AuthorizedMarketDataConnector, ...] = (
     ),
     AuthorizedMarketDataConnector(
         connector_id="public_spot_crypto_exchanges",
-        title="Coinbase Exchange, Binance & Kraken Public Spot Market Data",
+        title="Coinbase Exchange & Kraken Public Spot Market Data",
         provider_type="public_spot_digital_exchange",
         asset_classes_covered=("major_digital_asset",),
         official_docs_url="https://docs.cdp.coinbase.com/exchange/docs/websocket-overview",
@@ -187,7 +187,7 @@ AUTHORIZED_MARKET_DATA_CONNECTORS: tuple[AuthorizedMarketDataConnector, ...] = (
         commercial_redistribution_permitted=False,
         redistribution_and_licensing_terms="Public venue APIs for internal research and paper simulation; subject to venue rate limits and terms of service.",
         enabled_on_active_roadmap=True,
-        feed_provider_keys=("binance", "coinbase", "kraken", "bybit", "okx"),
+        feed_provider_keys=("coinbase", "kraken"),
     ),
     AuthorizedMarketDataConnector(
         connector_id="yahoo_finance_fallback",
@@ -307,7 +307,7 @@ def audit_market_data_connectors(now: float | None = None) -> dict[str, Any]:
         "provider_quote_summary": provider_quote_counts,
         "connectors": connector_reports,
         "commercial_redistribution_policy": (
-            "Publicly visible or free-tier market data (Yahoo Finance, Alpaca Basic IEX, Massive Free Tier, Coinbase/Binance public WS) "
+            "Publicly visible or free-tier market data (Yahoo Finance, Alpaca Basic IEX, Massive Free Tier, Coinbase/Kraken public WS) "
             "is restricted to internal research display and paper simulation. Commercial multi-user redistribution requires direct "
             "exchange/vendor distribution agreements (e.g., TMX Datalinx, CME Group Market Data, Nasdaq Basic/CTA SIP). "
             "Official Bank of Canada Valet and ECB SDMX reference series permit redistribution with mandatory source attribution."

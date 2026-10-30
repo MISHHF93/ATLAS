@@ -29,7 +29,7 @@ ATLAS (Autonomous Trading, Liquidity, Allocation & Strategy Intelligence) is a f
 ## Architecture (pipeline)
 
 ```
-ATLAS feed (src/atlas/feeds: one PIT bar store; official keyless crypto from Binance, OKX, Kraken, Coinbase. Yahoo is unofficial and is not the evolution book. Keyed adapters stay off until env keys exist.)
+ATLAS feed (src/atlas/feeds: one PIT bar store; official keyless crypto from Coinbase and Kraken. Yahoo is unofficial and is not the evolution book. Keyed adapters stay off until env keys exist.)
         │  bar_confirmed only after bar_end; refuse dup/out-of-order
         ▼
 features/price_action ── indicators (EMA/RSI/ATR/BB/bar-VWAP) · sessions (DST) · Zone lifecycle
@@ -89,7 +89,7 @@ Owner and agent commands:
 python -m atlas.keys.cli create --name claude-desktop --scope read --rate 60   # key printed once
 atlas-owner setup-autopilot-approve <request_id>                               # passphrase + TOTP
 python scripts/fetch_public_history.py && python scripts/run_setup_evidence.py # reproduce setup evidence (cache in var/)
-python scripts/fetch_public_history.py --15m                                  # 15m cache -> var/evidence_cache_15m (Yahoo 60d, Binance 730d)
+python scripts/fetch_public_history.py --15m                                  # 15m cache -> var/evidence_cache_15m (Yahoo 60d, Coinbase 730d)
 python scripts/run_selector_evidence.py var/evidence_cache_15m                 # reproduce selector evidence
 ```
 

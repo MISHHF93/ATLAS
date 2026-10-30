@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-30: crypto data now Coinbase + Kraken only (Binance, Bybit, OKX, Robinhood Crypto removed)
+- Binance, Bybit and OKX are not available to Canadian residents, and Robinhood Crypto is US-only. They are removed from ATLAS: adapters (`feeds/providers/{binance,bybit,okx}.py`), the provider chain, live ingest, universe, instruments, catalog rows, nowcast, ML evidence and scripts, frontend TradingView mapping and labels, `ATLAS_BINANCE_REST_HOSTS`, the `robinhood_crypto` broker and venue blocks (`ROBINHOOD_CRYPTO_*`), and the provider docs. The `excluded_venues` safety records for them stay.
+- Crypto now comes from Coinbase (`<BASE>-USD`: REST history, gap fill, ticker) and Kraken (`<BASE>/USD`: 1m ohlc websocket, ticker) through the existing adapters, with the `kraken_ca` blocklist respected (`feeds/crypto_venues.py`). Internal ids (`BTCUSDT` etc.) are kept, the venue is labelled COINBASE and the currency USD. An asset with no listing, or a blocklisted base, shows a labelled empty state, never fake data.
+- Known break: stored Binance/OKX history (USDT quote) is no longer read by `feed.bars()`. A Coinbase backfill is needed for depth, and there is a USDT to USD basis break at the switch.
+- Research cost assumption for crypto spot raised from 24 bp (a Binance fee schedule) to 124 bp round trip (60 bp taker per side at Kraken Pro tier 2 plus 2 bp slippage per side; Kraken fee schedule read 2026-10-30). This tightens evidence and loosens no gate. Evidence published earlier used 24 bp and stays as a dated record.
+- Models need retraining on the new source. Existing models stay as `.prev`; the rolling retrain and challenger gate decide. No gate was changed.
+- Alpaca `.env.example` comment reworded (paper is available to Canadians; live accounts and paid data are not). Questrade refresh-token lifetime corrected to 3 days.
+
 ## 2026-10-30: Tradier removed
 - Tradier requires non-Canadian residency, so it is removed entirely: adapter (`feeds/providers/tradier.py`), default stock chain (now polygon, alphavantage, questrade, alpaca), integrations registry, verify, setup/checklist UI entry, source terms, provider catalog and docs, and `TRADIER_ACCESS_TOKEN` / `TRADIER_ENV` in `.env.example`. No other provider and no safety gate changed. The generic HTTP 400 "Quota Violation" retry in `feeds/core.py` stays (now tested with another adapter).
 

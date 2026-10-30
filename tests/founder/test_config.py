@@ -36,8 +36,8 @@ def test_undefined_sleeve(cfg_dir):
 
 
 def test_disabled_broker_in_routing(cfg_dir):
-    edit(cfg_dir, "brokers.yaml", lambda d: d["routing"].__setitem__("crypto", ["coinbase", "robinhood_crypto"]))
-    assert "disabled broker 'robinhood_crypto'" in errs(cfg_dir)
+    edit(cfg_dir, "brokers.yaml", lambda d: d["routing"].__setitem__("crypto", ["coinbase", "oanda"]))
+    assert "disabled broker 'oanda'" in errs(cfg_dir)
 
 
 def test_disabled_broker_in_venue(cfg_dir):

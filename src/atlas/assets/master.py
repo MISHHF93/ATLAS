@@ -492,7 +492,7 @@ CANONICAL_ISSUERS: tuple[IssuerRecord, ...] = (
         "INTL",
         "decentralized_network_benchmark",
         "https://www.coinbase.com",
-        "Multi-Exchange Spot Aggregation (Binance, Coinbase, Kraken, Alpaca Crypto)",
+        "Multi-Exchange Spot Aggregation (Coinbase, Kraken, Alpaca Crypto)",
     ),
 )
 

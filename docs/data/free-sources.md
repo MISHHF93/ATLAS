@@ -19,7 +19,7 @@ Alpaca on the free **Basic** plan: IEX feed only, 200 req/min (ATLAS caps itself
 | Asset class | Best free primary | Fallback | Limits | Terms note |
 |---|---|---|---|---|
 | US stocks / ETFs | Massive/Polygon Stocks Basic (EOD, free, email signup) | Alpha Vantage (25/day), Questrade, Alpaca Basic (IEX, optional) | Massive 5/min; Alpha Vantage 25/day; Alpaca 200/min | Daily bars only on free plans. Tiingo/Twelve Data/Finnhub free plans are excluded from the automatic chain (storage/display or candles not allowed). |
-| Crypto | Alpaca crypto history endpoint (keyless, real time) | Coinbase, Kraken public APIs; Binance/OKX/Bybit where legal | Alpaca 200/min; Kraken ~1 req/s | Binance.com is geo-restricted in Ontario/US. Public market-data endpoints need no key. |
+| Crypto | Alpaca crypto history endpoint (keyless, real time) | Coinbase, Kraken public APIs | Alpaca 200/min; Kraken ~1 req/s | Binance, Bybit and OKX are not used (not available to Canadian residents). Public market-data endpoints need no key. |
 | Gold | OANDA practice XAU/USD (CFD price, real time) | Twelve Data free (XAU/USD, delayed) | OANDA practice is free with a demo account | **Gap:** CME GC futures data is licensed; the LBMA price is licensed (no free API). OANDA is a CFD proxy, not the exchange price. |
 | Futures | none free and official | CFTC COT (weekly positioning, Socrata, keyless) | — | **Gap:** CME real time/delayed is licensed. Yahoo futures are unofficial and excluded. |
 | Forex | OANDA practice (real time) | Twelve Data / Finnhub free; Bank of Canada Valet (`boc_valet`, `USD_CAD` daily reference, keyless); European Central Bank Data Portal (`ecb_fx`, `EUR_USD` / `USD_CAD` daily reference, keyless) | BoC & ECB: ATLAS caps 1 req/s | Both BoC Valet (`www.bankofcanada.ca/valet`) and ECB Data Portal (`data-api.ecb.europa.eu` with `certifi` TLS + `eurofxref` XML fallback) are official keyless central-bank reference feeds. |
@@ -45,7 +45,7 @@ Check it live at Settings, Connectors, "Data coverage" (`GET /api/feeds/catalog-
 
 | Class | Keyless today | Free key that unlocks it |
 |---|---|---|
-| Crypto | Alpaca crypto history, Binance, OKX and others (official public endpoints) | none |
+| Crypto | Alpaca crypto history, Coinbase, Kraken (official public endpoints) | none |
 | FX daily | ECB reference rates (EUR crosses), Bank of Canada Valet (USD/CAD): daily only, labelled | Oanda practice, Twelve Data, Finnhub for intraday |
 | Stocks and ETFs (incl. GLD, SLV, SPY, QQQ) | none (official sources all require a free key) | Massive/Polygon Basic (primary, daily), Alpha Vantage, Questrade, Alpaca (optional) |
 | Gold / silver spot, index levels | none | GLD, SLV, SPY, QQQ, DIA, IWM are the labelled free stand-ins once a stock key exists |

@@ -51,14 +51,6 @@ venues:
     # Synced-file format: config/blocklists/kraken_ca.yaml (merged at load; stale => fail closed).
     asset_blocklist: []
     asset_blocklist_file: blocklists/kraken_ca.yaml
-  robinhood_crypto:
-    legal_entity: Robinhood Crypto LLC
-    entity_types: []
-    registration: { status: not_registered_in_canada, regulator: none, last_verified: 2026-10-16 }
-    execution_allowed: false
-    asset_classes: []
-    flags: { margin: false, derivatives: false, spot_only: true }
-    asset_blocklist: []
   oanda:
     legal_entity: OANDA (Canada) Corporation ULC
     entity_types: [individual, corporation]
@@ -75,6 +67,7 @@ excluded_venues:
   binance: "Unregistered offshore exchange"
   bybit: "Unregistered offshore exchange"
   okx: "Unregistered offshore exchange"
+  robinhood_crypto: "Not available to Canadian residents"
 
 registered_statuses: [ciro_member, restricted_dealer, investment_dealer]
 

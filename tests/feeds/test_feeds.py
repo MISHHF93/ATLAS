@@ -12,11 +12,10 @@ import pytest
 from atlas.feeds import AtlasFeed, FeedBar, FeedStore, InstrumentMaster, ProviderRegistry, assess, find_gaps
 from atlas.feeds.aggregate import aggregate
 from atlas.feeds.core import ProviderError, RateLimiter, backoff_delays
-from atlas.feeds.providers import (ALL_ADAPTERS, AlpacaAdapter, AlphaVantageAdapter, BinanceAdapter, BybitAdapter,
+from atlas.feeds.providers import (ALL_ADAPTERS, AlpacaAdapter, AlphaVantageAdapter,
                                    CoinbaseAdapter, DatabentoAdapter, FinnhubAdapter, FREDAdapter, IBKRAdapter,
-                                   KrakenAdapter, OandaAdapter, OKXAdapter, PolygonAdapter, QuestradeAdapter,
+                                   KrakenAdapter, OandaAdapter, PolygonAdapter, QuestradeAdapter,
                                    TiingoAdapter, TwelveDataAdapter, YahooAdapter)
-from atlas.feeds.providers.binance import parse_kline_ws
 from atlas.feeds.providers.kraken import parse_ohlc_ws
 from atlas.feeds.providers.stubs import parse_databento_json
 
@@ -61,7 +60,7 @@ def test_every_adapter_has_complete_manifest():
         assert c.asset_classes and c.schemas and c.official_docs and c.terms_url and c.rate_limits
         assert all(d.startswith("https://") for d in c.official_docs)
         assert all(e.isupper() for e in c.auth_env)
-    assert {"binance", "coinbase", "kraken", "okx", "bybit", "yahoo", "fred", "alpaca", "tiingo", "polygon", "finnhub",
+    assert {"coinbase", "kraken", "yahoo", "fred", "alpaca", "tiingo", "polygon", "finnhub",
             "twelvedata", "alphavantage", "databento", "ibkr", "oanda", "questrade", "cme", "tmx",
             "boc_valet", "ecb_fx"} <= names
 
@@ -86,51 +85,29 @@ def test_keyed_adapters_activate_only_with_env():
 
 # ---------------- keyless adapters ----------------
 
-def test_binance_geo_block_fails_over_to_next_host_and_paginates():
-    rows = [[(T0 + i * 900) * 1000, "100", "101", "99", "100.5", "3", (T0 + i * 900 + 899) * 1000] for i in range(10)]
-    a, http = mk(BinanceAdapter, {"api.binance.com": [(451, {}, {"code": 0, "msg": "restricted location"})],
-                                  "data-api.binance.vision": [(200, {}, rows[:6]), (200, {}, rows[6:]), (200, {}, [])]},
-                 env={"ATLAS_BINANCE_REST_HOSTS": "https://api.binance.com,https://data-api.binance.vision"})
-    bars = a.history("BTCUSDT", "15m", T0, NOW)
-    assert len(bars) == 10 and bars[0].event_time == T0 and bars[-1].confirmed
-    assert "api.binance.com" in http.calls[0][0] and all("vision" in u for u, _ in http.calls[1:])
+def test_coinbase_geo_block_is_flagged():
+    a, _ = mk(CoinbaseAdapter, {"coinbase": [(403, {}, b"configured to block access from your country")]})
+    with pytest.raises(ProviderError) as e:
+        a.history("BTCUSDT", "15m", T0, T0 + 900)
+    assert e.value.geo_blocked
 
 
-def test_binance_rate_limit_retry_after_then_success():
-    rows = [[T0 * 1000, "1", "2", "0.5", "1.5", "1", 0]]
+def test_coinbase_rate_limit_retry_after_then_success():
+    rows = [[T0, 0.5, 2, 1, 1.5, 1]]
     slept = []
-    http = FakeHTTP({"vision": [(429, {"Retry-After": "3"}, b"slow down"), (200, {}, rows), (200, {}, [])]})
-    a = BinanceAdapter(transport=http, env={}, clock=lambda: NOW, sleep=slept.append, limiter=RateLimiter(1000, sleep=lambda s: None))
+    http = FakeHTTP({"coinbase": [(429, {"Retry-After": "3"}, b"slow down"), (200, {}, rows)]})
+    a = CoinbaseAdapter(transport=http, env={}, clock=lambda: NOW, sleep=slept.append, limiter=RateLimiter(1000, sleep=lambda s: None))
     assert len(a.history("BTCUSDT", "15m", T0, T0 + 900)) == 1
     assert slept[0] == 3.0 and a.health().rate_limited == 1
 
 
-def test_binance_ws_kline_only_final_is_confirmed():
-    a = BinanceAdapter(env={}, clock=lambda: NOW)
-    k = {"t": T0 * 1000, "s": "BTCUSDT", "i": "15m", "o": "1", "h": "2", "l": "0.5", "c": "1.5", "v": "9", "x": False}
-    (b,) = parse_kline_ws({"data": {"e": "kline", "k": k}}, T0 + 100, {}, a)
-    assert not b.confirmed
-    (b,) = parse_kline_ws({"data": {"e": "kline", "k": {**k, "x": True}}}, T0 + 901, {}, a)
-    assert b.confirmed
-
-
-def test_coinbase_kraken_okx_bybit_yahoo_parse():
+def test_coinbase_kraken_yahoo_parse():
     cb, _ = mk(CoinbaseAdapter, {"coinbase": [(200, {}, [[T0 + 900, 9, 11, 10, 10.5, 2], [T0, 9, 11, 10, 10.2, 1]])]})
     assert [b.event_time for b in cb.history("BTCUSDT", "15m", T0, T0 + 1800)] == [T0, T0 + 900]
     assert cb.history("BTCUSDT", "15m", T0, T0 + 1800)[0].open == 10
     kr, _ = mk(KrakenAdapter, {"kraken": [(200, {}, {"error": [], "result": {"XBTUSD": [[T0, "10", "11", "9", "10.5", "10.2", "3", 7]], "last": T0}})]})
     (b,) = kr.history("BTCUSDT", "15m", T0, T0 + 900)
     assert b.volume == 3 and b.provider_symbol == "XBTUSD"
-    ok, _ = mk(OKXAdapter, {"okx": [(200, {}, {"code": "0", "data": [[str((T0 + 900) * 1000), "1", "2", "0.5", "1", "5", "", "", "1"],
-                                                                        [str(T0 * 1000), "1", "2", "0.5", "1", "5", "", "", "1"]]}),
-                                    (200, {}, {"code": "0", "data": []})]})
-    assert len(ok.history("BTCUSDT", "15m", T0, T0 + 1800)) == 2
-    by, _ = mk(BybitAdapter, {"bybit": [(200, {}, {"retCode": 0, "result": {"list": [[str(T0 * 1000), "1", "2", "0.5", "1", "5", "5"]]}})]})
-    assert len(by.history("BTCUSDT", "15m", T0, T0 + 900)) == 1
-    by2, _ = mk(BybitAdapter, {"bybit": [(403, {}, b"configured to block access from your country")]})
-    with pytest.raises(ProviderError) as e:
-        by2.history("BTCUSDT", "15m", T0, T0 + 900)
-    assert e.value.geo_blocked
     yh, _ = mk(YahooAdapter, {"yahoo": [(200, {}, {"chart": {"result": [{"timestamp": [T0, T0 + 900, T0 + 9000],
                "indicators": {"quote": [{"open": [1, None, 1], "high": [2, 2, 2], "low": [0.5, 0.5, 0.5], "close": [1.5, 1, 1.5], "volume": [10, 1, 5]}]}}]}})]})
     bars = yh.history("SPY", "15m", T0, NOW + 900)
@@ -228,7 +205,7 @@ def test_questrade_refresh_flow_and_databento_parse():
 
 # ---------------- store / PIT / quality ----------------
 
-def bar(t, c=100.0, prov="binance", rt=None, conf=True, inst="BTCUSDT", iv="15m"):
+def bar(t, c=100.0, prov="coinbase", rt=None, conf=True, inst="BTCUSDT", iv="15m"):
     return FeedBar(inst, iv, t, c, c + 1, c - 1, c, 1.0, prov, rt if rt is not None else t + 900, conf)
 
 
@@ -256,7 +233,7 @@ def test_gap_detection_quality_flags_and_predict_abstains():
     assert "stale" in q.flags
     full = [bar(T0 + i * 900) for i in range(20)]
     assert assess(full, "24x7", "15m", T0 + 20 * 900 + 10).ok()
-    cross = [bar(T0 + i * 900, 110, prov="okx") for i in range(20)]
+    cross = [bar(T0 + i * 900, 110, prov="kraken") for i in range(20)]
     assert "provider_disagreement" in assess(full, "24x7", "15m", T0 + 20 * 900 + 10, cross=cross).flags
     assert "no_data" in assess([], "24x7", "15m", NOW).flags
 

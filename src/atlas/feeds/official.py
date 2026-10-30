@@ -122,7 +122,7 @@ def desk_status(env: dict[str, str] | None = None) -> dict[str, Any]:
     fresh = _freshness()
     notice = (
         "Paper simulator is the broker. Live orders stay off. "
-        "Official book: keyless crypto (Alpaca crypto, Binance, Coinbase, Kraken, OKX) and daily Bank of Canada / ECB FX. "
+        "Official book: keyless crypto (Coinbase, Kraken, Alpaca crypto) and daily Bank of Canada / ECB FX. "
         "US stocks, ETFs and CME futures have no official feed until a free key is in .env. "
         "Yahoo quotes stay on the tape as delayed and unofficial. They are not trade bars."
     )

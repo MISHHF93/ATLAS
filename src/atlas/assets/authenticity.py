@@ -9,7 +9,7 @@ Responsibilities:
   - ISO 10383 MIC (4-char Market Identifier Code)
   - ISO 4217 Currency & Precious Metal codes
 - Reconcile conflicting market-data sources (e.g. ECB SDMX vs Yahoo on EUR_USD; BoC Valet vs Yahoo on USD_CAD;
-  Binance vs Coinbase on BTC) and report divergence in basis points.
+  Kraken vs Coinbase on BTC) and report divergence in basis points.
 - Detect stale prices, duplicate symbol collisions, delisted/unlisted private entities (e.g. SPACEX, STRIPE, OPENAI),
   corporate-action split/dividend jump anomalies, and unvetted speculative launchpad tokens.
 - Strictly separate **Instrument Authenticity** (whether an instrument's identity, issuer, and exchange listing are

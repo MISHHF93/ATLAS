@@ -39,10 +39,12 @@ Training, evidence and replay read the store: `load_datasets()` in `atlas.resear
 
 ### Real backfill on 2026-10-23 (~22:07 UTC)
 
+> Historical record: this backfill used Binance for crypto. Binance, Bybit and OKX are no longer used (not available to Canadian residents); crypto now comes from Coinbase and Kraken. Stored Binance/OKX bars are not read by the provider chain, so crypto history needs a Coinbase backfill. Note the USDT to USD basis break at the switch.
+
 | Instrument | TF | Provider | Bars | Flags |
 |---|---|---|---|---|
-| BTCUSDT, ETHUSDT | 15m | binance (data-api.binance.vision) | 17,279 each (180 d) | ok |
-| BTCUSDT, ETHUSDT | 1h | binance | 17,519 each (2 y) | ok |
+| BTCUSDT, ETHUSDT | 15m | binance (retired 2026-10-30) | 17,279 each (180 d) | ok |
+| BTCUSDT, ETHUSDT | 1h | binance (retired 2026-10-30) | 17,519 each (2 y) | ok |
 | SPY, QQQ, IWM | 15m | yahoo (unofficial) | 1,093 each (~60 d, provider limit) | ok |
 | SPY / QQQ / IWM | 1h | yahoo | 3,434 / 3,435 / 3,434 (from 2024-11-04) | ok |
 
@@ -57,19 +59,15 @@ Crypto cross-check over 7 days of 1h bars (median bps): okx ~0.5, kraken ~1–2.
 
 ## Reachability from the box
 
-- **Bybit:** geo-blocked (CloudFront 403).
-- **api.binance.com:** returns 451. Failover goes to data-api.binance.vision; override with `ATLAS_BINANCE_REST_HOSTS`.
+- **Binance, Bybit, OKX:** not used. They are not available to Canadian residents. Crypto uses Coinbase and Kraken only; the `kraken_ca` blocklist is respected.
 - **No keyless equity sanity source:** set the Alpaca keys to get IEX bars, a second ETF source and cross-checks.
 
 ## Providers
 
 | Provider | Status | Assets | Env (names only) |
 |---|---|---|---|
-| [binance](data-providers/binance.md) | working | crypto | none (keyless) |
 | [coinbase](data-providers/coinbase.md) | working | crypto | none (keyless) |
 | [kraken](data-providers/kraken.md) | working | crypto | none (keyless) |
-| [okx](data-providers/okx.md) | working | crypto | none (keyless) |
-| [bybit](data-providers/bybit.md) | working | crypto | none (keyless) |
 | [yahoo](data-providers/yahoo.md) | working (unofficial) | equity, etf, index, fx, crypto, future | none (keyless) |
 | [fred](data-providers/fred.md) | interface_fixture_tested (endpoint reachable; needs key) | macro | `FRED_API_KEY` |
 | [alpaca](data-providers/alpaca.md) | interface_fixture_tested | equity, etf | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` |
@@ -96,7 +94,7 @@ Every price the UI shows comes from the ATLAS feed store. Each price is shown wi
 **Universe** (`atlas.feeds.universe`):
 - 218 UI symbols: 43 ETFs, about 123 US stocks, 34 crypto, and 18 CME futures.
 - `resolve()` maps UI aliases to feed instruments: `BTC-USD` → `BTCUSDT`, and `ES1!` → `ES`.
-- Crypto is the Binance `<BASE>USDT` spot pair, cross-checked against Coinbase `<BASE>-USD` and Kraken.
+- Crypto series keep the internal id `<BASE>USDT` but are fed from Coinbase `<BASE>-USD` (REST history, ticker) and Kraken `<BASE>/USD` (1m ohlc websocket, ticker). Assets with no listing, or on the `kraken_ca` blocklist, get a labelled empty state, never fake data.
 - Futures are Yahoo continuous front-month quotes. They are unofficial and delayed until Databento is keyed.
 - These symbols are intentionally `no_data`:
   - catalog placeholders (`PERP###-USD`, `EQ####`)
@@ -106,8 +104,8 @@ Every price the UI shows comes from the ATLAS feed store. Each price is shown wi
 - Run `python scripts/backfill_feeds.py --ui-universe --intervals 1d,15m,1m --no-cross-check`.
 - Yahoo 1d now requests `range=10y`. With `range=max`, Yahoo silently returned monthly bars.
 
-**Live ingest:** `python scripts/run_live_ingest.py` writes its PID to `var/feeds/live_ingest.pid`. It runs four feeds: `/api/feeds/health` reports `running` by checking that PID with `atlas.ops.procutil.pid_alive` (psutil if installed, else `OpenProcess`/`GetExitCodeProcess` on Windows, `os.kill(pid, 0)` on POSIX). Never use `os.kill(pid, 0)` directly: on Windows it terminates the process.
-- Binance combined `kline_1m` websocket: every update goes to `last_quotes`, and confirmed klines go to 1m bars.
+**Live ingest:** `python scripts/run_live_ingest.py` writes its PID to `var/feeds/live_ingest.pid`. It runs these feeds: `/api/feeds/health` reports `running` by checking that PID with `atlas.ops.procutil.pid_alive` (psutil if installed, else `OpenProcess`/`GetExitCodeProcess` on Windows, `os.kill(pid, 0)` on POSIX). Never use `os.kill(pid, 0)` directly: on Windows it terminates the process.
+- Kraken v2 `ohlc` (1m) websocket: every update goes to `last_quotes`, and confirmed candles go to 1m bars.
 - Coinbase `ticker` websocket.
 - Kraken v2 `ticker` websocket.
 - Yahoo v7 spark polling: 20 symbols per request at 1 request per second, every 30s while a session is open and every 15 min while it is closed.
@@ -118,7 +116,7 @@ Every price the UI shows comes from the ATLAS feed store. Each price is shown wi
 
 | Status | Meaning |
 |---|---|
-| `live` | A real-time provider (Binance, Coinbase, Kraken, Alpaca and similar) printed within 120s (180s for futures and FX) while the market is open. |
+| `live` | A real-time provider (Coinbase, Kraken, Alpaca and similar) printed within 120s (180s for futures and FX) while the market is open. |
 | `delayed` | Yahoo printed within 30 min while the market is open. |
 | `market_closed` | The session is closed, by calendar or holiday, and the print is at or after the last session close minus 30 min. |
 | `stale` | Anything older than the limits above, for example a missed session. |
@@ -142,7 +140,7 @@ The calendars are:
 - `frontend/scripts/quote_crawl.mjs` crawls the pages and fails if any visible price has no status, or shows a number without a source.
 
 **Artifacts:**
-- `scripts/load_evidence_cache.py` loads `var/evidence_cache/*.json` and `var/evidence_cache_15m/*.json` into the store as yahoo/binance bars. These are the orphaned public-history caches used by the evidence scripts. Re-running the loader inserts nothing.
+- `scripts/load_evidence_cache.py` loads `var/evidence_cache/*.json` and `var/evidence_cache_15m/*.json` into the store as yahoo/coinbase bars (legacy Binance caches are skipped). These are the orphaned public-history caches used by the evidence scripts. Re-running the loader inserts nothing.
 - These are not feed data and are intentionally not loaded:
   - `var/models` (ML, owned by atlas-ml)
   - `state.sqlite`, `audit.sqlite` and `vertical_slice.sqlite3` (control-plane, audit and paper state)

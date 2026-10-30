@@ -26,7 +26,7 @@ ML column: whether the series may enter model training. "Context" means display 
 | Futures (CME/ICE/CBOT/NYMEX) | CME / ICE | Paid | Licensed; vendor agreement | **none** (see `futures-canada-sources.md`; OANDA CFD proxy once a token is verified) |
 | FX majors + CAD crosses | OANDA practice v20 (`api-fxpractice.oanda.com`) | Free practice account | Personal practice token; **no token given** | **wired**, key unset: needs verification |
 | FX daily reference | Bank of Canada Valet (USD/CAD etc.), ECB | Keyless | BoC terms (no overload); ECB reuse with attribution | **wired** (`boc_valet`, `ecb_fx`) |
-| Crypto spot | Coinbase, Kraken, OKX public REST/WS; Binance and Bybit public (Binance is geo-restricted in Ontario) | Free, keyless | Public market data, rate limits per `free_sources.py` | **wired** |
+| Crypto spot | Coinbase, Kraken public REST/WS (Binance, Bybit and OKX are not used: not available to Canadian residents) | Free, keyless | Public market data, rate limits per `free_sources.py` | **wired** |
 | Canadian-registered crypto exchanges | Newton: web prices, no documented API. Coinsquare: API docs on request only. Bitbuy: no longer serves Canadians (now Robinhood). | n/a | No public documented market-data API | **none**; Kraken and Coinbase (registered in Canada) cover the data |
 | Metals | OANDA XAU/XAG CFD proxy; GLD/SLV via equities; EIA none | see above | LBMA/COMEX are licensed | **wired** via OANDA (key unset: needs verification); no free official daily spot-gold source |
 | Energy benchmarks (WTI, Brent, Henry Hub spot) | EIA Open Data API v2 | Free key | US-government work, public domain; attribute EIA | **fixture** `eia`, `EIA_API_KEY` unset: needs verification. Spot, **not** futures |

@@ -129,13 +129,13 @@ def test_qualified_symbols_chart_and_only_readable_listings_reach_the_model() ->
     assert es["tradingview_symbol"] == "CME_MINI:ES1!"
     assert es["model_symbol"] == "ES"
 
-    binance = describe_chart("BINANCE:BTCUSDT", timeframe="1h")
-    assert binance["available"] is True
-    assert binance["tradingview_symbol"] == "BINANCE:BTCUSDT"
-    assert binance["model_symbol"] is None
-    assert binance["model_reads"] == "no_public_candle_series"
-    assert "calendar=0" in str(binance["embed_url"])
-    assert "no public-candle series" in str(binance["reason_text"])
+    foreign = describe_chart("BITSTAMP:BTCUSD", timeframe="1h")
+    assert foreign["available"] is True
+    assert foreign["tradingview_symbol"] == "BITSTAMP:BTCUSD"
+    assert foreign["model_symbol"] is None
+    assert foreign["model_reads"] == "no_public_candle_series"
+    assert "calendar=0" in str(foreign["embed_url"])
+    assert "no public-candle series" in str(foreign["reason_text"])
 
     withheld = describe_chart("EQ0001", timeframe="1m")
     assert withheld["model_symbol"] is None

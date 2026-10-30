@@ -106,20 +106,6 @@ platforms:
     paper_environment: none
     canada_status: "Confirm CSA registration for Ontario"
 
-  robinhood_crypto:
-    enabled: false             # US-only; likely NOT available to Ontario residents
-    mode: paper
-    purpose: "Crypto (conditional / US-only)"
-    base_urls: { rest: https://trading.robinhood.com }
-    credentials: { api_key: ROBINHOOD_CRYPTO_API_KEY, private_key: ROBINHOOD_CRYPTO_PRIVATE_KEY_B64 }   # Ed25519 signing
-    asset_classes: [crypto_spot]
-    markets: [BTC-USD, ETH-USD]
-    account_currency: USD
-    permissions: { trade: true, withdraw: false }
-    order_types: [market, limit, stop_loss, stop_limit]
-    rate_limits: { per_min: 100, burst: 300 }
-    paper_environment: none
-
   oanda:
     enabled: false             # optional FX alternative/data source; IBKR is primary FX venue
     mode: paper                # maps to OANDA_ENV=practice
@@ -146,7 +132,7 @@ data_providers:
 
 excluded_platforms:
   wealthsimple:     "No official public trading API; unofficial access breaches ToS. Manual use only."
-  robinhood_stocks: "No official stock-trading API (crypto API only, US-only)."
+  robinhood_stocks: "No official stock-trading API; US-only."
   nasdaq:           "An exchange, not a broker. Retail can't trade on it directly; access is through brokers. Nasdaq Data Link is data only."
 
 routing:
