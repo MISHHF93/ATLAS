@@ -601,32 +601,32 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
   }),
 
   // Major Liquid Crypto Benchmarks (24/7 Spot & Prop Desk — Pump.fun/Meme Tokens Excluded)
-  makePacket("BTC-USD", "Bitcoin Spot / Perpetual Benchmark", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Binance / Kraken", "competition", "ccxt_pro", 2.5, {
+  makePacket("BTC-USD", "Bitcoin Spot / Perpetual Benchmark", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Kraken", "competition", "ccxt_pro", 2.5, {
     issuer: "Bitcoin Network (Regulated Spot Exchanges)",
     exchangeMic: "XOFF",
     jurisdiction: "GLOBAL",
   }),
-  makePacket("ETH-USD", "Ethereum Spot / Perpetual Benchmark", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Binance / Kraken", "competition", "coinbase", 3.0, {
+  makePacket("ETH-USD", "Ethereum Spot / Perpetual Benchmark", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Kraken", "competition", "coinbase", 3.0, {
     issuer: "Ethereum Network (Regulated Spot Exchanges)",
     exchangeMic: "XOFF",
     jurisdiction: "GLOBAL",
   }),
-  makePacket("SOL-USD", "Solana Spot / Perpetual Benchmark", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Binance / Kraken", "competition", "hyperliquid", 3.8, {
+  makePacket("SOL-USD", "Solana Spot / Perpetual Benchmark", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Kraken", "competition", "hyperliquid", 3.8, {
     issuer: "Solana Network (Regulated Spot Exchanges)",
     exchangeMic: "XOFF",
     jurisdiction: "GLOBAL",
   }),
-  makePacket("AVAX-USD", "Avalanche Spot / Perpetual", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Binance / Kraken", "competition", "coinbase", 4.2, {
+  makePacket("AVAX-USD", "Avalanche Spot / Perpetual", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Kraken", "competition", "coinbase", 4.2, {
     issuer: "Avalanche Network",
     exchangeMic: "XOFF",
     jurisdiction: "GLOBAL",
   }),
-  makePacket("LINK-USD", "Chainlink Spot / Perpetual", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Binance / Kraken", "competition", "coinbase", 4.0, {
+  makePacket("LINK-USD", "Chainlink Spot / Perpetual", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Kraken", "competition", "coinbase", 4.0, {
     issuer: "Chainlink Network",
     exchangeMic: "XOFF",
     jurisdiction: "GLOBAL",
   }),
-  makePacket("AAVE-USD", "Aave Protocol Spot / Perpetual", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Binance / Kraken", "competition", "coinbase", 4.5, {
+  makePacket("AAVE-USD", "Aave Protocol Spot / Perpetual", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Kraken", "competition", "coinbase", 4.5, {
     issuer: "Aave Governance",
     exchangeMic: "XOFF",
     jurisdiction: "GLOBAL",

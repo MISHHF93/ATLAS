@@ -144,7 +144,7 @@ export function chartInterval(tf: string): ChartInterval {
 }
 export function tradingViewUrl(sym: string) {
   const s = chartSymbol(sym);
-  const tv = s.endsWith("USDT") ? `BINANCE:${s}` : s.includes("=") ? s.replace("=F", "1!") : s;
+  const tv = s.endsWith("USDT") ? `COINBASE:${s.slice(0, -4)}USD` : s.includes("=") ? s.replace("=F", "1!") : s;
   return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}`;
 }
 
