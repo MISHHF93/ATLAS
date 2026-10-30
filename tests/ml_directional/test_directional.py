@@ -186,8 +186,10 @@ def test_persist_and_live_score_roundtrip(tmp_path):
     assert out["status"] == "ok" and out["execution_permission"] == "none" and out["label"] == g["label"]
     assert 0.0 < out["probability"] < 1.0 and out["conformal_set"] and out["band"]["p10"] < out["band"]["p90"]
     assert out["orders"].startswith("none")
-    # unknown instrument / scope are reported, never guessed
-    assert directional_prediction("SOLUSDT", "15m", bars, root=tmp_path)["status"] == "no_model"
+    # an asset of the same pool that was not in the training set is scored by the pool model and flagged as unvalidated transfer (evo-16 M2)
+    sol = directional_prediction("SOLUSDT", "15m", bars, root=tmp_path)
+    assert sol["status"] == "ok" and sol["transfer"]["kind"] == "pool_member_not_trained" and "transfer" in sol["label"] and out.get("transfer") is None
+    # unknown scope is reported, never guessed
     assert directional_prediction("BTCUSDT", "1h", bars, root=tmp_path)["status"] == "no_model"
     assert directional_prediction("BTCUSDT", "15m", bars[:100], root=tmp_path)["status"] == "insufficient_history"
 
