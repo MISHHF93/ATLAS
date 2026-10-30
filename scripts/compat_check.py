@@ -78,6 +78,8 @@ def run(env: dict[str, str], network: bool = True, verify_fn=None, probe_fn=None
 
     keyed("Massive (stocks/ETFs)", "polygon", ("POLYGON_API_KEY",), "polygon", "free plan: end-of-day lag, 5 calls/min")
     keyed("OANDA practice (FX/XAU/indices)", "oanda", ("OANDA_API_TOKEN",), "oanda", "practice hosts only; OANDA_ACCOUNT_ID optional (discovered)")
+    keyed("FRED (macro, release dates)", "fred", ("FRED_API_KEY",), None,
+          "feeds the economic-event markers and macro display only; FRED terms bar AI training, so it never enters ML training")
     # Gemini: status only (key present + tier); the verify call is the read-only model list.
     keyed("Gemini (reviewer LLM)", "gemini", ("GEMINI_API_KEY",), None,
           f"ATLAS_GEMINI_TIER={'paid' if (env.get('ATLAS_GEMINI_TIER') or '').lower() == 'paid' else 'not paid: reviewer refuses to run'}")

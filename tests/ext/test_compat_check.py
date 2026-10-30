@@ -38,3 +38,16 @@ def test_unconfigured_providers_are_not_verified_and_say_what_to_enter():
     oanda = next(r for r in rows if r["provider"].startswith("OANDA"))
     assert oanda["configured"] is False and "OANDA_API_TOKEN" in oanda["notes"] and oanda["verified"] == "no key"
     assert next(r for r in rows if r["provider"].startswith("ECB"))["verified"] == "failed"
+
+
+def test_fred_row_is_verified_once_and_never_leaks_key():
+    calls = []
+
+    def verify(sid, env, throttle=False):
+        calls.append(sid)
+        return {"state": "verified", "detail": "FRED OK"}
+    key = "a" * 32
+    rows = cc.run({"FRED_API_KEY": key}, verify_fn=verify, probe_fn=lambda *a, **k: (True, "x"), flow_fn=lambda p: {"bars": 0})
+    fred = [r for r in rows if r["provider"].startswith("FRED")][0]
+    assert calls == ["fred"] and fred["configured"] is True and fred["verified"] == "verified"
+    assert "never enters ML training" in fred["notes"] and key not in cc.table(rows)
