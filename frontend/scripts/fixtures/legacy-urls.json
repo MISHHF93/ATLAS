@@ -1,0 +1,607 @@
+[
+ {
+  "url": "/",
+  "page": "overview",
+  "tab": "overview"
+ },
+ {
+  "url": "/?tab=inbox",
+  "page": "overview",
+  "tab": "inbox"
+ },
+ {
+  "url": "/inbox",
+  "page": "overview",
+  "tab": "inbox"
+ },
+ {
+  "url": "/trade",
+  "page": "desk",
+  "tab": "chart"
+ },
+ {
+  "url": "/trade?tab=markets",
+  "page": "desk",
+  "tab": "markets"
+ },
+ {
+  "url": "/trade?tab=brief",
+  "page": "desk",
+  "tab": "brief"
+ },
+ {
+  "url": "/trade?tab=paper",
+  "page": "desk",
+  "tab": "paper"
+ },
+ {
+  "url": "/trade?tab=depth",
+  "page": "desk",
+  "tab": "depth"
+ },
+ {
+  "url": "/workbench",
+  "page": "desk",
+  "tab": "chart"
+ },
+ {
+  "url": "/trade/cockpit",
+  "page": "desk",
+  "tab": "chart"
+ },
+ {
+  "url": "/market",
+  "page": "desk",
+  "tab": "chart"
+ },
+ {
+  "url": "/listings",
+  "page": "desk",
+  "tab": "markets"
+ },
+ {
+  "url": "/trade?tab=pump",
+  "page": "desk",
+  "tab": "markets"
+ },
+ {
+  "url": "/trade/depth-dom",
+  "page": "desk",
+  "tab": "depth"
+ },
+ {
+  "url": "/control",
+  "page": "risk",
+  "tab": "account"
+ },
+ {
+  "url": "/control?tab=portfolio",
+  "page": "risk",
+  "tab": "portfolio"
+ },
+ {
+  "url": "/control?tab=tracks",
+  "page": "risk",
+  "tab": "tracks"
+ },
+ {
+  "url": "/control?tab=limits",
+  "page": "risk",
+  "tab": "limits"
+ },
+ {
+  "url": "/control?tab=autopilot",
+  "page": "risk",
+  "tab": "autopilot"
+ },
+ {
+  "url": "/control/risk-hud",
+  "page": "risk",
+  "tab": "account"
+ },
+ {
+  "url": "/profile",
+  "page": "risk",
+  "tab": "account"
+ },
+ {
+  "url": "/trade/blotter",
+  "page": "risk",
+  "tab": "account"
+ },
+ {
+  "url": "/control/dealing-desk",
+  "page": "risk",
+  "tab": "account"
+ },
+ {
+  "url": "/control?tab=positions",
+  "page": "risk",
+  "tab": "account"
+ },
+ {
+  "url": "/control/rulebook",
+  "page": "risk",
+  "tab": "limits"
+ },
+ {
+  "url": "/rules",
+  "page": "risk",
+  "tab": "limits"
+ },
+ {
+  "url": "/configurations",
+  "page": "risk",
+  "tab": "limits"
+ },
+ {
+  "url": "/autopilot",
+  "page": "risk",
+  "tab": "autopilot"
+ },
+ {
+  "url": "/research",
+  "page": "research",
+  "tab": "chart"
+ },
+ {
+  "url": "/research?tab=zones",
+  "page": "research",
+  "tab": "zones"
+ },
+ {
+  "url": "/research?tab=levels",
+  "page": "research",
+  "tab": "levels"
+ },
+ {
+  "url": "/research?tab=scan",
+  "page": "research",
+  "tab": "scan"
+ },
+ {
+  "url": "/research?tab=valuation",
+  "page": "research",
+  "tab": "valuation"
+ },
+ {
+  "url": "/research?tab=options",
+  "page": "research",
+  "tab": "options"
+ },
+ {
+  "url": "/research?tab=context",
+  "page": "research",
+  "tab": "context"
+ },
+ {
+  "url": "/research?tab=news",
+  "page": "research",
+  "tab": "news"
+ },
+ {
+  "url": "/research?tab=agents",
+  "page": "research",
+  "tab": "agents"
+ },
+ {
+  "url": "/research/central-node",
+  "page": "research",
+  "tab": "chart"
+ },
+ {
+  "url": "/research/microstructure",
+  "page": "research",
+  "tab": "chart"
+ },
+ {
+  "url": "/research/drift-dashboard",
+  "page": "research",
+  "tab": "chart"
+ },
+ {
+  "url": "/matrix",
+  "page": "research",
+  "tab": "chart"
+ },
+ {
+  "url": "/research/lab?tab=microstructure",
+  "page": "research",
+  "tab": "chart"
+ },
+ {
+  "url": "/research/price-action",
+  "page": "research",
+  "tab": "zones"
+ },
+ {
+  "url": "/research/lab?tab=fourbox",
+  "page": "research",
+  "tab": "zones"
+ },
+ {
+  "url": "/research/levels",
+  "page": "research",
+  "tab": "levels"
+ },
+ {
+  "url": "/research/lab?tab=valuation",
+  "page": "research",
+  "tab": "valuation"
+ },
+ {
+  "url": "/research/lab?tab=options",
+  "page": "research",
+  "tab": "options"
+ },
+ {
+  "url": "/research?tab=multi-agent",
+  "page": "research",
+  "tab": "agents"
+ },
+ {
+  "url": "/research/lab?tab=agents",
+  "page": "research",
+  "tab": "agents"
+ },
+ {
+  "url": "/research/lab",
+  "page": "lab",
+  "tab": "evidence"
+ },
+ {
+  "url": "/research/lab?tab=ml",
+  "page": "lab",
+  "tab": "ml"
+ },
+ {
+  "url": "/research/lab?tab=forecasts",
+  "page": "lab",
+  "tab": "forecasts"
+ },
+ {
+  "url": "/research/lab?tab=walk-forward",
+  "page": "lab",
+  "tab": "walk-forward"
+ },
+ {
+  "url": "/research/lab?tab=training",
+  "page": "lab",
+  "tab": "training"
+ },
+ {
+  "url": "/research/lab?tab=predictions",
+  "page": "lab",
+  "tab": "predictions"
+ },
+ {
+  "url": "/research/lab?tab=experiments",
+  "page": "lab",
+  "tab": "experiments"
+ },
+ {
+  "url": "/research/lab?tab=regimes",
+  "page": "lab",
+  "tab": "regimes"
+ },
+ {
+  "url": "/research/lab?tab=memory",
+  "page": "lab",
+  "tab": "memory"
+ },
+ {
+  "url": "/research/lab?tab=evolution",
+  "page": "lab",
+  "tab": "evolution"
+ },
+ {
+  "url": "/research/lab?tab=assistant",
+  "page": "lab",
+  "tab": "assistant"
+ },
+ {
+  "url": "/research/evidence",
+  "page": "lab",
+  "tab": "evidence"
+ },
+ {
+  "url": "/research/evidence?tab=evidence",
+  "page": "lab",
+  "tab": "evidence"
+ },
+ {
+  "url": "/research/evidence?tab=ml",
+  "page": "lab",
+  "tab": "ml"
+ },
+ {
+  "url": "/research/prediction-ledger",
+  "page": "lab",
+  "tab": "forecasts"
+ },
+ {
+  "url": "/research?tab=forecasts",
+  "page": "lab",
+  "tab": "forecasts"
+ },
+ {
+  "url": "/research/walk-forward",
+  "page": "lab",
+  "tab": "walk-forward"
+ },
+ {
+  "url": "/experiments",
+  "page": "lab",
+  "tab": "walk-forward"
+ },
+ {
+  "url": "/research/evidence?tab=walk-forward",
+  "page": "lab",
+  "tab": "walk-forward"
+ },
+ {
+  "url": "/models",
+  "page": "lab",
+  "tab": "training"
+ },
+ {
+  "url": "/research/registry",
+  "page": "lab",
+  "tab": "training"
+ },
+ {
+  "url": "/research/evidence?tab=training",
+  "page": "lab",
+  "tab": "training"
+ },
+ {
+  "url": "/money",
+  "page": "money",
+  "tab": "overview"
+ },
+ {
+  "url": "/money?tab=payments",
+  "page": "money",
+  "tab": "payments"
+ },
+ {
+  "url": "/money?tab=partners",
+  "page": "money",
+  "tab": "partners"
+ },
+ {
+  "url": "/money?tab=tax",
+  "page": "money",
+  "tab": "tax"
+ },
+ {
+  "url": "/money?tab=regulatory",
+  "page": "money",
+  "tab": "regulatory"
+ },
+ {
+  "url": "/money?tab=audit",
+  "page": "money",
+  "tab": "audit"
+ },
+ {
+  "url": "/money?tab=identity",
+  "page": "money",
+  "tab": "identity"
+ },
+ {
+  "url": "/payments",
+  "page": "money",
+  "tab": "payments"
+ },
+ {
+  "url": "/portal",
+  "page": "money",
+  "tab": "partners"
+ },
+ {
+  "url": "/tax",
+  "page": "money",
+  "tab": "tax"
+ },
+ {
+  "url": "/compliance",
+  "page": "money",
+  "tab": "regulatory"
+ },
+ {
+  "url": "/compliance?tab=overview",
+  "page": "money",
+  "tab": "regulatory"
+ },
+ {
+  "url": "/control/surveillance",
+  "page": "money",
+  "tab": "audit"
+ },
+ {
+  "url": "/trade/journal",
+  "page": "money",
+  "tab": "audit"
+ },
+ {
+  "url": "/compliance?tab=audit",
+  "page": "money",
+  "tab": "audit"
+ },
+ {
+  "url": "/control/proctoring",
+  "page": "money",
+  "tab": "identity"
+ },
+ {
+  "url": "/compliance?tab=identity",
+  "page": "money",
+  "tab": "identity"
+ },
+ {
+  "url": "/settings",
+  "page": "settings",
+  "tab": "setup"
+ },
+ {
+  "url": "/settings?tab=profile",
+  "page": "settings",
+  "tab": "profile"
+ },
+ {
+  "url": "/settings?tab=billing",
+  "page": "settings",
+  "tab": "billing"
+ },
+ {
+  "url": "/settings?tab=keys",
+  "page": "settings",
+  "tab": "keys"
+ },
+ {
+  "url": "/settings?tab=connectors",
+  "page": "settings",
+  "tab": "connectors"
+ },
+ {
+  "url": "/settings?tab=broker",
+  "page": "settings",
+  "tab": "broker"
+ },
+ {
+  "url": "/settings?tab=bars",
+  "page": "settings",
+  "tab": "bars"
+ },
+ {
+  "url": "/settings?tab=reserve",
+  "page": "settings",
+  "tab": "reserve"
+ },
+ {
+  "url": "/settings?tab=capability",
+  "page": "settings",
+  "tab": "capability"
+ },
+ {
+  "url": "/settings?tab=docs",
+  "page": "settings",
+  "tab": "docs"
+ },
+ {
+  "url": "/keys",
+  "page": "settings",
+  "tab": "keys"
+ },
+ {
+  "url": "/data/pipelines",
+  "page": "settings",
+  "tab": "connectors"
+ },
+ {
+  "url": "/connectors",
+  "page": "settings",
+  "tab": "connectors"
+ },
+ {
+  "url": "/integrations",
+  "page": "settings",
+  "tab": "connectors"
+ },
+ {
+  "url": "/sync",
+  "page": "settings",
+  "tab": "connectors"
+ },
+ {
+  "url": "/data",
+  "page": "settings",
+  "tab": "bars"
+ },
+ {
+  "url": "/data/lakehouse",
+  "page": "settings",
+  "tab": "bars"
+ },
+ {
+  "url": "/warehouse",
+  "page": "settings",
+  "tab": "bars"
+ },
+ {
+  "url": "/data?tab=bars",
+  "page": "settings",
+  "tab": "bars"
+ },
+ {
+  "url": "/governance",
+  "page": "settings",
+  "tab": "reserve"
+ },
+ {
+  "url": "/data/governance",
+  "page": "settings",
+  "tab": "reserve"
+ },
+ {
+  "url": "/data?tab=reserve",
+  "page": "settings",
+  "tab": "reserve"
+ },
+ {
+  "url": "/data/features-100",
+  "page": "settings",
+  "tab": "capability"
+ },
+ {
+  "url": "/roadmap",
+  "page": "settings",
+  "tab": "capability"
+ },
+ {
+  "url": "/data?tab=capability",
+  "page": "settings",
+  "tab": "capability"
+ },
+ {
+  "url": "/docs",
+  "page": "settings",
+  "tab": "docs"
+ },
+ {
+  "url": "/trade?tab=chart",
+  "page": "desk",
+  "tab": "chart"
+ },
+ {
+  "url": "/control?tab=account",
+  "page": "risk",
+  "tab": "account"
+ },
+ {
+  "url": "/research?tab=chart",
+  "page": "research",
+  "tab": "chart"
+ },
+ {
+  "url": "/research/lab?tab=evidence",
+  "page": "lab",
+  "tab": "evidence"
+ },
+ {
+  "url": "/?tab=overview",
+  "page": "overview",
+  "tab": "overview"
+ },
+ {
+  "url": "/money?tab=overview",
+  "page": "money",
+  "tab": "overview"
+ },
+ {
+  "url": "/settings?tab=setup",
+  "page": "settings",
+  "tab": "setup"
+ }
+]

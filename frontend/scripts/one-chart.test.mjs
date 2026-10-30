@@ -22,7 +22,10 @@ const files = [];
 })(path.join(root, "app"));
 const rel = (f) => path.relative(root, f).split(path.sep).join("/");
 // AlpacaChartCard (paper tab) is the integrations worker's area; it plots the Alpaca paper account's own bars.
-export const CREATE_CHART_ALLOW = new Set(["src/components/market/AtlasChart.tsx"]);
+export const CREATE_CHART_ALLOW = new Set([
+  "src/components/market/AtlasChart.tsx",
+  "src/components/market/NowcastOnly.tsx", // sub-renderer of AtlasChart (its only importer); never mounted on its own
+]);
 export const RETIRED = ["LiveMarketViewer", "SecondBars", "LiveChartEngine", "AtlasUdfTape", "TvFrame"];
 
 test("only AtlasChart creates a price chart", () => {

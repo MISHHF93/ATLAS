@@ -8,7 +8,7 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const pages = pagesFromRegistry(); let fail = 0;
-if (!Object.keys(pages).length) { console.error("one-chart: no pages parsed from pagesMap.ts"); process.exit(2); }
+if (!Object.keys(pages).length) { console.error("one-chart: no pages loaded from nav.config.ts"); process.exit(2); }
 for (const [id, href] of Object.entries(pages)) {
   try { await page.goto(base + href, { waitUntil: "networkidle", timeout: 30000 }); } catch { /* count what rendered */ }
   await page.waitForTimeout(800);

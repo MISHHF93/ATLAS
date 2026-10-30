@@ -10,21 +10,10 @@ const base = (args.find((a) => /^https?:/.test(a)) ?? "http://127.0.0.1:3000").r
 const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const shots = opt("--shots"); const jsonOut = opt("--json");
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
-// Every page and every non-default tab, read from the one page registry (src/components/shell/pagesMap.ts),
-// so new pages are covered automatically. Falls back to nothing silently = never: an empty list fails the run.
-export function pagesFromRegistry(file = new URL("../src/components/shell/pagesMap.ts", import.meta.url)) {
-  const src = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
-  const body = src.slice(src.indexOf("export const PAGES"));
-  const out = {};
-  for (const blk of body.split(/\n  \{\n    id: /).slice(1)) {
-    const id = /^"([^"]+)"/.exec(blk)?.[1]; const href = /href: "([^"]+)"/.exec(blk)?.[1];
-    if (!id || !href) continue;
-    out[id] = href;
-    const tabsAt = blk.indexOf("tabs: [");
-    if (tabsAt >= 0) [...blk.slice(tabsAt).matchAll(/\{ id: "([\w-]+)", label/g)].slice(1).forEach((m) => { out[`${id}-${m[1]}`] = `${href}?tab=${m[1]}`; });
-  }
-  return out;
-}
+// Every page and every non-default tab, read from the one nav config (src/nav/nav.config.ts), so new pages are covered
+// automatically. An empty list fails the run.
+import { pagesFromRegistry } from "./nav-registry.mjs";
+export { pagesFromRegistry };
 export const PAGES = pagesFromRegistry();
 const WIDTHS = [1440, 1024, 768, 390];
 
@@ -62,7 +51,7 @@ function scan() {
 
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const report = []; let total = 0; let loadFails = 0;
-if (!Object.keys(PAGES).length) { console.error("vertical-text: no pages parsed from pagesMap.ts"); process.exit(2); }
+if (!Object.keys(PAGES).length) { console.error("vertical-text: no pages loaded from nav.config.ts"); process.exit(2); }
 for (const [name, url] of Object.entries(PAGES)) for (const w of WIDTHS) {
   const page = await browser.newPage({ viewport: { width: w, height: 900 } });
   let loadErr = "";

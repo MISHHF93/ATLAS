@@ -7,20 +7,13 @@ const { chromium } = require('playwright');
 const base = process.argv[2] || 'http://localhost:3000';
 const fs = require('fs');
 const path = require('path');
-// Every hub page and every ?tab=<id> from the one page registry, plus the extra top-level routes.
-function registryUrls() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'shell', 'pagesMap.ts'), 'utf8');
-  const starts = [...src.matchAll(/\{\s*id:\s*"([^"]+)",\s*href:\s*"([^"]+)"/g)];
-  const urls = [];
-  starts.forEach((m, i) => {
-    const seg = src.slice(m.index, i + 1 < starts.length ? starts[i + 1].index : src.length);
-    urls.push(m[2]);
-    for (const t of seg.matchAll(/\{\s*id:\s*"([^"]+)",\s*label:/g)) urls.push(m[2] + '?tab=' + t[1]);
-  });
-  return urls;
+// Every page and every ?tab=<id> from the one nav config (src/nav/nav.config.ts), plus a few retired addresses that must redirect.
+async function registryUrls() {
+  const { pagesFromRegistry } = await import('./nav-registry.mjs');
+  return Object.values(pagesFromRegistry());
 }
-const PAGES = [...new Set(['/', '/trade', '/research', '/research/lab', '/money', '/control', '/settings', ...registryUrls()])];
 (async () => {
+  const PAGES = [...new Set(['/', ...(await registryUrls())])];
   const b = await chromium.launch();
   let bad = 0;
   for (const p of PAGES) {
@@ -31,7 +24,7 @@ const PAGES = [...new Set(['/', '/trade', '/research', '/research/lab', '/money'
     pg.on('response', (r) => { if (r.status() >= 400 && r.url().includes('/_next/')) errs.push('http ' + r.status() + ' ' + r.url().slice(0, 120)); });
     try { await pg.goto(base + p, { waitUntil: 'load', timeout: 60000 }); } catch (e) { errs.push('goto: ' + e.message.slice(0, 200)); }
     await pg.waitForTimeout(3500);
-    const tabs = pg.locator('[role=tab]');
+    const tabs = pg.locator('nav.ux-hubtabs a');
     const n = await tabs.count();
     for (let i = 0; i < n; i++) {
       try { await tabs.nth(i).click({ timeout: 5000 }); await pg.waitForTimeout(1200); } catch (e) { errs.push('tab ' + i + ': ' + e.message.slice(0, 120)); }
