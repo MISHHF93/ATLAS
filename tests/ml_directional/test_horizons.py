@@ -62,7 +62,7 @@ def test_train_pool_is_research_labelled_conformal_and_persisted(tmp_path):
     man, b = HZ.load_bundle("crypto", "5m", tmp_path)
     assert man["n_features"] == len(b["features"])
     mem = HZ.members_for(_bars(700, seed=9), "5m", "crypto", "X9", "5m", b)
-    assert set(mem) == {"naive", "lgbm"}
+    assert {"naive", "lgbm"} <= set(mem) <= {"naive", "lgbm", "xgb"}   # xgb only where the package is installed; never prophet
     for v in mem.values():
         assert v["q"][0] <= v["q"][1] <= v["q"][2] and v["lo"] < v["hi"]   # CQR may shrink as well as widen the band
 
