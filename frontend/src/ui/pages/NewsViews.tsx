@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { Async, Badge, Card, DataTable, EmptyState, StatTile, useApi, type Tone } from "../primitives";
 import { api } from "./acct";
+import { PredictionBadge } from "./PredictionBadge";
 
 type R = Record<string, unknown>;
 type Llm = { enabled: boolean; reason: string; model?: string | null; gemini_state?: string; gemini_tier?: string | null };
@@ -86,6 +87,7 @@ function Ask({ wl, onDone }: { wl: string[]; onDone: () => void }) {
       </div>
       <textarea aria-label="Situation" rows={3} maxLength={2000} placeholder="Optional: paste the post or headline to assess (e.g. a social-media tip)" value={text} onChange={(e) => setText(e.target.value)} style={{ width: "100%" }} />
       {err ? <p className="ux-small">{err}</p> : null}
+      <PredictionBadge symbol={symbol} />
       {out ? <div data-review-result>
         <p><Badge tone={VT[out.verdict] ?? "neutral"}>{VL[out.verdict] ?? out.verdict}</Badge>{" "}<span className="ux-small">mode {out.mode} · {out.applied ? "applied" : "not applied (shadow or no opinion)"}</span></p>
         <p className="ux-small">{out.reason}</p>

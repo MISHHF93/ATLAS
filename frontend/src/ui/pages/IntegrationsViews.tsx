@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { AtlasChart } from "../../components/market/AtlasChart";
 import { Async, Badge, Card, DataTable, EmptyState, StatTile, money as fmtMoney, useApi, type Tone } from "../primitives";
 import { api } from "./acct";
+import { PredictionReadinessLine } from "./PredictionBadge";
 
 type R = Record<string, unknown>;
 type Verif = { state: string; detail: string; verified_at: number | null; key_present: boolean };
@@ -368,6 +369,7 @@ export function GoLiveReadinessCard() {
             <p className="ux-action-msg" data-tone="warn" role="status" data-testid="golive-banner">
               {d.headline} Paper only: live endpoints {d.live_endpoints}, ML execution permission {d.execution_permission}, risk policy {d.risk_policy}.
             </p>
+            <PredictionReadinessLine />
             <ol className="ux-list" data-testid="golive-gates">
               {d.gates.map((g, n) => {
                 const t = GATE_TONE[g.state];

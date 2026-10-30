@@ -4,6 +4,7 @@
  *  /api/ai/chart/overlays. Each layer reports its own status; nothing is drawn that ATLAS did not compute.
  *  Paper only. ML execution_permission is "none": markers and probabilities are research, never orders. */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useNowcast, ageText, NOWCAST_LABEL } from "./nowcast";
 import { createChart, type CandlestickData, type IChartApi, type ISeriesApi, type UTCTimestamp, type WhitespaceData, LineStyle } from "lightweight-charts";
 import type { LiveSnapshot } from "./liveTypes";
 import { deskTimeOptions } from "./lwTime";
@@ -296,6 +297,8 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
   const { data, barsRev, error, loading, refresh } = useOverlays(sym, live ? "1m" : interval, live ? "time" : barType, live);
   const quote = useFeedQuotes([symbol])[symbol];
   const tape = useLiveTape(symbol, live, onLiveSnapshot);
+  const [showNc, setShowNc] = useState(true);
+  const nowcast = useNowcast(sym, live ? "1m" : interval, showNc);
   const box = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -495,6 +498,27 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
       chart.remove(); chartRef.current = null; candlesRef.current = null; volRef.current = null; relayout.current = () => {}; };
   }, [data, on, visibleMarkers, height, fwd, preds, live]);
 
+  // evo-16 M4: the predicted path and its interval band. Dashed + dotted lavender, never candles; a forecast from the last REAL print.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !showNc || !nowcast || nowcast.status !== "ok" || !nowcast.path?.length || !bars.length) return;
+    const last = bars[bars.length - 1];
+    const pts = nowcast.path.filter((q) => q.t > last.time);
+    if (!pts.length) return;
+    const COL = "#B8A1FF";
+    const mk = (style: LineStyle, w: 1 | 2, title: string) => chart.addLineSeries({ color: COL, lineWidth: w, lineStyle: style, lastValueVisible: !!title, priceLineVisible: false, crosshairMarkerVisible: false, title });
+    const made: ISeriesApi<"Line">[] = [];
+    try {
+      const mid = mk(LineStyle.Dashed, 2, "Predicted"), hi = mk(LineStyle.Dotted, 1, ""), lo = mk(LineStyle.Dotted, 1, "");
+      made.push(mid, hi, lo);
+      const head = { time: last.time as UTCTimestamp, value: last.close };
+      mid.setData([head, ...pts.map((q) => ({ time: q.t as UTCTimestamp, value: q.mid }))]);
+      hi.setData([head, ...pts.map((q) => ({ time: q.t as UTCTimestamp, value: q.hi }))]);
+      lo.setData([head, ...pts.map((q) => ({ time: q.t as UTCTimestamp, value: q.lo }))]);
+    } catch { /* a series that cannot take future points is skipped; nothing is invented */ }
+    return () => { try { made.forEach((m) => chart.removeSeries(m)); } catch { /* chart already gone */ } };
+  }, [nowcast, bars, showNc, data, on, visibleMarkers, height, fwd, preds, live]);
+
   // Newer closed bars replace the candle series in place. The chart is not rebuilt, and a user who is at the
   // right edge keeps following the latest bar.
   const drawnRev = useRef<Bar[] | null>(null);
@@ -612,6 +636,11 @@ export function AtlasChart({ symbol, timeframe = "15m", height = 460, showPanel 
             {ms.is_open ? "● " : "○ "}{ms.venue_name}: {ms.status_label} · {ms.countdown}
           </span>
         )}
+        <button type="button" className="atlas-chart-badge" aria-pressed={showNc} data-testid="nowcast-toggle" onClick={() => setShowNc((v) => !v)}
+          title={nowcast?.status === "ok" ? `${NOWCAST_LABEL}. Zero-drift random-walk path with a split-conformal ${Math.round((nowcast.level ?? 0.8) * 100)}% band that widens with time since the last real print. Never written to the bar store, never a training label. ${nowcast.reason ?? ""}` : (nowcast?.reason ?? NOWCAST_LABEL)}
+          style={{ borderColor: "#B8A1FF", color: showNc ? "#B8A1FF" : undefined, borderStyle: "dashed" }}>
+          {showNc ? "▪ " : "▫ "}{NOWCAST_LABEL}{showNc && nowcast?.status === "ok" && nowcast.anchor ? ` · last real ${nowcast.anchor.source === "quote" ? "quote" : "print"} ${ageText(nowcast.anchor.age_s)} ago${nowcast.mode === "end_of_day" ? " · end-of-day data" : ""}` : showNc && nowcast && nowcast.status !== "ok" ? ` · ${nowcast.status.replace(/_/g, " ")}` : ""}
+        </button>
         {p?.built?.startsWith("resampled") && !fill ? <span className="atlas-chart-badge" title={p.built}>{interval} resampled</span> : null}
         <ModelChip mp={mp} loading={loading} noBars={data?.status === "no_data"} />
         <span className="atlas-chart-badge is-safe" title="ML output is advisory research. It can never place an order.">{fill ? "exec: " : "execution_permission: "}{data?.execution_permission ?? "none"}</span>

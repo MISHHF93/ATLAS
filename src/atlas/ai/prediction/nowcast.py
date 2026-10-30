@@ -169,7 +169,9 @@ def _quote(feed, symbol: str) -> dict | None:
         qs = feed.store.last_quotes(symbol)
     except Exception:
         return None
-    qs = [q for q in qs if q.get("price") and q.get("event_time")]
+    from atlas.feeds.free_sources import allowed as free_allowed
+    # unofficial providers (Yahoo) stay out of the trade series, so they never anchor a forecast either
+    qs = [q for q in qs if q.get("price") and q.get("event_time") and free_allowed(q.get("provider"))]
     return max(qs, key=lambda q: q["event_time"]) if qs else None
 
 
@@ -288,7 +290,7 @@ def nowcast(feed, symbol: str, interval: str = "15m", now: float | None = None, 
     last = bars[-1]
     anchor_t, anchor_px, source, provider = float(last.event_time + DUR[base_iv]), float(last.close), "bar", getattr(last, "provider", None)
     q = _quote(feed, symbol)
-    if q and float(q["event_time"]) > anchor_t and float(q["event_time"]) <= now + 5:
+    if q and float(q["event_time"]) > anchor_t and float(q["event_time"]) <= now + 5 and abs(math.log(float(q["price"]) / anchor_px)) < 0.25:
         anchor_t, anchor_px, source, provider = float(q["event_time"]), float(q["price"]), "quote", q.get("provider")
     close = np.array([b.close for b in bars], float)
     sig_bar = float(_ewma_sigma(close)[-1])

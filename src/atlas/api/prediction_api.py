@@ -81,9 +81,7 @@ _NC: dict[tuple, tuple[float, dict]] = {}
 _NC_TTL = 10.0
 
 
-@router.get("/nowcast")
-def api_nowcast(symbol: str = Query(...), interval: str = Query(default="15m"), horizon: int | None = Query(default=None, ge=1, le=300)) -> dict[str, Any]:
-    """Predicted path + conformal band for one asset on one timeframe. A forecast, labelled 'Predicted (not market data)'; read-only."""
+def _nowcast(symbol: str, interval: str, horizon: int | None) -> dict[str, Any]:
     import os
     from atlas.ai.prediction import nowcast as NC, nowcast_log as NL
     from atlas.ai.prediction.pools import pool_for_symbol
@@ -99,6 +97,35 @@ def api_nowcast(symbol: str = Query(...), interval: str = Query(default="15m"), 
         _NC.clear()
     _NC[key] = (time.monotonic(), out)
     return out
+
+
+@router.get("/nowcast")
+def api_nowcast(symbol: str = Query(...), interval: str = Query(default="15m"), horizon: int | None = Query(default=None, ge=1, le=300)) -> dict[str, Any]:
+    """Predicted path + conformal band for one asset on one timeframe. A forecast, labelled 'Predicted (not market data)'; read-only."""
+    return _nowcast(symbol, interval, horizon)
+
+
+@router.get("/asset")
+def api_asset(symbol: str = Query(...)) -> dict[str, Any]:
+    """One compact summary of everything the prediction service says about an asset: the coverage row, the nowcast now/next point and the live
+    calibration of its pool. This single payload feeds the chart header, the News reviewer and the go-live panel."""
+    from atlas.ai.prediction import nowcast_log as NL, service as S
+    feed = _feed()
+    if feed is None:
+        raise HTTPException(409, "no_feed_store")
+    cov = S.coverage(feed, ids=[symbol])
+    rows = cov.get("assets") or []
+    if not rows:
+        raise HTTPException(404, "unknown_symbol")
+    row = rows[0]
+    iv = row.get("primary_interval") or "1d"
+    nc = _nowcast(symbol, iv, 1)
+    pt = nc.get("now") or None
+    cal = NL.calibration(pool=row.get("pool"), interval=iv)
+    return {"symbol": symbol, "label": "Predicted (not market data)", "execution_permission": "none", "coverage": row,
+            "nowcast": {"status": nc.get("status"), "interval": iv, "mode": nc.get("mode"), "reason": nc.get("reason"), "anchor": nc.get("anchor"), "now": pt,
+                        "next": (next((p for p in nc.get("path", []) if p["t_end"] > (nc.get("computed_at") or 0)), None))},
+            "calibration": {"n_scored": cal["n_scored"], "coverage_80": cal["coverage_80"], "target": 0.8, "cells": cal["cells"][:6]}}
 
 
 @router.get("/nowcast/calibration")
