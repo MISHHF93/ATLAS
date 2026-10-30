@@ -86,6 +86,7 @@ def catalog_search_endpoint(
     asset_class: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    include_placeholders: bool = False,
 ) -> dict[str, Any]:
     res = GLOBAL_ASSET_CATALOG.search(
         query=q,
@@ -93,6 +94,7 @@ def catalog_search_endpoint(
         asset_class=asset_class,
         limit=limit,
         offset=offset,
+        include_placeholders=include_placeholders,
     )
     res["results"] = overlay_feed_prices(res.get("results") or [])
     from atlas.ai.ml.market_islands import desk_attention
@@ -169,6 +171,7 @@ def catalog_snapshot_endpoint(
     asset_class: str | None = None,
     page: int = 1,
     page_size: int = 50,
+    include_placeholders: bool = False,
 ) -> dict[str, Any]:
     page_size = max(1, min(250, page_size))
     res = GLOBAL_ASSET_CATALOG.snapshot(
@@ -176,6 +179,7 @@ def catalog_snapshot_endpoint(
         asset_class=asset_class,
         page=page,
         page_size=page_size,
+        include_placeholders=include_placeholders,
     )
     res["listings"] = overlay_feed_prices(res.get("listings") or [])
     from atlas.ai.ml.market_islands import desk_attention

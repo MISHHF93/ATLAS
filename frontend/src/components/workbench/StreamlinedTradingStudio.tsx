@@ -519,6 +519,7 @@ export function StreamlinedTradingStudio() {
   const [searchLatencyMs, setSearchLatencyMs] = useState<number | null>(null);
   const [universeCounts, setUniverseCounts] = useState<{
     total_assets: number;
+    listed_assets?: number;
     equities: number;
     crypto_perps: number;
     futures: number;
@@ -758,6 +759,7 @@ export function StreamlinedTradingStudio() {
         query_latency_ms?: number;
         universe_counts?: {
           total_assets: number;
+          listed_assets?: number;
           equities: number;
           crypto_perps: number;
           futures: number;
@@ -2168,7 +2170,7 @@ export function StreamlinedTradingStudio() {
 
           <details style={{ fontSize: "12px", color: "var(--c-muted)", lineHeight: 1.45 }}>
             <summary style={{ cursor: "pointer", fontSize: "12.5px" }}>
-              {universeCounts ? `Directory ${universeCounts.total_assets.toLocaleString()} · ` : ""}About these prices
+              {universeCounts ? `Directory ${(universeCounts.listed_assets ?? universeCounts.total_assets).toLocaleString()} · ` : ""}About these prices
             </summary>
             {catalogNotice}
             {" "}

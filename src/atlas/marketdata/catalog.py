@@ -249,7 +249,7 @@ UNLISTED_DIRECTORY: tuple[tuple[str, str], ...] = (
 )
 
 CATALOG_NOTICE = (
-    "Named companies are a directory you can search. EQ#### and PERP### ids are placeholders, not missing companies. "
+    "Named companies are a directory you can search. EQ#### and PERP### filler ids are placeholders, not missing companies, and are hidden from search and listings. "
     "A private company such as SpaceX is marked not listed. Flagship prices are fixtures. This is not a live tradable universe."
 )
 
@@ -364,6 +364,12 @@ FLAGSHIP_CRYPTO_PERPS: tuple[tuple[str, str, str, float, float, float, str], ...
     ("TON-USD", "Toncoin Perpetual Swap", "BINANCE", 5.24, 0.72, 0.241, "Compression"),
     ("HBAR-USD", "Hedera Perpetual Swap", "BINANCE", 0.0542, 1.15, 0.258, "Compression"),
 )
+
+
+# Directory filler ids (EQ0001.., PERP001-USD..): they name no listed security, have no price and no bars.
+# They stay in the store (get_asset still resolves them so old links say why) but are hidden from search/snapshot
+# unless a caller passes include_placeholders=True.
+PLACEHOLDER_SQL = "(symbol GLOB 'EQ[0-9][0-9][0-9]*' OR symbol GLOB 'PERP[0-9][0-9][0-9]*')"
 
 
 class UniversalAssetCatalog:
@@ -694,8 +700,12 @@ class UniversalAssetCatalog:
                 """
             )
             authentic_cnt = int(cur.fetchone()["cnt"])
+            cur.execute(f"SELECT COUNT(*) as cnt FROM catalog_assets WHERE is_active = 1 AND {PLACEHOLDER_SQL}")
+            placeholder_cnt = int(cur.fetchone()["cnt"])
             return {
                 "total_assets": total,
+                "listed_assets": total - placeholder_cnt,
+                "placeholders_hidden": placeholder_cnt,
                 "equities": by_class.get("equities", 0),
                 "crypto_perps": by_class.get("crypto_perps", 0),
                 "futures": by_class.get("futures", 0),
@@ -768,8 +778,10 @@ class UniversalAssetCatalog:
         asset_class: str | None = None,
         limit: int = 50,
         offset: int = 0,
+        include_placeholders: bool = False,
     ) -> dict[str, Any]:
-        """Search the local synthetic directory; this is not a verified live universe."""
+        """Search the local synthetic directory; this is not a verified live universe.
+        EQ####/PERP### filler ids are hidden unless ``include_placeholders`` is set."""
         t0 = time.perf_counter()
         q_clean = query.strip().upper()
         safe_limit = max(1, min(250, int(limit)))
@@ -777,6 +789,8 @@ class UniversalAssetCatalog:
 
         clauses = ["is_active = 1"]
         where_params: list[Any] = []
+        if not include_placeholders:
+            clauses.append(f"NOT {PLACEHOLDER_SQL}")
 
         if track and track.lower() not in ("all", ""):
             clauses.append("track = ?")
@@ -843,6 +857,7 @@ class UniversalAssetCatalog:
         asset_class: str | None = None,
         page: int = 1,
         page_size: int = 50,
+        include_placeholders: bool = False,
     ) -> dict[str, Any]:
         """Paginated catalog snapshot with latest 1-minute close, volume, VPIN, OFI, and volatility regime."""
         t0 = time.perf_counter()
@@ -852,6 +867,8 @@ class UniversalAssetCatalog:
 
         clauses = ["is_active = 1"]
         params: list[Any] = []
+        if not include_placeholders:
+            clauses.append(f"NOT {PLACEHOLDER_SQL}")
 
         if track and track.lower() not in ("all", ""):
             clauses.append("track = ?")

@@ -39,7 +39,7 @@ def cat(r) -> str:
 def _all_rows():
     out, off = [], 0
     while True:
-        r = GLOBAL_ASSET_CATALOG.search(query="", limit=250, offset=off)
+        r = GLOBAL_ASSET_CATALOG.search(query="", limit=250, offset=off, include_placeholders=True)
         rows = r.get("results") or []
         if not rows:
             break
