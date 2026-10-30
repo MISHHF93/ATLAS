@@ -296,7 +296,7 @@ def _vwap_profile(bars, sym: str = "", full=None):
     label = {"utc_day": "UTC day", "us_rth": "US cash session (09:30-16:00 ET)", "cme_globex": "CME day (18:00 ET)"}[kind]
     unavailable_reason = ("daily bars have no intraday session" if dur >= 86400 else "source bars carry no volume")
     vw = {"status": "ok" if pts else "unavailable", "points": pts, "reset": label, "session_kind": kind, "anchored": anchored,
-          "sessions": {"status": "ok" if spans else "unavailable", "spans": spans, "kind": kind, "label": label},
+          "sessions": {"status": "ok" if spans else "unavailable", "spans": spans, "kind": kind, "label": label, **({} if spans else {"reason": "daily bars have no intraday session" if dur >= 86400 else "no session spans for this instrument at this interval"})},
           **({} if pts else {"reason": unavailable_reason})}
     tail = view[-300:]
     lo, hi = min(b.low for b in tail), max(b.high for b in tail)
