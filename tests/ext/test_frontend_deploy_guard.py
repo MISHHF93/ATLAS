@@ -12,5 +12,5 @@ def test_redeploy_builds_then_restarts_exact_pid_then_smokes():
 
 def test_smoke_covers_registry_hubs_tabs_and_fails_on_console_errors():
     s = (FE / "scripts" / "smoke_pages.cjs").read_text()
-    assert "pagesMap.ts" in s and "?tab=" in s and "pageerror" in s and "Application error" in s
+    assert "nav-registry.mjs" in s and "?tab=" in s and "pageerror" in s and "Application error" in s
     assert "process.exit(bad ? 1 : 0)" in s
