@@ -13,7 +13,7 @@ TF_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1d": 86400}
 # instrument: (calendar, tick, cost_per_unit, cost_bps, hold_bars).
 # Futures rows are DERIVED from atlas.feeds.contracts (the single contract-spec source); only non-futures
 # research assumptions live here.
-_NON_FUTURES = {"BTCUSDT": ("crypto", 0.01, 0.0, 24.0, 96), "ETHUSDT": ("crypto", 0.01, 0.0, 24.0, 96),
+_NON_FUTURES = {"BTCUSDT": ("crypto", 0.01, 0.0, 124.0, 96), "ETHUSDT": ("crypto", 0.01, 0.0, 124.0, 96),
                 "SPY": ("XNYS", 0.01, 0.01, 4.0, 26)}
 
 

@@ -21,7 +21,7 @@ def test_latency_one_bar_and_stop_entry_target():
     # bar 1 crosses the trigger but is inside the latency window; bar 2 fills; target ref+4 on bar 4
     s = _sim([FLAT, (100, 101, 99.9, 100.5), (100, 100.5, 99.9, 100.2), (100.2, 101, 100, 100.8), (100.8, 104.5, 100.5, 104)])
     assert s is not None and s["filled_at"] == 7200 and s["outcome"] == "target"
-    assert abs(s["gross_r"] - 2.0) < 1e-9 and abs(s["cost_r"] - 100 * 24e-4 / 2) < 1e-9
+    assert abs(s["gross_r"] - 2.0) < 1e-9 and abs(s["cost_r"] - 100 * 124e-4 / 2) < 1e-9
 
 
 def test_limit_entry_needs_strict_trade_through_and_maker_cost():
@@ -29,7 +29,7 @@ def test_limit_entry_needs_strict_trade_through_and_maker_cost():
     assert _sim(touch, entry="limit_0.25") is None              # low == limit: no fill
     s = _sim([FLAT, FLAT, (100, 100.1, 99.7, 100), (100, 104.5, 99.9, 104)], entry="limit_0.25", cost="maker_assumed")
     assert s["fill"] == 99.75 and s["outcome"] == "target"
-    assert abs(s["cost_r"] - 99.75 * 4e-4 / s["risk"]) < 1e-9   # 2 bp limit entry + 2 bp limit target
+    assert abs(s["cost_r"] - 99.75 * 64e-4 / s["risk"]) < 1e-9   # 32 bp limit entry + 32 bp limit target
 
 
 def test_ambiguous_bar_counts_as_stop_and_partial_target():

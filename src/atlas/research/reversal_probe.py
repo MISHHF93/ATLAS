@@ -15,7 +15,7 @@ Simulation rules (conservative, closed bars only):
   - filters use only data closed at detection: daily EMA20 from completed UTC days (``htf_with``/``htf_counter``),
     ATR%/price percentile over the trailing 200 bars (``vol_low``/``vol_high``);
   - costs: ``taker`` = venue costs from ``atlas.ml.costs``; ``maker_assumed`` (crypto only) = an ASSUMPTION, not a
-    verified venue fill model: 2 bp per resting-limit leg (limit entry, target exit), 12 bp per taker leg
+    verified venue fill model: 32 bp per resting-limit leg (limit entry, target exit), 62 bp per taker leg
     (stop entry, stop/timeout exit). Maker fills assume queue position at the limit, which real books do not guarantee.
 Research evidence only; nothing here grants execution (execution_permission none).
 """
@@ -39,7 +39,7 @@ EXITS = {"rr2": "target 2R0", "rr1.5": "target 1.5R0", "partial_1_2": "half at 1
          "rr2_tstop": "target 2R0, time stop at half the hold"}
 FILTERS = ("none", "htf_with", "htf_counter", "vol_low", "vol_high")
 COSTS = ("taker", "maker_assumed")
-MAKER_BPS, TAKER_BPS = 2.0, 12.0
+MAKER_BPS, TAKER_BPS = 32.0, 62.0   # per leg: Kraken Pro $2.5K+ tier maker 30 bp / taker 60 bp + 2 bp slippage (assumption; matches ai.ml.costs)
 CRYPTO_CORE = ("BTCUSDT", "ETHUSDT")
 CRYPTO_ALTS = ("SOLUSDT", "XRPUSDT", "BNBUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "LTCUSDT",
                "BCHUSDT", "ATOMUSDT", "UNIUSDT", "AAVEUSDT", "ETCUSDT", "XLMUSDT", "FILUSDT", "APTUSDT", "ARBUSDT",

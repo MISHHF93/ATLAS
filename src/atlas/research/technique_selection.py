@@ -18,7 +18,7 @@ from atlas.features.price_action.replay import ReplayConfig, replay, trade_cost
 from atlas.features.price_action.sessions import US_EQUITY_RTH, SessionSpec
 from atlas.models.quant.metrics import deflated_sharpe
 from atlas.models.technique_selector import ContextTracker, TechniqueSelector, feature_row
-from atlas.research.setup_evidence import COST_PER_SHARE, COSTS_BPS, UTC_DAY, load_bars, load_datasets
+from atlas.research.setup_evidence import COST_PER_SHARE, COSTS_BPS, CRYPTO_SOURCES, UTC_DAY, load_bars, load_datasets
 
 N = NormalDist()
 DAY = 86400
@@ -254,7 +254,7 @@ def summarize(groups: dict[str, dict[str, Any]]) -> dict[str, Any]:
 def run(cache: Path, max_hold_bars: int = 32) -> dict[str, Any]:
     datasets, groups_rows, hyp = [], {}, {}
     for bars, meta in load_datasets(cache, ("15m",)):
-        asset = meta.get("asset_class") or ("crypto" if meta["source"].startswith("binance") else "equity")
+        asset = meta.get("asset_class") or ("crypto" if str(meta["source"]).startswith(CRYPTO_SOURCES) else "equity")
         session = UTC_DAY if asset == "crypto" else US_EQUITY_RTH
         cfg = ReplayConfig(entry_window=3, max_hold_bars=max_hold_bars, cost_per_unit=COST_PER_SHARE[asset],
                            cost_bps=COSTS_BPS[asset], zone_rule="zone_entry_v1")

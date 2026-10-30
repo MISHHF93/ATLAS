@@ -47,7 +47,7 @@ L += ["", "## Registration decision", "",
 L += ["## Caveats", "",
       "- Yahoo 1h RTH bars start at :30; the 15:30 ET bar covers only 30 minutes but is treated as 1h, so detection times on it are later than the true bar end (conservative).",
       "- Yahoo daily OHLC is split-adjusted but not dividend-adjusted, and has no survivorship issue for these ETFs. Only the free-tier windows were available: 730 days of 1h data, and 1d data from inception.",
-      "- Stooq was tried, but from this box it serves an HTML/JS challenge instead of CSV, so it was not used. `api.binance.com` is geo-restricted from this box; `data-api.binance.vision` (the same public klines) was used instead.",
+      "- Stooq was tried, but from this box it serves an HTML/JS challenge instead of CSV, so it was not used. Crypto bars come from Coinbase Exchange public candles (BTC-USD, ETH-USD); ATLAS does not use Binance, Bybit or OKX.",
       "- The fill model works on bars only (`conservative_ohlc_v1`); ambiguous bars count as stops. Costs are modelled assumptions, not measured fills.",
       "- The zone detectors have no live candidate rule. They were evaluated with the research mapping `zone_entry_v1` (entry at the confirmation close, stop at the far zone bound, target at 2R).",
       "- Several configs have small n (under 100 OOS), and their metrics are noisy.", ""]

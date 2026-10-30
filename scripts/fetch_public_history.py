@@ -2,8 +2,8 @@
 
 Sources (no keys):
 - Yahoo chart API (query1.finance.yahoo.com/v8/finance/chart): 1h for range=730d, and 1d from period1=0.
-- Binance public market data (data-api.binance.vision/api/v3/klines): 1h, paged forwards.
-With --15m: Yahoo 15m (range=60d, the free-tier maximum) and Binance 15m (730 days) into var/evidence_cache_15m/,
+- Coinbase Exchange public candles (api.exchange.coinbase.com/products/<BASE>-USD/candles): 1h, paged forwards, 300 candles per call.
+With --15m: Yahoo 15m (range=60d, the free-tier maximum) and Coinbase 15m (730 days) into var/evidence_cache_15m/,
 the cache read by scripts/run_selector_evidence.py.
 Usage: python scripts/fetch_public_history.py [--15m]
 Stooq was tried and is not used: from this box it returns an HTML JS challenge, not CSV.
@@ -24,6 +24,9 @@ from pathlib import Path
 CACHE = Path(__file__).resolve().parents[1] / "var" / "evidence_cache"
 CACHE_15M = CACHE.parent / "evidence_cache_15m"
 STEP_MS = {"1h": 3600_000, "15m": 900_000}
+GRANULARITY = {"1h": 3600, "15m": 900}   # Coinbase candle granularity in seconds
+COINBASE_CANDLES = "https://api.exchange.coinbase.com/products/{product}/candles"
+
 UA = {"User-Agent": "Mozilla/5.0 (research; atlas evidence fetch)"}
 
 
@@ -44,19 +47,28 @@ def yahoo(symbol: str, interval: str) -> dict:
             "gmtoffset": res["meta"].get("gmtoffset"), "bars": bars}
 
 
-def binance(symbol: str, days: int = 730, interval: str = "1h") -> dict:
-    end = int(time.time() * 1000)
-    start = end - days * 86400_000
-    out, cur = [], start
-    base = "https://data-api.binance.vision/api/v3/klines"
+def coinbase(symbol: str, days: int = 730, interval: str = "1h") -> dict:
+    """Coinbase Exchange public candles for an ATLAS crypto id (BTCUSDT -> BTC-USD). Rows are [t, low, high, open, close, volume],
+    newest first, at most 300 per call; only closed candles are kept. A symbol with no Coinbase listing raises (no fake data)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+    from atlas.feeds.crypto_venues import coinbase_product
+    product = coinbase_product(symbol[:-4] if symbol.endswith("USDT") else symbol)
+    if not product:
+        raise ValueError(f"{symbol}: no Coinbase USD listing; refusing to fabricate history")
+    step = GRANULARITY[interval]
+    end = int(time.time()) // step * step          # exclude the candle that is still forming
+    cur = end - days * 86400
+    out = []
     while cur < end:
-        rows = _get(f"{base}?symbol={symbol}&interval={interval}&startTime={cur}&limit=1000")
-        if not rows:
-            break
-        out += [[r[0] // 1000, float(r[1]), float(r[2]), float(r[3]), float(r[4]), float(r[5])] for r in rows if r[6] < end]
-        cur = rows[-1][0] + STEP_MS[interval]
+        stop = min(cur + 300 * step, end)
+        iso = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows = _get(COINBASE_CANDLES.format(product=product) + f"?granularity={step}&start={iso(cur)}&end={iso(stop - 1)}")
+        out += [[int(r[0]), float(r[3]), float(r[2]), float(r[1]), float(r[4]), float(r[5])] for r in rows if int(r[0]) + step <= end]
+        cur = stop
         time.sleep(0.2)
-    return {"source": "binance_public_klines", "url": base, "symbol": symbol, "interval": interval, "bars": out}
+    out = sorted({r[0]: r for r in out}.values())
+    return {"source": "coinbase_public_candles", "url": COINBASE_CANDLES.format(product=product), "symbol": symbol,
+            "provider_symbol": product, "interval": interval, "bars": out}
 
 
 def save(d: dict, cache: Path = CACHE) -> None:
@@ -75,11 +87,11 @@ if __name__ == "__main__":
         for s in ("SPY", "QQQ", "IWM"):
             save(yahoo(s, "15m"), CACHE_15M)
         for s in ("BTCUSDT", "ETHUSDT"):
-            save(binance(s, interval="15m"), CACHE_15M)
+            save(coinbase(s, interval="15m"), CACHE_15M)
         sys.exit(0)
     for s in ("SPY", "QQQ", "IWM"):
         save(yahoo(s, "1h"))
         save(yahoo(s, "1d"))
     for s in ("BTCUSDT", "ETHUSDT"):
-        save(binance(s))
+        save(coinbase(s))
     sys.exit(0)

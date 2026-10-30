@@ -18,7 +18,7 @@ The sections below are this older `src/atlas/ml` path (`scripts/ml_refresh.py`, 
 
 1. **Data**: confirmed bars from the feed store (`ATLAS_FEED_DB`), point-in-time via `feed.bars(..., as_of=)`; a
    bar enters only if `start + duration <= as_of`. Every series is hashed (sha256 over OHLCV), and the registry
-   records the hashes. Universe: BTCUSDT, ETHUSDT (Binance), SPY, QQQ, IWM (15m, 1h).
+   records the hashes. Universe: BTCUSDT, ETHUSDT (Coinbase BTC-USD/ETH-USD candles; evidence published before 2026-10-30 used Binance data), SPY, QQQ, IWM (15m, 1h).
 2. **Primary model = setup library**: the four price-action detectors (`dual_band_breakout`, `orb_retest`,
    `prior_day_range_reversal`, `wick_reversal`) are replayed bar by bar (`features/price_action/replay.py`,
    conservative OHLC fills). Every filled setup becomes one event.
@@ -29,7 +29,7 @@ The sections below are this older `src/atlas/ml` path (`scripts/ml_refresh.py`, 
    and its percentile, ATR, volume z-scores, EMA distance/slope, range position, session clock, a vol/trend regime
    proxy, setup geometry (reward:risk, cost in R, risk/ATR, entry type), detector one-hots, and direction-signed
    interactions. Full list: `atlas.ml.dataset.FEATURES` (also stored in each manifest).
-5. **Costs** (`atlas/ml/costs.py`): Binance spot 24 bp round trip (taker 10 bp ×2 + 2 bp slippage ×2); US
+5. **Costs** (`atlas/ai/ml/costs.py`): crypto spot 124 bp round trip (60 bp taker per side at Kraken Pro's $2.5K+ tier, plus 2 bp slippage per side; earlier evidence used a 24 bp Binance figure); US
    equity 4 bp + $0.01/share round trip. These are assumptions, not measured fills.
 6. **Purged + embargoed walk-forward** (§7.4): expanding window, 5 test folds. A training event *i* is kept only
    if its exit `e_i < T0 − embargo` (T0 = first test start, embargo = 1 day). Inside each training window:

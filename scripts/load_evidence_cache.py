@@ -1,7 +1,7 @@
 """Load the orphaned public-history artifacts (var/evidence_cache/*.json, var/evidence_cache_15m/*.json, written by
 scripts/fetch_public_history.py for the model-evidence scripts) into the ATLAS feed store, so the UI/feed serve them too.
 
-Bars keep their original provider (yahoo_chart_public -> yahoo, binance_public_klines -> binance). The final bar of
+Bars keep their original provider (yahoo_chart_public -> yahoo, coinbase_public_candles -> coinbase; legacy Binance caches are skipped). The final bar of
 each file is skipped when it may still have been forming at fetch time. Idempotent: the store's ingest dedupes.
 Usage: python scripts/load_evidence_cache.py [--var /workspace/atlas/var] [--db var/feeds/atlas_feed.sqlite]"""
 from __future__ import annotations
@@ -15,7 +15,7 @@ from atlas.feeds.store import FeedBar, FeedStore
 from atlas.feeds.universe import resolve
 
 SECONDS = {"15m": 900, "1h": 3600, "1d": 86400}
-PROVIDER = {"yahoo_chart_public": "yahoo", "binance_public_klines": "binance"}
+PROVIDER = {"yahoo_chart_public": "yahoo", "coinbase_public_candles": "coinbase"}
 
 
 def load(var: Path, store: FeedStore) -> list[dict]:

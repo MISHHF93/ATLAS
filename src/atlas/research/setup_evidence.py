@@ -26,7 +26,8 @@ from atlas.models.quant.metrics import deflated_sharpe
 from atlas.models.quant.validation import pbo_cscv
 
 UTC_DAY = SessionSpec("utc_day", "UTC", datetime.min.time(), datetime.min.time(), weekdays=(0, 1, 2, 3, 4, 5, 6))
-COSTS_BPS = {"equity": 4.0, "crypto": 24.0}   # round trip: equity 1bp spread+1bp slip per side; crypto 10bp taker+2bp slip per side
+COSTS_BPS = {"equity": 4.0, "crypto": 124.0}   # round trip: equity 1bp spread+1bp slip per side; crypto 60bp taker (Kraken Pro tier 2)+2bp slip per side (= ai.ml.costs)
+CRYPTO_SOURCES = ("coinbase", "kraken", "binance")   # cache `source` prefixes; "binance" only matches legacy cache files written before 2026-10-30 (no longer fetched)
 COST_PER_SHARE = {"equity": 0.01, "crypto": 0.0}
 EPS = 1e-6
 
@@ -172,7 +173,7 @@ def run(cache: Path, max_hold: dict[str, int] | None = None) -> dict[str, Any]:
     datasets, configs = [], []
     for f in sorted(cache.glob("*.json")):
         bars, meta = load_bars(f)
-        asset = "crypto" if meta["source"].startswith("binance") else "equity"
+        asset = "crypto" if str(meta["source"]).startswith(CRYPTO_SOURCES) else "equity"
         session = (UTC_DAY if asset == "crypto" else US_EQUITY_RTH) if meta["interval"] == "1h" else None
         cfg = ReplayConfig(entry_window=3, max_hold_bars=max_hold[meta["interval"]], cost_per_unit=COST_PER_SHARE[asset],
                            cost_bps=COSTS_BPS[asset], zone_rule="zone_entry_v1")

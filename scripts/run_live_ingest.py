@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Run the ATLAS live ingest service (Binance/Coinbase/Kraken websockets + Yahoo polling) into the feed store.
+"""Run the ATLAS live ingest service (Coinbase/Kraken websockets + Yahoo polling) into the feed store.
 
     PYTHONPATH=src python scripts/run_live_ingest.py [--db var/feeds/atlas_feed.sqlite] [--duration SECONDS]
 Writes its PID to var/feeds/live_ingest.pid (stop it with ``kill $(cat var/feeds/live_ingest.pid)``).
