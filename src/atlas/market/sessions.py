@@ -1019,7 +1019,7 @@ def evaluate_instrument_market_status(
         asset_class = "fx_spot"
         sched_summary = base_v["schedule_summary"]
     else:
-        exchange = "COINBASE" if sym.endswith("-USD") else "BINANCE"
+        exchange = "COINBASE" if sym.endswith("-USD") else "KRAKEN"
         asset_class = "crypto"
         sched_summary = base_v["schedule_summary"]
 

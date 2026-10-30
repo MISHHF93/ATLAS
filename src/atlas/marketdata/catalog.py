@@ -331,24 +331,24 @@ def classify_catalog_category(symbol: str, asset_class: str, exchange: str = "")
         return ("crypto_perps", "Major Digital Asset")
     return ("equities", "US Listed Equity")
 
-# Flagship CCXT Pro Crypto Perpetuals & Spot Pairs (Binance / Coinbase / Hyperliquid)
+# Flagship CCXT Pro Crypto Perpetuals & Spot Pairs (Coinbase / Kraken / Hyperliquid)
 FLAGSHIP_CRYPTO_PERPS: tuple[tuple[str, str, str, float, float, float, str], ...] = (
     ("BTC-USD", "Bitcoin Perpetual Swap", "CCXT_PRO", 68410.00, 1.42, 0.312, "Expansion"),
     ("ETH-USD", "Ethereum Perpetual Swap", "COINBASE", 2645.50, 2.15, 0.278, "Expansion"),
     ("SOL-USD", "Solana Perpetual Swap", "HYPERLIQUID", 176.80, 3.18, 0.354, "Expansion"),
-    ("BNB-USD", "BNB Perpetual Swap", "BINANCE", 598.40, 0.75, 0.235, "Compression"),
-    ("XRP-USD", "XRP Perpetual Swap", "BINANCE", 0.5480, 1.12, 0.284, "Compression"),
-    ("DOGE-USD", "Dogecoin Perpetual Swap", "BINANCE", 0.1445, 4.85, 0.392, "Expansion"),
+    ("BNB-USD", "BNB Perpetual Swap", "COINBASE", 598.40, 0.75, 0.235, "Compression"),
+    ("XRP-USD", "XRP Perpetual Swap", "COINBASE", 0.5480, 1.12, 0.284, "Compression"),
+    ("DOGE-USD", "Dogecoin Perpetual Swap", "COINBASE", 0.1445, 4.85, 0.392, "Expansion"),
     ("ADA-USD", "Cardano Perpetual Swap", "COINBASE", 0.3620, 0.94, 0.246, "Compression"),
     ("AVAX-USD", "Avalanche Perpetual Swap", "HYPERLIQUID", 28.40, 2.64, 0.328, "Expansion"),
     ("LINK-USD", "Chainlink Perpetual Swap", "COINBASE", 11.85, 1.88, 0.291, "Expansion"),
     ("SUI-USD", "Sui Network Perpetual Swap", "HYPERLIQUID", 2.08, 5.42, 0.412, "Expansion"),
-    ("DOT-USD", "Polkadot Perpetual Swap", "BINANCE", 4.45, 0.62, 0.238, "Compression"),
+    ("DOT-USD", "Polkadot Perpetual Swap", "COINBASE", 4.45, 0.62, 0.238, "Compression"),
     ("NEAR-USD", "NEAR Protocol Perpetual Swap", "HYPERLIQUID", 4.92, 2.95, 0.334, "Expansion"),
     ("LTC-USD", "Litecoin Perpetual Swap", "COINBASE", 71.20, 1.04, 0.229, "Compression"),
     ("UNI-USD", "Uniswap Perpetual Swap", "COINBASE", 7.85, 1.76, 0.282, "Expansion"),
     ("APT-USD", "Aptos Perpetual Swap", "HYPERLIQUID", 10.42, 3.85, 0.366, "Expansion"),
-    ("ICP-USD", "Internet Computer Perpetual Swap", "BINANCE", 8.34, 1.22, 0.264, "Compression"),
+    ("ICP-USD", "Internet Computer Perpetual Swap", "COINBASE", 8.34, 1.22, 0.264, "Compression"),
     ("ARB-USD", "Arbitrum Perpetual Swap", "HYPERLIQUID", 0.584, 2.14, 0.315, "Expansion"),
     ("OP-USD", "Optimism Perpetual Swap", "HYPERLIQUID", 1.74, 2.48, 0.321, "Expansion"),
     ("INJ-USD", "Injective Perpetual Swap", "HYPERLIQUID", 21.60, 3.12, 0.348, "Expansion"),
@@ -356,13 +356,13 @@ FLAGSHIP_CRYPTO_PERPS: tuple[tuple[str, str, str, float, float, float, str], ...
     ("TIA-USD", "Celestia Perpetual Swap", "HYPERLIQUID", 6.12, 4.18, 0.384, "Expansion"),
     ("PEPE-USD", "Pepe 1000x Perpetual Swap", "HYPERLIQUID", 0.0104, 6.20, 0.448, "Volatile Auction"),
     ("WIF-USD", "dogwifhat Perpetual Swap", "HYPERLIQUID", 2.68, 5.75, 0.436, "Volatile Auction"),
-    ("RENDER-USD", "Render Network Perpetual Swap", "BINANCE", 5.45, 2.84, 0.329, "Expansion"),
-    ("FET-USD", "Artificial Superintelligence Perp", "BINANCE", 1.42, 3.10, 0.342, "Expansion"),
+    ("RENDER-USD", "Render Network Perpetual Swap", "COINBASE", 5.45, 2.84, 0.329, "Expansion"),
+    ("FET-USD", "Artificial Superintelligence Perp", "COINBASE", 1.42, 3.10, 0.342, "Expansion"),
     ("SEI-USD", "Sei Network Perpetual Swap", "HYPERLIQUID", 0.465, 3.65, 0.358, "Expansion"),
     ("ATOM-USD", "Cosmos Hub Perpetual Swap", "COINBASE", 4.78, 0.54, 0.232, "Compression"),
     ("FIL-USD", "Filecoin Perpetual Swap", "COINBASE", 3.82, 0.88, 0.249, "Compression"),
-    ("TON-USD", "Toncoin Perpetual Swap", "BINANCE", 5.24, 0.72, 0.241, "Compression"),
-    ("HBAR-USD", "Hedera Perpetual Swap", "BINANCE", 0.0542, 1.15, 0.258, "Compression"),
+    ("TON-USD", "Toncoin Perpetual Swap", "COINBASE", 5.24, 0.72, 0.241, "Compression"),
+    ("HBAR-USD", "Hedera Perpetual Swap", "COINBASE", 0.0542, 1.15, 0.258, "Compression"),
 )
 
 
@@ -599,7 +599,7 @@ class UniversalAssetCatalog:
 
             # 5. Expand CCXT Pro Crypto Perpetuals Universe to >= 500 pairs
             remaining_crypto = self.target_crypto_count - len(FLAGSHIP_CRYPTO_PERPS)
-            exchanges_cr = ("BINANCE", "COINBASE", "HYPERLIQUID")
+            exchanges_cr = ("COINBASE", "KRAKEN", "HYPERLIQUID")
             for i in range(1, remaining_crypto + 1):
                 sym = f"PERP{i:03d}-USD"
                 exch = exchanges_cr[i % 3]

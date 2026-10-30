@@ -48,7 +48,7 @@ ALLOWED_MCP_TOOLS: dict[str, frozenset[str]] = {
         "sec_submissions",
         "ecb_fx_rates",
         "cboe_delayed_quotes",
-        "okx_public_candles",
+        "coinbase_public_candles",
     }),
 }
 
