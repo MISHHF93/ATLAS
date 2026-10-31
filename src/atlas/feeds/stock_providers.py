@@ -5,9 +5,9 @@ from this registry. ``ATLAS_STOCK_PROVIDER`` names the primary; the rest of the 
 failover. Nothing here sets a key, calls a vendor, or loosens the free-data gate (``free_sources.allowed`` still applies).
 
 Default primary = ``polygon`` (Massive Stocks Basic): free, instant email signup, no brokerage account, personal display
-allowed. Measured against a live Basic key on 2026-10-29: it serves 15-minute and daily bars for the last 2 years (5 calls/min),
+allowed. Measured against a live Basic key on 2026-10-29: it serves 1-minute, 15-minute and daily bars for the last 2 years (5 calls/min),
 up to the previous completed New York day (the current day returns HTTP 403). 1h is built from 15m by the feed. It does not
-serve 1m/5m/1h aggregates here (too many rows for 5 calls/min) or any live data; real time needs a paid plan. Research and sources: docs/data/canada-sources.md.
+serve 5m/1h aggregates by call (1h is built from 15m, 5m from 1m) or any live data. 1m IS served (measured 2026-10-30, T+1 only), but at 5 calls/min only a bounded window for a ticker list is stored (see massive_backfill); real time needs a paid plan. Research and sources: docs/data/canada-sources.md.
 
 ``restricted`` providers (Tiingo, Twelve Data, Finnhub): their FREE plans forbid what ATLAS does (persistent storage and
 chart display, or no candles at all). They are never in the automatic chain. They are used only when the owner names one in
@@ -21,7 +21,7 @@ from typing import Mapping
 
 INTRADAY = ("1m", "5m", "15m", "1h", "1d")
 DAILY = ("1d",)
-BASIC_MASSIVE = ("15m", "1d")
+BASIC_MASSIVE = ("1m", "15m", "1d")   # 1m measured 2026-10-30: served (regular session kept) for completed days; the code limits it to a window and a ticker list
 
 
 @dataclass(frozen=True)
@@ -41,7 +41,7 @@ class StockProvider:
 
 STOCK_PROVIDERS: dict[str, StockProvider] = {p.id: p for p in (
     StockProvider("polygon", "Massive (Polygon.io) Stocks Basic", "open", "https://massive.com/dashboard/signup", BASIC_MASSIVE,
-                  "5 calls/min, 15m + daily bars, 2 years, up to the previous completed day", "Personal, non-commercial; display for yourself is allowed; another viewer needs a Business plan",
+                  "5 calls/min, 1m + 15m + daily bars, 2 years, up to the previous completed day (T+1, no live)", "Personal, non-commercial; display for yourself is allowed; another viewer needs a Business plan",
                   "https://massive.com/legal/individuals-terms-of-service", env_keys=("POLYGON_API_KEY",)),
     StockProvider("alphavantage", "Alpha Vantage (free key)", "open", "https://www.alphavantage.co/support/#api-key", DAILY,
                   "25 requests/day, last 100 daily bars (compact); intraday is premium", "Personal, non-commercial; display on your own device",

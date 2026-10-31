@@ -7,6 +7,7 @@ adapter from the environment; nothing here sees or prints it.
 from __future__ import annotations
 
 import datetime as dt
+import os
 import time
 from typing import Callable, Iterable
 
@@ -17,7 +18,26 @@ from .providers.polygon import et_midnight
 PRIORITY = ("AAPL", "SPY", "QQQ", "GLD", "NVDA", "MSFT", "TSM", "AVGO", "MU", "CRWD",
             "ROK", "CEG", "OKLO", "VST", "RKLB", "SOFI", "ENPH")
 PROVIDER = "polygon"
-WINDOW_DAYS = {"1d": 725, "15m": 725}      # the free plan keeps 2 years
+WINDOW_DAYS = {"1d": 725, "15m": 725, "1m": 60}      # the free plan keeps 2 years; 1m is limited to a recent window (disk), see stock_1m_universe
+
+
+def window_days(interval: str) -> int:
+    """Look-back for an interval. 1m is ATLAS_STOCK_1M_DAYS (default 60 completed days, regular session only)."""
+    if interval == "1m":
+        try:
+            return max(1, int(os.environ.get("ATLAS_STOCK_1M_DAYS", WINDOW_DAYS["1m"])))
+        except ValueError:
+            return WINDOW_DAYS["1m"]
+    return WINDOW_DAYS[interval]
+
+
+def stock_1m_universe(ids: Iterable[str]) -> list[str]:
+    """Tickers that get 1m bars. Default: the priority list only (about 400k rows for 60 days). ATLAS_STOCK_1M=all widens it to every stock/ETF
+    (about 10x the rows and about 10x the calls), which is an explicit opt-in because of disk and the 4 calls/min throttle."""
+    ids = list(ids)
+    if (os.environ.get("ATLAS_STOCK_1M") or "").strip().lower() == "all":
+        return ids
+    return [i for i in PRIORITY if i in ids]
 
 
 def _missing_weekdays(last_bar_end: int, end: int) -> int:
@@ -36,7 +56,7 @@ def _missing_weekdays(last_bar_end: int, end: int) -> int:
 def plan_window(last_bar_end: int | None, now: float, interval: str, days: int | None = None) -> tuple[int, int] | None:
     """(start, end) still missing, or None when the store is already up to the last completed ET day."""
     end = et_midnight(now)
-    floor = end - (days or WINDOW_DAYS[interval]) * 86400
+    floor = end - (days or window_days(interval)) * 86400
     start = max(floor, last_bar_end) if last_bar_end else floor
     if start >= end or (last_bar_end and _missing_weekdays(last_bar_end, end) == 0):
         return None
@@ -54,13 +74,15 @@ def materialize_1h(feed, instrument: str, now: float) -> int:
     return feed.store.ingest(agg, note="1h from stored 15m")["inserted"] if agg else 0
 
 
-def jobs(feed, instruments: Iterable[str], phases: str = "ABC") -> list[tuple[str, str]]:
+def jobs(feed, instruments: Iterable[str], phases: str = "ABCD") -> list[tuple[str, str]]:
     ids = list(instruments)
     pri = [i for i in PRIORITY if i in ids]
     rest = [i for i in ids if i not in pri]
     out: list[tuple[str, str]] = []
     if "A" in phases:
         out += [(i, iv) for i in pri for iv in ("1d", "15m")]
+    if "D" in phases:   # 1m regular-session bars, previous completed sessions only (the free plan is T+1)
+        out += [(i, "1m") for i in stock_1m_universe(ids)]
     if "B" in phases:
         out += [(i, "1d") for i in rest]
     if "C" in phases:
@@ -68,7 +90,7 @@ def jobs(feed, instruments: Iterable[str], phases: str = "ABC") -> list[tuple[st
     return out
 
 
-def run(feed, instruments: Iterable[str], phases: str = "ABC", now: float | None = None, days: int | None = None,
+def run(feed, instruments: Iterable[str], phases: str = "ABCD", now: float | None = None, days: int | None = None,
         emit: Callable[[dict], None] = lambda r: None, make_1h: bool = True) -> list[dict]:
     now = time.time() if now is None else now
     results = []

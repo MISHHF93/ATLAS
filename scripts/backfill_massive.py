@@ -4,7 +4,8 @@
     PYTHONPATH=src python scripts/backfill_massive.py --instruments AAPL,SPY --phases A
     PYTHONPATH=src python scripts/backfill_massive.py --plan                # list the jobs, make no call
 
-Phases: A = priority tickers (1d + 15m), B = the rest, daily, C = the rest, 15m. Re-runnable: only the missing tail is fetched.
+Phases: A = priority tickers (1d + 15m), B = the rest, daily, C = the rest, 15m, D = 1m regular-session bars
+(last ATLAS_STOCK_1M_DAYS completed days, default 60; priority tickers unless ATLAS_STOCK_1M=all). Re-runnable: only the missing tail is fetched.
 Needs MASSIVE_API_KEY or POLYGON_API_KEY in the environment / .env. Throttled to 4 calls/min for the whole machine.
 Personal, non-commercial use only on the Basic plan.
 """
@@ -31,7 +32,7 @@ def _load_dotenv(path=".env"):
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--instruments", default="", help="comma list; default = every stock/ETF in the UI universe")
-    ap.add_argument("--phases", default="ABC")
+    ap.add_argument("--phases", default="ABCD")
     ap.add_argument("--days", type=int)
     ap.add_argument("--db")
     ap.add_argument("--plan", action="store_true")

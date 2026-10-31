@@ -3,7 +3,7 @@
 What the FREE plan (Stocks Basic) allows, measured against a live Basic key on 2026-10-29 and from Massive's published plan tiers:
 bars up to the previous completed New York session only (today's date returns HTTP 403 NOT_AUTHORIZED until midnight ET); no websocket (auth is refused on both delayed.massive.com and socket.massive.com);
 no snapshot or last-trade (403 NOT_AUTHORIZED); no real-time and no 15-minute-delayed intraday feed (those start on paid plans). So on the free plan the "live" job is an end-of-day
-refresh: after each ET midnight it pulls the newly completed session (15m + daily) and the 1h built from it, then the ML scores the newest
+refresh: after each ET midnight it pulls the newly completed session (1m for the priority tickers, 15m and daily) and the 1h built from it, then the ML scores the newest
 closed bar. The UI says exactly that ("end-of-day lag"), never "live".
 
 With ``ATLAS_POLYGON_PLAN=paid`` (owner opt-in after buying a plan) the loop also polls the stock snapshot every ``SNAPSHOT_EVERY_S`` seconds
@@ -23,7 +23,7 @@ TORONTO = ZoneInfo("America/Toronto")
 SNAPSHOT_EVERY_S = 30
 REFRESH_EVERY_S = 900          # free plan: only the ET-midnight rollover adds bars; polling is a cheap no-op (zero calls) in between
 SNAPSHOT_PATH = "/v2/snapshot/locale/us/markets/stocks/tickers"
-FREE_TEXT = ("Massive free plan (Stocks Basic): bars end at the previous completed New York session, 15m and daily. "
+FREE_TEXT = ("Massive free plan (Stocks Basic): bars end at the previous completed New York session (T+1): 1m, 15m and daily. "
              "There is no websocket (auth is refused: \"plan doesn't include websocket access\") and the snapshot and last-trade endpoints return 403 "
              "NOT_AUTHORIZED, so there is no real-time or 15-minute-delayed intraday on this plan (those are paid). "
              "ATLAS refreshes after each ET midnight, so the newest bar is from the last completed session.")
@@ -108,12 +108,12 @@ def poll_snapshot(feed, env: Mapping[str, str], instruments: Iterable[str], now:
 
 
 def refresh(feed, env: Mapping[str, str], instruments: Iterable[str], now: float | None = None) -> list[dict]:
-    """Free-plan refresh: for each instrument, fetch only the completed sessions the store is missing (15m + daily) and rebuild 1h.
+    """Free-plan refresh: for each instrument, fetch only the completed sessions the store is missing (1m for the priority tickers, 15m, daily) and rebuild 1h.
     Costs zero API calls when the store is already up to the last completed ET day."""
     from atlas.feeds import massive_backfill as MB
     if not has_key(env):
         return []
-    return MB.run(feed, list(instruments), "ABC", now=now)
+    return MB.run(feed, list(instruments), "ABCD", now=now)
 
 
 def stock_instruments(feed) -> list[str]:

@@ -12,7 +12,7 @@ from atlas.integrations.registry import SERVICES, EXECUTION_PERMISSION, _is_set
 # (rank, service ids that satisfy this row, headline, why it matters). The first five are the core path, in order of impact.
 CORE: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
     ("massive", ("polygon",), "Massive (stock & ETF bars)",
-     "Primary free source for US stocks and ETFs (15m and daily, 2 years). Without it the stock charts, the ML training pools and the stock predictions have no bars."),
+     "Primary free source for US stocks and ETFs (15m and daily for 2 years, plus 1m for the priority tickers, T+1). Without it the stock charts, the ML training pools and the stock predictions have no bars."),
     ("gemini", ("gemini",), "Gemini (LLM reviewer)",
      "Powers the news/proposal reviewer. Used only when ATLAS_GEMINI_TIER=paid (the free tier may train on your data, so ATLAS refuses it). Advisory and shadow only; "
      "without it the reviewer-evidence gate can never accumulate."),

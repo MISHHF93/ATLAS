@@ -46,7 +46,7 @@ SERVICES: tuple[Service, ...] = (
             "https://fredaccount.stlouisfed.org/apikeys", "src/atlas/feeds/providers/fred.py, src/atlas/autopilot/feeds.py", "fred"),
     Service("polygon", "Massive (formerly Polygon.io)", "market_data", ("POLYGON_API_KEY",), ("POLYGON_BASE_URL", "MASSIVE_API_KEY", "MASSIVE_BASE_URL"), "free_tier",
             "https://massive.com/dashboard/signup", "src/atlas/feeds/providers/polygon.py, src/atlas/marketdata/pit/providers/polygon.py",
-            notes="Recommended free stock/ETF source for Canadian users (email signup, no brokerage account): Stocks Basic = 15m + daily bars up to the previous completed day, 2 years, 5 calls/min, personal non-commercial use. Accepts either POLYGON_API_KEY or MASSIVE_API_KEY; primary host api.massive.com."),
+            notes="Recommended free stock/ETF source for Canadian users (email signup, no brokerage account): Stocks Basic = 15m + daily bars (2 years) and 1m bars (T+1, a recent window for a ticker list) up to the previous completed day, 5 calls/min, personal non-commercial use. Accepts either POLYGON_API_KEY or MASSIVE_API_KEY; primary host api.massive.com."),
     Service("finnhub", "Finnhub (quotes, news, fundamentals)", "market_data", ("FINNHUB_API_KEY",), (), "free_tier",
             "https://finnhub.io/dashboard", "src/atlas/feeds/providers/finnhub.py, src/atlas/marketdata/pit/providers/finnhub.py"),
     Service("tiingo", "Tiingo (EOD + IEX intraday)", "market_data", ("TIINGO_API_KEY",), (), "free_tier",

@@ -42,7 +42,7 @@ class PolygonAdapter(ProviderAdapter):
     caps = Capabilities(
         name='polygon', title='Massive (formerly Polygon.io) aggregates', status="interface_fixture_tested",
         asset_classes=('equity', 'etf', 'option', 'fx', 'crypto', 'index'), schemas=('bars', 'trades', 'quotes'), intervals=('1m', '5m', '15m', '1h', '1d'),
-        history_depth='Stocks: free = 2 years of 15m and daily bars (previous completed day, not live); paid = 20+ years, real time',
+        history_depth='Stocks: free = 2 years of 15m and daily bars and 1m bars (previous completed day, not live; ATLAS stores a recent 1m window for a ticker list); paid = 20+ years, real time',
         live_stream='websocket: wss://socket.massive.com/stocks (paid; delayed.massive.com for delayed)',
         rate_limits='Free (Basic): 5 API calls/min; paid: unlimited (soft)',
         auth_env=('POLYGON_API_KEY',),
