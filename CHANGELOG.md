@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-10-31: 15m shadow clock earns shadow time only while it runs
+- `signal15_live.shadow_summary` measured shadow weeks as the span between the first and last logged decision bar, so a clock that logged once, stopped, and logged again a month later showed four "shadow weeks". It now counts only gaps of at most one day between logged bars (`covered_weeks`, `MAX_COVERED_GAP_S`); downtime counts as zero. The raw span and the longest gap are reported next to it (`shadow_span_weeks`, `shadow_longest_gap_h`). This tightens the shadow-weeks check and loosens no gate; `train.GATES` and `risk_policy.yaml` are unchanged. Two tests added.
+
 ## 2026-10-30: Canada eligibility filter, no-key setup, feed DB VACUUM
 - `excluded_venues` now also records hyperliquid (Ontario terms bar), polymarket (banned in Ontario; blocks AB/BC/QC) and kalshi_direct (Canada is a Restricted Jurisdiction). None of them had code or env vars.
 - Docs and roadmap CSVs: leftover Binance / OKX / Hyperliquid / Bybit mentions replaced with Coinbase / Kraken; `docs/spec/price-action.md` notes Binance is unavailable to Canadians.

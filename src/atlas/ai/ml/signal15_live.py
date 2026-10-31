@@ -211,6 +211,23 @@ def resolve_signals(store, now: int | None = None, rt: Path | None = None) -> in
     return len(out)
 
 
+MAX_COVERED_GAP_S = 86400            # a gap between logged decision bars longer than this is clock downtime and earns no shadow time
+
+
+def covered_weeks(ts: list[int]) -> tuple[float, float, int]:
+    """(covered weeks, raw span weeks, longest gap s) of logged decision bars.
+
+    Only gaps of at most ``MAX_COVERED_GAP_S`` count, so a clock that logged one bar, stopped, and logged again a month
+    later does not earn a month of shadow time. Conservative by design: a downtime gap counts as zero, never as partial time."""
+    u = sorted(set(int(t) for t in ts))
+    if len(u) < 2:
+        return 0.0, 0.0, 0
+    gaps = np.diff(np.asarray(u, dtype=np.int64))
+    covered = int(gaps[gaps <= MAX_COVERED_GAP_S].sum())
+    wk = 7 * 86400
+    return covered / wk, (u[-1] - u[0]) / wk, int(gaps.max())
+
+
 def shadow_summary(rt: Path | None = None) -> dict[str, Any]:
     rt = Path(rt) if rt else root()
     logged = [r for r in _read_jsonl(rt / "signals.jsonl")]
@@ -219,8 +236,10 @@ def shadow_summary(rt: Path | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"n_logged": len(logged), "n_setups": len(setups), "n_resolved": len(res),
                            "n_buy": sum(r["action"] == "BUY" for r in logged), "n_sell": sum(r["action"] == "SELL" for r in logged)}
     ts = [int(r["decision_t"]) for r in logged if r.get("decision_t") is not None]
-    weeks = (max(ts) - min(ts)) / (7 * 86400) if len(ts) > 1 else 0.0
+    weeks, span, gap_max = covered_weeks(ts)
     out["shadow_weeks"] = round(weeks, 3)
+    out["shadow_span_weeks"] = round(span, 3)
+    out["shadow_longest_gap_h"] = round(gap_max / 3600, 2)
     out["gates"] = dict(S.GATES)
     out["gate_shadow_weeks_met"] = weeks >= S.GATES["min_shadow_weeks"]
     out["live_gate_pass"] = False if not res else None            # promotion is decided by train.gates on a retrain, never by this summary

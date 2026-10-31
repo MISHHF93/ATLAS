@@ -210,3 +210,23 @@ def test_contract_lists_the_new_endpoints_and_routes_exist(tmp_path, monkeypatch
     paths = {r.path for r in ml_router.routes}
     assert {"/api/ml/v1/signals", "/api/ml/v1/nowcast", "/api/ml/v1/gapfill"} <= paths
     assert CV.signals_payload(None, 1)["execution_permission"] == "none"
+
+
+def test_shadow_weeks_count_only_covered_time_not_clock_downtime(tmp_path):
+    """Two logged bars four weeks apart (clock stopped in between) must not satisfy the four-shadow-week gate."""
+    rows = [{"instrument": "BTCUSDT", "model_key": "crypto_h96", "decision_t": T0, "action": "HOLD", "setup": None},
+            {"instrument": "BTCUSDT", "model_key": "crypto_h96", "decision_t": T0 + 29 * 86400, "action": "HOLD", "setup": None}]
+    L._append_jsonl(tmp_path / "signals.jsonl", rows)
+    s = L.shadow_summary(tmp_path)
+    assert s["shadow_span_weeks"] > S.GATES["min_shadow_weeks"]
+    assert s["shadow_weeks"] == 0.0 and s["gate_shadow_weeks_met"] is False
+    assert s["shadow_longest_gap_h"] == 29 * 24
+
+
+def test_shadow_weeks_accumulate_over_a_continuously_running_clock():
+    ts = [T0 + i * 900 for i in range(4 * 7 * 96 + 1)]                 # four weeks of 15m decision bars, no gaps
+    weeks, span, gap = L.covered_weeks(ts)
+    assert weeks == pytest.approx(4.0) and span == pytest.approx(4.0) and gap == 900
+    weeks2, _, _ = L.covered_weeks(ts[:96] + ts[-96:])                  # one day at each end, three-plus weeks down in between
+    assert weeks2 < 1.0
+    assert L.covered_weeks([]) == (0.0, 0.0, 0) and L.covered_weeks([T0, T0]) == (0.0, 0.0, 0)
