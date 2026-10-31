@@ -244,6 +244,27 @@ def ml_v1_monitor() -> dict[str, Any]:
     return monitor_payload()
 
 
+@ml_router.get("/v1/signals")
+def ml_v1_signals(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+    """Predicted 15m BUY/SELL/HOLD signals (paper/shadow only, not advice)."""
+    from atlas.ai.ml.contract_v1 import signals_payload
+    return signals_payload(None, limit)
+
+
+@ml_router.get("/v1/nowcast")
+def ml_v1_nowcast(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+    """Predicted (not real) nowcasts for T+1/daily markets, with their realised-score tracking."""
+    from atlas.ai.ml.contract_v1 import nowcast_payload
+    return nowcast_payload(None, limit)
+
+
+@ml_router.get("/v1/gapfill")
+def ml_v1_gapfill() -> dict[str, Any]:
+    """Predicted 1s crypto gap-fill summary (never written to the feed)."""
+    from atlas.ai.ml.contract_v1 import gapfill_payload
+    return gapfill_payload(None)
+
+
 @ml_router.get("/evolution-intelligence")
 def ml_evolution_intelligence(symbol: str = Query("BTC-USD"), interval: str = Query("15m")) -> dict[str, Any]:
     """Sections 13–20: Complete ATLAS Evolution Intelligence Dashboard across 4 distinct dimensions."""

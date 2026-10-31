@@ -34,6 +34,9 @@ def contract_index() -> dict[str, Any]:
             "roll": "GET /api/ml/v1/roll",
             "shadow": "GET /api/ml/v1/shadow",
             "monitor": "GET /api/ml/v1/monitor",
+            "signals": "GET /api/ml/v1/signals",
+            "nowcast": "GET /api/ml/v1/nowcast",
+            "gapfill": "GET /api/ml/v1/gapfill",
         },
         docs="docs/ml/api-v1.md",
     )
@@ -194,3 +197,18 @@ def monitor_payload(path=None, shadow_path: str | None = None) -> dict[str, Any]
         weekly.append({"week": row.get("week"), "brier": row.get("brier"), "base_rate": row.get("base_rate"),
                        "labelled": row.get("labelled"), "resolved": row.get("resolved")})
     return _envelope(oos_brier=oos, shadow_brier=weekly, drift=drift)
+
+
+def signals_payload(rt=None, limit: int = 50) -> dict[str, Any]:
+    from atlas.ai.ml.signal15_live import signals_payload as _p
+    return _p(rt, limit)
+
+
+def nowcast_payload(ledger_path: str | None = None, limit: int = 50) -> dict[str, Any]:
+    from atlas.ai.ml.signal15_live import nowcast_payload as _p
+    return _p(ledger_path, limit)
+
+
+def gapfill_payload(path: str | None = None) -> dict[str, Any]:
+    from atlas.ai.ml.signal15_live import gapfill_payload as _p
+    return _p(path)

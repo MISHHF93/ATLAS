@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { loadMarketBars, type MarketBar, type MarketBarsResponse } from "../../lib/marketBars";
 import { LiveModelLockPanel } from "../market/LiveModelLockPanel";
 import { ObserverHealthPanel } from "../market/ObserverHealthPanel";
+import { Signal15Panel } from "../market/Signal15Panel";
 import { FeedHealthPanel } from "../market/FeedHealthPanel";
 
 type PositionRow = {
@@ -712,6 +713,7 @@ export function TrainingStatusPage({ symbol = "BTC-USD" }: { symbol?: string }) 
     <>
     <LiveModelLockPanel symbol={symbol} />
     <ObserverHealthPanel />
+    <Signal15Panel />
     <div className="clean-card">
       <div className="clean-card-header">
         <div>

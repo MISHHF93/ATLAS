@@ -68,3 +68,18 @@ List omits the markdown body. The version route includes `model_card_markdown` w
 | drift | list | one drift status per registry version |
 
 An empty registry returns empty lists.
+
+## `GET /signals`
+
+Predicted 15m BUY/SELL/HOLD signals from `scripts/signal15_tick.py`. Label: "Predicted signal, not advice". `execution_permission` is `none`; paper/shadow only. No size, order or account field exists.
+
+| field | meaning |
+|---|---|
+| state | `running`, `stale` (last tick older than 2 bars + 120 s) or `absent` |
+| models | per market class: model key, status, failed gates (same `train.GATES`) |
+| signals | newest decision per instrument: action, reason (HOLD reasons: `no_model`, `no_real_bars`, `stale_data`, `no_fresh_setup`), p, ev_r, conformal take, uncertainty |
+| shadow | logged and resolved counts, shadow_weeks, Brier vs baseline, mean R of taken |
+
+## `GET /nowcast` and `GET /gapfill`
+
+Predicted values for T+1/daily markets and missing crypto seconds. They are stored apart from real bars, never written to the feed DB and never used as labels. `/nowcast` returns the issued rows and their score against real bars once those arrive; `/gapfill` returns the gap-fill summary and calibration. Both read sqlite files read-only.
