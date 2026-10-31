@@ -71,6 +71,34 @@ def test_comparison_window_is_strictly_after_incumbent_data_and_unseen_by_challe
     assert cmp["challenger_pin_bps"] is not None and cmp["incumbent_pin_bps"] is not None
 
 
+def test_pooled_rows_drop_labels_that_land_in_the_next_block():
+    # Three instruments share timestamps, the same shape build_rows/concat produces.
+    # A 2-row embargo is not one bar of the same instrument, so the last fit rows' labels
+    # (the next bar of that symbol) fall inside calibration. Those rows must not be fit on.
+    t, inst = [], []
+    for k in range(30):
+        for name in ("A", "B", "C"):
+            t.append(1_000 + k * 300)
+            inst.append(name)
+    t = np.array(t)
+    inst = np.array(inst)
+    sl = HZ.split_slices(len(t))
+    boundary = int(t[sl["cal"].start])
+    fit = HZ.resolved_label_rows(t, inst, sl["fit"], sl["cal"].start)
+    naive = np.arange(sl["fit"].start, sl["fit"].stop)
+
+    def next_t(i):
+        nxt = t[(np.arange(len(t)) > i) & (inst == inst[i])]
+        return int(nxt[0]) if len(nxt) else None
+
+    leaked = [int(i) for i in naive if (nt := next_t(int(i))) is not None and nt >= boundary]
+    assert leaked, "the fixed 2-row embargo should have kept at least one overlapping label"
+    assert set(leaked).isdisjoint(set(int(i) for i in fit))
+    for i in fit:
+        nt = next_t(int(i))
+        assert nt is not None and nt < boundary
+
+
 def test_decide_rules():
     c = {"n_eval": 500, "challenger_pin_bps": 3.9, "incumbent_pin_bps": 4.0, "model": "lgbm"}
     assert RL.decide(c, True, 100, 1000)[0] == "promote"

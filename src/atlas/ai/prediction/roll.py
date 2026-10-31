@@ -8,7 +8,10 @@ Nothing here writes to the bar store; no keyed FRED data is used (the context co
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -23,6 +26,13 @@ MIN_EVAL_ROWS = 200          # fewer unseen rows than this and the incumbent sta
 MAX_AGE_S = {"1m": 6 * 3600, "5m": 12 * 3600}
 MIN_NEW_ROWS = {"1m": 1200, "5m": 400}       # new pooled rows since the incumbent's data_end before a retrain is worth running
 LOG = "roll.jsonl"
+STATUS_NAME = "roll_status.json"
+SUPERVISOR_NAME = "roll_supervisor.json"
+# A full 1m pass can run a long time. The cap stops a stuck iteration; the heartbeat
+# shows a live one. 0 disables the cap. Promotion rules are unchanged.
+DEFAULT_ITERATION_TIMEOUT_S = 4 * 3600
+HEARTBEAT_S = 30.0
+TIMED_OUT = 124
 
 
 def cell_dir(pool: str, h: str, root=None) -> Path:
@@ -129,6 +139,161 @@ def retrain_cell(pool: str, h: str, rows: pd.DataFrame, used: list[str], now: fl
     return out
 
 
+def _read_json(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        body = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def write_status(payload: dict, root=None, name: str = STATUS_NAME) -> Path:
+    """Atomically replace a small status file. Never raises past a disk error print."""
+    p = HZ.root_path(root) / name
+    p.parent.mkdir(parents=True, exist_ok=True)
+    body = {**payload, "execution_permission": "none", "heartbeat_at": payload.get("heartbeat_at", time.time())}
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(body, default=str))
+    os.replace(tmp, p)
+    return p
+
+
+def append_event(event: dict, root=None) -> None:
+    """One JSON line on the roll log. Lifecycle events (start, error, timeout) so a long fit is not silence."""
+    try:
+        log = HZ.root_path(root) / LOG
+        log.parent.mkdir(parents=True, exist_ok=True)
+        row = {"execution_permission": "none", **event}
+        with log.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, default=str) + "\n")
+    except OSError as exc:
+        print(f"roll log write failed: {type(exc).__name__}: {exc}", flush=True)
+
+
+class Heartbeat:
+    """Refresh ``roll_status.json`` while a cycle is inside a long fit (the log line is written only at the end)."""
+
+    def __init__(self, root=None, interval: float = HEARTBEAT_S):
+        self.root = root
+        self.interval = interval
+        self.state: dict[str, Any] = {"state": "running", "phase": "start", "pid": os.getpid(), "started_at": time.time()}
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def _flush(self) -> None:
+        try:
+            write_status({**self.state, "heartbeat_at": time.time()}, self.root, STATUS_NAME)
+        except OSError as exc:
+            print(f"roll status write failed: {type(exc).__name__}: {exc}", flush=True)
+
+    def start(self) -> None:
+        self._flush()
+        self._thread = threading.Thread(target=self._run, name="roll-heartbeat", daemon=True)
+        self._thread.start()
+
+    def update(self, **kw: Any) -> None:
+        self.state.update(kw)
+        self._flush()
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.interval):
+            self._flush()
+
+    def stop(self, **kw: Any) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+        if kw:
+            self.state.update(kw)
+        self._flush()
+
+
+def supervise(command: list[str], *, timeout_s: float, env: dict | None = None, root=None, iteration: int = 1,
+              heartbeat_s: float = HEARTBEAT_S) -> int:
+    """Run one cycle in a child interpreter. Write a start line immediately, heartbeat while it runs, kill it at ``timeout_s``.
+
+    The child is the worker. This process only supervises, so a stuck LightGBM fit cannot freeze the loop.
+    ``timeout_s <= 0`` waits without a cap. Returns 124 on timeout, the child code otherwise.
+    Does not promote anything; the child runs the same pinball rule as ``retrain_cell``.
+    """
+    started = time.time()
+    append_event({"event": "cycle_start", "at": started, "iteration": iteration, "pid": os.getpid(), "timeout_s": timeout_s}, root)
+    sup = {"state": "running", "iteration": iteration, "pid": os.getpid(), "started_at": started, "timeout_s": timeout_s, "phase": "spawn"}
+    try:
+        write_status(sup, root, SUPERVISOR_NAME)
+    except OSError as exc:
+        print(f"roll supervisor status failed: {type(exc).__name__}: {exc}", flush=True)
+    try:
+        proc = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except OSError as exc:
+        append_event({"event": "cycle_error", "at": time.time(), "iteration": iteration, "error": f"{type(exc).__name__}: {exc}"}, root)
+        try:
+            write_status({**sup, "state": "error", "error": f"{type(exc).__name__}: {exc}"}, root, SUPERVISOR_NAME)
+        except OSError:
+            pass
+        return 1
+    t0 = time.monotonic()
+    out = err = ""
+    code: int | None = None
+    timed_out = False
+    while True:
+        wait = heartbeat_s if timeout_s <= 0 else min(heartbeat_s, max(0.05, timeout_s - (time.monotonic() - t0)))
+        try:
+            out, err = proc.communicate(timeout=wait)
+            code = proc.returncode
+            break
+        except subprocess.TimeoutExpired:
+            elapsed = time.monotonic() - t0
+            try:
+                write_status({**sup, "state": "running", "child_pid": proc.pid, "elapsed_s": round(elapsed, 1), "phase": "cycle"}, root, SUPERVISOR_NAME)
+            except OSError:
+                pass
+            if timeout_s > 0 and elapsed >= timeout_s:
+                timed_out = True
+                proc.kill()
+                try:
+                    out, err = proc.communicate(timeout=10)
+                except subprocess.TimeoutExpired:
+                    out, err = "", ""
+                code = proc.returncode
+                break
+    tail_err = (err or "")[-800:]
+    if timed_out:
+        append_event({"event": "cycle_timeout", "at": time.time(), "iteration": iteration, "timeout_s": timeout_s,
+                      "child_pid": proc.pid, "stderr": tail_err}, root)
+        try:
+            write_status({"state": "timeout", "iteration": iteration, "pid": os.getpid(), "child_pid": proc.pid,
+                          "started_at": started, "timeout_s": timeout_s, "phase": "killed"}, root, STATUS_NAME)
+            write_status({"state": "timeout", "iteration": iteration, "pid": os.getpid(), "child_pid": proc.pid,
+                          "started_at": started, "timeout_s": timeout_s}, root, SUPERVISOR_NAME)
+        except OSError:
+            pass
+        print(f"cycle timed out after {timeout_s:.0f}s (child {proc.pid}); loop continues", flush=True)
+        return TIMED_OUT
+    if code not in (0, None):
+        append_event({"event": "cycle_exit", "at": time.time(), "iteration": iteration, "returncode": code,
+                      "stderr": tail_err, "stdout_tail": (out or "")[-400:]}, root)
+        try:
+            write_status({"state": "error", "iteration": iteration, "pid": os.getpid(), "child_pid": proc.pid,
+                          "returncode": code, "started_at": started}, root, SUPERVISOR_NAME)
+        except OSError:
+            pass
+        if tail_err:
+            print(tail_err, flush=True)
+        return int(code)
+    append_event({"event": "cycle_done", "at": time.time(), "iteration": iteration, "returncode": 0}, root)
+    try:
+        write_status({"state": "idle", "iteration": iteration, "pid": os.getpid(), "child_pid": proc.pid,
+                      "started_at": started, "last_ok_at": time.time()}, root, SUPERVISOR_NAME)
+    except OSError:
+        pass
+    if out:
+        print(out, end="" if out.endswith("\n") else "\n", flush=True)
+    return 0
+
+
 def roll_status(root=None, tail: int = 50) -> dict[str, Any]:
     log = HZ.root_path(root) / LOG
     rows = []
@@ -144,5 +309,8 @@ def roll_status(root=None, tail: int = 50) -> dict[str, Any]:
             man, _ = HZ.load_bundle(pool, h, root)
             last = next((r for r in reversed(rows) if r.get("pool") == pool and r.get("horizon") == h), None)
             cells[f"{pool}-{h}"] = {"trained_at": (man or {}).get("created_at"), "data_end": (man or {}).get("data_end"), "last_decision": last}
-    return {"cells": cells, "recent": rows[-10:], "rule": f"promote only if pinball <= incumbent on >= {MIN_EVAL_ROWS} real bars neither model trained on; "
-            f"previous bundle kept as .prev", "execution_permission": "none", "label": HZ.LABEL}
+    base = HZ.root_path(root)
+    return {"cells": cells, "recent": rows[-10:], "worker": _read_json(base / STATUS_NAME), "supervisor": _read_json(base / SUPERVISOR_NAME),
+            "rule": f"promote only if pinball <= incumbent on >= {MIN_EVAL_ROWS} real bars neither model trained on; "
+            f"previous bundle kept as .prev", "execution_permission": "none", "label": HZ.LABEL,
+            "loop": "each iteration writes cycle_start before training, heartbeats roll_status.json, and is killed after the timeout"}

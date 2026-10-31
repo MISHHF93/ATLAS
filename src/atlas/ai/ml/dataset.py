@@ -31,6 +31,8 @@ DETECTORS = ("dual_band_breakout", "orb_retest", "prior_day_range_reversal", "wi
 SETUP_FEATURES = ("dir_long", "reward_risk", "cost_r", "risk_atr", "entry_is_stop") + tuple(f"det_{d}" for d in DETECTORS)
 SIGNED = ("ret_4", "ret_16", "ema20_dist_atr", "ema20_slope_atr", "body_frac")
 FEATURES = BAR_FEATURES + SETUP_FEATURES + tuple(f"{s}_x_dir" for s in SIGNED)
+# Single id for the column list above. Live scoring must refuse a manifest trained on a different list.
+FEATURE_SCHEMA_VERSION = "atlas-pit-features-v2.4"
 DUR = {"1m": 60, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}   # 4h = complete UTC buckets of closed feed 1h bars (crypto only)
 
 
@@ -114,7 +116,7 @@ def load_series(feed, instrument: str, interval: str, as_of: int | None = None, 
     inst = feed.instruments.get(instrument)
     ac = "crypto" if inst.asset_class == "crypto" else "gold" if instrument.upper() in GOLD_INSTRUMENTS else "equity"
     return SeriesData(instrument, interval, ac, bars,
-                      sorted({b.provider for b in fb}))
+                      sorted({b.provider for b in fb if getattr(b, "provider", None)}))
 
 
 def build_rows(sd: SeriesData, include_open: bool = False, variant: Any = None, detectors: Sequence[str] | None = None) -> pd.DataFrame:

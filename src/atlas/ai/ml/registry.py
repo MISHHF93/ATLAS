@@ -27,15 +27,42 @@ def root(path: str | os.PathLike | None = None) -> Path:
     return Path(path or os.environ.get("ATLAS_ML_REGISTRY", DEFAULT_ROOT))
 
 
+def repo_root() -> Path:
+    """Directory that contains ``pyproject.toml`` and ``src/atlas``. Git commands must run here.
+
+    ``code_sha`` used to use the package directory as cwd and then asked git for
+    ``src/atlas/ai/ml``, a path that does not exist relative to that directory, so a dirty
+    tree was reported clean and the next refresh reused the previous version id.
+    """
+    here = Path(__file__).resolve()
+    for p in here.parents:
+        if (p / "pyproject.toml").is_file() and (p / "src" / "atlas").is_dir():
+            return p
+    return here.parents[4]
+
+
 def code_sha() -> str:
     try:
-        sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5,
-                             cwd=Path(__file__).resolve().parent).stdout.strip()
-        dirty = subprocess.run(["git", "status", "--porcelain", "--", "src/atlas/ai/ml"], capture_output=True, text=True, timeout=5,
-                               cwd=Path(__file__).resolve().parent).stdout.strip()
+        cwd = repo_root()
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5, cwd=cwd).stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain", "--", "src/atlas/ai/ml"], capture_output=True, text=True,
+                               timeout=5, cwd=cwd).stdout.strip()
         return (sha or "unknown") + ("-dirty" if dirty else "")
     except Exception:
         return "unknown"
+
+
+def version_token(sha: str) -> str:
+    """Short code id for a registry directory. A dirty tree does not reuse the clean commit's directory."""
+    dirty = sha.endswith("-dirty")
+    head = sha[: -len("-dirty")] if dirty else sha
+    short = (head or "unknown")[:7]
+    return f"{short}-dirty" if dirty else short
+
+
+def _provider_cell(raw) -> str:
+    names = [str(p) for p in (raw or []) if p]
+    return "+".join(names) if names else "none"
 
 
 def _clean(o: Any) -> Any:
@@ -77,7 +104,7 @@ def model_card(man: dict[str, Any]) -> str:
     lines += ["", "## Gates", "", "| gate | passed | value | threshold |", "|---|---|---|---|"]
     lines += [f"| {g['gate']} | {g['passed']} | {g['value']} | {g['threshold']} |" for g in man["gates"]]
     lines += ["", "## Data", "", "| instrument | tf | providers | bars | rows | sha256[:12] |", "|---|---|---|---|---|---|"]
-    lines += [f"| {x['instrument']} | {x['interval']} | {'+'.join(x['providers'])} | {x['n_bars']} | {x['n_rows']} | {x['sha256'][:12]} |"
+    lines += [f"| {x['instrument']} | {x['interval']} | {_provider_cell(x.get('providers'))} | {x['n_bars']} | {x['n_rows']} | {x['sha256'][:12]} |"
               for x in man["series"]]
     lines += ["", "## Limitations", "", "- Bar-level conservative fill model; costs are assumptions, not measured fills.",
               "- Equity 15m history is ~60 days (provider limit); equity results are weak evidence.",
@@ -90,10 +117,16 @@ def register(group: str, out: dict[str, Any], meta: dict[str, Any], model: Any, 
     from atlas.ai.ml.train import ALPHA, PRIMARY
     r = root(path)
     sha = code_sha()
-    series = [s for s in meta["series"] if f"{s['asset_class']}-{s['interval']}" == group]
+    series = []
+    for s in meta["series"]:
+        if f"{s['asset_class']}-{s['interval']}" != group:
+            continue
+        row = dict(s)
+        row["providers"] = [p for p in (s.get("providers") or []) if p]
+        series.append(row)
     import hashlib
     gh = hashlib.sha256("".join(s["sha256"] for s in series).encode()).hexdigest()
-    version = f"atlas-meta-{group}-{gh[:10]}-{sha[:7]}"
+    version = f"atlas-meta-{group}-{gh[:10]}-{version_token(sha)}"
     d = r / version
     if (d / "manifest.json").exists():
         return json.loads((d / "manifest.json").read_text())
@@ -142,6 +175,44 @@ def get(version: str, path=None) -> dict[str, Any] | None:
 def load_model(version: str, path=None):
     f = root(path) / version / "model.pkl"
     return pickle.loads(f.read_bytes()) if f.exists() else None
+
+
+def reconcile_refresh(report: dict[str, Any], path=None) -> dict[str, Any]:
+    """Mark refresh groups whose version directory is not on disk.
+
+    ``last_refresh.json`` can name versions that were deleted (the 2026-10-30 cleanup removed
+    Binance-trained ``atlas-meta-crypto-*`` directories and left the report). A missing artifact
+    is not eligible. Gate thresholds are not changed and nothing is promoted.
+    """
+    if not isinstance(report, dict):
+        return {"status": "unreadable", "execution_permission": "none"}
+    out = dict(report)
+    groups: dict[str, Any] = {}
+    reg = root(path)
+    for key, g in (report.get("groups") or {}).items():
+        if not isinstance(g, dict):
+            groups[str(key)] = g
+            continue
+        g = dict(g)
+        ver = g.get("version")
+        if ver:
+            safe = "/" not in str(ver) and ".." not in str(ver)
+            if not safe or not (reg / str(ver) / "manifest.json").is_file():
+                g["artifact"] = "missing"
+                if g.get("status") == "eligible":
+                    g["status"] = "not_eligible"
+                g["artifact_note"] = "refresh names a version that is not in the registry; it cannot be loaded and is not eligible"
+            else:
+                g["artifact"] = "present"
+        prov = g.get("providers")
+        if isinstance(prov, list) and not [p for p in prov if p]:
+            g["provider_status"] = "none"
+            g.setdefault("provider_note", "no provider recorded on the stored bars for this group")
+        groups[str(key)] = g
+    out["groups"] = groups
+    out["reconciled"] = True
+    out["execution_permission"] = "none"
+    return out
 
 
 def load_eligible(registry=None, path=None) -> list[str]:

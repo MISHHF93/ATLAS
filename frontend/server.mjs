@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { createRequire } from "node:module";
 import next from "next";
+import { resolveVenvPython } from "./scripts/python_cmd.mjs";
 
 const require = createRequire(import.meta.url);
 const { WebSocketServer } = require("next/dist/compiled/ws");
@@ -17,9 +18,11 @@ const venvBin = process.platform === "win32" ? "Scripts/python.exe" : "bin/pytho
 const python = process.env.ATLAS_PYTHON
   ?? [path.join(root, ".venv", venvBin), path.join(root, "..", ".atlas-venv", venvBin)].find((p) => venvExists(p))
   ?? (process.platform === "win32" ? "python" : "python3");
-const child = spawn(python, ["-B", "-u", path.join(directory, "scripts/asgi_stdio.py")], {
+const { readFileSync: readPyvenv } = await import("node:fs");
+const resolved = resolveVenvPython(python, { exists: venvExists, readFile: (p) => readPyvenv(p, "utf8") });
+const child = spawn(resolved.command, ["-B", "-u", path.join(directory, "scripts/asgi_stdio.py")], {
   cwd: root, stdio: ["pipe", "pipe", "inherit"], windowsHide: true,
-  env: { ...process.env, PYTHONPATH: path.join(root, "src") },
+  env: { ...process.env, ...resolved.env, PYTHONPATH: path.join(root, "src") },
 });
 const channels = new Map();
 let sequence = 0;

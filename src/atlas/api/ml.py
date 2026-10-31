@@ -68,8 +68,12 @@ def ml_drift(version: str) -> dict[str, Any]:
 def ml_last_refresh() -> dict[str, Any]:
     f = Path("var/ml/last_refresh.json")
     if not f.exists():
-        return {"status": "never_run", "command": "PYTHONPATH=src python scripts/ml_refresh.py"}
-    return json.loads(f.read_text())
+        return {"status": "never_run", "command": "PYTHONPATH=src python scripts/ml_refresh.py", "execution_permission": "none"}
+    try:
+        report = json.loads(f.read_text())
+    except ValueError:
+        return {"status": "unreadable", "execution_permission": "none"}
+    return R.reconcile_refresh(report)
 
 
 @ml_router.get("/shadow")

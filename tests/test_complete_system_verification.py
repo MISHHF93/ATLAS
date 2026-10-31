@@ -136,6 +136,43 @@ def test_end_to_end_live_prediction_across_universe(symbol: str, interval: str, 
     assert pred["uncertainty"] is not None and float(pred["uncertainty"]) > 0.0
 
 
+def test_open_market_stale_bars_are_not_valid(isolated_live_models, tmp_path) -> None:
+    """A 15m bar four days older than the prediction must not be data_quality VALID.
+
+    The old default freshness floor was 7 days, so this case was scored as VALID.
+    Forcing the feed flag to HEALTHY must not override the bar timestamp.
+    """
+    from datetime import timedelta
+    wed_open = datetime(2026, 10, 21, 10, 30, tzinfo=ET).astimezone(timezone.utc)
+    later = wed_open + timedelta(days=4)
+    for health in (None, "HEALTHY"):
+        pred = generate_live_prediction(
+            "BTC-USD", "15m", now=later, data_feed_health=health, persist=True,
+        )
+        assert pred["prediction_status"] == "STALE_MARKET_DATA"
+        assert pred["data_quality_status"] != "VALID"
+        assert pred["probability_target_before_stop"] is None
+        assert pred["execution_permission"] == "none"
+    assert not (tmp_path / "live_predictions.jsonl").exists()
+    health = get_prediction_health(reg_path=tmp_path / "registry")
+    assert health["prediction_log"]["live_predictions_jsonl"] == "retired"
+
+
+def test_feature_schema_mismatch_is_not_scored(isolated_live_models, tmp_path) -> None:
+    path = tmp_path / "registry" / "crypto-15m" / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["features"] = ["not_a_real_feature"]
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    pred = generate_live_prediction(
+        "BTC-USD", "15m", now=datetime(2026, 10, 21, 10, 30, tzinfo=ET), persist=False,
+    )
+    assert pred["prediction_status"] == "MODEL_UNAVAILABLE"
+    assert pred["data_quality_status"] == "FEATURE_SCHEMA_MISMATCH"
+    assert pred["data_quality_status"] != "VALID"
+    assert pred["probability_target_before_stop"] is None
+    assert pred["feature_schema_version"] == FEATURE_SCHEMA_VERSION
+
+
 def test_live_prediction_non_fabricated_failure_states(tmp_path, isolated_live_models) -> None:
     """Verify explicit non-fabricated statuses when model is unavailable, data is stale, or market is closed."""
     wed_open = datetime(2026, 10, 21, 10, 30, tzinfo=ET).astimezone(timezone.utc)

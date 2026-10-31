@@ -4,7 +4,8 @@ Implements Sections 4 through 24 of the ATLAS Complete System Verification Direc
 - Section 5: Canonical Live Prediction Schema (`LivePrediction`) with explicit non-fabricated statuses:
   VALID, MODEL_UNAVAILABLE, INSUFFICIENT_HISTORY, MARKET_CLOSED, STALE_MARKET_DATA, UNCALIBRATED, PREDICTION_EXPIRED.
 - Section 6 & 7: Thread-safe Model Loading, Caching, Point-in-Time Feature Validation, Calibrated Inference,
-  Conformal Uncertainty, and Prediction Persistence (`var/ml/live_predictions.jsonl`) with outcome resolution.
+  and Conformal Uncertainty. The append-only ``var/ml/live_predictions.jsonl`` file is retired: the live
+  sweep writes ``var/ml/predictions/*.sqlite``, and this service no longer appends to the jsonl.
 - Section 8: Prediction Health Monitoring (`HEALTHY`, `DEGRADED`, `STALE`, `MODEL_ERROR`, `DATA_ERROR`,
   `TRANSPORT_ERROR`, `UNAVAILABLE`).
 - Section 13 & 14: ATLAS Evolution Intelligence across 4 distinct dimensions (never collapsed into one fake score):
@@ -38,12 +39,20 @@ import pandas as pd
 
 from atlas.ai.ml import metrics as M
 from atlas.ai.ml.costs import VENUE_COSTS, venue_for
-from atlas.ai.ml.dataset import DETECTORS, DUR, FEATURES, SETUP_FEATURES, SIGNED, BAR_FEATURES, load_series
+from atlas.ai.ml.dataset import (
+    BAR_FEATURES,
+    DETECTORS,
+    DUR,
+    FEATURE_SCHEMA_VERSION,
+    FEATURES,
+    SETUP_FEATURES,
+    SIGNED,
+    load_series,
+)
 from atlas.ai.ml.features import bar_features
 from atlas.ai.ml.registry import get as get_registered_manifest, list_models, load_model, root as registry_root
 from atlas.market.sessions import evaluate_instrument_market_status
 
-FEATURE_SCHEMA_VERSION = "atlas-pit-features-v2.4"
 PREDICTION_STATUSES = (
     "VALID",
     "MODEL_UNAVAILABLE",
@@ -104,10 +113,29 @@ _HEALTH_TELEMETRY: dict[str, Any] = {
 }
 
 
-def _predictions_log_path(reg_path: str | os.PathLike | None = None) -> Path:
-    base = registry_root(reg_path).parent
-    base.mkdir(parents=True, exist_ok=True)
-    return base / "live_predictions.jsonl"
+def input_max_age_seconds(interval: str) -> float:
+    """How old a bar *open* may be before an open-market input is stale.
+
+    ``event_time`` is the bar open. ``STALE_AFTER`` (coverage service) is slack after the bar
+    closes, so the bound is that slack plus one bar. The previous default floored this at 7 days,
+    which marked a 15m bar several days old as ``VALID``.
+    """
+    from atlas.ai.prediction.service import STALE_AFTER
+    iv = (interval or "15m").lower()
+    dur = float(DUR.get(iv, 900))
+    slack = float(STALE_AFTER.get(iv, max(3 * dur, 3 * 3600)))
+    return slack + dur
+
+
+def prediction_log_note() -> dict[str, Any]:
+    """The jsonl side file is not the live ledger. Callers that still look for it should see this."""
+    return {
+        "live_predictions_jsonl": "retired",
+        "reason": "The append-only jsonl was not written by the live sweep, so it went stale while "
+                  "var/ml/predictions/*.sqlite kept updating. generate_live_prediction no longer appends to it.",
+        "ledger": "var/ml/predictions/log.sqlite",
+        "execution_permission": "none",
+    }
 
 
 def _lifecycle_state_path(reg_path: str | os.PathLike | None = None) -> Path:
@@ -300,8 +328,8 @@ def generate_live_prediction(
     last_ts = int(last_bar.event_time) if last_bar is not None else None
     last_ts_iso = datetime.fromtimestamp(last_ts, tz=timezone.utc).isoformat() if last_ts else None
 
-    # 2. Evaluate Authoritative Market Status
-    eff_stale_thresh = float(stale_threshold_seconds) if stale_threshold_seconds is not None else float(max(horizon_sec * 3, 86400 * 7))
+    # 2. Evaluate Authoritative Market Status. Default freshness is the coverage-service bound, not a 7-day floor.
+    eff_stale_thresh = float(stale_threshold_seconds) if stale_threshold_seconds is not None else input_max_age_seconds(iv)
     mkt = evaluate_instrument_market_status(
         canon_sym,
         now=now_utc,
@@ -373,6 +401,12 @@ def generate_live_prediction(
     if (mkt.get("market_closed_behavior") or {}).get("prediction_status_override") == "MARKET_CLOSED":
         return _build_non_valid_response("MARKET_CLOSED", "VALID", f"Market {inst_id} is closed; live inference is suppressed.")
 
+    if mkt.get("is_open") and last_ts is not None and (now_utc.timestamp() - last_ts) > eff_stale_thresh:
+        age = int(now_utc.timestamp() - last_ts)
+        return _build_non_valid_response(
+            "STALE_MARKET_DATA", "STALE_MARKET_DATA",
+            f"Last {iv} bar opened {age}s before the prediction; open-market inputs older than {int(eff_stale_thresh)}s are not VALID.")
+
     if len(raw_bars) < 60:
         return _build_non_valid_response("INSUFFICIENT_HISTORY", "INSUFFICIENT_HISTORY", f"Need >= 60 bars for indicator warmup; found {len(raw_bars)} bars.")
 
@@ -413,6 +447,14 @@ def generate_live_prediction(
     man, mdl, load_err = load_cached_registered_model(group, reg_path=reg_path, instrument=feed_sym)
     if mdl is None or man is None:
         return _build_non_valid_response("MODEL_UNAVAILABLE", "VALID", load_err or f"No model registered for {group}.")
+
+    declared = tuple(man.get("features") or ())
+    if declared and declared != tuple(FEATURES):
+        return _build_non_valid_response(
+            "MODEL_UNAVAILABLE", "FEATURE_SCHEMA_MISMATCH",
+            f"Model {man.get('version')} features do not match {FEATURE_SCHEMA_VERSION} "
+            f"({len(declared)} stored columns, {len(FEATURES)} current).",
+            mdl_ver=man.get("version"))
 
     cal_kind = getattr(getattr(mdl, "calibrator", None), "kind", None) or man.get("calibrator")
     if not cal_kind:
@@ -532,6 +574,7 @@ def generate_live_prediction(
         "uncertainty": round(qhat, 4),
         "conformal_take": bool(decision["take"][0]),
         "prediction_status": pred_status,
+        "setup_source": "momentum_heuristic",
         "data_quality_status": "VALID" if mkt.get("data_feed_health") == "HEALTHY" else str(mkt.get("data_feed_health")),
         "status_reason": (
             f"Calibrated {cal_kind} inference from {man.get('version')} on {len(bars)} closed {iv} bars"
@@ -568,12 +611,8 @@ def generate_live_prediction(
         }
 
     if persist:
-        try:
-            log_file = _predictions_log_path(reg_path)
-            with log_file.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps({k: v for k, v in record.items() if k != "market_session"}, default=str) + "\n")
-        except Exception:
-            pass
+        # Retired output: do not append var/ml/live_predictions.jsonl. The live ledger is sqlite.
+        record["prediction_log"] = prediction_log_note()
 
     return record
 
@@ -666,6 +705,7 @@ def get_prediction_health(
         "registered_models_count": len(models),
         "eligible_models_count": len(eligible_models),
         "by_symbol": by_sym,
+        "prediction_log": prediction_log_note(),
         "execution_permission": "none",
     }
 

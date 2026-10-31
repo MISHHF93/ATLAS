@@ -179,6 +179,29 @@ def split_slices(n: int) -> dict[str, slice]:
     return {"fit": slice(0, a), "cal": slice(a + 2, b), "test": slice(b + 2, n)}
 
 
+def resolved_label_rows(t: np.ndarray, inst: np.ndarray, block: slice, next_index: int) -> np.ndarray:
+    """Positions in ``block`` whose next same-instrument bar ends strictly before ``t[next_index]``.
+
+    The label at a row is the next bar's log return on that instrument, so it is known only when
+    that bar closes. A fixed 2-row embargo is enough for one series. A pooled frame interleaves
+    symbols, and the labelled bar can sit inside the next block; those rows stay out of fit and
+    calibration. The test block is not purged: it is the hold-out being scored.
+    """
+    n = len(t)
+    idx = np.arange(block.start, min(block.stop, n))
+    if next_index >= n or len(idx) == 0:
+        return idx
+    boundary = int(t[next_index])
+    nxt = np.full(n, np.iinfo(np.int64).max)
+    later: dict[Any, int] = {}
+    for i in range(n - 1, -1, -1):
+        prev = later.get(inst[i])
+        if prev is not None:
+            nxt[i] = int(t[prev])
+        later[inst[i]] = i
+    return idx[nxt[idx] < boundary]
+
+
 def train_pool(rows: pd.DataFrame, pool: str, horizon: str, root=None, instruments: Sequence[str] | None = None) -> dict[str, Any]:
     """Train + conformal-calibrate every available member on a pooled frame from ``make_xy`` (chronological 60/20/20 fit/cal/test).
     OOS metrics are on the last 20% only. Always labelled research; the live ledger decides weights, not these numbers."""
@@ -188,11 +211,18 @@ def train_pool(rows: pd.DataFrame, pool: str, horizon: str, root=None, instrumen
     rows = rows.sort_values("__t", kind="stable").reset_index(drop=True)
     feats = [c for c in rows.columns if not c.startswith("__")]
     n = len(rows)
-    a, b = int(n * 0.6), int(n * 0.8)
     X = rows[feats].to_numpy(float)
     sig, y = rows["__sigma"].to_numpy(float), rows["__y"].to_numpy(float)
     ys = y / sig
-    sl = split_slices(n)   # 2-row embargo; the label is one bar, so this is conservative
+    sl = split_slices(n)   # 2-row embargo; pooled rows are purged again by instrument below
+    t = rows["__t"].to_numpy()
+    inst = rows["__inst"].to_numpy()
+    fit_idx = resolved_label_rows(t, inst, sl["fit"], sl["cal"].start)
+    cal_idx = resolved_label_rows(t, inst, sl["cal"], sl["test"].start)
+    test_idx = np.arange(sl["test"].start, sl["test"].stop)
+    if len(fit_idx) == 0 or len(cal_idx) == 0 or len(test_idx) == 0:
+        return {"status": "insufficient_rows", "rows": int(n), "need": MIN_ROWS, "pool": pool, "horizon": horizon,
+                "reason": "label purge emptied a block"}
     avail = available_models()
     bundle: dict[str, Any] = {"features": feats, "models": {}, "qhat": {}, "sigma_span": 100}
     metrics: dict[str, Any] = {}
@@ -201,25 +231,27 @@ def train_pool(rows: pd.DataFrame, pool: str, horizon: str, root=None, instrumen
         if not avail[name]["available"]:
             metrics[name] = {"status": "unavailable", "reason": avail[name]["reason"]}
             continue
-        m = fn(X[sl["fit"]], ys[sl["fit"]])
-        qc = _pred(m, X[sl["cal"]]) * sig[sl["cal"], None]
-        qh = cqr_qhat(y[sl["cal"]], qc)
-        qt = _pred(m, X[sl["test"]]) * sig[sl["test"], None]
+        m = fn(X[fit_idx], ys[fit_idx])
+        qc = _pred(m, X[cal_idx]) * sig[cal_idx, None]
+        qh = cqr_qhat(y[cal_idx], qc)
+        qt = _pred(m, X[test_idx]) * sig[test_idx, None]
         bundle["models"][name], bundle["qhat"][name] = m, qh
-        metrics[name] = {"status": "ok", **_metrics(y[sl["test"]], qt, qh), "qhat_bps": round(qh * 1e4, 3)}
+        metrics[name] = {"status": "ok", **_metrics(y[test_idx], qt, qh), "qhat_bps": round(qh * 1e4, 3)}
     # no-change baseline: zero median, +-ZQ sigma, conformalised on the same block
     def naive_q(s):
         return np.column_stack([-ZQ * s, np.zeros_like(s), ZQ * s])
-    qh_n = cqr_qhat(y[sl["cal"]], naive_q(sig[sl["cal"]]))
+    qh_n = cqr_qhat(y[cal_idx], naive_q(sig[cal_idx]))
     bundle["qhat"]["naive"] = qh_n
-    metrics["naive"] = {"status": "ok", **_metrics(y[sl["test"]], naive_q(sig[sl["test"]]), qh_n), "qhat_bps": round(qh_n * 1e4, 3)}
+    metrics["naive"] = {"status": "ok", **_metrics(y[test_idx], naive_q(sig[test_idx]), qh_n), "qhat_bps": round(qh_n * 1e4, 3)}
     metrics["prophet"] = {"status": "unavailable", "reason": avail["prophet"]["reason"]}
     nz = rows[feats].notna().mean()
     from atlas.ai.ml.directional.layers25 import LAYER_FEATURES
     lay_cov = {k: round(float(nz.reindex(list(v)).fillna(0).mean()), 3) for k, v in LAYER_FEATURES.items()}
     man = {"pool": pool, "horizon": horizon, "interval": interval, "created_at": int(time.time()), "n_rows": int(n),
-           "n_fit": a, "n_cal": b - a - 2, "n_test": n - b - 2, "instruments": sorted(set(instruments or rows["__inst"].unique())),
-           "data_start": int(rows["__t"].iloc[0]), "data_end": int(rows["__t"].iloc[-1]), "test_start": int(rows["__t"].iloc[b + 2]) if b + 2 < n else None,
+           "n_fit": int(len(fit_idx)), "n_cal": int(len(cal_idx)), "n_test": int(len(test_idx)),
+           "instruments": sorted(set(instruments or rows["__inst"].unique())),
+           "data_start": int(rows["__t"].iloc[0]), "data_end": int(rows["__t"].iloc[-1]),
+           "test_start": int(rows["__t"].iloc[sl["test"].start]) if sl["test"].start < n else None,
            "n_features": len(feats), "layers_with_any_data": sum(1 for v in lay_cov.values() if v > 0), "layers_total": len(lay_cov), "layer_coverage": lay_cov,
            "metrics_oos": metrics, "label": LABEL, "execution_permission": EXEC, "target": "log(close[i+1]/close[i]) on this interval",
            "note": "research; chronological hold-out; no profitability claim; live ledger weights decide the ensemble"}
