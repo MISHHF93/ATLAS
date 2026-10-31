@@ -4,6 +4,9 @@
   (kind=ohlc); a candle that a newer minute has replaced is ingested as a confirmed 1m bar (provider ``kraken``, idempotent).
 * Kraken v2 ``ticker`` and Coinbase ``ticker`` (<BASE>-USD): live quotes in ``last_quotes`` (provider kraken / coinbase).
   Coinbase 1m/15m/1h bars come from the REST candle endpoint through the provider chain (``_refresh_bars``).
+* Kraken v2 ``trade`` and Coinbase ``matches`` are aggregated into 1-second trade bars (``feeds.trades1s``) in their own
+  sqlite (``var/feeds/atlas_1s.sqlite``), 7-day retention for 1s, a 90-day per-minute flow roll-up, 2 GB budget. A second with
+  no trade has no row (no forward fill). Not written to the point-in-time feed store.
 * Symbols come from ``feeds.crypto_venues`` (USD pairs, the ``kraken_ca`` blocklist respected). An asset with no listing is
   not subscribed and has an empty provider chain, so the UI shows an empty state, never a made-up price.
 * Official daily history for the trend book (BTC, ETH, SOL, USD_CAD, EUR_USD) from Alpaca crypto, the Bank of
@@ -19,13 +22,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
+from pathlib import Path
 from typing import Iterable
 
 from .core import FeedBar
 from .crypto_venues import ws_symbol_from_pair
 from .instruments import InstrumentMaster
 from .status import market_open
+from .trades1s import SecondAggregator, TradeBarStore, parse_coinbase_match, parse_kraken_trades
 from .store import FeedStore
 
 log = logging.getLogger("atlas.feeds.live")
@@ -125,6 +131,14 @@ class LiveIngest:
         self.kraken = {ws_symbol_from_pair(i.provider_symbols["kraken"]): i.id for i in crypto if "kraken" in i.provider_symbols}
         self.crypto_ids = tuple(dict.fromkeys([*self.coinbase.values(), *self.kraken.values()]))
         self.kraken_bars = KrakenBars()
+        # 1s trade bars (kraken `trade`, coinbase `matches`) live in their own sqlite next to the feed store, never in it.
+        self.trades = SecondAggregator()
+        self.trade_store: TradeBarStore | None = None
+        if store.path != ":memory:":
+            self.trade_store = TradeBarStore(os.environ.get("ATLAS_1S_DB") or Path(store.path).with_name("atlas_1s.sqlite"),
+                                             retain_1s_days=float(os.environ.get("ATLAS_1S_RETAIN_DAYS", 7)),
+                                             retain_flow_days=float(os.environ.get("ATLAS_FLOW_RETAIN_DAYS", 90)),
+                                             max_db_mb=float(os.environ.get("ATLAS_1S_MAX_MB", 2048)))
         self.yahoo = {i.provider_symbols["yahoo"]: i for i in self.master.all()
                       if i.asset_class in ("equity", "etf", "future", "fx") and "yahoo" in i.provider_symbols}
 
@@ -221,11 +235,15 @@ class LiveIngest:
             delay = min(delay * 2, 60)
 
     def _on_coinbase(self, msg, now):
+        for tr in parse_coinbase_match(msg, self.coinbase):
+            self.trades.add(tr, now)
         qs = parse_coinbase(msg, now, self.coinbase)
         self.q_buf += qs
         self.stats["coinbase"] += len(qs)
 
     def _on_kraken(self, msg, now):
+        for tr in parse_kraken_trades(msg, self.kraken):
+            self.trades.add(tr, now)
         qs = parse_kraken(msg, now, self.kraken)
         oq, bars = self.kraken_bars.feed(msg, now, self.kraken)
         self.q_buf += qs + oq
@@ -284,15 +302,17 @@ class LiveIngest:
         tasks = [
             asyncio.create_task(self._flush_loop()),
             asyncio.create_task(self._ws("coinbase", [COINBASE_WS], {"type": "subscribe", "product_ids": list(self.coinbase),
-                                                                    "channels": ["ticker"]}, self._on_coinbase) if self.coinbase else asyncio.sleep(0)),
+                                                                    "channels": ["ticker", "matches"]}, self._on_coinbase) if self.coinbase else asyncio.sleep(0)),
             asyncio.create_task(self._ws("kraken", [KRAKEN_WS], [
                 {"method": "subscribe", "params": {"channel": "ticker", "symbol": list(self.kraken)}},
-                {"method": "subscribe", "params": {"channel": "ohlc", "symbol": list(self.kraken), "interval": 1}}],
+                {"method": "subscribe", "params": {"channel": "ohlc", "symbol": list(self.kraken), "interval": 1}},
+                {"method": "subscribe", "params": {"channel": "trade", "symbol": list(self.kraken), "snapshot": False}}],
                 self._on_kraken) if self.kraken else asyncio.sleep(0)),
             asyncio.create_task(self._yahoo_loop()),
             asyncio.create_task(self._massive_loop()),
             asyncio.create_task(self._refresh_bars()),
             asyncio.create_task(self._official_daily()),
+            asyncio.create_task(self._trades_loop()),
             asyncio.create_task(self._report()),
         ]
         try:
@@ -344,7 +364,25 @@ class LiveIngest:
                     self.stats["errors"][f"{iid}:1d"] = f"{time.strftime('%H:%M:%S')} {e!r}"[:200]
             await asyncio.sleep(6 * 3600)
 
+    async def _trades_loop(self):  # pragma: no cover - network
+        """Write closed 1s bars every second, roll complete minutes into flow_1m, prune on the retention window every 10 minutes."""
+        if self.trade_store is None:
+            return
+        last_prune = 0.0
+        while True:
+            await asyncio.sleep(1)
+            try:
+                rows = self.trades.drain()
+                if rows:
+                    await asyncio.to_thread(self.trade_store.write_bars, rows)
+                if time.time() - last_prune >= 600:
+                    last_prune = time.time()
+                    self.stats["trade_store"] = await asyncio.to_thread(self.trade_store.prune)
+            except Exception as e:  # noqa: BLE001
+                self.stats["errors"]["trades1s"] = f"{time.strftime('%H:%M:%S')} {e!r}"[:200]
+
     async def _report(self):  # pragma: no cover
         while True:
             await asyncio.sleep(30)
+            self.stats["trades1s"] = dict(self.trades.stats)
             log.info("live ingest stats %s", json.dumps(self.stats))
