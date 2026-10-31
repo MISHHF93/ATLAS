@@ -158,7 +158,7 @@ def fit_meta(df: pd.DataFrame, idx: np.ndarray, kind: str, features: tuple[str, 
     return MetaModel(kind, m, c, cf, w, l, tuple(features), float(df.y.iloc[idx].mean()))
 
 
-def evaluate_group(df: pd.DataFrame, n_folds: int = 5) -> dict[str, Any]:
+def evaluate_group(df: pd.DataFrame, n_folds: int = 5, features: tuple[str, ...] = FEATURES) -> dict[str, Any]:
     """Walk-forward OOS for every variant on one (asset_class, interval) group."""
     df = df.sort_values(["t", "instrument", "candidate_id"]).reset_index(drop=True)
     t, e = df.t.to_numpy(np.int64), df.exit_at.to_numpy(np.int64)
@@ -168,7 +168,7 @@ def evaluate_group(df: pd.DataFrame, n_folds: int = 5) -> dict[str, Any]:
         base = float(df.y.iloc[tr].mean())
         rec = {"fold": k, "n_train": int(len(tr)), "n_test": int(len(te)), "test_from": int(t[te[0]]), "test_to": int(t[te[-1]]),
                "train_base_rate": base}
-        mdl = {kind: fit_meta(df, tr, kind) for kind in ("logit", "hgb")}
+        mdl = {kind: fit_meta(df, tr, kind, features) for kind in ("logit", "hgb")}
         if any(v is None for v in mdl.values()):
             rec["skipped"] = "insufficient_inner_split"
             folds.append(rec)
@@ -206,7 +206,8 @@ def summarize(o: pd.DataFrame, kind: str, variant: str) -> dict[str, Any]:
             "mean_r_all": float(r.mean()), "total_r_all": float(r.sum())}
 
 
-def run_training(data: pd.DataFrame, groups: list[tuple[str, str]] | None = None, n_folds: int = 5) -> dict[str, Any]:
+def run_training(data: pd.DataFrame, groups: list[tuple[str, str]] | None = None, n_folds: int = 5,
+                 features: tuple[str, ...] = FEATURES) -> dict[str, Any]:
     groups = groups or sorted({(a, i) for a, i in zip(data.asset_class, data.interval)})
     res: dict[str, Any] = {"groups": {}, "pre_declared": {"primary": PRIMARY, "variants": VARIANTS, "gates": GATES,
                                                           "alpha": ALPHA, "embargo_s": EMBARGO, "kelly_fraction": KELLY_FRACTION}}
@@ -214,7 +215,7 @@ def run_training(data: pd.DataFrame, groups: list[tuple[str, str]] | None = None
     for ac, iv in groups:
         g = data[(data.asset_class == ac) & (data.interval == iv)]
         key = f"{ac}-{iv}"
-        ev = evaluate_group(g, n_folds=n_folds)
+        ev = evaluate_group(g, n_folds=n_folds, features=features)
         out = {k: v for k, v in ev.items() if k != "oos"}
         if ev.get("n_oos"):
             o = ev["oos"]
@@ -256,9 +257,10 @@ def gates(out: dict[str, Any], shadow_weeks: int = 0) -> list[dict[str, Any]]:
     ]
 
 
-def fit_final(data: pd.DataFrame, asset_class: str, interval: str, kind: str = "hgb") -> MetaModel | None:
+def fit_final(data: pd.DataFrame, asset_class: str, interval: str, kind: str = "hgb",
+              features: tuple[str, ...] = FEATURES) -> MetaModel | None:
     g = data[(data.asset_class == asset_class) & (data.interval == interval)].sort_values(["t", "instrument", "candidate_id"]).reset_index(drop=True)
-    return fit_meta(g, np.arange(len(g)), kind)
+    return fit_meta(g, np.arange(len(g)), kind, features)
 
 
 def dumps(m: MetaModel) -> bytes:

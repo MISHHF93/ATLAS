@@ -119,18 +119,20 @@ def load_series(feed, instrument: str, interval: str, as_of: int | None = None, 
                       sorted({b.provider for b in fb if getattr(b, "provider", None)}))
 
 
-def build_rows(sd: SeriesData, include_open: bool = False, variant: Any = None, detectors: Sequence[str] | None = None) -> pd.DataFrame:
+def build_rows(sd: SeriesData, include_open: bool = False, variant: Any = None, detectors: Sequence[str] | None = None,
+               hold_bars: int | None = None) -> pd.DataFrame:
     """One row per filled + resolved setup with causal features at detection time.
 
     ``include_open`` also emits filled-but-unresolved setups (outcome ``open``, r NaN, y -1, exit_at -1) for
     shadow scoring only; they are never used for training. ``variant`` (research.setup_variants.SetupVariant)
-    re-labels with its ATR-scaled stop/target, cost filter and hold multiple; ``detectors`` restricts the rows."""
+    re-labels with its ATR-scaled stop/target, cost filter and hold multiple; ``detectors`` restricts the rows;
+    ``hold_bars`` overrides the vertical barrier (bars) and is None for every existing caller."""
     if len(sd.bars) < 200:
         return pd.DataFrame()
     vc = VENUE_COSTS[venue_for(sd.asset_class)]
     session = UTC_DAY if sd.asset_class == "crypto" else US_EQUITY_RTH
     vk = {} if variant is None else {"stop_atr_mult": variant.stop_atr_mult, "target_rr": variant.target_rr, "max_cost_r": variant.max_cost_r}
-    hold = max_hold_bars(sd.interval, sd.asset_class) * (variant.hold_mult if variant is not None else 1)
+    hold = int(hold_bars) if hold_bars is not None else max_hold_bars(sd.interval, sd.asset_class) * (variant.hold_mult if variant is not None else 1)
     cfg = paper_replay_config(entry_window=3, max_hold_bars=hold,   # section 25 realism
                        cost_per_unit=vc["cost_per_unit"], cost_bps=vc["cost_bps"], zone_rule="zone_entry_v1", **vk)
     res = replay(sd.instrument, sd.bars[0].duration, sd.bars, engine_cfg=EngineConfig(session=session, pdr=PriorDayRangeConfig()),
