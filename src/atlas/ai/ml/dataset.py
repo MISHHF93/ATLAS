@@ -163,6 +163,25 @@ def build_rows(sd: SeriesData, include_open: bool = False, variant: Any = None, 
     return df.sort_values(["t", "candidate_id"]).reset_index(drop=True) if len(df) else df
 
 
+def latest_open_setup(bars, instrument: str, interval: str, asset_class: str) -> dict[str, Any] | None:
+    """Newest filled, still-open setup as one training row, or None.
+
+    The row comes only from ``build_rows(..., include_open=True)``. Unfilled
+    candidates are dropped, the same rule as training. A resolved setup is not a
+    live meta-label: the forward object is an open one. The feature columns are
+    the detection-time columns, including NaN where the bar feature was NaN.
+    """
+    if len(bars) < 200:
+        return None
+    df = build_rows(SeriesData(instrument, interval, asset_class, list(bars)), include_open=True)
+    if df is None or len(df) == 0 or "y" not in df.columns:
+        return None
+    open_rows = df.loc[df["y"] < 0]
+    if len(open_rows) == 0:
+        return None
+    return open_rows.sort_values(["t", "candidate_id"]).iloc[-1].to_dict()
+
+
 def build_dataset(feed, universe: Sequence[tuple[str, str]], as_of: int | None = None, include_open: bool = False) -> tuple[pd.DataFrame, dict[str, Any]]:
     frames, meta = [], {"series": [], "as_of": as_of}
     h = hashlib.sha256()

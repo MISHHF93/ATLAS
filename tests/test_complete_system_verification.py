@@ -120,9 +120,15 @@ def test_end_to_end_live_prediction_across_universe(symbol: str, interval: str, 
     )
     assert pred["execution_permission"] == "none"
     assert pred["prediction_status"] == expected_status
-    if expected_status != "VALID":
+    if expected_status == "MODEL_UNAVAILABLE":
         assert pred["probability_target_before_stop"] is None
         assert "No eligible model" in pred["status_reason"]
+        return
+    if expected_status == "NO_SETUP":
+        assert pred["data_quality_status"] == "VALID"
+        assert pred["probability_target_before_stop"] is None
+        assert pred["setup_source"] == "setup_library"
+        assert "momentum" not in str(pred.get("status_reason", "")).lower()
         return
     assert pred["data_quality_status"] == "VALID"
     assert pred["feature_schema_version"] == FEATURE_SCHEMA_VERSION
@@ -132,7 +138,10 @@ def test_end_to_end_live_prediction_across_universe(symbol: str, interval: str, 
     p_sum = float(pred["probability_up"]) + float(pred["probability_down"]) + float(pred["probability_neutral"])
     assert abs(p_sum - 1.0) < 1e-3
     assert pred["expected_return_after_costs"] is not None
-    assert pred["expected_value"]["formula"] == "EV = p * G - (1 - p) * L - (Fees + Slippage)"
+    assert pred["expected_value"]["formula"] == "EV = p * W - (1 - p) * L"
+    assert pred["setup_source"] == "setup_library"
+    assert pred["detector"] in {"orb_retest", "dual_band_breakout", "wick_reversal", "prior_day_range_reversal"}
+    assert pred["probability_neutral"] == 0.0
     assert pred["uncertainty"] is not None and float(pred["uncertainty"]) > 0.0
 
 
@@ -236,10 +245,111 @@ def test_prediction_health_monitoring_endpoint(isolated_live_models) -> None:
     assert "prediction_success_rate" in body
 
 
+def test_short_window_does_not_invent_a_setup(isolated_live_models) -> None:
+    """Below the training builder's 200-bar floor there is no meta-label to score."""
+    cutoff = datetime(2026, 10, 21, 14, 30, tzinfo=timezone.utc).timestamp()
+
+    def bars(symbol, interval):
+        duration = 900
+        return [SimpleNamespace(
+            event_time=int(cutoff - (150 - i) * duration),
+            open=100 + math.sin(i / 5), high=102 + math.sin(i / 5),
+            low=98 + math.sin(i / 5), close=100 + math.sin((i + 1) / 5), volume=1000 + i,
+        ) for i in range(150)]
+
+    pred = generate_live_prediction(
+        "BTC-USD", "15m", feed=SimpleNamespace(bars=bars),
+        now=datetime(2026, 10, 21, 10, 30, tzinfo=ET), persist=False,
+    )
+    assert pred["prediction_status"] == "NO_SETUP"
+    assert pred["probability_target_before_stop"] is None
+    assert pred.get("setup_source") != "momentum_heuristic"
+    assert pred["execution_permission"] == "none"
+
+
+def test_open_setup_row_is_scored_like_training(isolated_live_models, monkeypatch) -> None:
+    """A VALID live meta-label is the open setup row, not a momentum-invented detector."""
+    from atlas.ai.ml import live_intelligence as live
+    from atlas.ai.ml.dataset import FEATURES
+
+    live._MODEL_CACHE.clear()
+    captured: dict = {}
+
+    def decide(frame, use_conformal=True):
+        captured["frame"] = frame.copy()
+        captured["conformal"] = use_conformal
+        return {"p": [0.62], "take": [False], "ev_r": [0.11]}
+
+    model = SimpleNamespace(
+        calibrator=SimpleNamespace(kind="platt", fitted_through=0),
+        conformal=SimpleNamespace(qhat=0.2),
+        win_r={"wick_reversal": 1.4},
+        loss_r={"wick_reversal": 0.8},
+        decide=decide,
+    )
+    monkeypatch.setattr(live, "load_model", lambda version, path: model)
+    detected = int(datetime(2026, 10, 21, 14, 0, tzinfo=timezone.utc).timestamp())
+    row = {name: 0.1 for name in FEATURES}
+    row["vwap_dist_atr"] = float("nan")
+    row.update(detector="wick_reversal", direction="long", t=detected, candidate_id="setup-1",
+               reward_risk=2.0, cost_r=0.04)
+    monkeypatch.setattr(live, "latest_open_setup", lambda *a, **k: row)
+
+    pred = generate_live_prediction(
+        "BTC-USD", "15m", now=datetime(2026, 10, 21, 10, 30, tzinfo=ET), persist=False,
+    )
+    assert pred["prediction_status"] == "VALID"
+    assert pred["setup_source"] == "setup_library"
+    assert pred["detector"] == "wick_reversal"
+    assert pred["candidate_id"] == "setup-1"
+    assert pred["direction"] == "LONG"
+    assert pred["probability_neutral"] == 0.0
+    assert abs(pred["probability_up"] + pred["probability_down"] + pred["probability_neutral"] - 1.0) < 1e-6
+    assert pred["probability_target_before_stop"] == pytest.approx(0.62)
+    assert pred["expected_return_after_costs"] == pytest.approx(0.11)
+    assert pred["expected_value"]["formula"] == "EV = p * W - (1 - p) * L"
+    assert pred["expected_value"]["setup_cost_r"] == pytest.approx(0.04)
+    assert pred["conformal_take"] is False
+    assert pred["execution_permission"] == "none"
+    assert captured["conformal"] is True
+    assert captured["frame"]["detector"].iloc[0] == "wick_reversal"
+    assert math.isnan(float(captured["frame"]["vwap_dist_atr"].iloc[0]))
+
+
+def test_setup_inside_calibrator_fit_window_is_not_scored(isolated_live_models, monkeypatch) -> None:
+    from atlas.ai.ml import live_intelligence as live
+    from atlas.ai.ml.dataset import FEATURES
+
+    live._MODEL_CACHE.clear()
+    called = {"n": 0}
+
+    def decide(frame, use_conformal=True):
+        called["n"] += 1
+        return {"p": [0.5], "take": [False], "ev_r": [0.0]}
+
+    model = SimpleNamespace(
+        calibrator=SimpleNamespace(kind="platt", fitted_through=10**12),
+        conformal=SimpleNamespace(qhat=0.2),
+        win_r={}, loss_r={}, decide=decide,
+    )
+    monkeypatch.setattr(live, "load_model", lambda version, path: model)
+    row = {name: 0.0 for name in FEATURES}
+    row.update(detector="orb_retest", direction="short", t=1_700_000_000, candidate_id="old", reward_risk=1.5, cost_r=0.02)
+    monkeypatch.setattr(live, "latest_open_setup", lambda *a, **k: row)
+    pred = generate_live_prediction(
+        "BTC-USD", "15m", now=datetime(2026, 10, 21, 10, 30, tzinfo=ET), persist=False,
+    )
+    assert pred["prediction_status"] == "UNCALIBRATED"
+    assert pred["probability_target_before_stop"] is None
+    assert called["n"] == 0
+    assert pred["execution_permission"] == "none"
+
+
 def test_live_prediction_abstains_when_cached_model_fails_validation(tmp_path, isolated_live_models) -> None:
     now = datetime(2026, 10, 21, 10, 30, tzinfo=ET)
     first = generate_live_prediction("BTC-USD", "15m", now=now, persist=False)
     assert first["prediction_status"] == "VALID"
+    assert first["setup_source"] == "setup_library"
     path = tmp_path / "registry" / "crypto-15m" / "manifest.json"
     manifest = json.loads(path.read_text(encoding="utf-8"))
     manifest["status"] = "not_eligible"
@@ -467,10 +577,23 @@ def test_ev_evolution_monitor_and_champion_challenger_rollback(tmp_path) -> None
     assert ev_mon["diagnostics"]["automatic_risk_increase_prohibited"] is True
     assert ev_mon["execution_permission"] == "none"
 
-    # Champion-Challenger lifecycle & governed rollback
-    cc = get_champion_challenger_registry()
+    # Champion-Challenger lifecycle on an explicit not-eligible registry. A developer
+    # machine's var/ml/registry must not be what makes this pass, and nothing here is promoted.
+    reg = tmp_path / "registry"
+    reg.mkdir()
+    for i, group in enumerate(("crypto-15m", "crypto-1h", "equity-15m", "equity-1h", "gold-1d")):
+        directory = reg / f"atlas-meta-{group}"
+        directory.mkdir()
+        (directory / "manifest.json").write_text(json.dumps({
+            "version": f"atlas-meta-{group}", "group": group, "status": "not_eligible",
+            "created_at": f"2026-10-{i + 1:02d}T00:00:00+00:00", "calibrator": "platt",
+            "gates": [{"gate": "shadow_weeks", "passed": False, "value": 0, "threshold": ">= 4"}],
+            "metrics": {"primary": {"n_oos": 10, "brier_skill": -0.1}},
+        }), encoding="utf-8")
+    cc = get_champion_challenger_registry(reg_path=reg)
     assert set(cc["roles_supported"]) == set(MODEL_LIFECYCLE_ROLES)
     assert len(cc["models"]) >= 5
+    assert all(m["promoted_to_execution"] is False for m in cc["models"])
     assert cc["governance"]["llm_autonomous_promotion_allowed"] is False
 
     target_ver = cc["models"][1]["version"]

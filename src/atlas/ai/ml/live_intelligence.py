@@ -38,16 +38,13 @@ import numpy as np
 import pandas as pd
 
 from atlas.ai.ml import metrics as M
-from atlas.ai.ml.costs import VENUE_COSTS, venue_for
 from atlas.ai.ml.dataset import (
     BAR_FEATURES,
     DETECTORS,
     DUR,
     FEATURE_SCHEMA_VERSION,
     FEATURES,
-    SETUP_FEATURES,
-    SIGNED,
-    load_series,
+    latest_open_setup,
 )
 from atlas.ai.ml.features import bar_features
 from atlas.ai.ml.registry import get as get_registered_manifest, list_models, load_model, root as registry_root
@@ -61,6 +58,7 @@ PREDICTION_STATUSES = (
     "STALE_MARKET_DATA",
     "UNCALIBRATED",
     "PREDICTION_EXPIRED",
+    "NO_SETUP",
 )
 HEALTH_CLASSIFICATIONS = (
     "HEALTHY",
@@ -282,6 +280,16 @@ def compute_ev_intelligence(
     }
 
 
+def _empirical_payoffs(detector: str, win_r: dict, loss_r: dict) -> tuple[float, float]:
+    """Match ``MetaModel.ev_r``: the detector's mean after-cost winner/loser R, else the map mean, else 1."""
+    def one(table: dict) -> float:
+        if detector in table and table[detector] is not None and math.isfinite(float(table[detector])):
+            return float(table[detector])
+        vals = [float(v) for v in table.values() if v is not None and math.isfinite(float(v))]
+        return float(np.mean(vals)) if vals else 1.0
+    return one(win_r or {}), one(loss_r or {})
+
+
 def generate_live_prediction(
     symbol: str,
     interval: str = "15m",
@@ -456,83 +464,75 @@ def generate_live_prediction(
             f"({len(declared)} stored columns, {len(FEATURES)} current).",
             mdl_ver=man.get("version"))
 
-    cal_kind = getattr(getattr(mdl, "calibrator", None), "kind", None) or man.get("calibrator")
+    cal = getattr(mdl, "calibrator", None)
+    cal_kind = getattr(cal, "kind", None) or man.get("calibrator")
     if not cal_kind:
         return _build_non_valid_response("UNCALIBRATED", "VALID", f"Model {man.get('version')} has no fitted probability calibrator.", mdl_ver=man.get("version"))
 
-    # 5. Construct point-in-time feature vector for the latest completed bar & active setup
-    # Determine direction and detector from latest price action setup or momentum sign
-    ret_4 = float(last_feat_row.get("ret_4", 0.0))
-    ema_dist = float(last_feat_row.get("ema20_dist_atr", 0.0))
-    dir_sign = 1.0 if (ret_4 + 0.5 * ema_dist) >= 0 else -1.0
-    detector = "orb_retest" if abs(ema_dist) > 0.6 else ("wick_reversal" if abs(ret_4) > 0.004 else "dual_band_breakout")
-    if feed_sym in {"GC", "MGC", "SI"} and abs(ema_dist) > 0.4:
-        strategy_family = "GOLD_OPENING_ORB"
-    else:
-        strategy_family = STRATEGY_FAMILY_MAP.get(detector, "SFP_REVERSAL")
+    # 5. Score the newest open filled setup. The row is build_rows(include_open=True):
+    # the same detectors, costs, and detection-time features as training. No invented side.
+    try:
+        row = latest_open_setup(bars, feed_sym, iv, ac_group)
+    except Exception as exc:  # noqa: BLE001
+        return _build_non_valid_response(
+            "NO_SETUP", "VALID",
+            f"Setup scan failed ({type(exc).__name__}); no meta-label was scored.")
+    if not row or row.get("detector") not in DETECTORS:
+        return _build_non_valid_response(
+            "NO_SETUP", "VALID",
+            f"No open filled setup from {', '.join(DETECTORS)} in the last {len(bars)} {iv} bars. "
+            "A meta-label is not scored without one.")
 
-    vc = VENUE_COSTS[venue_for(ac_group)]
-    atr_bps = max(float(last_feat_row.get("atr_bps", 85.0)), 30.0)
-    risk_atr = 1.5
-    risk_bps = max(atr_bps * risk_atr, 45.0)
-    reward_risk = 2.0
-    cost_bps = min(float(vc.get("cost_bps", 4.0)), 12.0)
-    cost_r = round(min(0.25, cost_bps / risk_bps), 4)
+    fitted_through = getattr(cal, "fitted_through", None)
+    if fitted_through is not None and int(row["t"]) <= int(fitted_through):
+        return _build_non_valid_response(
+            "UNCALIBRATED", "VALID",
+            f"Setup {row.get('candidate_id')} was detected at {int(row['t'])}, which is not after the "
+            f"calibrator fitted_through {int(fitted_through)}.",
+            mdl_ver=man.get("version"), cal_ver=str(cal_kind))
 
-    feat_dict: dict[str, Any] = {"detector": detector}
-    for k in BAR_FEATURES:
-        v = float(last_feat_row.get(k, 0.0))
-        feat_dict[k] = v if (math.isfinite(v) or k in VWAP_FEATURES) else 0.0
-    feat_dict["dir_long"] = 1.0 if dir_sign > 0 else 0.0
-    feat_dict["reward_risk"] = reward_risk
-    feat_dict["cost_r"] = cost_r
-    feat_dict["risk_atr"] = risk_atr
-    feat_dict["entry_is_stop"] = 0.0
-    for d_name in DETECTORS:
-        feat_dict[f"det_{d_name}"] = 1.0 if d_name == detector else 0.0
-    for s_name in SIGNED:
-        feat_dict[f"{s_name}_x_dir"] = feat_dict[s_name] * dir_sign
+    detector = str(row["detector"])
+    direction = str(row.get("direction") or "long")
+    dir_sign = 1.0 if direction == "long" else -1.0
+    strategy_family = STRATEGY_FAMILY_MAP.get(detector, "SFP_REVERSAL")
+    X_df = pd.DataFrame([row])
 
-    X_df = pd.DataFrame([feat_dict])
-
-    # 6. Execute calibrated inference
+    # 6. Calibrated inference on that row. p is P(after-cost R > 0 | setup), not a 3-class forecast.
     decision = mdl.decide(X_df, use_conformal=True)
-    p_target = float(np.clip(decision["p"][0], 1e-4, 1.0 - 1e-4))
-    qhat = float(getattr(getattr(mdl, "conformal", None), "qhat", 0.15) or 0.15)
-
-    # Decompose directional probabilities (up / down / neutral summing to 1.0)
-    p_neutral = round(float(np.clip(0.18 * (1.0 - abs(2.0 * p_target - 1.0)), 0.04, 0.25)), 6)
-    rem_prob = 1.0 - p_neutral
+    p_target = float(np.clip(decision["p"][0], 0.0, 1.0))
+    qhat_raw = getattr(getattr(mdl, "conformal", None), "qhat", None)
+    qhat = float(qhat_raw) if qhat_raw is not None and math.isfinite(float(qhat_raw)) else None
+    p_neutral = 0.0
     if dir_sign > 0:
-        p_up = round(rem_prob * p_target, 6)
-        p_down = round(max(0.0, 1.0 - p_up - p_neutral), 6)
+        p_up = round(p_target, 6)
+        p_down = round(1.0 - p_up, 6)
     else:
-        p_down = round(rem_prob * p_target, 6)
-        p_up = round(max(0.0, 1.0 - p_down - p_neutral), 6)
+        p_down = round(p_target, 6)
+        p_up = round(1.0 - p_down, 6)
 
-    # 7. Compute Expected Value after costs
+    # 7. EV is MetaModel.ev_r: p*W - (1-p)*L. W and L are mean after-cost R. Do not subtract costs again.
     win_r_map = getattr(mdl, "win_r", {}) or {}
     loss_r_map = getattr(mdl, "loss_r", {}) or {}
-    g_r = float(win_r_map.get(detector, reward_risk))
-    l_r = float(loss_r_map.get(detector, 1.0))
-    if g_r <= 0.0:
-        g_r = reward_risk
-    if l_r <= 0.0:
-        l_r = 1.0
-
+    w_r, l_r = _empirical_payoffs(detector, win_r_map, loss_r_map)
+    ev_from_model = decision.get("ev_r")
+    ev_r = float(ev_from_model[0]) if ev_from_model is not None else p_target * w_r - (1.0 - p_target) * l_r
     primary_metrics = (man.get("metrics") or {}).get("primary") or {}
     n_oos = int(primary_metrics.get("n_oos") or 0)
-    ev_info = compute_ev_intelligence(
-        p_win=p_target,
-        gross_gain_r=g_r,
-        gross_loss_r=l_r,
-        fees_r=round(cost_r * 0.55, 4),
-        slippage_r=round(cost_r * 0.45, 4),
-        uncertainty=qhat,
-        sample_size=n_oos,
-        model_version=str(man.get("version")),
-        risk_bps=atr_bps,
-    )
+    ev_info = {
+        "estimated_win_probability": round(p_target, 6),
+        "expected_gain_r": round(w_r, 4),
+        "expected_loss_r": round(l_r, 4),
+        "expected_net_value_r": round(ev_r, 6),
+        "expected_net_value_bps": None,
+        "is_positive_ev": bool(ev_r > 0.0),
+        "formula": "EV = p * W - (1 - p) * L",
+        "cost_treatment": "W and L are mean after-cost R from the fit block; fees are not subtracted again",
+        "setup_reward_risk": None if row.get("reward_risk") is None or not math.isfinite(float(row["reward_risk"])) else round(float(row["reward_risk"]), 4),
+        "setup_cost_r": None if row.get("cost_r") is None or not math.isfinite(float(row["cost_r"])) else round(float(row["cost_r"]), 4),
+        "available_sample_size": n_oos,
+        "model_version": str(man.get("version")),
+        "execution_permission": "none",
+    }
 
     # 8. Market-closed / expiration status handling (Section 12)
     closed_override = (mkt.get("market_closed_behavior") or {}).get("prediction_status_override")
@@ -555,6 +555,9 @@ def generate_live_prediction(
         "market_status": mkt_status,
         "market_session": mkt,
         "strategy_family": strategy_family,
+        "detector": detector,
+        "candidate_id": str(row.get("candidate_id") or ""),
+        "setup_detected_at": datetime.fromtimestamp(int(row["t"]), tz=timezone.utc).isoformat(),
         "direction": "LONG" if dir_sign > 0 else "SHORT",
         "model_id": f"atlas-meta:{group}",
         "model_version": str(man.get("version")),
@@ -571,13 +574,14 @@ def generate_live_prediction(
         "expected_return_after_costs": ev_info["expected_net_value_r"],
         "expected_return_after_costs_bps": ev_info["expected_net_value_bps"],
         "expected_value": ev_info,
-        "uncertainty": round(qhat, 4),
+        "uncertainty": None if qhat is None else round(qhat, 4),
         "conformal_take": bool(decision["take"][0]),
         "prediction_status": pred_status,
-        "setup_source": "momentum_heuristic",
+        "setup_source": "setup_library",
         "data_quality_status": "VALID" if mkt.get("data_feed_health") == "HEALTHY" else str(mkt.get("data_feed_health")),
         "status_reason": (
-            f"Calibrated {cal_kind} inference from {man.get('version')} on {len(bars)} closed {iv} bars"
+            f"Calibrated {cal_kind} meta-label for open {detector} {direction} setup {row.get('candidate_id')} "
+            f"from {man.get('version')} (features at detection, same builder as training)."
             if pred_status == "VALID"
             else f"Market status is {mkt_status} ({mkt.get('label')}); preserving last closed bar prediction as historical context."
         ),

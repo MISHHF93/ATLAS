@@ -12,6 +12,27 @@ from atlas.ai.ml.train import GATES
 from atlas.ai.prediction import roll as RL
 
 
+def test_latest_open_setup_is_a_training_row_or_absent():
+    from atlas.features.price_action.bars import Bar
+    from atlas.ai.ml.dataset import FEATURES, SeriesData, build_rows, latest_open_setup
+
+    bars = []
+    px = 100.0
+    for i in range(240):
+        o, px = px, px * (1.001 if i % 17 < 8 else 0.999)
+        bars.append(Bar(1_700_000_000 + i * 900, 900, o, max(o, px) * 1.002, min(o, px) * 0.998, px, 50.0 + i))
+    got = latest_open_setup(bars, "BTCUSDT", "15m", "crypto")
+    df = build_rows(SeriesData("BTCUSDT", "15m", "crypto", bars), include_open=True)
+    open_rows = df.loc[df["y"] < 0] if len(df) and "y" in df.columns else df
+    if got is None:
+        assert len(open_rows) == 0
+        return
+    last = open_rows.sort_values(["t", "candidate_id"]).iloc[-1]
+    assert int(got["t"]) == int(last["t"]) and got["candidate_id"] == last["candidate_id"]
+    assert got["detector"] == last["detector"]
+    assert set(FEATURES) <= set(got)
+
+
 def test_promotion_gates_are_unchanged():
     assert GATES == {"min_oos": 200, "min_dsr": 0.95, "max_pbo": 0.5, "min_shadow_weeks": 4}
 
