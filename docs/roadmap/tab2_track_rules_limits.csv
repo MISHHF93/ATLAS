@@ -6,6 +6,6 @@ Max Daily Loss,3.0% Desk Daily Loss Limit,4.0% Daily Loss Circuit Breaker,Action
 Max Trailing DD,10.0% Static Drawdown Floor,8.0% Max Trailing Drawdown Floor,ActionableControlPlaneEngine
 Per-Trade Risk Cap,0.50% Equity Risk Cap,0.50%-0.75% Per-Trade Risk Cap,Mandatory ATR/Structure Stop + VPIN Widening
 Consistency Gate,Unconstrained Open-Market Compounding,<= 35% Single-Day Profit Consistency Gate,>= 5 Minimum Trading Days
-Data Feeds,Public Yahoo chart bars; SEC EDGAR as-filed selector (Databento/Polygon not configured),Public Binance/Coinbase klines (Databento not configured),acceptance_time <= as_of (PIT Gate)
+Data Feeds,Public Yahoo chart bars; SEC EDGAR as-filed selector (Databento/Polygon not configured),Public Coinbase/Kraken klines (Databento not configured),acceptance_time <= as_of (PIT Gate)
 Broker Routing,Alpaca / IBKR PAPER adapters (off by default),Paper broker only (no FIX/Coinbase/cTrader/Rithmic routing),Zero operator discretion
 Regulatory/Audit Standard,SEC T+1 / Reg-T / XBRL Audit,Prop Challenge Rulebook Verification,"ISO 42001, NIST AI RMF, IOSCO & 8 Ledgers"

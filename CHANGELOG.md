@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-30: Canada eligibility filter, no-key setup, feed DB VACUUM
+- `excluded_venues` now also records hyperliquid (Ontario terms bar), polymarket (banned in Ontario; blocks AB/BC/QC) and kalshi_direct (Canada is a Restricted Jurisdiction). None of them had code or env vars.
+- Docs and roadmap CSVs: leftover Binance / OKX / Hyperliquid / Bybit mentions replaced with Coinbase / Kraken; `docs/spec/price-action.md` notes Binance is unavailable to Canadians.
+- Local `.env` (gitignored): dashboard and MCP tokens generated, ntfy topic, SEC user agent and owner email set. No values committed.
+- Feed DB `VACUUM`ed on the live DB (about 146 MB reclaimed); live ingest restarted with the same command line.
+- Kept but flagged: xAI API (no published country list), Pump.fun/Solana (off by product policy), Databento/EODHD (paid, gated), Alpaca (paper only for Canadians).
+
 ## 2026-10-30: leftover venue cleanup, stale data and models deleted
 - Remaining Binance / Hyperliquid references removed: `CRYPTO_SOURCES` is Coinbase + Kraken only; the perp catalog rows are labelled COINBASE and seeded with an empty state (price 0.0, shown as "no data") instead of placeholder prices; filler venues are Coinbase / Kraken; Hyperliquid and CCXT Pro labels removed from the live-stream status and the terminal/workbench UI (Kraken replaces Hyperliquid as the second live provider); the default CCXT exchange id is `kraken`. The `excluded_venues` safety records stay.
 - Stale data deleted (to save space; nothing from Coinbase/Kraken/Alpaca was touched): 2,720,984 Binance/OKX `bar_revisions` rows, 66 `last_quotes` and 11,606 `ingest_log` rows from the feed store (batched, ingest untouched; free pages are reused, no VACUUM), the 15 `atlas-meta-crypto-*` registry models and the 4 `directional/crypto-*` model dirs trained on Binance-sourced data (about 380 MB on disk). Pre-switch horizon models under `var/ml/horizons` stay for the roll loop to supersede.

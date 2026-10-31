@@ -122,7 +122,7 @@ All fixtures are seeded synthetic data and labelled as such.
 
 - **Data.** `scripts/fetch_public_history.py` pulls free public bars into `var/evidence_cache/`, which is never committed. Run it with `--15m` to fill `var/evidence_cache_15m/` for the slice-5 selector evidence. The 1h/1d sources are:
   - Yahoo chart API, 1h (730 days) and 1d (since inception), for SPY, QQQ and IWM;
-  - Binance `data-api.binance.vision` 1h klines (2 years) for BTCUSDT and ETHUSDT.
+  - Coinbase Exchange public candles, 1h (2 years) for BTC-USD and ETH-USD (Binance was used before 2026-10-30; it is not available to Canadian residents).
 - **Evaluation.** `scripts/run_setup_evidence.py` runs `atlas.research.setup_evidence`:
   - triple-barrier labels from the conservative replay;
   - expanding walk-forward with 5 folds, purged by exit time, plus a 1-day embargo;

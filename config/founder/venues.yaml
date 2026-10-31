@@ -68,6 +68,9 @@ excluded_venues:
   bybit: "Unregistered offshore exchange"
   okx: "Unregistered offshore exchange"
   robinhood_crypto: "Not available to Canadian residents"
+  hyperliquid: "Terms of use bar Ontario residents (s1.6); not CSA-registered"
+  polymarket: "Banned in Ontario (OSC settlement); also blocks Alberta, British Columbia and Quebec"
+  kalshi_direct: "Canada is a Restricted Jurisdiction in the member agreement; only Wealthsimple Predict/IBKR Canada are CIRO-authorized"
 
 registered_statuses: [ciro_member, restricted_dealer, investment_dealer]
 

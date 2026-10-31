@@ -48,7 +48,7 @@ Training, evidence and replay read the store: `load_datasets()` in `atlas.resear
 | SPY, QQQ, IWM | 15m | yahoo (unofficial) | 1,093 each (~60 d, provider limit) | ok |
 | SPY / QQQ / IWM | 1h | yahoo | 3,434 / 3,435 / 3,434 (from 2024-11-04) | ok |
 
-Crypto cross-check over 7 days of 1h bars (median bps): okx ~0.5, kraken ~1–2.5, coinbase USD proxy ~12–13. A rerun was idempotent: 0 inserted, 1 revised (the forming bar became confirmed). Yahoo has two genuine provider holes in 1h data (2026-01-30 15:30 and 2026-02-02 14:30 UTC) that cannot be refilled without a keyed equity provider.
+Crypto cross-check over 7 days of 1h bars (median bps): kraken ~1–2.5, coinbase USD proxy ~12–13. A rerun was idempotent: 0 inserted, 1 revised (the forming bar became confirmed). Yahoo has two genuine provider holes in 1h data (2026-01-30 15:30 and 2026-02-02 14:30 UTC) that cannot be refilled without a keyed equity provider.
 
 **Yahoo 1h artifacts** (`providers/yahoo.py: clean_intraday`):
 - For US equities, Yahoo appends a synthetic bar at the session close (16:00 ET, or the early close). It has volume 0 and open = high = low = close. It is not a traded bar and is dropped.
