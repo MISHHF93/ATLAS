@@ -31,7 +31,7 @@ export interface Module02ListingPacket {
   track: "open_market" | "competition";
   category: AuthenticAssetCategory;
   subCategory: string;
-  provider: "databento" | "polygon" | "ccxt_pro" | "coinbase" | "hyperliquid";
+  provider: "databento" | "polygon" | "ccxt_pro" | "coinbase" | "kraken";
   venue: string;
   price: number;
   prevPrice: number;
@@ -611,7 +611,7 @@ const INITIAL_MODULE02_LISTINGS: Module02ListingPacket[] = [
     exchangeMic: "XOFF",
     jurisdiction: "GLOBAL",
   }),
-  makePacket("SOL-USD", "Solana Spot / Perpetual Benchmark", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Kraken", "competition", "hyperliquid", 3.8, {
+  makePacket("SOL-USD", "Solana Spot / Perpetual Benchmark", "crypto", "Major Liquid Crypto", "24/7 Coinbase / Kraken", "competition", "kraken", 3.8, {
     issuer: "Solana Network (Regulated Spot Exchanges)",
     exchangeMic: "XOFF",
     jurisdiction: "GLOBAL",

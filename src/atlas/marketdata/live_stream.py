@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 class LiveTickFrame:
     symbol: str
     track: Literal["competition", "open_market"]
-    provider: Literal["databento", "polygon", "ccxt_pro", "coinbase", "hyperliquid"]
+    provider: Literal["databento", "polygon", "ccxt_pro", "coinbase", "kraken"]
     price: float
     size: float
     vpin: float
@@ -178,7 +178,7 @@ def compute_streaming_kyles_lambda(
 class LiveMarketDataGateway:
     """Manages simultaneous asynchronous streams across Open-Market Equities (Databento / Polygon.io SIP
     for `SPY`, `NVDA`, `AAPL`, `MSFT`, `QQQ`, `TSLA`) and Prop Crypto Perpetuals (CCXT Pro / Coinbase /
-    Hyperliquid for `BTC-USD`, `ETH-USD`, `SOL-USD`), computing Rolling VPIN, Multi-Level OFI, and
+    Kraken for `BTC-USD`, `ETH-USD`, `SOL-USD`), computing Rolling VPIN, Multi-Level OFI, and
     Kyle's Lambda, and wiring ticks into `ActionableControlPlaneEngine.evaluate_market_tick()`.
     """
 
@@ -227,7 +227,7 @@ class LiveMarketDataGateway:
             "polygon": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
             "ccxt_pro": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
             "coinbase": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
-            "hyperliquid": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
+            "kraken": {"status": "UNCONFIGURED", "connected": False, "reconnect_attempts": 0, "latency_ms": None},
         }
 
     def add_listener(self, listener: Callable[[LiveTickFrame], object]) -> None:
@@ -351,7 +351,7 @@ class LiveMarketDataGateway:
         symbol: str,
         price: float,
         size: float,
-        preferred_provider: Literal["databento", "polygon", "ccxt_pro", "coinbase", "hyperliquid"] = "databento",
+        preferred_provider: Literal["databento", "polygon", "ccxt_pro", "coinbase", "kraken"] = "databento",
     ) -> LiveTickFrame:
         """Async ingestion helper that automatically reconnects or falls back if a primary stream disconnects."""
         key = preferred_provider.lower()
@@ -376,14 +376,14 @@ class LiveMarketDataGateway:
         spread: float = 0.05,
         exchange_timestamp: datetime | None = None,
         system_receipt_timestamp: datetime | None = None,
-        provider: Literal["databento", "polygon", "ccxt_pro", "coinbase", "hyperliquid"] | None = None,
+        provider: Literal["databento", "polygon", "ccxt_pro", "coinbase", "kraken"] | None = None,
         regime: str | None = None,
         mark_to_market_equity_usd: float | None = None,
     ) -> LiveTickFrame:
         sym = symbol.upper()
         is_crypto = sym.endswith("-USD") or sym in {"BTC-USD", "ETH-USD", "SOL-USD"}
         track: Literal["competition", "open_market"] = "competition" if is_crypto or sym in {"ES", "NQ", "YM", "RTY", "CL", "GC"} else "open_market"
-        resolved_provider: Literal["databento", "polygon", "ccxt_pro", "coinbase", "hyperliquid"] = (
+        resolved_provider: Literal["databento", "polygon", "ccxt_pro", "coinbase", "kraken"] = (
             provider if provider is not None else ("ccxt_pro" if is_crypto else "databento")
         )
 
@@ -482,7 +482,7 @@ class LiveMarketDataGateway:
 
         now = datetime.now(timezone.utc)
         phase = (now.minute * 60 + now.second + now.microsecond / 1_000_000.0) * 0.85
-        universe_specs: list[tuple[str, float, float, float, str, Literal["databento", "polygon", "ccxt_pro", "coinbase", "hyperliquid"]]] = [
+        universe_specs: list[tuple[str, float, float, float, str, Literal["databento", "polygon", "ccxt_pro", "coinbase", "kraken"]]] = [
             ("SPY", 584.20, 0.38, 1.2, "Compression", "databento"),
             ("NVDA", 142.10, 0.42, 1.5, "Expansion", "polygon"),
             ("AAPL", 231.45, 0.28, 1.4, "Compression", "databento"),
@@ -491,7 +491,7 @@ class LiveMarketDataGateway:
             ("TSLA", 254.30, 0.62, 2.2, "Auction", "polygon"),
             ("BTC-USD", 68410.0, 48.5, 3.2, "Expansion", "ccxt_pro"),
             ("ETH-USD", 2645.50, 3.8, 3.8, "Expansion", "coinbase"),
-            ("SOL-USD", 176.80, 0.52, 4.5, "Expansion", "hyperliquid"),
+            ("SOL-USD", 176.80, 0.52, 4.5, "Expansion", "kraken"),
         ]
         results: list[dict[str, Any]] = []
         for idx, (sym, base_px, amp, spr_bps, reg, prov) in enumerate(universe_specs):

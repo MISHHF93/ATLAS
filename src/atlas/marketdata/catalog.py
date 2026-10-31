@@ -331,38 +331,40 @@ def classify_catalog_category(symbol: str, asset_class: str, exchange: str = "")
         return ("crypto_perps", "Major Digital Asset")
     return ("equities", "US Listed Equity")
 
-# Flagship CCXT Pro Crypto Perpetuals & Spot Pairs (Coinbase / Kraken / Hyperliquid)
-FLAGSHIP_CRYPTO_PERPS: tuple[tuple[str, str, str, float, float, float, str], ...] = (
-    ("BTC-USD", "Bitcoin Perpetual Swap", "CCXT_PRO", 68410.00, 1.42, 0.312, "Expansion"),
-    ("ETH-USD", "Ethereum Perpetual Swap", "COINBASE", 2645.50, 2.15, 0.278, "Expansion"),
-    ("SOL-USD", "Solana Perpetual Swap", "HYPERLIQUID", 176.80, 3.18, 0.354, "Expansion"),
-    ("BNB-USD", "BNB Perpetual Swap", "COINBASE", 598.40, 0.75, 0.235, "Compression"),
-    ("XRP-USD", "XRP Perpetual Swap", "COINBASE", 0.5480, 1.12, 0.284, "Compression"),
-    ("DOGE-USD", "Dogecoin Perpetual Swap", "COINBASE", 0.1445, 4.85, 0.392, "Expansion"),
-    ("ADA-USD", "Cardano Perpetual Swap", "COINBASE", 0.3620, 0.94, 0.246, "Compression"),
-    ("AVAX-USD", "Avalanche Perpetual Swap", "HYPERLIQUID", 28.40, 2.64, 0.328, "Expansion"),
-    ("LINK-USD", "Chainlink Perpetual Swap", "COINBASE", 11.85, 1.88, 0.291, "Expansion"),
-    ("SUI-USD", "Sui Network Perpetual Swap", "HYPERLIQUID", 2.08, 5.42, 0.412, "Expansion"),
-    ("DOT-USD", "Polkadot Perpetual Swap", "COINBASE", 4.45, 0.62, 0.238, "Compression"),
-    ("NEAR-USD", "NEAR Protocol Perpetual Swap", "HYPERLIQUID", 4.92, 2.95, 0.334, "Expansion"),
-    ("LTC-USD", "Litecoin Perpetual Swap", "COINBASE", 71.20, 1.04, 0.229, "Compression"),
-    ("UNI-USD", "Uniswap Perpetual Swap", "COINBASE", 7.85, 1.76, 0.282, "Expansion"),
-    ("APT-USD", "Aptos Perpetual Swap", "HYPERLIQUID", 10.42, 3.85, 0.366, "Expansion"),
-    ("ICP-USD", "Internet Computer Perpetual Swap", "COINBASE", 8.34, 1.22, 0.264, "Compression"),
-    ("ARB-USD", "Arbitrum Perpetual Swap", "HYPERLIQUID", 0.584, 2.14, 0.315, "Expansion"),
-    ("OP-USD", "Optimism Perpetual Swap", "HYPERLIQUID", 1.74, 2.48, 0.321, "Expansion"),
-    ("INJ-USD", "Injective Perpetual Swap", "HYPERLIQUID", 21.60, 3.12, 0.348, "Expansion"),
-    ("AAVE-USD", "Aave Protocol Perpetual Swap", "COINBASE", 154.80, 2.05, 0.296, "Expansion"),
-    ("TIA-USD", "Celestia Perpetual Swap", "HYPERLIQUID", 6.12, 4.18, 0.384, "Expansion"),
-    ("PEPE-USD", "Pepe 1000x Perpetual Swap", "HYPERLIQUID", 0.0104, 6.20, 0.448, "Volatile Auction"),
-    ("WIF-USD", "dogwifhat Perpetual Swap", "HYPERLIQUID", 2.68, 5.75, 0.436, "Volatile Auction"),
-    ("RENDER-USD", "Render Network Perpetual Swap", "COINBASE", 5.45, 2.84, 0.329, "Expansion"),
-    ("FET-USD", "Artificial Superintelligence Perp", "COINBASE", 1.42, 3.10, 0.342, "Expansion"),
-    ("SEI-USD", "Sei Network Perpetual Swap", "HYPERLIQUID", 0.465, 3.65, 0.358, "Expansion"),
-    ("ATOM-USD", "Cosmos Hub Perpetual Swap", "COINBASE", 4.78, 0.54, 0.232, "Compression"),
-    ("FIL-USD", "Filecoin Perpetual Swap", "COINBASE", 3.82, 0.88, 0.249, "Compression"),
-    ("TON-USD", "Toncoin Perpetual Swap", "COINBASE", 5.24, 0.72, 0.241, "Compression"),
-    ("HBAR-USD", "Hedera Perpetual Swap", "COINBASE", 0.0542, 1.15, 0.258, "Compression"),
+# Flagship crypto directory rows (Coinbase / Kraken USD listings; no stored prices)
+# (symbol, name, venue label, tick, lot, change_pct fixture, vpin fixture, regime fixture). There is NO stored price: last_price is 0.0,
+# which the API shows as quote_status "no_data" until the ATLAS feed (Coinbase/Kraken) has a print. Hyperliquid is not listed (Ontario-restricted).
+FLAGSHIP_CRYPTO_PERPS: tuple[tuple[str, str, str, float, float, float, float, str], ...] = (
+    ("BTC-USD", "Bitcoin Perpetual Swap", "COINBASE", 0.01, 0.001, 1.42, 0.312, "Expansion"),
+    ("ETH-USD", "Ethereum Perpetual Swap", "COINBASE", 0.01, 0.001, 2.15, 0.278, "Expansion"),
+    ("SOL-USD", "Solana Perpetual Swap", "COINBASE", 0.01, 1.0, 3.18, 0.354, "Expansion"),
+    ("BNB-USD", "BNB Perpetual Swap", "COINBASE", 0.01, 1.0, 0.75, 0.235, "Compression"),
+    ("XRP-USD", "XRP Perpetual Swap", "COINBASE", 0.0001, 1.0, 1.12, 0.284, "Compression"),
+    ("DOGE-USD", "Dogecoin Perpetual Swap", "COINBASE", 0.0001, 1.0, 4.85, 0.392, "Expansion"),
+    ("ADA-USD", "Cardano Perpetual Swap", "COINBASE", 0.0001, 1.0, 0.94, 0.246, "Compression"),
+    ("AVAX-USD", "Avalanche Perpetual Swap", "COINBASE", 0.01, 1.0, 2.64, 0.328, "Expansion"),
+    ("LINK-USD", "Chainlink Perpetual Swap", "COINBASE", 0.01, 1.0, 1.88, 0.291, "Expansion"),
+    ("SUI-USD", "Sui Network Perpetual Swap", "COINBASE", 0.0001, 1.0, 5.42, 0.412, "Expansion"),
+    ("DOT-USD", "Polkadot Perpetual Swap", "COINBASE", 0.0001, 1.0, 0.62, 0.238, "Compression"),
+    ("NEAR-USD", "NEAR Protocol Perpetual Swap", "COINBASE", 0.0001, 1.0, 2.95, 0.334, "Expansion"),
+    ("LTC-USD", "Litecoin Perpetual Swap", "COINBASE", 0.01, 1.0, 1.04, 0.229, "Compression"),
+    ("UNI-USD", "Uniswap Perpetual Swap", "COINBASE", 0.0001, 1.0, 1.76, 0.282, "Expansion"),
+    ("APT-USD", "Aptos Perpetual Swap", "COINBASE", 0.01, 1.0, 3.85, 0.366, "Expansion"),
+    ("ICP-USD", "Internet Computer Perpetual Swap", "COINBASE", 0.0001, 1.0, 1.22, 0.264, "Compression"),
+    ("ARB-USD", "Arbitrum Perpetual Swap", "COINBASE", 0.0001, 1.0, 2.14, 0.315, "Expansion"),
+    ("OP-USD", "Optimism Perpetual Swap", "COINBASE", 0.0001, 1.0, 2.48, 0.321, "Expansion"),
+    ("INJ-USD", "Injective Perpetual Swap", "COINBASE", 0.01, 1.0, 3.12, 0.348, "Expansion"),
+    ("AAVE-USD", "Aave Protocol Perpetual Swap", "COINBASE", 0.01, 1.0, 2.05, 0.296, "Expansion"),
+    ("TIA-USD", "Celestia Perpetual Swap", "COINBASE", 0.0001, 1.0, 4.18, 0.384, "Expansion"),
+    ("PEPE-USD", "Pepe 1000x Perpetual Swap", "COINBASE", 0.0001, 1.0, 6.20, 0.448, "Volatile Auction"),
+    ("WIF-USD", "dogwifhat Perpetual Swap", "COINBASE", 0.0001, 1.0, 5.75, 0.436, "Volatile Auction"),
+    ("RENDER-USD", "Render Network Perpetual Swap", "COINBASE", 0.0001, 1.0, 2.84, 0.329, "Expansion"),
+    ("FET-USD", "Artificial Superintelligence Perp", "COINBASE", 0.0001, 1.0, 3.10, 0.342, "Expansion"),
+    ("SEI-USD", "Sei Network Perpetual Swap", "COINBASE", 0.0001, 1.0, 3.65, 0.358, "Expansion"),
+    ("ATOM-USD", "Cosmos Hub Perpetual Swap", "COINBASE", 0.0001, 1.0, 0.54, 0.232, "Compression"),
+    ("FIL-USD", "Filecoin Perpetual Swap", "COINBASE", 0.0001, 1.0, 0.88, 0.249, "Compression"),
+    ("TON-USD", "Toncoin Perpetual Swap", "COINBASE", 0.0001, 1.0, 0.72, 0.241, "Compression"),
+    ("HBAR-USD", "Hedera Perpetual Swap", "COINBASE", 0.0001, 1.0, 1.15, 0.258, "Compression"),
 )
 
 
@@ -477,8 +479,8 @@ class UniversalAssetCatalog:
                     )
                 )
 
-            # 3. Seed Flagship CCXT Pro Crypto Perpetuals
-            for idx, (sym, name, exch, px, chg, vpin, regime) in enumerate(FLAGSHIP_CRYPTO_PERPS):
+            # 3. Seed flagship crypto directory rows (no stored price)
+            for idx, (sym, name, exch, tick_sz, lot_sz, chg, vpin, regime) in enumerate(FLAGSHIP_CRYPTO_PERPS):
                 ofi_z = round((chg / 2.2) + 0.25, 3)
                 provider = "synthetic_fixture"
                 rows_to_insert.append(
@@ -487,13 +489,13 @@ class UniversalAssetCatalog:
                         name,
                         "crypto_perps",
                         exch,
-                        0.01 if px > 10 else 0.0001,
-                        0.001 if px > 1000 else 1.0,
+                        tick_sz,
+                        lot_sz,
                         10.0,
                         "competition",
                         1,
-                        px,
-                        chg,
+                        0.0,  # no stored price (empty state)
+                        0.0,
                         round(32000.0 + idx * 540.0, 2),
                         round(48000000.0 + idx * 650000.0, 2),
                         vpin,
@@ -599,11 +601,11 @@ class UniversalAssetCatalog:
 
             # 5. Expand CCXT Pro Crypto Perpetuals Universe to >= 500 pairs
             remaining_crypto = self.target_crypto_count - len(FLAGSHIP_CRYPTO_PERPS)
-            exchanges_cr = ("COINBASE", "KRAKEN", "HYPERLIQUID")
+            exchanges_cr = ("COINBASE", "KRAKEN")
             for i in range(1, remaining_crypto + 1):
                 sym = f"PERP{i:03d}-USD"
-                exch = exchanges_cr[i % 3]
-                px = round(0.45 + (i % 150) * 1.85, 4)
+                exch = exchanges_cr[i % 2]
+                px = 0.0  # filler ids have no price anywhere (hidden from search; empty state)
                 chg = round(((i % 23) - 10) * 0.42, 2)
                 vpin = round(0.22 + (i % 28) * 0.012, 3)
                 ofi_z = round(chg * 0.41, 3)
@@ -745,7 +747,7 @@ class UniversalAssetCatalog:
             if row is None:
                 return
             prev_px = float(row["last_price"])
-            delta_pct = ((last_price - prev_px) / max(1e-6, prev_px)) * 100.0
+            delta_pct = ((last_price - prev_px) / prev_px) * 100.0 if prev_px > 0 else 0.0  # no stored price -> no fake change
             new_chg = round(float(row["change_pct"]) + delta_pct, 2)
             cur.execute(
                 """

@@ -27,7 +27,7 @@ from atlas.models.quant.validation import pbo_cscv
 
 UTC_DAY = SessionSpec("utc_day", "UTC", datetime.min.time(), datetime.min.time(), weekdays=(0, 1, 2, 3, 4, 5, 6))
 COSTS_BPS = {"equity": 4.0, "crypto": 124.0}   # round trip: equity 1bp spread+1bp slip per side; crypto 60bp taker (Kraken Pro tier 2)+2bp slip per side (= ai.ml.costs)
-CRYPTO_SOURCES = ("coinbase", "kraken", "binance")   # cache `source` prefixes; "binance" only matches legacy cache files written before 2026-10-30 (no longer fetched)
+CRYPTO_SOURCES = ("coinbase", "kraken")   # cache `source` prefixes (Canada-eligible venues only; legacy Binance caches are archived, not classified)
 COST_PER_SHARE = {"equity": 0.01, "crypto": 0.0}
 EPS = 1e-6
 

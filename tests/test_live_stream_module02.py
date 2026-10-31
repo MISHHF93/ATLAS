@@ -24,12 +24,12 @@ def test_async_socket_reconnects_and_graceful_fallback_on_mock_disconnect() -> N
     gateway = LiveMarketDataGateway(ring_buffer_maxlen=10000)
     assert gateway.ring_buffer.maxlen == 10000
 
-    # Simulate disconnect on Polygon (equities) and Hyperliquid (crypto perps)
+    # Simulate disconnect on Polygon (equities) and Kraken (crypto)
     disc_poly = gateway.simulate_disconnect("polygon")
     assert disc_poly["connected"] is False
     assert disc_poly["status"] == "DISCONNECTED"
 
-    disc_hl = gateway.simulate_disconnect("hyperliquid")
+    disc_hl = gateway.simulate_disconnect("kraken")
     assert disc_hl["connected"] is False
 
     # Async ingestion automatically reconnects with exponential backoff and ingests tick
@@ -52,10 +52,10 @@ def test_async_socket_reconnects_and_graceful_fallback_on_mock_disconnect() -> N
             symbol="SOL-USD",
             price=176.80,
             size=45.0,
-            preferred_provider="hyperliquid",
+            preferred_provider="kraken",
         )
     )
-    assert gateway.provider_status["hyperliquid"]["connected"] is False
+    assert gateway.provider_status["kraken"]["connected"] is False
     assert frame_sol.symbol == "SOL-USD"
     assert frame_sol.track == "competition"
     assert frame_sol.execution_permission == "none"

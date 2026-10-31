@@ -728,7 +728,7 @@ def build_master_roadmap_state(symbol: str = "SPY", scenario_index: int = 0) -> 
         },
         {
             "domain": "24/7 Crypto Spot & Perps",
-            "venues": "Coinbase Advanced / Kraken / Hyperliquid",
+            "venues": "Coinbase Advanced / Kraken",
             "sessions": "Continuous 24/7/365 with 8h/1h funding windows",
             "granularity": "L2 10-level Depth, Funding rate & Open Interest",
             "prop_nuances": "Funding rate bleed & high-volatility liquidation cascades",

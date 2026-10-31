@@ -1,6 +1,6 @@
 """Global Multi-Domain Architecture — 24/7 Crypto Spot & Perpetuals (`src/atlas/marketdata/crypto.py`).
 
-Covers Coinbase / Kraken / Hyperliquid continuous 24/7/365 sessions, L2 10-level Depth,
+Covers Coinbase / Kraken (Canada-eligible venues) continuous 24/7/365 sessions, L2 10-level Depth,
 8h/1h perpetual funding rate cycles, funding liquidation risk, and dynamic perpetual
 delta hedging (`execution_permission = "none"`).
 """
@@ -17,7 +17,7 @@ class CryptoPerpDomainProfile(Record):
     """Domain specification and funding-rate delta-hedge advisory for 24/7 Crypto Perps."""
 
     instrument_id: Text
-    venue: Literal["coinbase_advanced", "kraken", "hyperliquid"] = "coinbase_advanced"
+    venue: Literal["coinbase_advanced", "kraken"] = "coinbase_advanced"
     session_window: Text = "Continuous 24/7/365"
     data_granularity: Text = "L2 10-level Depth, Funding rate 8h/1h"
     funding_rate_8h_bps: FiniteFloat

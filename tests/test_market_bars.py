@@ -40,8 +40,10 @@ def test_projected_bars_cover_catalog_assets_outside_the_nine_name_pump() -> Non
 
     doge = project_symbol_bars(gateway, "DOGE-USD", bucket_seconds=60, limit=40)
     assert doge["track"] == "competition"
-    assert float(doge["last_close"]) < 1
-    assert doge["bar_count"] == 40
+    # Perp catalog rows carry no placeholder price any more (venues are Coinbase/Kraken): no quote -> no invented bars.
+    assert doge["bar_count"] == 0
+    assert doge["chart_source"] == "no_quote" and doge["data_mode"] == "withheld"
+    assert float(doge["last_close"]) == 0.0
 
     futures = project_symbol_bars(gateway, "ES", bucket_seconds=3600, limit=48)
     assert futures["track"] == "competition"
@@ -145,18 +147,20 @@ def test_live_training_uses_desk_candles_and_stays_air_gapped() -> None:
 
 
 def test_market_bars_endpoint_and_original_candle_fixture() -> None:
+    # Futures rows keep a labelled fixture price; crypto perp rows are unseeded (no placeholder quote) until a live tick arrives,
+    # so this test no longer depends on test order having ticked a crypto symbol.
     client = TestClient(app)
-    bars = client.get("/api/market/bars", params={"symbol": "SOL-USD", "bucket_seconds": 60, "limit": 24})
+    bars = client.get("/api/market/bars", params={"symbol": "ES", "bucket_seconds": 60, "limit": 24})
     assert bars.status_code == 200
     body = bars.json()
-    assert body["symbol"] == "SOL-USD"
+    assert body["symbol"] == "ES"
     assert body["bar_count"] >= 24
     assert body["track"] == "competition"
     assert body["feed_origin"] == "labeled_synthetic_fixture"
     assert body["execution_permission"] == "none"
     _assert_ohlc(body["candles"])
 
-    seconds = client.get("/api/market/bars", params={"symbol": "BTC-USD", "bucket_seconds": 1, "limit": 40})
+    seconds = client.get("/api/market/bars", params={"symbol": "ES", "bucket_seconds": 1, "limit": 40})
     assert seconds.status_code == 200
     one_second = seconds.json()
     assert one_second["bucket_seconds"] == 1

@@ -31,6 +31,8 @@ def test_crypto_cost_is_one_value_everywhere_and_not_the_old_binance_figure():
 def test_crypto_sources_include_coinbase_and_kraken():
     assert "coinbase_public_candles".startswith(CRYPTO_SOURCES) and "kraken_public_ohlc".startswith(CRYPTO_SOURCES)
     assert not "yahoo_chart_public".startswith(CRYPTO_SOURCES)
+    assert "binance_public_klines" and not "binance_public_klines".startswith(CRYPTO_SOURCES)
+    assert set(CRYPTO_SOURCES) == {"coinbase", "kraken"}
 
 
 def test_fetch_public_history_coinbase_maps_symbol_orders_columns_and_drops_forming_candle(monkeypatch):

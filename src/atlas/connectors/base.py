@@ -324,7 +324,7 @@ class CCXTPerpConnector(BaseExecutionConnector):
         "SOL-USD": 176.8,
     }
 
-    def __init__(self, *, exchange_id: str = "hyperliquid") -> None:
+    def __init__(self, *, exchange_id: str = "kraken") -> None:
         super().__init__(
             connector_id=f"ccxt_perp_{exchange_id}",
             venue_type="ccxt_perp",
