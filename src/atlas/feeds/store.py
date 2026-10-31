@@ -159,15 +159,18 @@ class FeedStore:
         keys = ("instrument", "provider", "price", "event_time", "receipt_time", "prev_close", "kind", "provider_symbol")
         return [dict(zip(keys, r)) for r in rows]
 
-    def latest_bar(self, instrument: str, intervals: Sequence[str] = ("1m", "5m", "15m", "1h", "1d")) -> FeedBar | None:
+    def latest_bar(self, instrument: str, intervals: Sequence[str] = ("1m", "5m", "15m", "1h", "1d"),
+                   provider: str | None = None) -> FeedBar | None:
         """Most recent bar (confirmed or forming) across providers, ranked by when its last price was known
-        (min(bar_end, receipt_time)); the finest interval wins ties."""
+        (min(bar_end, receipt_time)); the finest interval wins ties. ``provider`` limits it to ONE provider's own rows,
+        so one venue's freshness is never judged from another venue's bars."""
         best = None
         for iv in intervals:
             r = self._fetchone(
                 "SELECT provider,instrument,interval,event_time,open,high,low,close,volume,receipt_time,confirmed,provider_symbol "
-                "FROM bar_revisions WHERE instrument=? AND interval=? ORDER BY event_time DESC, receipt_time DESC LIMIT 1",
-                (instrument, iv))
+                "FROM bar_revisions WHERE instrument=? AND interval=?" + (" AND provider=?" if provider else "")
+                + " ORDER BY event_time DESC, receipt_time DESC LIMIT 1",
+                (instrument, iv, provider) if provider else (instrument, iv))
             if r:
                 b = FeedBar(r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[0], r[9], bool(r[10]), r[11] or "")
                 if best is None or min(b.bar_end, b.receipt_time) > min(best.bar_end, best.receipt_time):

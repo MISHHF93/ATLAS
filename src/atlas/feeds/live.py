@@ -335,8 +335,19 @@ class LiveIngest:
         feed = get_feed()
         # Equities and futures are not in this loop. Their official providers need a key, and Yahoo is quotes only.
         targets: list[tuple[str, tuple[str, ...]]] = [(iid, ("1m", "15m", "1h")) for iid in self.crypto_ids]
+        # Coinbase is judged by its OWN rows. A Kraken or Alpaca bar under the same catalog id (BTCUSDT) must never hide a stale
+        # Coinbase series (found 2026-10-31: Coinbase BTC/ETH/SOL/XRP/LTC 1m stalled for hours while Kraken kept the id looking fresh).
+        cb_targets = [(iid, ("1m", "15m", "1h")) for iid in dict.fromkeys(self.coinbase.values())]
         while True:
             fetched = 0
+            for iid, intervals in cb_targets:
+                for iv in intervals:
+                    try:
+                        if await asyncio.to_thread(feed.ensure_recent, iid, iv, provider="coinbase"):
+                            fetched += 1
+                            await asyncio.sleep(1.1)
+                    except Exception as e:  # noqa: BLE001
+                        self.stats["errors"][f"coinbase:{iid}:{iv}"] = f"{time.strftime('%H:%M:%S')} {e!r}"[:200]
             for iid, intervals in targets:
                 for iv in intervals:
                     try:

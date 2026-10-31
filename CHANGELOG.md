@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-31: Coinbase freshness is judged by Coinbase rows, not by another venue's bars
+- Coinbase BTC/ETH/SOL/XRP/LTC 1m bars stalled for hours while Kraken kept writing the same catalog id. `AtlasFeed.ensure_recent` asked `latest_bar(instrument)`, which ranks across providers, so a fresh Kraken (or Alpaca) bar made the id look current and the Coinbase REST refill was skipped. The host also went into Windows Modern Standby several times (03:38-07:20, 09:21-10:22, 10:22-11:46 Toronto time), which is what opened the gaps.
+- `FeedStore.latest_bar(..., provider=)` and `AtlasFeed.ensure_recent(..., provider=)` now judge one provider by its own rows and ask only that provider. The live ingest runs a Coinbase-labelled refresh pass. Providers stay separate and labelled; nothing is stitched or merged. One test added.
+
 ## 2026-10-31: 15m shadow clock earns shadow time only while it runs
 - `signal15_live.shadow_summary` measured shadow weeks as the span between the first and last logged decision bar, so a clock that logged once, stopped, and logged again a month later showed four "shadow weeks". It now counts only gaps of at most one day between logged bars (`covered_weeks`, `MAX_COVERED_GAP_S`); downtime counts as zero. The raw span and the longest gap are reported next to it (`shadow_span_weeks`, `shadow_longest_gap_h`). This tightens the shadow-weeks check and loosens no gate; `train.GATES` and `risk_policy.yaml` are unchanged. Two tests added.
 

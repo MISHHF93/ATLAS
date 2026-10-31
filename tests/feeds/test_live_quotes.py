@@ -121,6 +121,33 @@ def test_ensure_recent_fetches_a_stale_interval_once(tmp_path, monkeypatch):
     assert len(calls) == 1
 
 
+def test_ensure_recent_per_provider_is_not_masked_by_another_venue(tmp_path, monkeypatch):
+    """A fresh Kraken bar under the same catalog id must not hide a stale Coinbase series; only Coinbase is asked, nothing is merged."""
+    from atlas.feeds.feed import AtlasFeed
+    now = 1_000_000.0
+    store = FeedStore(tmp_path / "f.sqlite")
+    t = int(now) - int(now) % 60
+    store.ingest([FeedBar("BTCUSDT", "1m", t - 60, 1, 2, 0.5, 1.5, 3, "kraken", float(now), True, "XBTUSDT"),
+                  FeedBar("BTCUSDT", "1m", t - 3 * 3600, 1, 2, 0.5, 1.5, 3, "coinbase", float(now) - 3 * 3600, True, "BTC-USD")])
+    assert store.latest_bar("BTCUSDT", ("1m",)).provider == "kraken"
+    assert store.latest_bar("BTCUSDT", ("1m",), provider="coinbase").provider == "coinbase"
+    assert store.latest_bar("BTCUSDT", ("1m",), provider="coinbase").event_time == t - 3 * 3600
+    feed = AtlasFeed(store=store, clock=lambda: now)
+    calls = []
+    monkeypatch.setattr(feed, "fetch", lambda *a, **k: calls.append((a, k)) or ("coinbase", {}))
+    # unlabelled freshness is satisfied by Kraken, so no fetch (the old behaviour that hid the stall)
+    assert feed.ensure_recent("BTCUSDT", "1m") is False and calls == []
+    cb = [type("A", (), {"name": "coinbase"})()]
+    monkeypatch.setattr(feed, "candidates", lambda *a, **k: cb)
+    assert feed.ensure_recent("BTCUSDT", "1m", provider="coinbase") is True
+    assert calls[0][1]["providers"] == ["coinbase"]
+    assert feed.ensure_recent("BTCUSDT", "1m", provider="coinbase") is False   # ttl window, once
+    fresh_cb = AtlasFeed(store=store, clock=lambda: now)
+    monkeypatch.setattr(fresh_cb, "fetch", lambda *a, **k: (_ for _ in ()).throw(AssertionError("fresh coinbase needs no fetch")))
+    store.ingest([FeedBar("BTCUSDT", "1m", t - 60, 1, 2, 0.5, 1.5, 3, "coinbase", float(now), True, "BTC-USD")])
+    assert fresh_cb.ensure_recent("BTCUSDT", "1m", provider="coinbase") is False
+
+
 def test_ensure_recent_does_not_write_yahoo_bars(tmp_path, monkeypatch):
     from atlas.feeds.feed import AtlasFeed
     store = FeedStore(tmp_path / "f.sqlite")
