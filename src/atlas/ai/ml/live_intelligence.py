@@ -4,7 +4,8 @@ Implements Sections 4 through 24 of the ATLAS Complete System Verification Direc
 - Section 5: Canonical Live Prediction Schema (`LivePrediction`) with explicit non-fabricated statuses:
   VALID, MODEL_UNAVAILABLE, INSUFFICIENT_HISTORY, MARKET_CLOSED, STALE_MARKET_DATA, UNCALIBRATED, PREDICTION_EXPIRED.
 - Section 6 & 7: Thread-safe Model Loading, Caching, Point-in-Time Feature Validation, Calibrated Inference,
-  Conformal Uncertainty, and Prediction Persistence (`var/ml/live_predictions.jsonl`) with outcome resolution.
+  and Conformal Uncertainty. The append-only ``var/ml/live_predictions.jsonl`` file is retired: the live
+  sweep writes ``var/ml/predictions/*.sqlite``, and this service no longer appends to the jsonl.
 - Section 8: Prediction Health Monitoring (`HEALTHY`, `DEGRADED`, `STALE`, `MODEL_ERROR`, `DATA_ERROR`,
   `TRANSPORT_ERROR`, `UNAVAILABLE`).
 - Section 13 & 14: ATLAS Evolution Intelligence across 4 distinct dimensions (never collapsed into one fake score):
@@ -37,13 +38,18 @@ import numpy as np
 import pandas as pd
 
 from atlas.ai.ml import metrics as M
-from atlas.ai.ml.costs import VENUE_COSTS, venue_for
-from atlas.ai.ml.dataset import DETECTORS, DUR, FEATURES, SETUP_FEATURES, SIGNED, BAR_FEATURES, load_series
+from atlas.ai.ml.dataset import (
+    BAR_FEATURES,
+    DETECTORS,
+    DUR,
+    FEATURE_SCHEMA_VERSION,
+    FEATURES,
+    latest_open_setup,
+)
 from atlas.ai.ml.features import bar_features
 from atlas.ai.ml.registry import get as get_registered_manifest, list_models, load_model, root as registry_root
 from atlas.market.sessions import evaluate_instrument_market_status
 
-FEATURE_SCHEMA_VERSION = "atlas-pit-features-v2.4"
 PREDICTION_STATUSES = (
     "VALID",
     "MODEL_UNAVAILABLE",
@@ -52,6 +58,7 @@ PREDICTION_STATUSES = (
     "STALE_MARKET_DATA",
     "UNCALIBRATED",
     "PREDICTION_EXPIRED",
+    "NO_SETUP",
 )
 HEALTH_CLASSIFICATIONS = (
     "HEALTHY",
@@ -104,10 +111,29 @@ _HEALTH_TELEMETRY: dict[str, Any] = {
 }
 
 
-def _predictions_log_path(reg_path: str | os.PathLike | None = None) -> Path:
-    base = registry_root(reg_path).parent
-    base.mkdir(parents=True, exist_ok=True)
-    return base / "live_predictions.jsonl"
+def input_max_age_seconds(interval: str) -> float:
+    """How old a bar *open* may be before an open-market input is stale.
+
+    ``event_time`` is the bar open. ``STALE_AFTER`` (coverage service) is slack after the bar
+    closes, so the bound is that slack plus one bar. The previous default floored this at 7 days,
+    which marked a 15m bar several days old as ``VALID``.
+    """
+    from atlas.ai.prediction.service import STALE_AFTER
+    iv = (interval or "15m").lower()
+    dur = float(DUR.get(iv, 900))
+    slack = float(STALE_AFTER.get(iv, max(3 * dur, 3 * 3600)))
+    return slack + dur
+
+
+def prediction_log_note() -> dict[str, Any]:
+    """The jsonl side file is not the live ledger. Callers that still look for it should see this."""
+    return {
+        "live_predictions_jsonl": "retired",
+        "reason": "The append-only jsonl was not written by the live sweep, so it went stale while "
+                  "var/ml/predictions/*.sqlite kept updating. generate_live_prediction no longer appends to it.",
+        "ledger": "var/ml/predictions/log.sqlite",
+        "execution_permission": "none",
+    }
 
 
 def _lifecycle_state_path(reg_path: str | os.PathLike | None = None) -> Path:
@@ -254,6 +280,16 @@ def compute_ev_intelligence(
     }
 
 
+def _empirical_payoffs(detector: str, win_r: dict, loss_r: dict) -> tuple[float, float]:
+    """Match ``MetaModel.ev_r``: the detector's mean after-cost winner/loser R, else the map mean, else 1."""
+    def one(table: dict) -> float:
+        if detector in table and table[detector] is not None and math.isfinite(float(table[detector])):
+            return float(table[detector])
+        vals = [float(v) for v in table.values() if v is not None and math.isfinite(float(v))]
+        return float(np.mean(vals)) if vals else 1.0
+    return one(win_r or {}), one(loss_r or {})
+
+
 def generate_live_prediction(
     symbol: str,
     interval: str = "15m",
@@ -300,8 +336,8 @@ def generate_live_prediction(
     last_ts = int(last_bar.event_time) if last_bar is not None else None
     last_ts_iso = datetime.fromtimestamp(last_ts, tz=timezone.utc).isoformat() if last_ts else None
 
-    # 2. Evaluate Authoritative Market Status
-    eff_stale_thresh = float(stale_threshold_seconds) if stale_threshold_seconds is not None else float(max(horizon_sec * 3, 86400 * 7))
+    # 2. Evaluate Authoritative Market Status. Default freshness is the coverage-service bound, not a 7-day floor.
+    eff_stale_thresh = float(stale_threshold_seconds) if stale_threshold_seconds is not None else input_max_age_seconds(iv)
     mkt = evaluate_instrument_market_status(
         canon_sym,
         now=now_utc,
@@ -373,6 +409,12 @@ def generate_live_prediction(
     if (mkt.get("market_closed_behavior") or {}).get("prediction_status_override") == "MARKET_CLOSED":
         return _build_non_valid_response("MARKET_CLOSED", "VALID", f"Market {inst_id} is closed; live inference is suppressed.")
 
+    if mkt.get("is_open") and last_ts is not None and (now_utc.timestamp() - last_ts) > eff_stale_thresh:
+        age = int(now_utc.timestamp() - last_ts)
+        return _build_non_valid_response(
+            "STALE_MARKET_DATA", "STALE_MARKET_DATA",
+            f"Last {iv} bar opened {age}s before the prediction; open-market inputs older than {int(eff_stale_thresh)}s are not VALID.")
+
     if len(raw_bars) < 60:
         return _build_non_valid_response("INSUFFICIENT_HISTORY", "INSUFFICIENT_HISTORY", f"Need >= 60 bars for indicator warmup; found {len(raw_bars)} bars.")
 
@@ -414,83 +456,83 @@ def generate_live_prediction(
     if mdl is None or man is None:
         return _build_non_valid_response("MODEL_UNAVAILABLE", "VALID", load_err or f"No model registered for {group}.")
 
-    cal_kind = getattr(getattr(mdl, "calibrator", None), "kind", None) or man.get("calibrator")
+    declared = tuple(man.get("features") or ())
+    if declared and declared != tuple(FEATURES):
+        return _build_non_valid_response(
+            "MODEL_UNAVAILABLE", "FEATURE_SCHEMA_MISMATCH",
+            f"Model {man.get('version')} features do not match {FEATURE_SCHEMA_VERSION} "
+            f"({len(declared)} stored columns, {len(FEATURES)} current).",
+            mdl_ver=man.get("version"))
+
+    cal = getattr(mdl, "calibrator", None)
+    cal_kind = getattr(cal, "kind", None) or man.get("calibrator")
     if not cal_kind:
         return _build_non_valid_response("UNCALIBRATED", "VALID", f"Model {man.get('version')} has no fitted probability calibrator.", mdl_ver=man.get("version"))
 
-    # 5. Construct point-in-time feature vector for the latest completed bar & active setup
-    # Determine direction and detector from latest price action setup or momentum sign
-    ret_4 = float(last_feat_row.get("ret_4", 0.0))
-    ema_dist = float(last_feat_row.get("ema20_dist_atr", 0.0))
-    dir_sign = 1.0 if (ret_4 + 0.5 * ema_dist) >= 0 else -1.0
-    detector = "orb_retest" if abs(ema_dist) > 0.6 else ("wick_reversal" if abs(ret_4) > 0.004 else "dual_band_breakout")
-    if feed_sym in {"GC", "MGC", "SI"} and abs(ema_dist) > 0.4:
-        strategy_family = "GOLD_OPENING_ORB"
-    else:
-        strategy_family = STRATEGY_FAMILY_MAP.get(detector, "SFP_REVERSAL")
+    # 5. Score the newest open filled setup. The row is build_rows(include_open=True):
+    # the same detectors, costs, and detection-time features as training. No invented side.
+    try:
+        row = latest_open_setup(bars, feed_sym, iv, ac_group)
+    except Exception as exc:  # noqa: BLE001
+        return _build_non_valid_response(
+            "NO_SETUP", "VALID",
+            f"Setup scan failed ({type(exc).__name__}); no meta-label was scored.")
+    if not row or row.get("detector") not in DETECTORS:
+        return _build_non_valid_response(
+            "NO_SETUP", "VALID",
+            f"No open filled setup from {', '.join(DETECTORS)} in the last {len(bars)} {iv} bars. "
+            "A meta-label is not scored without one.")
 
-    vc = VENUE_COSTS[venue_for(ac_group)]
-    atr_bps = max(float(last_feat_row.get("atr_bps", 85.0)), 30.0)
-    risk_atr = 1.5
-    risk_bps = max(atr_bps * risk_atr, 45.0)
-    reward_risk = 2.0
-    cost_bps = min(float(vc.get("cost_bps", 4.0)), 12.0)
-    cost_r = round(min(0.25, cost_bps / risk_bps), 4)
+    fitted_through = getattr(cal, "fitted_through", None)
+    if fitted_through is not None and int(row["t"]) <= int(fitted_through):
+        return _build_non_valid_response(
+            "UNCALIBRATED", "VALID",
+            f"Setup {row.get('candidate_id')} was detected at {int(row['t'])}, which is not after the "
+            f"calibrator fitted_through {int(fitted_through)}.",
+            mdl_ver=man.get("version"), cal_ver=str(cal_kind))
 
-    feat_dict: dict[str, Any] = {"detector": detector}
-    for k in BAR_FEATURES:
-        v = float(last_feat_row.get(k, 0.0))
-        feat_dict[k] = v if (math.isfinite(v) or k in VWAP_FEATURES) else 0.0
-    feat_dict["dir_long"] = 1.0 if dir_sign > 0 else 0.0
-    feat_dict["reward_risk"] = reward_risk
-    feat_dict["cost_r"] = cost_r
-    feat_dict["risk_atr"] = risk_atr
-    feat_dict["entry_is_stop"] = 0.0
-    for d_name in DETECTORS:
-        feat_dict[f"det_{d_name}"] = 1.0 if d_name == detector else 0.0
-    for s_name in SIGNED:
-        feat_dict[f"{s_name}_x_dir"] = feat_dict[s_name] * dir_sign
+    detector = str(row["detector"])
+    direction = str(row.get("direction") or "long")
+    dir_sign = 1.0 if direction == "long" else -1.0
+    strategy_family = STRATEGY_FAMILY_MAP.get(detector, "SFP_REVERSAL")
+    X_df = pd.DataFrame([row])
 
-    X_df = pd.DataFrame([feat_dict])
-
-    # 6. Execute calibrated inference
+    # 6. Calibrated inference on that row. p is P(after-cost R > 0 | setup), not a 3-class forecast.
     decision = mdl.decide(X_df, use_conformal=True)
-    p_target = float(np.clip(decision["p"][0], 1e-4, 1.0 - 1e-4))
-    qhat = float(getattr(getattr(mdl, "conformal", None), "qhat", 0.15) or 0.15)
-
-    # Decompose directional probabilities (up / down / neutral summing to 1.0)
-    p_neutral = round(float(np.clip(0.18 * (1.0 - abs(2.0 * p_target - 1.0)), 0.04, 0.25)), 6)
-    rem_prob = 1.0 - p_neutral
+    p_target = float(np.clip(decision["p"][0], 0.0, 1.0))
+    qhat_raw = getattr(getattr(mdl, "conformal", None), "qhat", None)
+    qhat = float(qhat_raw) if qhat_raw is not None and math.isfinite(float(qhat_raw)) else None
+    p_neutral = 0.0
     if dir_sign > 0:
-        p_up = round(rem_prob * p_target, 6)
-        p_down = round(max(0.0, 1.0 - p_up - p_neutral), 6)
+        p_up = round(p_target, 6)
+        p_down = round(1.0 - p_up, 6)
     else:
-        p_down = round(rem_prob * p_target, 6)
-        p_up = round(max(0.0, 1.0 - p_down - p_neutral), 6)
+        p_down = round(p_target, 6)
+        p_up = round(1.0 - p_down, 6)
 
-    # 7. Compute Expected Value after costs
+    # 7. EV is MetaModel.ev_r: p*W - (1-p)*L. W and L are mean after-cost R. Do not subtract costs again.
     win_r_map = getattr(mdl, "win_r", {}) or {}
     loss_r_map = getattr(mdl, "loss_r", {}) or {}
-    g_r = float(win_r_map.get(detector, reward_risk))
-    l_r = float(loss_r_map.get(detector, 1.0))
-    if g_r <= 0.0:
-        g_r = reward_risk
-    if l_r <= 0.0:
-        l_r = 1.0
-
+    w_r, l_r = _empirical_payoffs(detector, win_r_map, loss_r_map)
+    ev_from_model = decision.get("ev_r")
+    ev_r = float(ev_from_model[0]) if ev_from_model is not None else p_target * w_r - (1.0 - p_target) * l_r
     primary_metrics = (man.get("metrics") or {}).get("primary") or {}
     n_oos = int(primary_metrics.get("n_oos") or 0)
-    ev_info = compute_ev_intelligence(
-        p_win=p_target,
-        gross_gain_r=g_r,
-        gross_loss_r=l_r,
-        fees_r=round(cost_r * 0.55, 4),
-        slippage_r=round(cost_r * 0.45, 4),
-        uncertainty=qhat,
-        sample_size=n_oos,
-        model_version=str(man.get("version")),
-        risk_bps=atr_bps,
-    )
+    ev_info = {
+        "estimated_win_probability": round(p_target, 6),
+        "expected_gain_r": round(w_r, 4),
+        "expected_loss_r": round(l_r, 4),
+        "expected_net_value_r": round(ev_r, 6),
+        "expected_net_value_bps": None,
+        "is_positive_ev": bool(ev_r > 0.0),
+        "formula": "EV = p * W - (1 - p) * L",
+        "cost_treatment": "W and L are mean after-cost R from the fit block; fees are not subtracted again",
+        "setup_reward_risk": None if row.get("reward_risk") is None or not math.isfinite(float(row["reward_risk"])) else round(float(row["reward_risk"]), 4),
+        "setup_cost_r": None if row.get("cost_r") is None or not math.isfinite(float(row["cost_r"])) else round(float(row["cost_r"]), 4),
+        "available_sample_size": n_oos,
+        "model_version": str(man.get("version")),
+        "execution_permission": "none",
+    }
 
     # 8. Market-closed / expiration status handling (Section 12)
     closed_override = (mkt.get("market_closed_behavior") or {}).get("prediction_status_override")
@@ -498,6 +540,10 @@ def generate_live_prediction(
     valid_until_dt = now_utc + timedelta(seconds=horizon_sec)
     if last_ts is not None and mkt.get("is_open") and (now_utc.timestamp() - (last_ts + horizon_sec * 4)) > 86400 * 5:
         pred_status = "PREDICTION_EXPIRED"
+
+    from atlas.ai.ml.aci_serve import live_take
+    aci_take, aci_meta = live_take(p_target)
+    take_flag = bool(decision["take"][0]) and bool(aci_take)
 
     lat_ms = round((time.perf_counter() - t_start) * 1000.0, 3)
     cal_ver = f"{cal_kind}-ft-{man.get('fitted_through') or 'oos'}"
@@ -513,6 +559,9 @@ def generate_live_prediction(
         "market_status": mkt_status,
         "market_session": mkt,
         "strategy_family": strategy_family,
+        "detector": detector,
+        "candidate_id": str(row.get("candidate_id") or ""),
+        "setup_detected_at": datetime.fromtimestamp(int(row["t"]), tz=timezone.utc).isoformat(),
         "direction": "LONG" if dir_sign > 0 else "SHORT",
         "model_id": f"atlas-meta:{group}",
         "model_version": str(man.get("version")),
@@ -529,18 +578,29 @@ def generate_live_prediction(
         "expected_return_after_costs": ev_info["expected_net_value_r"],
         "expected_return_after_costs_bps": ev_info["expected_net_value_bps"],
         "expected_value": ev_info,
-        "uncertainty": round(qhat, 4),
-        "conformal_take": bool(decision["take"][0]),
+        "uncertainty": None if qhat is None else round(qhat, 4),
+        "conformal_take": take_flag,
+        "aci": aci_meta,
         "prediction_status": pred_status,
+        "setup_source": "setup_library",
         "data_quality_status": "VALID" if mkt.get("data_feed_health") == "HEALTHY" else str(mkt.get("data_feed_health")),
         "status_reason": (
-            f"Calibrated {cal_kind} inference from {man.get('version')} on {len(bars)} closed {iv} bars"
+            f"Calibrated {cal_kind} meta-label for open {detector} {direction} setup {row.get('candidate_id')} "
+            f"from {man.get('version')} (features at detection, same builder as training)."
             if pred_status == "VALID"
             else f"Market status is {mkt_status} ({mkt.get('label')}); preserving last closed bar prediction as historical context."
         ),
         "inference_latency_ms": lat_ms,
         "execution_permission": "none",
     }
+    if pred_status == "VALID":
+        try:
+            from atlas.ai.ml.shadow_track import observe_open_setup
+            row.setdefault("instrument", feed_sym)
+            record["shadow_observed"] = observe_open_setup(
+                row, model_version=ver_str, probability=p_target, expected_value_r=ev_r, take=take_flag)
+        except Exception:
+            record["shadow_observed"] = False
 
     with _TELEMETRY_LOCK:
         _HEALTH_TELEMETRY["last_market_event_timestamp"] = last_ts_iso
@@ -568,12 +628,8 @@ def generate_live_prediction(
         }
 
     if persist:
-        try:
-            log_file = _predictions_log_path(reg_path)
-            with log_file.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps({k: v for k, v in record.items() if k != "market_session"}, default=str) + "\n")
-        except Exception:
-            pass
+        # Retired output: do not append var/ml/live_predictions.jsonl. The live ledger is sqlite.
+        record["prediction_log"] = prediction_log_note()
 
     return record
 
@@ -666,6 +722,7 @@ def get_prediction_health(
         "registered_models_count": len(models),
         "eligible_models_count": len(eligible_models),
         "by_symbol": by_sym,
+        "prediction_log": prediction_log_note(),
         "execution_permission": "none",
     }
 

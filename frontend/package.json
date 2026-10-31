@@ -6,7 +6,7 @@
     "build": "next build",
     "start": "node server.mjs --production",
     "typecheck": "tsc --noEmit",
-    "test:routes": "node --test scripts/pages.test.mjs scripts/nav.test.mjs scripts/one-chart.test.mjs",
+    "test:routes": "node --test scripts/pages.test.mjs scripts/nav.test.mjs scripts/one-chart.test.mjs scripts/python_cmd.test.mjs",
     "test:charts": "node --test scripts/chart-series.test.mjs scripts/nowcast-fallback.test.mjs",
     "lint": "tsc --noEmit",
     "check:vertical-text": "node scripts/vertical-text.check.mjs",

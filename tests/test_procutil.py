@@ -55,6 +55,22 @@ def test_posix_branch(monkeypatch):
     assert procutil.pid_alive(3) is True
 
 
+def test_subprocess_python_skips_venv_redirector(monkeypatch):
+    monkeypatch.setattr(procutil.sys, "executable", r"C:\repo\.venv\Scripts\python.exe")
+    monkeypatch.setattr(procutil.sys, "_base_executable", r"C:\Python312\python.exe", raising=False)
+    exe, env = procutil.subprocess_python()
+    assert exe == r"C:\Python312\python.exe"
+    assert env["__PYVENV_LAUNCHER__"] == r"C:\repo\.venv\Scripts\python.exe"
+
+
+def test_subprocess_python_same_file_is_not_rewrapped(monkeypatch):
+    monkeypatch.setattr(procutil.sys, "executable", sys.executable)
+    monkeypatch.setattr(procutil.sys, "_base_executable", sys.executable, raising=False)
+    exe, env = procutil.subprocess_python()
+    assert exe == sys.executable
+    assert env.get("__PYVENV_LAUNCHER__") in (None, os.environ.get("__PYVENV_LAUNCHER__"))
+
+
 def test_real_current_process():
     assert procutil.pid_alive(os.getpid()) is True
 

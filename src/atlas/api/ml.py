@@ -68,8 +68,12 @@ def ml_drift(version: str) -> dict[str, Any]:
 def ml_last_refresh() -> dict[str, Any]:
     f = Path("var/ml/last_refresh.json")
     if not f.exists():
-        return {"status": "never_run", "command": "PYTHONPATH=src python scripts/ml_refresh.py"}
-    return json.loads(f.read_text())
+        return {"status": "never_run", "command": "PYTHONPATH=src python scripts/ml_refresh.py", "execution_permission": "none"}
+    try:
+        report = json.loads(f.read_text())
+    except ValueError:
+        return {"status": "unreadable", "execution_permission": "none"}
+    return R.reconcile_refresh(report)
 
 
 @ml_router.get("/shadow")
@@ -187,6 +191,57 @@ def ml_strategy_evolution() -> dict[str, Any]:
     """Section 19: Strategy Evolution across all 7 ATLAS strategy families."""
     from atlas.ai.ml.live_intelligence import get_strategy_evolution_matrix
     return get_strategy_evolution_matrix()
+
+
+@ml_router.get("/v1/contract")
+def ml_v1_contract() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import contract_index
+    return contract_index()
+
+
+@ml_router.get("/v1/models")
+def ml_v1_models(group: str | None = None) -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import models_payload
+    return models_payload(group=group)
+
+
+@ml_router.get("/v1/models/{version}")
+def ml_v1_model(version: str) -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import model_payload
+    body = model_payload(version)
+    if body is None:
+        raise HTTPException(status_code=404, detail="unknown model version")
+    return body
+
+
+@ml_router.get("/v1/live")
+def ml_v1_live(symbol: str = Query("BTC-USD"), interval: str = Query("15m")) -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import live_payload
+    return live_payload(symbol, interval)
+
+
+@ml_router.get("/v1/drift")
+def ml_v1_drift() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import drift_payload
+    return drift_payload()
+
+
+@ml_router.get("/v1/roll")
+def ml_v1_roll() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import roll_payload
+    return roll_payload()
+
+
+@ml_router.get("/v1/shadow")
+def ml_v1_shadow() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import shadow_payload
+    return shadow_payload()
+
+
+@ml_router.get("/v1/monitor")
+def ml_v1_monitor() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import monitor_payload
+    return monitor_payload()
 
 
 @ml_router.get("/evolution-intelligence")

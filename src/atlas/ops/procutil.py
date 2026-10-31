@@ -115,6 +115,25 @@ def child_pids(root_pid: int | None) -> list[int]:
     return descendants
 
 
+def subprocess_python() -> tuple[str, dict[str, str]]:
+    """Interpreter and environment for a child of this process.
+
+    On Windows, a venv ``Scripts/python.exe`` is a redirector: it sets
+    ``__PYVENV_LAUNCHER__`` and ``CreateProcess``es the base interpreter, then waits.
+    Inside that child, ``sys.executable`` still names the redirector, so
+    ``Popen([sys.executable])`` starts another launcher/interpreter pair.
+    Spawn ``sys._base_executable`` and set the launcher variable, which is what
+    ``multiprocessing`` does. When the two paths are the same file there is no
+    redirector and the current interpreter is used as-is.
+    """
+    env = os.environ.copy()
+    base = getattr(sys, "_base_executable", None) or sys.executable
+    if os.path.normcase(os.path.abspath(base)) != os.path.normcase(os.path.abspath(sys.executable)):
+        env["__PYVENV_LAUNCHER__"] = sys.executable
+        return base, env
+    return sys.executable, env
+
+
 def terminate_pid_tree(root_pid: int | None) -> None:
     """Terminate exact descendant PIDs of ``root_pid`` and ``root_pid`` itself on Windows."""
     if not root_pid or root_pid <= 0 or sys.platform != "win32":

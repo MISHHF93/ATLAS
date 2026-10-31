@@ -17,7 +17,7 @@ import pandas as pd
 from atlas.ai.ml import drift as D
 from atlas.ai.ml import registry as R
 from atlas.ai.ml.dataset import FEATURES, build_dataset
-from atlas.ai.ml.train import PRIMARY, fit_final, run_training
+from atlas.ai.ml.train import PRIMARY, fit_final, gates as apply_gates, run_training
 
 UNIVERSE = [(i, iv) for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM") for iv in ("15m", "1h")]
 # evo-10 chart scopes: the series the chart shows predictions for. Crypto (BTC/ETH/SOL), US equities/ETFs and gold
@@ -29,6 +29,16 @@ CHART_UNIVERSE = (
 )
 UNIVERSES = {"default": UNIVERSE, "charts": CHART_UNIVERSE}
 DRIFT_WINDOW_S = 30 * 86400
+
+
+def group_providers(meta: dict, key: str) -> list[str]:
+    """Provider names recorded on the bars for one ``asset-interval`` group. Empty means none were stored."""
+    ac, _, iv = key.rpartition("-")
+    names = []
+    for s in meta.get("series") or []:
+        if s.get("asset_class") == ac and s.get("interval") == iv:
+            names.extend(p for p in (s.get("providers") or []) if p)
+    return sorted(set(names))
 
 
 def incremental_backfill(feed, universe=UNIVERSE, now: int | None = None, default_days: dict[str, int] | None = None) -> list[dict]:
@@ -97,25 +107,42 @@ def refresh(feed, *, universe=UNIVERSE, registry_root=None, backfill: bool = Fal
     data = allrows[allrows.y >= 0].reset_index(drop=True)
     rep["data_hash"], rep["n_rows"], rep["n_open"] = meta["data_hash"], int(len(data)), int((allrows.y < 0).sum())
     res = run_training(data)
+    from atlas.ai.ml.shadow_track import shadow_weeks_count
+    weeks = shadow_weeks_count(shadow) if shadow is not None else 0
+    rep["shadow_weeks"] = weeks
+    for out in res["groups"].values():
+        if out.get("variants"):
+            out["gates"] = apply_gates(out, shadow_weeks=weeks)
     rep["n_trials"] = res["n_trials"]
     rep["groups"] = {}
     for key, out in res["groups"].items():
-        ac, iv = key.split("-")
-        if not out.get("variants"):
-            rep["groups"][key] = {"status": "insufficient_data", "n_rows": out.get("n_rows")}
-            continue
-        model = fit_final(data, ac, iv, "hgb")
-        man = R.register(key, out, meta, model, path=registry_root)
-        g = data[(data.asset_class == ac) & (data.interval == iv)]
-        dr = drift_for_group(g, out.get("_oos"))
-        vdir = R.root(registry_root) / man["version"]
-        (vdir / "drift.json").write_text(json.dumps(R._clean(dr), indent=1))
-        (vdir / "reference.json").write_text(json.dumps(D.reference(g, FEATURES)))
-        entry = {"version": man["version"], "status": man["status"], "gates": man["gates"], "drift_status": dr["psi"]["status"],
-                 "adwin_brier_drift": (dr.get("adwin_brier") or {}).get("drift")}
-        if shadow is not None:
-            entry["shadow"] = shadow_step(shadow, man, model, allrows[(allrows.asset_class == ac) & (allrows.interval == iv)])
-        rep["groups"][key] = entry
+        ac, iv = key.split("-", 1)
+        prov = group_providers(meta, key)
+        prov_status = "present" if prov else "none"
+        try:
+            if not out.get("variants"):
+                rep["groups"][key] = {"status": "insufficient_data", "n_rows": out.get("n_rows"), "providers": prov,
+                                      "provider_status": prov_status,
+                                      "provider_note": None if prov else "no provider recorded on the stored bars for this group"}
+                continue
+            model = fit_final(data, ac, iv, "hgb")
+            man = R.register(key, out, meta, model, path=registry_root)
+            g = data[(data.asset_class == ac) & (data.interval == iv)]
+            dr = drift_for_group(g, out.get("_oos"))
+            vdir = R.root(registry_root) / man["version"]
+            (vdir / "drift.json").write_text(json.dumps(R._clean(dr), indent=1))
+            (vdir / "reference.json").write_text(json.dumps(D.reference(g, FEATURES)))
+            entry = {"version": man["version"], "status": man["status"], "gates": man["gates"], "drift_status": dr["psi"]["status"],
+                     "adwin_brier_drift": (dr.get("adwin_brier") or {}).get("drift"), "providers": prov, "provider_status": prov_status,
+                     "artifact": "present"}
+            if not prov:
+                entry["provider_note"] = "no provider recorded on the stored bars for this group"
+            if shadow is not None:
+                entry["shadow"] = shadow_step(shadow, man, model, allrows[(allrows.asset_class == ac) & (allrows.interval == iv)])
+            rep["groups"][key] = entry
+        except Exception as exc:  # one group must not abort the report and leave last_refresh pointing at an older run
+            rep["groups"][key] = {"status": "error", "error": f"{type(exc).__name__}: {exc}"[:300], "providers": prov,
+                                  "provider_status": prov_status, "artifact": "unknown"}
     rep["elapsed_s"] = round(time.time() - t0, 1)
     rep["primary"] = PRIMARY
     if report_path:

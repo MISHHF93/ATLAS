@@ -3,6 +3,11 @@
 
     PYTHONPATH=src python scripts/run_live_ingest.py [--db var/feeds/atlas_feed.sqlite] [--duration SECONDS]
 Writes its PID to var/feeds/live_ingest.pid (stop it with ``kill $(cat var/feeds/live_ingest.pid)``).
+
+This process does not spawn another interpreter. On Windows, starting it with a venv
+``Scripts\\python.exe`` shows a redirector parent plus the base ``Python312`` child; that
+pair is the venv launcher (``PC/venvlauncher.c``), and the pid file records the child
+(``os.getpid()``), which is the process doing the ingest.
 """
 import argparse
 import asyncio
