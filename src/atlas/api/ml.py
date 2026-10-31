@@ -193,6 +193,57 @@ def ml_strategy_evolution() -> dict[str, Any]:
     return get_strategy_evolution_matrix()
 
 
+@ml_router.get("/v1/contract")
+def ml_v1_contract() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import contract_index
+    return contract_index()
+
+
+@ml_router.get("/v1/models")
+def ml_v1_models(group: str | None = None) -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import models_payload
+    return models_payload(group=group)
+
+
+@ml_router.get("/v1/models/{version}")
+def ml_v1_model(version: str) -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import model_payload
+    body = model_payload(version)
+    if body is None:
+        raise HTTPException(status_code=404, detail="unknown model version")
+    return body
+
+
+@ml_router.get("/v1/live")
+def ml_v1_live(symbol: str = Query("BTC-USD"), interval: str = Query("15m")) -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import live_payload
+    return live_payload(symbol, interval)
+
+
+@ml_router.get("/v1/drift")
+def ml_v1_drift() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import drift_payload
+    return drift_payload()
+
+
+@ml_router.get("/v1/roll")
+def ml_v1_roll() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import roll_payload
+    return roll_payload()
+
+
+@ml_router.get("/v1/shadow")
+def ml_v1_shadow() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import shadow_payload
+    return shadow_payload()
+
+
+@ml_router.get("/v1/monitor")
+def ml_v1_monitor() -> dict[str, Any]:
+    from atlas.ai.ml.contract_v1 import monitor_payload
+    return monitor_payload()
+
+
 @ml_router.get("/evolution-intelligence")
 def ml_evolution_intelligence(symbol: str = Query("BTC-USD"), interval: str = Query("15m")) -> dict[str, Any]:
     """Sections 13–20: Complete ATLAS Evolution Intelligence Dashboard across 4 distinct dimensions."""

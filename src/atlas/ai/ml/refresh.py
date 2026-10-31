@@ -17,7 +17,7 @@ import pandas as pd
 from atlas.ai.ml import drift as D
 from atlas.ai.ml import registry as R
 from atlas.ai.ml.dataset import FEATURES, build_dataset
-from atlas.ai.ml.train import PRIMARY, fit_final, run_training
+from atlas.ai.ml.train import PRIMARY, fit_final, gates as apply_gates, run_training
 
 UNIVERSE = [(i, iv) for i in ("BTCUSDT", "ETHUSDT", "SPY", "QQQ", "IWM") for iv in ("15m", "1h")]
 # evo-10 chart scopes: the series the chart shows predictions for. Crypto (BTC/ETH/SOL), US equities/ETFs and gold
@@ -107,6 +107,12 @@ def refresh(feed, *, universe=UNIVERSE, registry_root=None, backfill: bool = Fal
     data = allrows[allrows.y >= 0].reset_index(drop=True)
     rep["data_hash"], rep["n_rows"], rep["n_open"] = meta["data_hash"], int(len(data)), int((allrows.y < 0).sum())
     res = run_training(data)
+    from atlas.ai.ml.shadow_track import shadow_weeks_count
+    weeks = shadow_weeks_count(shadow) if shadow is not None else 0
+    rep["shadow_weeks"] = weeks
+    for out in res["groups"].values():
+        if out.get("variants"):
+            out["gates"] = apply_gates(out, shadow_weeks=weeks)
     rep["n_trials"] = res["n_trials"]
     rep["groups"] = {}
     for key, out in res["groups"].items():

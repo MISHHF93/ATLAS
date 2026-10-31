@@ -541,6 +541,10 @@ def generate_live_prediction(
     if last_ts is not None and mkt.get("is_open") and (now_utc.timestamp() - (last_ts + horizon_sec * 4)) > 86400 * 5:
         pred_status = "PREDICTION_EXPIRED"
 
+    from atlas.ai.ml.aci_serve import live_take
+    aci_take, aci_meta = live_take(p_target)
+    take_flag = bool(decision["take"][0]) and bool(aci_take)
+
     lat_ms = round((time.perf_counter() - t_start) * 1000.0, 3)
     cal_ver = f"{cal_kind}-ft-{man.get('fitted_through') or 'oos'}"
     ver_str = str(man.get("version"))
@@ -575,7 +579,8 @@ def generate_live_prediction(
         "expected_return_after_costs_bps": ev_info["expected_net_value_bps"],
         "expected_value": ev_info,
         "uncertainty": None if qhat is None else round(qhat, 4),
-        "conformal_take": bool(decision["take"][0]),
+        "conformal_take": take_flag,
+        "aci": aci_meta,
         "prediction_status": pred_status,
         "setup_source": "setup_library",
         "data_quality_status": "VALID" if mkt.get("data_feed_health") == "HEALTHY" else str(mkt.get("data_feed_health")),
@@ -588,6 +593,14 @@ def generate_live_prediction(
         "inference_latency_ms": lat_ms,
         "execution_permission": "none",
     }
+    if pred_status == "VALID":
+        try:
+            from atlas.ai.ml.shadow_track import observe_open_setup
+            row.setdefault("instrument", feed_sym)
+            record["shadow_observed"] = observe_open_setup(
+                row, model_version=ver_str, probability=p_target, expected_value_r=ev_r, take=take_flag)
+        except Exception:
+            record["shadow_observed"] = False
 
     with _TELEMETRY_LOCK:
         _HEALTH_TELEMETRY["last_market_event_timestamp"] = last_ts_iso

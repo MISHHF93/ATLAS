@@ -28,6 +28,19 @@ class ACIState:
             self.alpha_t = self.alpha
 
 
+def empirical_qhat(scores: np.ndarray, alpha_t: float) -> float:
+    """Same quantile as one ACI step: ceil((m+1)(1-alpha_t))/m of the resolved scores. Empty buffer → 1.0 (uninformative full set)."""
+    recent = np.sort(np.asarray(scores, float))
+    if len(recent) == 0:
+        return 1.0
+    level = 1.0 - float(np.clip(alpha_t, 0.0, 1.0))
+    m = len(recent)
+    kk = math.ceil((m + 1) * level)
+    if kk > m:
+        return float("inf")
+    return float(recent[max(kk, 1) - 1])
+
+
 def aci_binary(t: np.ndarray, resolved_at: np.ndarray, p: np.ndarray, y: np.ndarray, init_scores: np.ndarray | None = None,
                alpha: float = 0.2, gamma: float = 0.01, window: int = 500) -> dict:
     """Run ACI over an OOS stream sorted by t. Returns per-step sets, errors, alpha_t and the bound.

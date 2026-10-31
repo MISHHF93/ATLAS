@@ -60,3 +60,12 @@ What was wrong, and what this pass changed:
 6. **Do not merge the directional pipeline into the meta-label pipeline, and do not replace walk-forward with CPCV inside the gates.** `atlas.ml` is an alias of `atlas.ai.ml`. CPCV is the better overfitting diagnostic in Arian et al. (2024); PBO already uses CSCV. Swapping the primary metric would rewrite every gate value. That is a design change, not a hygiene fix.
 
 7. **`atlas-console up` still launches `sys.executable`.** On Windows that is the redirector, so core, watchdog, and console each show a pair. The same unwrap as the roll supervisor would remove those extra parents. It was left alone because it was outside the three processes originally reported, and the console launcher test starts real processes.
+
+## Native platform slice (same branch)
+
+Built for a native client without changing gates or running a retrain in this workspace. Operator notes for the whole branch are in `docs/ml/HANDOFF_FOR_LOLA.md`. Schemas are in `docs/ml/api-v1.md`.
+
+- Adaptive conformal on the meta-label serve path is behind `ATLAS_ML_ACI`, default off. An empty score buffer abstains. `scripts/ml_aci_eval.py --demo` compares it with split conformal on a synthetic stream and always reports `enable_aci: false`. It does not set the flag.
+- `scripts/ml_public_ohlcv_retrain.py` with no flags prints the Coinbase/Kraken plan and does not train. `--backfill` fetches only. `--run` is the heavy backfill plus `refresh`, meant for a PC with network. It passes the existing gates and the shadow-week count. It does not place orders.
+- `GET /api/ml/v1/*` is the versioned read contract: model card and gates, live prediction with data quality and freshness, drift, roll-loop health, shadow weeks, and Brier-versus-base-rate series. Empty inputs stay empty.
+- Shadow weeks are the count of ISO weeks that have a resolved target, stop, or timeout in `var/shadow/ml_meta_shadow.jsonl`. A live `VALID` setup is appended to that log outside tests. The next refresh copies the count into the existing shadow gate only. The other gates are unchanged. Four weeks do not make a model eligible if Brier, DSR, or PBO still fail, and eligibility still has `execution_permission: none`.
